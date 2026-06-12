@@ -1,0 +1,14 @@
+[project]
+name = "comfyui-sharp"
+description = "Warning, uses experimental package `comfy-env` to attempt a one click isolated install. Will download and use pixi package manager. ComfyUI wrapper around Apple's latest SHARP model (ml-sharp). Monocular 3D Gaussian Splatting in under 1 second. Generate 3D Gaussians from a single image using Apple's SHARP model."
+version = "0.1.14"
+
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/PozzettiAndrea/ComfyUI-Sharp"
+
+[tool.comfy]
+PublisherId = "pznodes"
+DisplayName = "Sharp"
+Icon = "https://raw.githubusercontent.com/PozzettiAndrea/ComfyUI-Sharp/main/assets/icon.png"

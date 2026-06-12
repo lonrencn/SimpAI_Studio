@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LayerForge Editor</title>
+    <link rel="stylesheet" href="/file=javascript/layerforge/js/css/blend_mode_menu.css?v=patch26">
+    <link rel="stylesheet" href="/file=javascript/layerforge/js/css/canvas_view.css?v=patch26">
+    <link rel="stylesheet" href="/file=javascript/layerforge/js/css/custom_shape_menu.css?v=patch26">
+    <link rel="stylesheet" href="/file=javascript/layerforge/js/css/layerforge_mask_editor.css?v=patch26">
+    <link rel="stylesheet" href="/file=javascript/layerforge/js/css/layers_panel.css?v=patch26">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1e1e1e;
+            color: #fff;
+            overflow: hidden;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            height: 100dvh;
+        }
+        #editor-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        #toolbar {
+            height: 40px;
+            background-color: #2d2d2d;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            border-bottom: 1px solid #3d3d3d;
+            gap: 6px;
+        }
+        .btn {
+            background-color: #3d3d3d;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            margin-right: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .btn:hover {
+            background-color: #4d4d4d;
+        }
+        .btn-primary {
+            background-color: #007acc;
+        }
+        .btn-primary:hover {
+            background-color: #0098ff;
+        }
+
+        #paint-color {
+            width: 44px;
+            height: 30px;
+            padding: 0;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background: transparent;
+        }
+        #paint-color::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        #paint-color::-webkit-color-swatch {
+            border: none;
+            border-radius: 6px;
+        }
+
+        #status-text {
+            white-space: nowrap;
+        }
+
+        @media (max-width: 700px) {
+            #toolbar {
+                height: 44px;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                padding: 6px 8px;
+                align-items: center;
+            }
+            #toolbar::-webkit-scrollbar {
+                height: 0;
+            }
+            #toolbar > * {
+                flex: 0 0 auto;
+            }
+            .btn {
+                padding: 7px 10px;
+                margin-right: 6px;
+                white-space: nowrap;
+            }
+            #paint-size {
+                width: 110px !important;
+                margin-right: 6px !important;
+            }
+            #status-text {
+                margin-left: auto;
+            }
+            #toolbar-spacer {
+                flex: 0 0 auto !important;
+                width: 0 !important;
+            }
+            #paint-color {
+                width: 44px;
+                height: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <button class="btn btn-primary" id="save-btn">保存并关闭</button>
+        <button class="btn" id="cancel-btn">取消</button>
+        <button class="btn" id="paint-toggle">彩色画笔</button>
+        <button class="btn" id="paint-eraser">橡皮擦</button>
+        <input id="paint-color" type="color" value="#ffffff" style="margin-right:10px;">
+        <input id="paint-size" type="range" min="1" max="160" value="18" style="width:140px; margin-right:10px;">
+        <button class="btn" id="paint-new-layer">新建层</button>
+        <button class="btn" id="paint-clear-layer">清空层</button>
+        <span id="toolbar-spacer" style="flex:1"></span>
+        <span id="status-text" style="font-size: 12px; color: #aaa;">就绪</span>
+    </div>
+    <div id="editor-container"></div>
+
+    <script type="module">
+        import { createCanvasWidget } from '/file=javascript/layerforge/js/CanvasView.js?v=patch47';
+        import { app } from '/file=javascript/layerforge/js/comfy_shim.js?v=patch26';
+        import { createEmptyImage } from '/file=javascript/layerforge/js/utils/ImageUtils.js?v=patch26';
+        import { saveImage } from '/file=javascript/layerforge/js/db.js?v=patch26';
+        import { generateUUID, createCanvas } from '/file=javascript/layerforge/js/utils/CommonUtils.js?v=patch26';
+
+        window.comfy_api_url = "http://127.0.0.1:8188";
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('api_url')) {
+            window.comfy_api_url = urlParams.get('api_url');
+        }
+        
+        const sessionId = urlParams.get('session_id') || "default_session";
+
+        const mockNode = {
+            id: `gradio_layerforge_${sessionId}`,
+            widgets: [],
+            inputs: [{ link: null }],
+            properties: {},
+            addDOMWidget: (name, type, element) => {
+                if (name === "mainContainer") {
+                    const container = document.getElementById('editor-container');
+                    container.innerHTML = '';
+                    container.appendChild(element);
+                }
+            }
+        };
+
+        const mockWidget = {
+            name: "canvas",
+            value: null
+        };
+
+        let canvasInstance = null;
+        let paintEnabled = false;
+        let paintColor = '#ffffff';
+        let paintSize = 18;
+        let paintTool = 'brush';
+        let paintLayer = null;
+        let paintCanvas = null;
+        let paintCtx = null;
+        let isPainting = false;
+        let lastPaintPt = null;
+        let lastPaintAnchor = null;
+        let paintActivePointerId = null;
+        let paintPointers = new Map();
+        let pinchLastDistance = null;
+        let pinchLastMid = null;
+        let previousCanvasPointerEvents = null;
+        let isPanning = false;
+        let panPointerId = null;
+        let panStart = null;
+        let lastMouseClient = null;
+        let activeDrawTarget = null;
+        let editLayerCanvas = null;
+        let editLayerCtx = null;
+        let liveRenderPending = false;
+
+        const prevOnError = window.onerror;
+        window.onerror = (...args) => {
+            const message = args && args[0];
+            if (typeof message === 'string' && message.includes('ResizeObserver loop')) {
+                return true;
+            }
+            if (typeof prevOnError === 'function') {
+                return prevOnError.apply(window, args);
+            }
+            return false;
+        };
+
+        async function init() {
+            try {
+                const result = await createCanvasWidget(mockNode, mockWidget, app);
+                canvasInstance = result.canvas;
+                const syncPaintLayerReference = (resetPaintBitmap = true) => {
+                    if (!canvasInstance || !paintLayer)
+                        return;
+                    const current = Array.isArray(canvasInstance.layers)
+                        ? canvasInstance.layers.find((l) => l && l.id === paintLayer.id)
+                        : null;
+                    if (!current) {
+                        paintLayer = null;
+                        if (resetPaintBitmap) {
+                            paintCanvas = null;
+                            paintCtx = null;
+                        }
+                        return;
+                    }
+                    if (current !== paintLayer) {
+                        paintLayer = current;
+                        if (resetPaintBitmap) {
+                            paintCanvas = null;
+                            paintCtx = null;
+                        }
+                    }
+                };
+                for (const methodName of ['undo', 'redo']) {
+                    const original = canvasInstance?.[methodName];
+                    if (typeof original !== 'function')
+                        continue;
+                    canvasInstance[methodName] = (...args) => {
+                        const result = original.apply(canvasInstance, args);
+                        try {
+                            syncPaintLayerReference();
+                        }
+                        catch {
+                        }
+                        return result;
+                    };
+                }
+
+                const toolbar = document.getElementById('toolbar');
+                const paintToggle = document.getElementById('paint-toggle');
+                const paintEraserToggle = document.getElementById('paint-eraser');
+                const paintColorInput = document.getElementById('paint-color');
+                const paintSizeInput = document.getElementById('paint-size');
+                const paintNewLayerBtn = document.getElementById('paint-new-layer');
+                const paintClearLayerBtn = document.getElementById('paint-clear-layer');
+                const editorContainer = document.getElementById('editor-container');
+
+                const overlay = document.createElement('canvas');
+                overlay.style.position = 'absolute';
+                overlay.style.left = '0';
+                overlay.style.top = '0';
+                overlay.style.width = '100%';
+                overlay.style.height = '100%';
+                overlay.style.pointerEvents = 'none';
+                overlay.style.zIndex = '9999';
+                overlay.style.touchAction = 'none';
+                overlay.style.userSelect = 'none';
+                const overlayHost = canvasInstance?.canvasContainer || canvasInstance?.canvas?.parentElement || editorContainer;
+                try {
+                    const ps = window.getComputedStyle(overlayHost);
+                    if (ps.position === 'static') {
+                        overlayHost.style.position = 'relative';
+                    }
+                } catch {
+                }
+                overlayHost.appendChild(overlay);
+
+                const updateOverlaySize = () => {
+                    const rect = overlayHost.getBoundingClientRect();
+                    const dpr = window.devicePixelRatio || 1;
+                    const w = Math.max(1, Math.round(rect.width * dpr));
+                    const h = Math.max(1, Math.round(rect.height * dpr));
+                    if (overlay.width !== w || overlay.height !== h) {
+                        overlay.width = w;
+                        overlay.height = h;
+                    }
+                };
+
+                let pendingViewportRerender = null;
+                let lastViewportKey = '';
+                const scheduleViewportRerender = () => {
+                    if (!canvasInstance)
+                        return;
+                    if (pendingViewportRerender !== null)
+                        return;
+                    pendingViewportRerender = requestAnimationFrame(() => {
+                        pendingViewportRerender = null;
+                        const rect = overlayHost.getBoundingClientRect();
+                        const dpr = window.devicePixelRatio || 1;
+                        const key = `${Math.round(rect.width)}x${Math.round(rect.height)}@${dpr}`;
+                        if (key !== lastViewportKey) {
+                            lastViewportKey = key;
+                            try {
+                                updateOverlaySize();
+                                clearOverlay();
+                            }
+                            catch {
+                            }
+                        }
+                        try {
+                            canvasInstance.render();
+                        }
+                        catch {
+                        }
+                    });
+                };
+                window.addEventListener('resize', scheduleViewportRerender, { passive: true });
+                if (window.visualViewport) {
+                    window.visualViewport.addEventListener('resize', scheduleViewportRerender, { passive: true });
+                    window.visualViewport.addEventListener('scroll', scheduleViewportRerender, { passive: true });
+                }
+                let dprQuery = null;
+                const setupDprListener = () => {
+                    try {
+                        const dpr = window.devicePixelRatio || 1;
+                        const mql = window.matchMedia?.(`(resolution: ${dpr}dppx)`);
+                        if (!mql)
+                            return;
+                        if (dprQuery && typeof dprQuery.removeEventListener === 'function') {
+                            dprQuery.removeEventListener('change', scheduleViewportRerender);
+                        }
+                        else if (dprQuery && typeof dprQuery.removeListener === 'function') {
+                            dprQuery.removeListener(scheduleViewportRerender);
+                        }
+                        dprQuery = mql;
+                        if (typeof dprQuery.addEventListener === 'function') {
+                            dprQuery.addEventListener('change', () => {
+                                setupDprListener();
+                                scheduleViewportRerender();
+                            });
+                        }
+                        else if (typeof dprQuery.addListener === 'function') {
+                            dprQuery.addListener(() => {
+                                setupDprListener();
+                                scheduleViewportRerender();
+                            });
+                        }
+                    }
+                    catch {
+                    }
+                };
+                setupDprListener();
+                scheduleViewportRerender();
+
+                const overlayCtx = overlay.getContext('2d');
+                const clearOverlay = () => {
+                    if (!overlayCtx)
+                        return;
+                    try {
+                        overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
+                    } catch {
+                    }
+                    overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+                };
+
+                const getOverlayPointFromClient = (clientX, clientY) => {
+                    const overlayRect = overlay.getBoundingClientRect();
+                    if (!overlayRect.width || !overlayRect.height)
+                        return null;
+                    const scaleX = overlay.width / overlayRect.width;
+                    const scaleY = overlay.height / overlayRect.height;
+                    return {
+                        x: (clientX - overlayRect.left) * scaleX,
+                        y: (clientY - overlayRect.top) * scaleY,
+                        scaleX,
+                        scaleY
+                    };
+                };
+
+                const drawBrushCursor = (clientX, clientY) => {
+                    if (!overlayCtx || !canvasInstance || !paintEnabled)
+                        return;
+                    const p = getOverlayPointFromClient(clientX, clientY);
+                    if (!p)
+                        return;
+                    const zoom = canvasInstance.viewport?.zoom || 1;
+                    const radius = Math.max(0.5, (paintSize / 2) * zoom * ((p.scaleX + p.scaleY) / 2));
+                    const dash = Math.max(4, radius * 0.45);
+                    const gap = Math.max(3, radius * 0.35);
+                    overlayCtx.save();
+                    overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
+                    overlayCtx.globalAlpha = 1;
+                    overlayCtx.setLineDash([dash, gap]);
+                    overlayCtx.lineDashOffset = (Date.now() / 40) % (dash + gap);
+                    overlayCtx.beginPath();
+                    overlayCtx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+                    overlayCtx.lineWidth = 2.6;
+                    overlayCtx.strokeStyle = 'rgba(0,0,0,1)';
+                    overlayCtx.stroke();
+                    overlayCtx.beginPath();
+                    overlayCtx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+                    overlayCtx.lineWidth = 1.6;
+                    overlayCtx.strokeStyle = paintTool === 'eraser' ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,1)';
+                    overlayCtx.stroke();
+                    overlayCtx.beginPath();
+                    overlayCtx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+                    overlayCtx.lineWidth = 0.9;
+                    overlayCtx.strokeStyle = 'rgba(0,0,0,0.9)';
+                    overlayCtx.stroke();
+                    overlayCtx.restore();
+                };
+
+                const refreshBrushCursor = (clientX, clientY) => {
+                    if (!paintEnabled || isPanning)
+                        return;
+                    updateOverlaySize();
+                    clearOverlay();
+                    drawBrushCursor(clientX, clientY);
+                };
+
+                const scheduleLiveRender = () => {
+                    if (!canvasInstance || liveRenderPending)
+                        return;
+                    liveRenderPending = true;
+                    requestAnimationFrame(() => {
+                        liveRenderPending = false;
+                        const target = activeDrawTarget;
+                        if (!target || !canvasInstance)
+                            return;
+                        if (target.kind === 'paint') {
+                            if (target.layer && paintCanvas) {
+                                target.layer.image = paintCanvas;
+                                target.layer.originalWidth = paintCanvas.width;
+                                target.layer.originalHeight = paintCanvas.height;
+                            }
+                        }
+                        else if (target.kind === 'layer') {
+                            if (target.layer && editLayerCanvas) {
+                                target.layer.image = editLayerCanvas;
+                                target.layer.originalWidth = editLayerCanvas.width;
+                                target.layer.originalHeight = editLayerCanvas.height;
+                            }
+                        }
+                        canvasInstance.render();
+                    });
+                };
+
+                const setPaintTool = (tool) => {
+                    paintTool = tool === 'eraser' ? 'eraser' : 'brush';
+                    paintEraserToggle.classList.toggle('btn-primary', paintTool === 'eraser');
+                    if (paintEnabled && lastMouseClient) {
+                        refreshBrushCursor(lastMouseClient.clientX, lastMouseClient.clientY);
+                    }
+                };
+
+                const setPaintEnabled = (enabled) => {
+                    paintEnabled = !!enabled;
+                    paintToggle.classList.toggle('btn-primary', paintEnabled);
+                    overlay.style.pointerEvents = paintEnabled ? 'auto' : 'none';
+                    overlay.style.cursor = paintEnabled ? 'crosshair' : '';
+                    if (paintEnabled) {
+                        try {
+                            canvasInstance?.canvas?.focus?.({ preventScroll: true });
+                        }
+                        catch {
+                        }
+                    }
+                    if (canvasInstance?.canvas) {
+                        const shouldLockCanvas = (navigator.maxTouchPoints > 0) || (window.matchMedia?.('(max-width: 900px)')?.matches ?? false);
+                        if (shouldLockCanvas) {
+                            if (paintEnabled) {
+                                if (previousCanvasPointerEvents === null) {
+                                    previousCanvasPointerEvents = canvasInstance.canvas.style.pointerEvents || '';
+                                }
+                                canvasInstance.canvas.style.pointerEvents = 'none';
+                            }
+                            else {
+                                canvasInstance.canvas.style.pointerEvents = previousCanvasPointerEvents ?? '';
+                                previousCanvasPointerEvents = null;
+                            }
+                        }
+                    }
+                    if (!paintEnabled) {
+                        isPainting = false;
+                        isPanning = false;
+                        panPointerId = null;
+                        panStart = null;
+                        activeDrawTarget = null;
+                        editLayerCanvas = null;
+                        editLayerCtx = null;
+                        lastPaintPt = null;
+                        lastPaintAnchor = null;
+                        paintActivePointerId = null;
+                        paintPointers.clear();
+                        pinchLastDistance = null;
+                        pinchLastMid = null;
+                        clearOverlay();
+                    }
+                };
+
+                paintColorInput.addEventListener('input', () => {
+                    paintColor = paintColorInput.value || paintColor;
+                });
+                paintSizeInput.addEventListener('input', () => {
+                    const v = Number.parseInt(paintSizeInput.value, 10);
+                    if (Number.isFinite(v)) {
+                        paintSize = Math.max(1, Math.min(160, v));
+                    }
+                    if (paintEnabled && lastMouseClient) {
+                        refreshBrushCursor(lastMouseClient.clientX, lastMouseClient.clientY);
+                    }
+                });
+                paintToggle.addEventListener('click', () => {
+                    setPaintEnabled(!paintEnabled);
+                    if (paintEnabled && lastMouseClient) {
+                        refreshBrushCursor(lastMouseClient.clientX, lastMouseClient.clientY);
+                    }
+                });
+                paintEraserToggle.addEventListener('click', () => {
+                    if (!paintEnabled) {
+                        setPaintEnabled(true);
+                    }
+                    setPaintTool(paintTool === 'eraser' ? 'brush' : 'eraser');
+                    if (paintEnabled && lastMouseClient) {
+                        refreshBrushCursor(lastMouseClient.clientX, lastMouseClient.clientY);
+                    }
+                });
+
+                const ensurePaintLayer = async () => {
+                    if (!canvasInstance)
+                        return null;
+                    syncPaintLayerReference();
+                    const bounds = canvasInstance.outputAreaBounds;
+                    const w = Math.max(1, Math.round(bounds.width));
+                    const h = Math.max(1, Math.round(bounds.height));
+                    if (!paintLayer) {
+                        const img = await createEmptyImage(w, h, 'transparent');
+                        paintLayer = await canvasInstance.canvasLayers.addLayerWithImage(img, { name: 'Color Paint' }, 'default', bounds);
+                    } else {
+                        paintLayer.x = bounds.x;
+                        paintLayer.y = bounds.y;
+                        paintLayer.width = w;
+                        paintLayer.height = h;
+                    }
+                    if (!paintCanvas || !paintCtx || paintCanvas.width !== w || paintCanvas.height !== h) {
+                        const created = createCanvas(w, h, '2d', { willReadFrequently: true, alpha: true });
+                        paintCanvas = created.canvas;
+                        paintCtx = created.ctx;
+                        if (paintCtx) {
+                            paintCtx.clearRect(0, 0, w, h);
+                            try {
+                                if (paintLayer?.image) {
+                                    paintCtx.drawImage(paintLayer.image, 0, 0, w, h);
+                                }
+                            } catch {
+                            }
+                        }
+                    }
+                    return paintLayer;
+                };
+
+                const commitPaintLayer = async () => {
+                    if (!canvasInstance || !paintLayer || !paintCanvas)
+                        return;
+                    const layerRef = paintLayer;
+                    syncPaintLayerReference(false);
+                    if (!paintLayer || paintLayer !== layerRef) {
+                        paintCanvas = null;
+                        paintCtx = null;
+                        return;
+                    }
+                    const dataUrl = paintCanvas.toDataURL('image/png');
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    await new Promise((resolve) => {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                        img.src = dataUrl;
+                    });
+                    const imageId = generateUUID();
+                    await saveImage(imageId, dataUrl);
+                    canvasInstance.imageCache.set(imageId, dataUrl);
+                    paintLayer.image = img;
+                    paintLayer.imageId = imageId;
+                    paintLayer.originalWidth = img.width;
+                    paintLayer.originalHeight = img.height;
+                    canvasInstance.render();
+                    canvasInstance.saveState();
+                    if (canvasInstance.canvasLayersPanel) {
+                        canvasInstance.canvasLayersPanel.onLayersChanged();
+                        canvasInstance.canvasLayersPanel.onSelectionChanged();
+                    }
+                };
+
+                paintNewLayerBtn.addEventListener('click', async () => {
+                    if (!canvasInstance)
+                        return;
+                    const bounds = canvasInstance.outputAreaBounds;
+                    const w = Math.max(1, Math.round(bounds.width));
+                    const h = Math.max(1, Math.round(bounds.height));
+                    const img = await createEmptyImage(w, h, 'transparent');
+                    paintLayer = await canvasInstance.canvasLayers.addLayerWithImage(img, { name: `Color Paint ${canvasInstance.layers.length + 1}` }, 'default', bounds);
+                    paintCanvas = null;
+                    paintCtx = null;
+                });
+
+                paintClearLayerBtn.addEventListener('click', async () => {
+                    await ensurePaintLayer();
+                    if (!paintCanvas || !paintCtx)
+                        return;
+                    paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+                    await commitPaintLayer();
+                });
+
+                const getWorldFromClient = (clientX, clientY) => {
+                    const c = canvasInstance?.canvas;
+                    if (!c)
+                        return null;
+                    const rect = c.getBoundingClientRect();
+                    const vx = ((clientX - rect.left) * c.width) / rect.width;
+                    const vy = ((clientY - rect.top) * c.height) / rect.height;
+                    const zoom = canvasInstance.viewport.zoom || 1;
+                    const wx = canvasInstance.viewport.x + vx / zoom;
+                    const wy = canvasInstance.viewport.y + vy / zoom;
+                    return { x: wx, y: wy };
+                };
+
+                const getPaintPoint = (e) => {
+                    const w = getWorldFromClient(e.clientX, e.clientY);
+                    if (!w)
+                        return null;
+                    const bounds = canvasInstance.outputAreaBounds;
+                    const px = w.x - bounds.x;
+                    const py = w.y - bounds.y;
+                    const outW = Math.max(1, Math.round(bounds.width));
+                    const outH = Math.max(1, Math.round(bounds.height));
+                    const cx = Math.max(0, Math.min(outW, px));
+                    const cy = Math.max(0, Math.min(outH, py));
+                    return { x: cx, y: cy };
+                };
+
+                const getSelectedSingleLayer = () => {
+                    const selected = canvasInstance?.canvasSelection?.selectedLayers;
+                    if (!Array.isArray(selected) || selected.length !== 1)
+                        return null;
+                    return selected[0] || null;
+                };
+
+                const ensureEditLayerCanvas = async (layer) => {
+                    if (!layer || !layer.image)
+                        return null;
+                    const imgW = Math.max(1, Math.round(layer.originalWidth || layer.image.width || layer.width || 1));
+                    const imgH = Math.max(1, Math.round(layer.originalHeight || layer.image.height || layer.height || 1));
+                    if (!editLayerCanvas || !editLayerCtx || editLayerCanvas.width !== imgW || editLayerCanvas.height !== imgH || activeDrawTarget?.layer?.id !== layer.id) {
+                        const created = createCanvas(imgW, imgH, '2d', { willReadFrequently: true, alpha: true });
+                        editLayerCanvas = created.canvas;
+                        editLayerCtx = created.ctx;
+                        if (editLayerCtx) {
+                            editLayerCtx.clearRect(0, 0, imgW, imgH);
+                            try {
+                                editLayerCtx.drawImage(layer.image, 0, 0, imgW, imgH);
+                            }
+                            catch {
+                            }
+                        }
+                    }
+                    return { canvas: editLayerCanvas, ctx: editLayerCtx, imgW, imgH };
+                };
+
+                const getLayerPaintPoint = (e, layer, imgW, imgH) => {
+                    const w = getWorldFromClient(e.clientX, e.clientY);
+                    if (!w)
+                        return null;
+                    const lw = layer.width || 0;
+                    const lh = layer.height || 0;
+                    if (!Number.isFinite(lw) || !Number.isFinite(lh) || lw <= 0.001 || lh <= 0.001)
+                        return null;
+                    const cx = layer.x + lw / 2;
+                    const cy = layer.y + lh / 2;
+                    const dx = w.x - cx;
+                    const dy = w.y - cy;
+                    const angle = -((layer.rotation || 0) * Math.PI) / 180;
+                    const cos = Math.cos(angle);
+                    const sin = Math.sin(angle);
+                    const rx = dx * cos - dy * sin;
+                    const ry = dx * sin + dy * cos;
+                    const localX = rx + lw / 2;
+                    const localY = ry + lh / 2;
+                    const px = (localX * imgW) / lw;
+                    const py = (localY * imgH) / lh;
+                    return {
+                        x: Math.max(0, Math.min(imgW, px)),
+                        y: Math.max(0, Math.min(imgH, py)),
+                        scale: ((imgW / lw) + (imgH / lh)) / 2
+                    };
+                };
+
+                const drawOverlayStroke = (a, b) => {
+                    if (!overlayCtx || !canvasInstance)
+                        return;
+                    if (paintTool === 'eraser')
+                        return;
+                    const zoom = canvasInstance.viewport.zoom || 1;
+                    const canvasEl = canvasInstance.canvas;
+                    if (!canvasEl)
+                        return;
+                    const overlayRect = overlay.getBoundingClientRect();
+                    const canvasRect = canvasEl.getBoundingClientRect();
+                    if (!overlayRect.width || !overlayRect.height || !canvasRect.width || !canvasRect.height)
+                        return;
+
+                    const scaleX = overlay.width / overlayRect.width;
+                    const scaleY = overlay.height / overlayRect.height;
+                    const originCssX = canvasRect.left - overlayRect.left;
+                    const originCssY = canvasRect.top - overlayRect.top;
+                    const bounds = canvasInstance.outputAreaBounds;
+                    const toOverlay = (p) => {
+                        const worldX = bounds.x + p.x;
+                        const worldY = bounds.y + p.y;
+                        const canvasCssX = (worldX - canvasInstance.viewport.x) * zoom;
+                        const canvasCssY = (worldY - canvasInstance.viewport.y) * zoom;
+                        return {
+                            x: (originCssX + canvasCssX) * scaleX,
+                            y: (originCssY + canvasCssY) * scaleY
+                        };
+                    };
+                    const as = toOverlay(a);
+                    const bs = toOverlay(b);
+
+                    overlayCtx.save();
+                    overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
+                    overlayCtx.globalAlpha = 1;
+                    overlayCtx.strokeStyle = paintTool === 'eraser' ? 'rgba(255,255,255,0.75)' : paintColor;
+                    overlayCtx.lineWidth = paintSize * zoom * ((scaleX + scaleY) / 2);
+                    overlayCtx.lineCap = 'round';
+                    overlayCtx.lineJoin = 'round';
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(as.x, as.y);
+                    overlayCtx.lineTo(bs.x, bs.y);
+                    overlayCtx.stroke();
+                    overlayCtx.restore();
+                };
+
+                const getCanvasViewPointFromClient = (clientX, clientY) => {
+                    const c = canvasInstance?.canvas;
+                    if (!c)
+                        return null;
+                    const rect = c.getBoundingClientRect();
+                    const vx = ((clientX - rect.left) * c.width) / rect.width;
+                    const vy = ((clientY - rect.top) * c.height) / rect.height;
+                    return { vx, vy, rect };
+                };
+
+                const applyPinchZoomAndPan = (zoomFactor, midClientX, midClientY) => {
+                    if (!canvasInstance?.canvas || !canvasInstance?.viewport)
+                        return;
+                    const view = getCanvasViewPointFromClient(midClientX, midClientY);
+                    if (!view)
+                        return;
+                    const anchorWorld = pinchLastMid ? getWorldFromClient(pinchLastMid.clientX, pinchLastMid.clientY) : null;
+                    if (!anchorWorld)
+                        return;
+                    const prevZoom = canvasInstance.viewport.zoom || 1;
+                    const nextZoom = Math.max(0.02, Math.min(20, prevZoom * zoomFactor));
+                    canvasInstance.viewport.zoom = nextZoom;
+                    canvasInstance.viewport.x = anchorWorld.x - (view.vx / nextZoom);
+                    canvasInstance.viewport.y = anchorWorld.y - (view.vy / nextZoom);
+                    try {
+                        if (typeof canvasInstance.onViewportChange === 'function') {
+                            canvasInstance.onViewportChange();
+                        }
+                    }
+                    catch {
+                    }
+                    canvasInstance.render();
+                };
+
+                const drawSegment = (fromPt, toPt) => {
+                    const target = activeDrawTarget;
+                    if (!target || !fromPt || !toPt)
+                        return;
+                    const ctx = target.kind === 'paint' ? paintCtx : editLayerCtx;
+                    if (!ctx)
+                        return;
+                    ctx.save();
+                    ctx.globalAlpha = 1;
+                    if (paintTool === 'eraser') {
+                        ctx.globalCompositeOperation = 'destination-out';
+                        ctx.strokeStyle = 'rgba(0,0,0,1)';
+                    }
+                    else {
+                        ctx.globalCompositeOperation = 'source-over';
+                        ctx.strokeStyle = paintColor;
+                    }
+                    const width = target.kind === 'layer' && target.scale ? Math.max(0.5, paintSize * target.scale) : paintSize;
+                    ctx.lineWidth = width;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(fromPt.x, fromPt.y);
+                    ctx.lineTo(toPt.x, toPt.y);
+                    ctx.stroke();
+                    ctx.restore();
+                    scheduleLiveRender();
+                };
+
+                const commitEditedLayer = async (layer) => {
+                    if (!canvasInstance || !layer || !editLayerCanvas)
+                        return;
+                    const dataUrl = editLayerCanvas.toDataURL('image/png');
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    await new Promise((resolve) => {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                        img.src = dataUrl;
+                    });
+                    const imageId = generateUUID();
+                    await saveImage(imageId, dataUrl);
+                    canvasInstance.imageCache.set(imageId, dataUrl);
+                    layer.image = img;
+                    layer.imageId = imageId;
+                    layer.originalWidth = img.width;
+                    layer.originalHeight = img.height;
+                    canvasInstance.render();
+                    canvasInstance.saveState();
+                    if (canvasInstance.canvasLayersPanel) {
+                        canvasInstance.canvasLayersPanel.onLayersChanged();
+                        canvasInstance.canvasLayersPanel.onSelectionChanged();
+                    }
+                };
+
+                const performWheelZoom = (clientX, clientY, zoomFactor) => {
+                    if (!canvasInstance?.viewport)
+                        return;
+                    const world = getWorldFromClient(clientX, clientY);
+                    if (!world)
+                        return;
+                    const mouseBufferX = (world.x - canvasInstance.viewport.x) * (canvasInstance.viewport.zoom || 1);
+                    const mouseBufferY = (world.y - canvasInstance.viewport.y) * (canvasInstance.viewport.zoom || 1);
+                    const nextZoom = Math.max(0.1, Math.min(10, (canvasInstance.viewport.zoom || 1) * zoomFactor));
+                    canvasInstance.viewport.zoom = nextZoom;
+                    canvasInstance.viewport.x = world.x - mouseBufferX / nextZoom;
+                    canvasInstance.viewport.y = world.y - mouseBufferY / nextZoom;
+                    try {
+                        canvasInstance.onViewportChange?.();
+                    }
+                    catch {
+                    }
+                    canvasInstance.render();
+                };
+
+                overlay.addEventListener('pointerdown', async (e) => {
+                    if (!paintEnabled)
+                        return;
+                    if (e.pointerType === 'mouse' && e.button === 1) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        updateOverlaySize();
+                        clearOverlay();
+                        isPanning = true;
+                        panPointerId = e.pointerId;
+                        panStart = {
+                            clientX: e.clientX,
+                            clientY: e.clientY,
+                            viewportX: canvasInstance?.viewport?.x ?? 0,
+                            viewportY: canvasInstance?.viewport?.y ?? 0
+                        };
+                        overlay.style.cursor = 'grabbing';
+                        try {
+                            overlay.setPointerCapture(e.pointerId);
+                        }
+                        catch {
+                        }
+                        return;
+                    }
+                    if (e.pointerType === 'mouse' && e.button !== 0) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                    }
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try {
+                        canvasInstance?.canvas?.focus?.({ preventScroll: true });
+                    }
+                    catch {
+                    }
+                    updateOverlaySize();
+                    try {
+                        overlay.setPointerCapture(e.pointerId);
+                    }
+                    catch {
+                    }
+                    paintPointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+                    if (e.pointerType !== 'mouse' && paintPointers.size === 2) {
+                        if (isPainting && paintCtx && paintCanvas) {
+                            try {
+                                commitPaintLayer();
+                            }
+                            catch {
+                            }
+                        }
+                        isPainting = false;
+                        lastPaintPt = null;
+                        paintActivePointerId = null;
+                        clearOverlay();
+                        const pts = Array.from(paintPointers.values());
+                        const dx = pts[0].clientX - pts[1].clientX;
+                        const dy = pts[0].clientY - pts[1].clientY;
+                        pinchLastDistance = Math.hypot(dx, dy);
+                        pinchLastMid = {
+                            clientX: (pts[0].clientX + pts[1].clientX) / 2,
+                            clientY: (pts[0].clientY + pts[1].clientY) / 2
+                        };
+                        return;
+                    }
+                    pinchLastDistance = null;
+                    pinchLastMid = null;
+                    clearOverlay();
+                    activeDrawTarget = null;
+                    editLayerCanvas = null;
+                    editLayerCtx = null;
+                    if (paintTool === 'eraser') {
+                        const selected = getSelectedSingleLayer();
+                        if (selected && selected.image && (!paintLayer || selected.id !== paintLayer.id)) {
+                            const edit = await ensureEditLayerCanvas(selected);
+                            if (edit && edit.ctx) {
+                                const p = getLayerPaintPoint(e, selected, edit.imgW, edit.imgH);
+                                if (!p)
+                                    return;
+                                activeDrawTarget = { kind: 'layer', layer: selected, scale: p.scale };
+                                isPainting = true;
+                                paintActivePointerId = e.pointerId;
+                                const pt = { x: p.x, y: p.y };
+                                if (e.shiftKey && lastPaintAnchor && lastPaintAnchor.kind === 'layer' && lastPaintAnchor.layerId === selected.id) {
+                                    lastPaintPt = { x: lastPaintAnchor.x, y: lastPaintAnchor.y };
+                                    drawSegment(lastPaintPt, pt);
+                                    lastPaintPt = pt;
+                                }
+                                else {
+                                    lastPaintPt = pt;
+                                }
+                                scheduleLiveRender();
+                                if (e.pointerType === 'mouse') {
+                                    refreshBrushCursor(e.clientX, e.clientY);
+                                }
+                                return;
+                            }
+                        }
+                    }
+                    await ensurePaintLayer();
+                    if (!paintLayer || !paintCtx)
+                        return;
+                    activeDrawTarget = { kind: 'paint', layer: paintLayer };
+                    const p = getPaintPoint(e);
+                    if (!p)
+                        return;
+                    isPainting = true;
+                    paintActivePointerId = e.pointerId;
+                    if (e.shiftKey && lastPaintAnchor && lastPaintAnchor.kind === 'paint') {
+                        lastPaintPt = { x: lastPaintAnchor.x, y: lastPaintAnchor.y };
+                        drawSegment(lastPaintPt, p);
+                        lastPaintPt = p;
+                    }
+                    else {
+                        lastPaintPt = p;
+                    }
+                    scheduleLiveRender();
+                    if (e.pointerType === 'mouse') {
+                        refreshBrushCursor(e.clientX, e.clientY);
+                    }
+                });
+
+                overlay.addEventListener('pointermove', (e) => {
+                    if (!paintEnabled)
+                        return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.pointerType === 'mouse') {
+                        lastMouseClient = { clientX: e.clientX, clientY: e.clientY };
+                    }
+                    if (isPanning && panPointerId === e.pointerId && panStart && canvasInstance?.canvas && canvasInstance?.viewport) {
+                        const canvasRect = canvasInstance.canvas.getBoundingClientRect();
+                        if (canvasRect.width > 0 && canvasRect.height > 0) {
+                            const deltaCssX = e.clientX - panStart.clientX;
+                            const deltaCssY = e.clientY - panStart.clientY;
+                            const deltaVx = (deltaCssX * canvasInstance.canvas.width) / canvasRect.width;
+                            const deltaVy = (deltaCssY * canvasInstance.canvas.height) / canvasRect.height;
+                            const zoom = canvasInstance.viewport.zoom || 1;
+                            canvasInstance.viewport.x = panStart.viewportX - deltaVx / zoom;
+                            canvasInstance.viewport.y = panStart.viewportY - deltaVy / zoom;
+                            try {
+                                if (typeof canvasInstance.onViewportChange === 'function') {
+                                    canvasInstance.onViewportChange();
+                                }
+                            }
+                            catch {
+                            }
+                            canvasInstance.render();
+                        }
+                        return;
+                    }
+                    if (paintPointers.has(e.pointerId)) {
+                        paintPointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+                    }
+                    if (e.pointerType !== 'mouse' && paintPointers.size === 2 && pinchLastDistance && pinchLastMid) {
+                        const pts = Array.from(paintPointers.values());
+                        const dx = pts[0].clientX - pts[1].clientX;
+                        const dy = pts[0].clientY - pts[1].clientY;
+                        const dist = Math.hypot(dx, dy);
+                        if (Number.isFinite(dist) && dist > 0) {
+                            const mid = {
+                                clientX: (pts[0].clientX + pts[1].clientX) / 2,
+                                clientY: (pts[0].clientY + pts[1].clientY) / 2
+                            };
+                            const factor = dist / pinchLastDistance;
+                            if (Number.isFinite(factor) && factor > 0) {
+                                applyPinchZoomAndPan(factor, mid.clientX, mid.clientY);
+                            }
+                            pinchLastDistance = dist;
+                            pinchLastMid = mid;
+                        }
+                        return;
+                    }
+                    if (!isPainting || !lastPaintPt || paintActivePointerId !== e.pointerId)
+                        return refreshBrushCursor(e.clientX, e.clientY);
+                    const events = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [e];
+                    for (const ev of events) {
+                        const target = activeDrawTarget;
+                        if (!target)
+                            continue;
+                        if (target.kind === 'layer') {
+                            const layer = target.layer;
+                            if (!layer || !editLayerCanvas || !editLayerCtx)
+                                continue;
+                            const p = getLayerPaintPoint(ev, layer, editLayerCanvas.width, editLayerCanvas.height);
+                            if (!p)
+                                continue;
+                            target.scale = p.scale;
+                            drawSegment(lastPaintPt, { x: p.x, y: p.y });
+                            lastPaintPt = { x: p.x, y: p.y };
+                        }
+                        else {
+                            const p = getPaintPoint(ev);
+                            if (!p)
+                                continue;
+                            drawSegment(lastPaintPt, p);
+                            lastPaintPt = p;
+                        }
+                    }
+                    if (e.pointerType === 'mouse') {
+                        refreshBrushCursor(e.clientX, e.clientY);
+                    }
+                }, { passive: false });
+
+                const endPaint = async (e) => {
+                    if (!paintEnabled)
+                        return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (isPanning && panPointerId === e.pointerId) {
+                        isPanning = false;
+                        panPointerId = null;
+                        panStart = null;
+                        overlay.style.cursor = 'crosshair';
+                        try {
+                            overlay.releasePointerCapture(e.pointerId);
+                        }
+                        catch {
+                        }
+                        clearOverlay();
+                        if (lastMouseClient) {
+                            refreshBrushCursor(lastMouseClient.clientX, lastMouseClient.clientY);
+                        }
+                        return;
+                    }
+                    paintPointers.delete(e.pointerId);
+                    try {
+                        overlay.releasePointerCapture(e.pointerId);
+                    }
+                    catch {
+                    }
+                    if (paintPointers.size < 2) {
+                        pinchLastDistance = null;
+                        pinchLastMid = null;
+                    }
+                    if (!isPainting || paintActivePointerId !== e.pointerId)
+                        return;
+                    const strokeEndPt = lastPaintPt ? { x: lastPaintPt.x, y: lastPaintPt.y } : null;
+                    const strokeTarget = activeDrawTarget;
+                    isPainting = false;
+                    lastPaintPt = null;
+                    paintActivePointerId = null;
+                    clearOverlay();
+                    const target = activeDrawTarget;
+                    activeDrawTarget = null;
+                    if (target?.kind === 'layer') {
+                        await commitEditedLayer(target.layer);
+                    }
+                    else {
+                        await commitPaintLayer();
+                    }
+                    if (strokeEndPt && strokeTarget) {
+                        lastPaintAnchor = {
+                            kind: strokeTarget.kind,
+                            layerId: strokeTarget.kind === 'layer' ? (strokeTarget.layer?.id ?? null) : null,
+                            x: strokeEndPt.x,
+                            y: strokeEndPt.y
+                        };
+                    }
+                    if (e.pointerType === 'mouse') {
+                        refreshBrushCursor(e.clientX, e.clientY);
+                    }
+                };
+
+                overlay.addEventListener('pointerup', endPaint, { passive: false });
+                overlay.addEventListener('pointercancel', endPaint, { passive: false });
+                overlay.addEventListener('pointerleave', () => {
+                    if (!paintEnabled)
+                        return;
+                    clearOverlay();
+                }, { passive: true });
+                overlay.addEventListener('contextmenu', (e) => {
+                    if (!paintEnabled)
+                        return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, { passive: false });
+                overlay.addEventListener('wheel', (e) => {
+                    if (!paintEnabled)
+                        return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const zoomFactor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+                    performWheelZoom(e.clientX, e.clientY, zoomFactor);
+                    refreshBrushCursor(e.clientX, e.clientY);
+                }, { passive: false });
+
+                let pendingOverlayResize = false;
+                const scheduleOverlayResize = () => {
+                    if (pendingOverlayResize)
+                        return;
+                    pendingOverlayResize = true;
+                    requestAnimationFrame(() => {
+                        pendingOverlayResize = false;
+                        updateOverlaySize();
+                    });
+                };
+                const ro = new ResizeObserver(() => scheduleOverlayResize());
+                ro.observe(overlayHost);
+                scheduleOverlayResize();
+                setPaintTool(paintTool);
+                
+                window.addEventListener('message', (event) => {
+                    if (event.data.type === 'LOAD_IMAGE' || event.data.type === 'ADD_LAYER') {
+                        const url = event.data.url;
+                        const maskUrl = event.data.maskUrl;
+                        
+                        if (event.data.type === 'LOAD_IMAGE' && canvasInstance && canvasInstance.layers) {
+                            canvasInstance.layers = [];
+                            canvasInstance.render();
+                        }
+
+                        const img = new Image();
+                        img.onload = () => {
+                            if (canvasInstance) {
+                                if (event.data.type === 'LOAD_IMAGE') {
+                                    canvasInstance.canvasLayers.setOutputAreaSize(img.width, img.height);
+                                    paintLayer = null;
+                                    paintCanvas = null;
+                                    paintCtx = null;
+                                }
+                                
+                                canvasInstance.canvasLayers.addLayerWithImage(img, {}, 'default');
+                                
+                                if (maskUrl) {
+                                    const maskImg = new Image();
+                                    maskImg.onload = () => {
+                                        if (canvasInstance.maskTool) {
+                                            canvasInstance.maskTool.setMask(maskImg, true);
+                                            canvasInstance.render();
+                                        }
+                                    };
+                                    maskImg.src = maskUrl;
+                                }
+
+                                canvasInstance.render();
+                                if (event.data.type === 'LOAD_IMAGE') {
+                                    const fitOnce = () => {
+                                        const bounds = canvasInstance.outputAreaBounds;
+                                        if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) {
+                                            return false;
+                                        }
+                                        try {
+                                            if (typeof canvasInstance.fitWorldRectToView === 'function') {
+                                                return !!canvasInstance.fitWorldRectToView(bounds, { paddingPx: 40 });
+                                            }
+                                        } catch {
+                                        }
+                                        try {
+                                            if (typeof canvasInstance.fitOutputAreaToView === 'function') {
+                                                return !!canvasInstance.fitOutputAreaToView({ paddingPx: 40 });
+                                            }
+                                        } catch {
+                                        }
+                                        const containerRect = (() => {
+                                            try {
+                                                return canvasInstance.canvasContainer?.getBoundingClientRect?.() || null;
+                                            } catch {
+                                                return null;
+                                            }
+                                        })();
+                                        const viewW = containerRect?.width || editorContainer?.getBoundingClientRect?.().width || 0;
+                                        const viewH = containerRect?.height || editorContainer?.getBoundingClientRect?.().height || 0;
+                                        if (!Number.isFinite(viewW) || !Number.isFinite(viewH) || viewW <= 2 || viewH <= 2) {
+                                            return false;
+                                        }
+                                        const w = Math.max(1e-6, bounds.width);
+                                        const h = Math.max(1e-6, bounds.height);
+                                        const availableW = Math.max(1, viewW - 80);
+                                        const availableH = Math.max(1, viewH - 80);
+                                        let zoom = Math.min(availableW / w, availableH / h);
+                                        if (!Number.isFinite(zoom) || zoom <= 0) {
+                                            return false;
+                                        }
+                                        zoom = Math.max(0.02, Math.min(20, zoom));
+                                        const centerX = bounds.x + bounds.width / 2;
+                                        const centerY = bounds.y + bounds.height / 2;
+                                        canvasInstance.viewport = canvasInstance.viewport || { x: 0, y: 0, zoom: 1 };
+                                        canvasInstance.viewport.zoom = zoom;
+                                        canvasInstance.viewport.x = centerX - (viewW / (2 * zoom));
+                                        canvasInstance.viewport.y = centerY - (viewH / (2 * zoom));
+                                        try {
+                                            if (typeof canvasInstance.onViewportChange === 'function') {
+                                                canvasInstance.onViewportChange();
+                                            }
+                                        } catch {
+                                        }
+                                        try {
+                                            canvasInstance.render();
+                                        } catch {
+                                        }
+                                        return true;
+                                    };
+                                    let attempts = 0;
+                                    const maxAttempts = 30;
+                                    const step = () => {
+                                        attempts += 1;
+                                        if (fitOnce() || attempts >= maxAttempts) {
+                                            return;
+                                        }
+                                        requestAnimationFrame(step);
+                                    };
+                                    requestAnimationFrame(step);
+                                }
+                            } else {
+                                console.error("[LayerForge Child] canvasInstance is null!");
+                            }
+                        };
+                        img.onerror = (err) => {
+                            console.error("[LayerForge Child] Failed to load image object:", err);
+                        };
+                        img.src = url;
+                    }
+                });
+
+                document.getElementById('save-btn').onclick = async () => {
+                    if (!canvasInstance) return;
+                    
+                    try {
+                        document.getElementById('status-text').innerText = "Saving...";
+
+                        if (paintEnabled && isPainting) {
+                            isPainting = false;
+                            lastPaintPt = null;
+                            clearOverlay();
+                            await commitPaintLayer();
+                        }
+                        
+                        const blob = await canvasInstance.canvasLayers.getFlattenedCanvasAsBlob();
+                        
+                        let maskBlob = null;
+                        if (canvasInstance.maskTool) {
+                            const maskCanvas = canvasInstance.maskTool.getMaskForOutputArea();
+                            if (maskCanvas) {
+                                maskBlob = await new Promise(resolve => maskCanvas.toBlob(resolve, 'image/png'));
+                            }
+                        }
+                        
+                        if (!blob) {
+                            throw new Error("Failed to generate image blob");
+                        }
+
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64 = reader.result;
+                            
+                            const maskReader = new FileReader();
+                            maskReader.onloadend = () => {
+                                const maskBase64 = maskReader.result;
+                                
+                                window.parent.postMessage({
+                                    type: 'SAVE_IMAGE',
+                                    data: {
+                                        image: base64,
+                                        mask: maskBase64,
+                                        layer_count: Array.isArray(canvasInstance.layers) ? canvasInstance.layers.length : 0
+                                    }
+                                }, '*');
+                                
+                                document.getElementById('status-text').innerText = "Saved!";
+                            };
+                            if (maskBlob) {
+                                maskReader.readAsDataURL(maskBlob);
+                            } else {
+                                window.parent.postMessage({
+                                    type: 'SAVE_IMAGE',
+                                    data: {
+                                        image: base64,
+                                        mask: null,
+                                        layer_count: Array.isArray(canvasInstance.layers) ? canvasInstance.layers.length : 0
+                                    }
+                                }, '*');
+                                document.getElementById('status-text').innerText = "Saved!";
+                            }
+                        };
+                        reader.readAsDataURL(blob);
+                        
+                    } catch (e) {
+                        console.error("Save failed:", e);
+                        document.getElementById('status-text').innerText = "Error: " + e.message;
+                    }
+                };
+
+                document.getElementById('cancel-btn').onclick = () => {
+                    window.parent.postMessage({
+                        type: 'CANCEL'
+                    }, '*');
+                };
+
+                document.getElementById('status-text').innerText = "Ready";
+                
+                window.parent.postMessage({ type: 'READY' }, '*');
+
+            } catch (e) {
+                console.error("Failed to initialize LayerForge:", e);
+                document.getElementById('status-text').innerText = "Error: " + e.message;
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

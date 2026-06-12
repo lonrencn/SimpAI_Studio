@@ -1,0 +1,87 @@
+{
+    "default_engine": {
+        "backend_engine": "Flux",
+      "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+      "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "available_aspect_ratios_selection": "Flux",
+        "scene_frontend": {
+            "version": "m1.1",
+          "disvisible": ["scene_aspect_ratio", "scene_additional_prompt", "scene_input_image1", "scene_input_image2", "scene_var_number", "scene_video", "scene_audio", "scene_batch",
+        "scene_var_number2","scene_var_number3","scene_var_number4","scene_switch_option1","scene_switch_option2","scene_steps", "scene_refiner_model", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10"
+        ,"scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
+          "theme": ["Eraser"],
+            "prompt": {
+                "Eraser": "Remove the selected objects from the image,  {additional_prompt} "
+            },
+            "additional_prompt_2": {
+                "Eraser": ""
+            },
+            "image_preprocessor_method": {
+            "Eraser":  [["-normalization"]]
+            },
+            "additional_prompt_title_2": "Erase background description (optional)",
+            "theme_title": "Brush over the area to erase",
+            "resolution_control": {
+            "mode": "input_passthrough",
+            "source": "scene_canvas",
+            "interactive": false,
+            "frontend_preprocess": false
+            },
+            "aspect_ratio": ["origin|Original"],
+            "task_method": {
+                "Eraser": "eraser_one"
+            }
+        }
+    },
+    "default_model": "flux1-fill-dev-OneReward_fp8.safetensors",
+    "default_refiner": "None",
+    "default_refiner_switch": 0.5,
+    "default_upscale_model": "default",
+    "default_vae": "ae.safetensors",
+    "default_clip_model": "t5xxl_fp8_e4m3fn.safetensors",
+    "default_loras": [
+        [
+            "removal_timestep_alpha-2-1740.safetensors",
+            1.2
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ]
+    ],
+    "default_cfg_scale": 1,
+    "default_sample_sharpness": 2,
+    "default_sampler": "euler",
+    "default_scheduler": "simple",
+    "default_performance": "Speed",
+    "default_styles": [],
+    "default_aspect_ratio": "1280*720",
+    "default_image_number": 1,
+    "default_overwrite_step": 20,
+    "default_prompt": "",
+    "default_prompt_negative": "",
+    "checkpoint_downloads": {},
+    "embeddings_downloads": {},
+    "lora_downloads": {},
+    "vae_downloads": {},
+    "model_list": [
+        "diffusion_models,flux1-fill-dev-OneReward_fp8.safetensors,11902532704,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/checkpoints/flux1-fill-dev-OneReward_fp8.safetensors",
+        "clip,clip_l.safetensors,246144152,0,",
+        "text_encoders,t5xxl_fp8_e4m3fn.safetensors,4893934904,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/t5xxl_fp8_e4m3fn.safetensors",
+        "style_models,flux1-redux-dev.safetensors,129063232,0,",
+        "vae,ae.safetensors,335304388,0,",
+        "loras,removal_timestep_alpha-2-1740.safetensors,89746016,0,"
+    ]
+}

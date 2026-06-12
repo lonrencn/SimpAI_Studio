@@ -1,0 +1,104 @@
+.forge-neo-extension-compat-runtime {
+  display: none !important;
+}
+
+#physton-prompt-all-in-one {
+  max-width: 100%;
+}
+
+#physton-prompt-all-in-one,
+#physton-prompt-all-in-one * {
+  box-sizing: border-box;
+}
+
+#physton-prompt-all-in-one .physton-prompt {
+  max-width: 100%;
+}
+
+#forge_neo_root .forge-neo-left {
+  align-items: stretch !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+}
+
+#forge_neo_root [data-forge-neo-prompt-toolbar] {
+  --pp-margin: 6px 0 12px 0;
+  align-self: stretch !important;
+  clear: both;
+  display: block !important;
+  flex: 0 0 auto !important;
+  margin: var(--pp-margin) !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+#forge_neo_root [data-forge-neo-prompt-toolbar] .prompt-main,
+#forge_neo_root [data-forge-neo-prompt-toolbar] .prompt-tags,
+#forge_neo_root [data-forge-neo-prompt-toolbar] .prompt-tags-list {
+  max-width: 100% !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+#forge_neo_root [data-forge-neo-prompt-toolbar] .prompt-header {
+  align-items: center !important;
+  column-gap: 8px !important;
+  flex-wrap: wrap !important;
+  min-width: 0 !important;
+  row-gap: 6px !important;
+}
+
+#forge_neo_root [data-forge-neo-prompt-toolbar] .prompt-header-extend {
+  flex: 0 0 auto !important;
+  margin-right: 0 !important;
+}
+
+#forge_neo_root [data-forge-neo-prompt-toolbar] .prompt-header-extend.prompt-append {
+  flex: 1 1 220px !important;
+  min-width: min(220px, 100%) !important;
+}
+
+#forge_neo_root [data-forge-neo-prompt-toolbar] .prompt-header-extend.prompt-append .extend-content,
+#forge_neo_root [data-forge-neo-prompt-toolbar] .prompt-header-extend.prompt-append .input-tag-append {
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+#forge_neo_root [data-forge-neo-prompt-toolbar] .prompt-header-extend.prompt-append .input-tag-append {
+  flex: 1 1 160px !important;
+  width: 100% !important;
+}
+
+#forge_neo_root #forge_neo_prompt,
+#forge_neo_root #forge_neo_negative_prompt,
+#forge_neo_root #forge_neo_img2img_prompt,
+#forge_neo_root #forge_neo_img2img_negative_prompt,
+#forge_neo_root #forge_neo_prompt .wrap,
+#forge_neo_root #forge_neo_negative_prompt .wrap,
+#forge_neo_root #forge_neo_img2img_prompt .wrap,
+#forge_neo_root #forge_neo_img2img_negative_prompt .wrap,
+#forge_neo_root #forge_neo_prompt .block,
+#forge_neo_root #forge_neo_negative_prompt .block,
+#forge_neo_root #forge_neo_img2img_prompt .block,
+#forge_neo_root #forge_neo_img2img_negative_prompt .block,
+#forge_neo_root .forge-neo-left,
+#forge_neo_root .forge-neo-left > .form,
+#forge_neo_root .forge-neo-workspace,
+#forge_neo_root .forge-neo-main-row {
+  overflow: visible !important;
+}
+
+#forge_neo_root .autocompleteParent {
+  max-width: min(520px, calc(100vw - 40px)) !important;
+  overflow: visible !important;
+  pointer-events: auto;
+  z-index: 20050 !important;
+}
+
+#forge_neo_root .autocompleteResults {
+  border-radius: 8px !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+  max-width: min(520px, calc(100vw - 40px)) !important;
+  z-index: 20051 !important;
+}

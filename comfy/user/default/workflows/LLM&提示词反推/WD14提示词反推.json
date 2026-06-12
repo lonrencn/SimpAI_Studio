@@ -1,0 +1,285 @@
+{
+  "id": "12fc49b6-e976-48e7-8c6e-eaf9b7d73419",
+  "revision": 0,
+  "last_node_id": 32,
+  "last_link_id": 24,
+  "nodes": [
+    {
+      "id": 20,
+      "type": "LoadImage",
+      "pos": [
+        1087.3221435546875,
+        574.6856079101562
+      ],
+      "size": [
+        360,
+        440
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            22
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.59",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.3"
+        }
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ]
+    },
+    {
+      "id": 22,
+      "type": "ShowText|pysssss",
+      "pos": [
+        1764.7139892578125,
+        574.6856079101562
+      ],
+      "size": [
+        370,
+        210
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 23
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "提示词输出",
+      "properties": {
+        "Node name for S&R": "ShowText|pysssss",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.3"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 28,
+      "type": "WD14Tagger|pysssss",
+      "pos": [
+        1453.7005435561457,
+        579.7314717317554
+      ],
+      "size": [
+        310,
+        440
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 22
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": [
+            23
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "WD14Tagger|pysssss",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.3"
+        }
+      },
+      "widgets_values": [
+        "wd-eva02-large-tagger-v3",
+        0.35,
+        0.85,
+        false,
+        false,
+        ""
+      ]
+    },
+    {
+      "id": 31,
+      "type": "Note",
+      "pos": [
+        571.9108284219664,
+        518.4103536316104
+      ],
+      "size": [
+        460,
+        90
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.3",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "SimpAI专属模型路径。\n\n独立版请使用节点自带的运行下载[可能需要魔法]"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 32,
+      "type": "GeneralModelDownloader",
+      "pos": [
+        570,
+        650
+      ],
+      "size": [
+        460,
+        450
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 2,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": null
+        },
+        {
+          "name": "downloaded_files",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "status_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "GeneralModelDownloader"
+      },
+      "widgets_values": [
+        "[\n  {\n    \"name\": \"wd-eva02-large-tagger-v3.onnx\",\n    \"url\": \"https://www.modelscope.cn/models/windecay/WD-tagger/resolve/master/wd-eva02-large-tagger-v3.onnx\",\n    \"download_directory\": \"clip_vision\",\n    \"file_name\": \"wd-eva02-large-tagger-v3.onnx\",\n    \"overwrite_existing\": false,\n    \"size\": \"1260435999\",\n    \"description\": \"\"\n  },\n  {\n    \"name\": \"wd-eva02-large-tagger-v3.csv\",\n    \"url\": \"https://www.modelscope.cn/models/windecay/WD-tagger/resolve/master/wd-eva02-large-tagger-v3.csv\",\n    \"download_directory\": \"clip_vision\",\n    \"file_name\": \"wd-eva02-large-tagger-v3.csv\",\n    \"overwrite_existing\": false,\n    \"size\": \"308468\",\n    \"description\": \"\"\n  }\n]\n",
+        true,
+        false,
+        true,
+        ""
+      ]
+    }
+  ],
+  "links": [
+    [
+      22,
+      20,
+      0,
+      28,
+      0,
+      "IMAGE"
+    ],
+    [
+      23,
+      28,
+      0,
+      22,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "WD14提示词反推",
+      "bounding": [
+        1040,
+        480,
+        1155.552978515625,
+        618.2080078125
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.5028560532707984,
+      "offset": [
+        -59.02220234931048,
+        -155.910459598908
+      ]
+    },
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "frontendVersion": "1.45.15",
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true,
+    "qgn_navigation_groups": [],
+    "qgn_locked": false
+  },
+  "version": 0.4
+}

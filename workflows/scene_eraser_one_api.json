@@ -1,0 +1,907 @@
+{
+  "301": {
+    "inputs": {
+      "samples": [
+        "436",
+        0
+      ],
+      "vae": [
+        "303",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "303": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "vae_model"
+    }
+  },
+  "307": {
+    "inputs": {
+      "guidance": [
+        "425",
+        4
+      ],
+      "conditioning": [
+        "313",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "FluxGuidance"
+    }
+  },
+  "309": {
+    "inputs": {
+      "lora_name": "removal_timestep_alpha-2-1740.safetensors",
+      "strength_model": 1,
+      "model": [
+        "427",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_1"
+    }
+  },
+  "313": {
+    "inputs": {
+      "text": [
+        "425",
+        0
+      ],
+      "clip": [
+        "451",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "clip"
+    }
+  },
+  "314": {
+    "inputs": {
+      "noise_mask": true,
+      "positive": [
+        "307",
+        0
+      ],
+      "negative": [
+        "426",
+        0
+      ],
+      "vae": [
+        "303",
+        0
+      ],
+      "pixels": [
+        "424",
+        0
+      ],
+      "mask": [
+        "364",
+        0
+      ]
+    },
+    "class_type": "InpaintModelConditioning",
+    "_meta": {
+      "title": "InpaintModelConditioning"
+    }
+  },
+  "315": {
+    "inputs": {
+      "image": "welcome.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "i2i_inpaint_image"
+    }
+  },
+  "343": {
+    "inputs": {
+      "purge_cache": true,
+      "purge_models": true,
+      "anything": [
+        "301",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: PurgeVRAM",
+    "_meta": {
+      "title": "LayerUtility: Purge VRAM"
+    }
+  },
+  "344": {
+    "inputs": {
+      "images": [
+        "354",
+        0
+      ]
+    },
+    "class_type": "SaveImageWebsocket",
+    "_meta": {
+      "title": "SaveImageWebsocket"
+    }
+  },
+  "345": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "clip_model"
+    }
+  },
+  "350": {
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "351",
+        0
+      ]
+    },
+    "class_type": "ImageToMask",
+    "_meta": {
+      "title": "Convert Image to Mask"
+    }
+  },
+  "351": {
+    "inputs": {
+      "image": "welcome.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "i2i_inpaint_mask"
+    }
+  },
+  "353": {
+    "inputs": {
+      "width": [
+        "380",
+        1
+      ],
+      "height": [
+        "380",
+        2
+      ],
+      "image": [
+        "315",
+        0
+      ],
+      "mask": [
+        "350",
+        0
+      ]
+    },
+    "class_type": "CutForInpaint",
+    "_meta": {
+      "title": "Cut For Inpaint"
+    }
+  },
+  "354": {
+    "inputs": {
+      "kernel": 5,
+      "sigma": 10,
+      "inpaint": [
+        "384",
+        0
+      ],
+      "original": [
+        "315",
+        0
+      ],
+      "mask": [
+        "385",
+        0
+      ],
+      "origin": [
+        "353",
+        2
+      ]
+    },
+    "class_type": "BlendInpaint",
+    "_meta": {
+      "title": "Blend Inpaint"
+    }
+  },
+  "357": {
+    "inputs": {
+      "value": 0.12
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "wavespeed_strength"
+    }
+  },
+  "359": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": [
+        "369",
+        0
+      ],
+      "steps": [
+        "425",
+        5
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 5,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "448",
+        0
+      ],
+      "positive": [
+        "314",
+        0
+      ],
+      "negative": [
+        "314",
+        1
+      ],
+      "latent_image": [
+        "314",
+        2
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "364": {
+    "inputs": {
+      "expand": 10,
+      "incremental_expandrate": 0,
+      "tapered_corners": true,
+      "flip_input": false,
+      "blur_radius": 5,
+      "lerp_alpha": 1,
+      "decay_factor": 1,
+      "fill_holes": false,
+      "mask": [
+        "383",
+        0
+      ]
+    },
+    "class_type": "GrowMaskWithBlur",
+    "_meta": {
+      "title": "Grow Mask With Blur"
+    }
+  },
+  "369": {
+    "inputs": {
+      "seed": 0
+    },
+    "class_type": "easy seed",
+    "_meta": {
+      "title": "sync_seed"
+    }
+  },
+  "379": {
+    "inputs": {
+      "invert_mask": false,
+      "detect": "mask_area",
+      "top_reserve": 150,
+      "bottom_reserve": 150,
+      "left_reserve": 150,
+      "right_reserve": 150,
+      "round_to_multiple": "32",
+      "image": [
+        "315",
+        0
+      ],
+      "mask": [
+        "350",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: CropByMask V2",
+    "_meta": {
+      "title": "LayerUtility: CropByMask V2"
+    }
+  },
+  "380": {
+    "inputs": {
+      "mask": [
+        "379",
+        1
+      ]
+    },
+    "class_type": "GetMaskSizeAndCount",
+    "_meta": {
+      "title": "Get Mask Size & Count"
+    }
+  },
+  "383": {
+    "inputs": {
+      "width": [
+        "424",
+        1
+      ],
+      "height": [
+        "424",
+        2
+      ],
+      "keep_proportions": false,
+      "upscale_method": "nearest-exact",
+      "crop": "disabled",
+      "mask": [
+        "353",
+        1
+      ]
+    },
+    "class_type": "ResizeMask",
+    "_meta": {
+      "title": "Resize Mask"
+    }
+  },
+  "384": {
+    "inputs": {
+      "width": [
+        "386",
+        1
+      ],
+      "height": [
+        "386",
+        2
+      ],
+      "interpolation": "lanczos",
+      "method": "stretch",
+      "condition": "always",
+      "multiple_of": 0,
+      "image": [
+        "301",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "385": {
+    "inputs": {
+      "width": [
+        "386",
+        1
+      ],
+      "height": [
+        "386",
+        2
+      ],
+      "keep_proportions": false,
+      "upscale_method": "nearest-exact",
+      "crop": "disabled",
+      "mask": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "ResizeMask",
+    "_meta": {
+      "title": "Resize Mask"
+    }
+  },
+  "386": {
+    "inputs": {
+      "mask": [
+        "353",
+        1
+      ]
+    },
+    "class_type": "GetMaskSizeAndCount",
+    "_meta": {
+      "title": "Get Mask Size & Count"
+    }
+  },
+  "399": {
+    "inputs": {
+      "expand": [
+        "414",
+        0
+      ],
+      "incremental_expandrate": 0,
+      "tapered_corners": true,
+      "flip_input": false,
+      "blur_radius": [
+        "416",
+        1
+      ],
+      "lerp_alpha": 1,
+      "decay_factor": 1,
+      "fill_holes": false,
+      "mask": [
+        "364",
+        0
+      ]
+    },
+    "class_type": "GrowMaskWithBlur",
+    "_meta": {
+      "title": "Grow Mask With Blur"
+    }
+  },
+  "412": {
+    "inputs": {
+      "comparison": "a > b",
+      "a": [
+        "424",
+        1
+      ],
+      "b": [
+        "424",
+        2
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "413": {
+    "inputs": {
+      "boolean": [
+        "412",
+        0
+      ],
+      "on_true": [
+        "424",
+        1
+      ],
+      "on_false": [
+        "424",
+        2
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "414": {
+    "inputs": {
+      "value": "a*0.02",
+      "a": [
+        "413",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "416": {
+    "inputs": {
+      "value": "a*0.015",
+      "a": [
+        "413",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "423": {
+    "inputs": {
+      "unet_name": "flux1-fill-dev-OneReward_fp8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "base_model"
+    }
+  },
+  "424": {
+    "inputs": {
+      "generation_width": 1280,
+      "generation_height": 1280,
+      "aspect_ratio_preservation": "keep_input",
+      "image": [
+        "353",
+        0
+      ]
+    },
+    "class_type": "WanVideoImageResizeToClosest",
+    "_meta": {
+      "title": "WanVideo Image Resize To Closest"
+    }
+  },
+  "425": {
+    "inputs": {
+      "prompt": "Remove the selected objects from the image,   ",
+      "negative_prompt": "",
+      "width": 1280,
+      "height": 1280,
+      "cfg": 30,
+      "steps": 20,
+      "refiner_step": 16,
+      "sampler": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "clip_skip": -1,
+      "inpaint_disable_initial_latent": false,
+      "wavespeed_strength": 0.12,
+      "save_final_enhanced_image_only": false
+    },
+    "class_type": "GeneralInput",
+    "_meta": {
+      "title": "GeneralInput"
+    }
+  },
+  "426": {
+    "inputs": {
+      "conditioning": [
+        "313",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "427": {
+    "inputs": {
+      "reuse_threshold": [
+        "357",
+        0
+      ],
+      "start_percent": 0.3,
+      "end_percent": 0.8,
+      "verbose": false,
+      "model": [
+        "439",
+        0
+      ]
+    },
+    "class_type": "EasyCache",
+    "_meta": {
+      "title": "EasyCache"
+    }
+  },
+  "428": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": false,
+      "model": [
+        "433",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ"
+    }
+  },
+  "429": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "i2i_model_type"
+    }
+  },
+  "430": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "431": {
+    "inputs": {
+      "comparison": "a == b",
+      "a": [
+        "429",
+        0
+      ],
+      "b": [
+        "430",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "432": {
+    "inputs": {
+      "unet_name": "placeholder.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "base_model_gguf"
+    }
+  },
+  "433": {
+    "inputs": {
+      "boolean": [
+        "431",
+        0
+      ],
+      "on_true": [
+        "423",
+        0
+      ],
+      "on_false": [
+        "432",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "436": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": [
+        "369",
+        0
+      ],
+      "steps": [
+        "425",
+        5
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 5,
+      "end_at_step": [
+        "425",
+        5
+      ],
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "427",
+        0
+      ],
+      "positive": [
+        "314",
+        0
+      ],
+      "negative": [
+        "314",
+        1
+      ],
+      "latent_image": [
+        "359",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "439": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "428",
+        0
+      ]
+    },
+    "class_type": "DifferentialDiffusion",
+    "_meta": {
+      "title": "Differential Diffusion"
+    }
+  },
+  "440": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "309",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_2"
+    }
+  },
+  "441": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "440",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_3"
+    }
+  },
+  "442": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "441",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_4"
+    }
+  },
+  "443": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "442",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_5"
+    }
+  },
+  "444": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "443",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_6"
+    }
+  },
+  "445": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "444",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_7"
+    }
+  },
+  "446": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "445",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_8"
+    }
+  },
+  "447": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "446",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_9"
+    }
+  },
+  "448": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "447",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_10"
+    }
+  },
+  "449": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "int"
+    }
+  },
+  "450": {
+    "inputs": {
+      "comparison": "a == b",
+      "a": [
+        "453",
+        0
+      ],
+      "b": [
+        "449",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "451": {
+    "inputs": {
+      "boolean": [
+        "450",
+        0
+      ],
+      "on_true": [
+        "345",
+        0
+      ],
+      "on_false": [
+        "452",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "452": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux"
+    },
+    "class_type": "DualCLIPLoaderGGUF",
+    "_meta": {
+      "title": "clip_model"
+    }
+  },
+  "453": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "i2i_clip_type"
+    }
+  }
+}

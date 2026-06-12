@@ -1,0 +1,252 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "qwen_tts_voice_design_20260606070756_template_20260606070829",
+  "title": "Qwen TTS 音色设计",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-06T07:08:30Z",
+  "viewport": {
+    "x": 189,
+    "y": 231,
+    "zoom": 0.3367342082746822
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    },
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "qwen_design_group_prompt",
+      "title": "1. Script And Voice / 文案与音色",
+      "x": -100,
+      "y": -155,
+      "w": 585,
+      "h": 1156,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "qwen_design_group_run",
+      "title": "2. Generate And Reuse / 生成与复用",
+      "x": 540,
+      "y": -155,
+      "w": 760,
+      "h": 610,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "2",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "qwen_design_intro_note",
+      "type": "note",
+      "x": -48,
+      "y": -96,
+      "w": 465,
+      "h": 130,
+      "title": "Text To Speech / 文本转语音",
+      "text": "Voice Design is the easiest Qwen TTS entry: write the line, describe the voice, then generate an audio Result. / 音色设计是最直接的 Qwen TTS 入口：写文案、描述音色，然后生成音频 Result。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "qwen_design_node",
+      "type": "qwen_tts_voice_design",
+      "qwen_tts_mode": "voice_design",
+      "x": -48,
+      "y": 96,
+      "w": 465,
+      "h": 600,
+      "title": "Qwen TTS Voice Design",
+      "params": {
+        "model_choice": "1.7B",
+        "precision": "bf16",
+        "device": "auto",
+        "language": "Auto",
+        "attention": "auto",
+        "seed_random": true,
+        "seed": 0,
+        "max_new_tokens": 4096,
+        "split_max_chars": 200,
+        "split_hard_max_chars": 260,
+        "top_p": 0.8,
+        "top_k": 20,
+        "temperature": 1,
+        "repetition_penalty": 1.05,
+        "unload_model_after_generate": true,
+        "decode_batch_size": 2,
+        "batch_size": 4,
+        "text": "欢迎来到无限画布。你可以在这里把一段文案变成自然语音，再把音频结果接到 Timeline 或音频驱动视频流程。",
+        "style_preset": "Warm Female",
+        "instruct": "Female, mid-20s, warm and friendly, medium pace, clear articulation, slight smile in voice, natural breath and gentle intonation.",
+        "lock_timbre_with_first_segment": true,
+        "clone_batch_size": 16
+      },
+      "audio_inputs": {},
+      "source": {
+        "kind": "template_qwen_tts",
+        "mode": "voice_design",
+        "module": "enhanced.webui_qwen_tts"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Requires local Qwen3-TTS VoiceDesign model files before generation."
+      }
+    },
+    {
+      "id": "qwen_design_result",
+      "type": "result",
+      "x": 600,
+      "y": -96,
+      "w": 360,
+      "h": 330,
+      "title": "Designed Voice Audio / 设计音色音频",
+      "producer": {
+        "qwen_tts_node_id": "qwen_design_node",
+        "preset_node_id": null,
+        "timeline_node_id": null,
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "percent": 0,
+        "message": "Run Qwen TTS Voice Design; the generated audio appears here."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "qwen_tts",
+        "qwen_tts_node_id": "qwen_design_node"
+      }
+    },
+    {
+      "id": "qwen_design_reuse_note",
+      "type": "note",
+      "x": 600,
+      "y": 264,
+      "w": 520,
+      "h": 135,
+      "title": "Reuse Audio / 复用音频",
+      "text": "Audio Results can be placed on Timeline, used as a reference voice, or connected into an audio-to-video preset that exposes scene_audio. / 音频 Result 可以放进 Timeline、作为参考音色，或接入暴露 scene_audio 的音频驱动视频 preset。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "qwen_design_model_note",
+      "type": "note",
+      "x": 1008,
+      "y": -96,
+      "w": 250,
+      "h": 255,
+      "title": "Models / 模型",
+      "text": "Qwen TTS loads models through ComfyUI-Qwen-TTS. Voice Design needs the 1.7B VoiceDesign model and tokenizer. / Qwen TTS 通过 ComfyUI-Qwen-TTS 加载模型。音色设计需要 1.7B VoiceDesign 模型和 tokenizer。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#4338ca",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "qwen_design_edge_result",
+      "type": "generate",
+      "from": "qwen_design_node",
+      "to": "qwen_design_result"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "qwen_tts_voice_design_20260606070756_template_20260606070829",
+    "title": "Qwen TTS 音色设计",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "model_free",
+      "label": "无模型依赖",
+      "note": "未检测到可运行的 Preset 或 Classic 节点。",
+      "models": []
+    },
+    "preview": "",
+    "saved_at": "2026-06-06T07:08:30Z"
+  }
+}

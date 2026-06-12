@@ -1,0 +1,103 @@
+{
+    "default_engine": {
+        "backend_engine": "Comfy",
+	"disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+	"disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "available_aspect_ratios_selection": "Flux",
+        "scene_frontend": {
+            "version": "m1.1",
+            "theme": [
+                "Inspyrenet",
+                "RMBG",
+                "By-General",
+                "By-Portrait"
+            ],
+            "theme_title": "Choose different models: remove background quality and time vary. The last two masked options work better.",
+            "disvisible": ["scene_additional_prompt", "scene_additional_prompt_2", "scene_aspect_ratio", "scene_input_image1", "scene_var_number", "scene_input_image2", "scene_use_lora", "scene_video", "scene_audio",
+                "scene_var_number2","scene_var_number3","scene_var_number4","scene_switch_option1","scene_switch_option2","scene_steps", "scene_base_model", "scene_refiner_model", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10"
+                    ,"scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
+            "disinteractive": ["resolution_control"],
+            "prompt": {
+                "Inspyrenet": "Use Inspyrenet (general model) to remove background and generate a subject mask and a background mask (3 images total)",
+                "RMBG": "Use RMBG (general model) to remove background and generate a subject mask and a background mask (3 images total)",
+                "By-General": "Use ByBiRefNet-General (general model) to remove background and generate a subject mask and a background mask (3 images total)",
+                "By-Portrait": "Use ByBiRefNet-Portrait (portrait model) to remove background and generate a subject mask and a background mask (3 images total)"
+            },
+            "additional_prompt": {
+                "Inspyrenet": "",
+                "RMBG": "",
+                "By-General": "",
+                "By-Portrait": ""
+            },
+            "additional_prompt_title": "",
+            "multimodal_prompt": {
+                "Inspyrenet": "",
+                "RMBG": "",
+                "By-General": "",
+                "By-Portrait": ""
+            },
+            "resolution_control": {
+                "mode": "input_passthrough",
+                "source": "scene_canvas",
+                "quantize": 1,
+                "interactive": false
+            },
+	    "image_preprocessor_method": [["-normalization"]],
+	    "aspect_ratio" : ["9:16", "4:5", "4:3", "3:2", "16:9", "21:9"],
+            "task_method": {
+                "Inspyrenet": "removebg1",
+                "RMBG": "removebg2",
+                "By-General": "removebg3",
+                "By-Portrait": "removebg4"
+            }
+        }
+    },
+    "default_model": "None",
+    "default_refiner": "None",
+    "default_refiner_switch": 0.5,
+    "default_upscale_model": "default",
+    "default_clip_model": "Default (model)",
+    "default_loras": [
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ]
+    ],
+    "default_cfg_scale": 3.5,
+    "default_sample_sharpness": 2,
+    "default_sampler": "euler",
+    "default_scheduler": "simple",
+    "default_performance": "Speed",
+    "default_styles": [],
+    "default_aspect_ratio": "1280*720",
+    "default_image_number": 1,
+    "default_overwrite_step": 10,
+    "default_prompt": "",
+    "default_prompt_negative": "realistic photo,bad photo",
+    "checkpoint_downloads": {},
+    "embeddings_downloads": {},
+    "lora_downloads": {},
+    "vae_downloads": {},
+    "model_list": [
+        "rembg,ckpt_base.pth,367520613,0,",
+        "rembg,RMBG-1.4.pth,176718373,0,",
+        "rembg,General.safetensors,884878856,0,",
+        "rembg,Portrait.safetensors,884878856,0,"
+    ]
+}

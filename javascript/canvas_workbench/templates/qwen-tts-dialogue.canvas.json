@@ -1,0 +1,328 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "qwen_tts_dialogue_20260606071007_template_20260606071129",
+  "title": "Qwen TTS 多角色对话",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-06T07:11:30Z",
+  "viewport": {
+    "x": 496,
+    "y": 204,
+    "zoom": 0.23771686795145733
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    },
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "qwen_dialogue_group_script",
+      "title": "1. Script / 脚本",
+      "x": -120,
+      "y": -168,
+      "w": 610,
+      "h": 1494,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "qwen_dialogue_group_refs",
+      "title": "2. Role Voices / 角色音色",
+      "x": -744,
+      "y": -168,
+      "w": 530,
+      "h": 1106,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "qwen_dialogue_group_result",
+      "title": "3. Dialogue Output / 对话输出",
+      "x": 576,
+      "y": -168,
+      "w": 520,
+      "h": 860,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "qwen_dialogue_intro_note",
+      "type": "note",
+      "x": -53,
+      "y": -89,
+      "w": 490,
+      "h": 120,
+      "title": "Dialogue Audio / 对话音频",
+      "text": "Dialogue mode turns a Role: line script into a multi-speaker audio clip. Replace the role audio placeholders before Run. / 多角色对话模式会把“角色: 台词”脚本生成多说话人的音频片段。运行前请替换角色音频占位。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "qwen_dialogue_node",
+      "type": "qwen_tts_dialogue",
+      "qwen_tts_mode": "dialogue",
+      "x": -53,
+      "y": 103,
+      "w": 490,
+      "h": 760,
+      "title": "Qwen TTS Dialogue",
+      "params": {
+        "model_choice": "1.7B",
+        "precision": "bf16",
+        "device": "auto",
+        "language": "Auto",
+        "attention": "auto",
+        "seed_random": true,
+        "seed": 0,
+        "max_new_tokens": 4096,
+        "split_max_chars": 200,
+        "split_hard_max_chars": 260,
+        "top_p": 0.8,
+        "top_k": 20,
+        "temperature": 1,
+        "repetition_penalty": 1.05,
+        "unload_model_after_generate": true,
+        "decode_batch_size": 2,
+        "batch_size": 4,
+        "script": "Character 1: I will generate the voice line first.\nCharacter 2: Great, then we can place the result on the timeline.\nCharacter 1: After that, the audio can drive a video preset.\nCharacter 2: Perfect. The Result node keeps the output ready for reuse.",
+        "role_1_name": "Character 1",
+        "role_1_ref_text": "",
+        "role_2_name": "Character 2",
+        "role_2_ref_text": "",
+        "role_3_name": "",
+        "role_3_ref_text": "",
+        "role_4_name": "",
+        "role_4_ref_text": "",
+        "pause_linebreak": 0.5,
+        "period_pause": 0.4,
+        "comma_pause": 0.2,
+        "question_pause": 0.6,
+        "hyphen_pause": 0.3,
+        "merge_outputs": true,
+        "max_new_tokens_per_line": 4096
+      },
+      "audio_inputs": {
+        "role_1_audio": "qwen_dialogue_role1_audio",
+        "role_2_audio": "qwen_dialogue_role2_audio"
+      },
+      "source": {
+        "kind": "template_qwen_tts",
+        "mode": "dialogue",
+        "module": "enhanced.webui_qwen_tts"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Replace Role 1 and Role 2 audio before running Dialogue."
+      }
+    },
+    {
+      "id": "qwen_dialogue_role1_audio",
+      "type": "audio",
+      "x": -680,
+      "y": -89,
+      "w": 405,
+      "h": 260,
+      "title": "Role 1 Audio / 角色 1 音频",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: replace this with a reference voice for Character 1."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "role_1_audio"
+      }
+    },
+    {
+      "id": "qwen_dialogue_role2_audio",
+      "type": "audio",
+      "x": -680,
+      "y": 319,
+      "w": 405,
+      "h": 260,
+      "title": "Role 2 Audio / 角色 2 音频",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: replace this with a reference voice for Character 2."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "role_2_audio"
+      }
+    },
+    {
+      "id": "qwen_dialogue_result",
+      "type": "result",
+      "x": 655,
+      "y": -89,
+      "w": 360,
+      "h": 330,
+      "title": "Dialogue Audio / 对话音频",
+      "producer": {
+        "qwen_tts_node_id": "qwen_dialogue_node",
+        "preset_node_id": null,
+        "timeline_node_id": null,
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "percent": 0,
+        "message": "Replace role reference audio, then run Qwen TTS Dialogue."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "qwen_tts",
+        "qwen_tts_node_id": "qwen_dialogue_node"
+      }
+    },
+    {
+      "id": "qwen_dialogue_note_refs",
+      "type": "note",
+      "x": -680,
+      "y": 727,
+      "w": 405,
+      "h": 145,
+      "title": "Role References / 角色参考",
+      "text": "Dialogue needs reference voices for the roles used in the script. Add more Audio nodes if you use role_3_audio or role_4_audio. / 对话需要为脚本中的角色提供参考音色。如果使用 role_3_audio 或 role_4_audio，请再添加 Audio 节点。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#4338ca",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "qwen_dialogue_reuse_note",
+      "type": "note",
+      "x": 655,
+      "y": 295,
+      "w": 405,
+      "h": 140,
+      "title": "Scene Audio / 场景音频",
+      "text": "A finished dialogue Result can drive a talking scene, enter Timeline, or become the source audio for an audio-to-video preset. / 完成后的对话 Result 可驱动说话场景、进入 Timeline，或作为音频驱动视频 preset 的源音频。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "qwen_dialogue_edge_role1_audio",
+      "type": "media",
+      "from": "qwen_dialogue_role1_audio",
+      "to": "qwen_dialogue_node",
+      "slot": "role_1_audio"
+    },
+    {
+      "id": "qwen_dialogue_edge_role2_audio",
+      "type": "media",
+      "from": "qwen_dialogue_role2_audio",
+      "to": "qwen_dialogue_node",
+      "slot": "role_2_audio"
+    },
+    {
+      "id": "qwen_dialogue_edge_result",
+      "type": "generate",
+      "from": "qwen_dialogue_node",
+      "to": "qwen_dialogue_result"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "qwen_tts_dialogue_20260606071007_template_20260606071129",
+    "title": "Qwen TTS 多角色对话",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "model_free",
+      "label": "无模型依赖",
+      "note": "未检测到可运行的 Preset 或 Classic 节点。",
+      "models": []
+    },
+    "preview": "",
+    "saved_at": "2026-06-06T07:11:30Z"
+  }
+}

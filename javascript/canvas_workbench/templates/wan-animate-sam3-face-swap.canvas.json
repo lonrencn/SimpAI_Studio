@@ -1,0 +1,933 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "wan_animate_sam3_face_swap_20260606065441_template_20260606065607",
+  "title": "Wan-Animate SAM3 人脸替换",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-06T06:56:08Z",
+  "viewport": {
+    "x": 178,
+    "y": 157,
+    "zoom": 0.23739358930456939
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    },
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "wan_face_group_input",
+      "title": "1. Video And Face Reference / 视频与人脸参考",
+      "x": -180,
+      "y": -210,
+      "w": 690,
+      "h": 1082,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "wan_face_group_mask",
+      "title": "2. Face Mask / 人脸遮罩",
+      "x": 560,
+      "y": -210,
+      "w": 520,
+      "h": 900,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "wan_face_group_config",
+      "title": "3. Configs / 配置",
+      "x": 1135,
+      "y": -210,
+      "w": 506,
+      "h": 1902,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "3",
+      "locked": false
+    },
+    {
+      "id": "wan_face_group_run",
+      "title": "4. Swap Result / 替换结果",
+      "x": 1690,
+      "y": -210,
+      "w": 1045,
+      "h": 1529,
+      "color": "#2563eb",
+      "alpha": 0.09,
+      "shortcut": "4",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "wan_face_intro_note",
+      "type": "note",
+      "x": -120,
+      "y": -120,
+      "w": 560,
+      "h": 130,
+      "title": "SAM3 Face Swap / SAM3 人脸替换",
+      "text": "Mask the face in the source video, provide a face reference image, then run Wan-Animate Face Swap. / 先遮罩源视频中的人脸，再提供人脸参考图，最后运行 Wan-Animate Face Swap。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "wan_face_source_video",
+      "type": "video",
+      "x": -120,
+      "y": 72,
+      "w": 560,
+      "h": 275,
+      "title": "Source Video / 源视频",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: replace with the face-swap source video or connect a video Result."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "sam3_input_video"
+      }
+    },
+    {
+      "id": "wan_face_reference_image",
+      "type": "image",
+      "x": -120,
+      "y": 528,
+      "w": 270,
+      "h": 270,
+      "title": "Face Reference / 人脸参考图",
+      "asset": null,
+      "mask": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: replace with the face or identity reference image."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "scene_canvas_image"
+      }
+    },
+    {
+      "id": "wan_face_prompt",
+      "type": "text",
+      "x": 192,
+      "y": 528,
+      "w": 260,
+      "h": 150,
+      "title": "Face Swap Prompt / 人脸替换提示词",
+      "text": {
+        "value": "保持源视频中的动作、表情节奏、镜头和光线，替换为参考图人物身份，皮肤和五官自然融合。",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "wan_face_sam3_mask",
+      "type": "sam3_video_mask",
+      "x": 624,
+      "y": -120,
+      "w": 400,
+      "h": 650,
+      "title": "SAM3 Face Mask / SAM3 人脸遮罩",
+      "input_node_id": "wan_face_source_video",
+      "params": {
+        "prompt": "face",
+        "score_threshold_detection": 0.5,
+        "new_det_thresh": 0.7,
+        "fill_hole_area": 16,
+        "recondition_every_nth_frame": 16,
+        "postprocess_strength": 1,
+        "invert_mask": false
+      },
+      "asset": null,
+      "source": {
+        "kind": "sam3_video_mask",
+        "module": "enhanced.sam3_video_mask",
+        "source_node_id": "wan_face_source_video"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Connect the source video, then generate or upload a face mask video."
+      }
+    },
+    {
+      "id": "wan_face_models",
+      "type": "config",
+      "config_kind": "models",
+      "x": 1200,
+      "y": -120,
+      "w": 380,
+      "h": 425,
+      "title": "Models Config / 模型配置",
+      "target_preset_id": "wan_face_preset",
+      "config": {
+        "defaults": {
+          "base_model": "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "refiner_model": "None",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "WanAnimate_relight_lora_fp16.safetensors",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+              "weight": 1.2
+            }
+          ]
+        },
+        "values": {
+          "base_model": "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "refiner_model": "None",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "WanAnimate_relight_lora_fp16.safetensors",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+              "weight": 1.2
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan-Animate"
+      }
+    },
+    {
+      "id": "wan_face_resolution",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 1200,
+      "y": 648,
+      "w": 380,
+      "h": 340,
+      "title": "Resolution Config / 分辨率配置",
+      "target_preset_id": "wan_face_preset",
+      "config": {
+        "defaults": {
+          "template": "Wan",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "640|1:1",
+            "720|1:1",
+            "832|1:1",
+            "960|1:1",
+            "1024|1:1",
+            "1280|1:1",
+            "origin|Original"
+          ],
+          "resolution_control": {
+            "mode": "video_keep_input_area",
+            "source": "video_first_frame",
+            "base_width": 640,
+            "base_height": 640,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "video",
+            "preprocess_fit": "proportional",
+            "preserve_audio": true
+          }
+        },
+        "values": {
+          "template": "Preset",
+          "aspect_ratio": "origin|Original",
+          "width": 640,
+          "height": 640,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan-Animate"
+      }
+    },
+    {
+      "id": "wan_face_preset",
+      "type": "preset",
+      "x": 1752,
+      "y": -120,
+      "w": 430,
+      "h": 620,
+      "title": "Wan-Animate Face Swap",
+      "preset": {
+        "name": "Wan-Animate",
+        "display_name": "Wan-Animate",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Wan",
+        "engine_type": "video",
+        "scene_frontend": "v1.1",
+        "scene_theme": "Wan-Animate-SAM3 Face Swap",
+        "task_method": "wan_animate_sam3_face_cn"
+      },
+      "schema": {
+        "version": "v1.1",
+        "scene_frontend": "v1.1",
+        "engine_type": "video",
+        "theme_title": "Wan-Animate + SAM3 Video Editing Tools",
+        "default_theme": "Wan-Animate-SAM3 Face Swap",
+        "themes": [
+          "Wan-Animate-SAM3 Object Replacement",
+          "Wan-Animate-SAM3 Face Swap",
+          "Wan-Animate-SAM3 Person Replacement"
+        ],
+        "per_theme": {
+          "Wan-Animate-SAM3 Face Swap": {
+            "task_method": "wan_animate_sam3_face_cn",
+            "defaults": {
+              "prompt": "",
+              "scene_var_number": 0,
+              "scene_var_number2": 30,
+              "scene_var_number3": 16,
+              "scene_var_number4": 0,
+              "scene_var_number5": 0.25,
+              "scene_var_number6": 0.6,
+              "scene_var_number7": 5,
+              "scene_var_number8": 35,
+              "scene_switch_option1": true,
+              "scene_switch_option2": true,
+              "scene_switch_option3": true,
+              "scene_switch_option4": false,
+              "scene_steps": 4,
+              "scene_image_number": 1
+            }
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "#1 Face Reference",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "#2 SAM3 Source Video",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "#3 SAM3 Mask Video",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "scene_input_image1",
+            "label": "Input Image 1",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_input_image2",
+            "label": "Input Image 2",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_video",
+            "label": "Scene Video",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_audio",
+            "label": "Audio",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Positive Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "seed_random",
+            "label": "Random Seed",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "image_seed",
+            "label": "Seed",
+            "type": "number",
+            "min": 0,
+            "max": 1125899906842623,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number",
+            "label": "Duration limit (seconds) [0 = no limit]",
+            "type": "number",
+            "min": 0,
+            "max": 60,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number2",
+            "label": "Interpolate to total frames",
+            "type": "number",
+            "min": 16,
+            "max": 60,
+            "step": 1,
+            "default": 30
+          },
+          {
+            "key": "scene_var_number3",
+            "label": "Reference video override FPS",
+            "type": "number",
+            "min": 16,
+            "max": 30,
+            "step": 1,
+            "default": 16
+          },
+          {
+            "key": "scene_var_number5",
+            "label": "Motion reference strength",
+            "type": "number",
+            "min": 0,
+            "max": 2,
+            "step": 0.05,
+            "default": 0.25
+          },
+          {
+            "key": "scene_var_number6",
+            "label": "Face reference strength",
+            "type": "number",
+            "min": 0,
+            "max": 2,
+            "step": 0.05,
+            "default": 0.6
+          },
+          {
+            "key": "scene_var_number7",
+            "label": "Mask expansion",
+            "type": "number",
+            "min": -50,
+            "max": 50,
+            "step": 1,
+            "default": 5
+          },
+          {
+            "key": "scene_var_number8",
+            "label": "Block Swap",
+            "type": "number",
+            "min": 0,
+            "max": 40,
+            "step": 1,
+            "default": 35
+          },
+          {
+            "key": "scene_switch_option1",
+            "label": "Use Tiled VAE Decode",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "scene_switch_option2",
+            "label": "SageAttention SpeedUp",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "scene_switch_option3",
+            "label": "Save comparison video to folder",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "scene_switch_option4",
+            "label": "Reference image: Crop / Pad",
+            "type": "checkbox",
+            "default": false
+          },
+          {
+            "key": "scene_steps",
+            "label": "Scene Steps",
+            "type": "number",
+            "min": 4,
+            "max": 8,
+            "step": 1,
+            "default": 4
+          }
+        ]
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "refiner_model": "None",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "WanAnimate_relight_lora_fp16.safetensors",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+              "weight": 1.2
+            }
+          ]
+        },
+        "overrides": {
+          "base_model": "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "refiner_model": "None",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "WanAnimate_relight_lora_fp16.safetensors",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+              "weight": 1.2
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "wan_face_models",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "Wan",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "640|1:1",
+            "720|1:1",
+            "832|1:1",
+            "960|1:1",
+            "1024|1:1",
+            "1280|1:1",
+            "origin|Original"
+          ],
+          "resolution_control": {
+            "mode": "video_keep_input_area",
+            "source": "video_first_frame",
+            "base_width": 640,
+            "base_height": 640,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "video",
+            "preprocess_fit": "proportional",
+            "preserve_audio": true
+          }
+        },
+        "overrides": {
+          "template": "Preset",
+          "aspect_ratio": "origin|Original",
+          "width": 640,
+          "height": 640,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "source_node_id": "wan_face_resolution",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "source_node_id": "wan_face_advanced",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "diffusion_models,Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors,17317143060,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy_fp8_scaled/resolve/master/Wan22Animate/Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "checkpoints,sam3.1_multiplex_fp16.safetensors,1745546848,0,https://www.modelscope.cn/models/Comfy-Org/sam3.1/resolve/master/checkpoints/sam3.1_multiplex_fp16.safetensors",
+          "clip_vision,clip_vision_h.safetensors,1264219396,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/clip_vision/clip_vision_h.safetensors",
+          "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
+          "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
+          "loras,lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,738005744,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+          "loras,WanAnimate_relight_lora_fp16.safetensors,1436672440,0,https://modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/LoRAs/Wan22_relight/WanAnimate_relight_lora_fp16.safetensors",
+          "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl",
+          "detection,vitpose_h_wholebody_data.bin,2548958740,0,https://modelscope.cn/models/Kijai/vitpose_comfy/resolve/master/onnx/vitpose_h_wholebody_data.bin",
+          "detection,vitpose_h_wholebody_model.onnx,420252,0,https://modelscope.cn/models/Kijai/vitpose_comfy/resolve/master/onnx/vitpose_h_wholebody_model.onnx",
+          "detection,yolov10m.onnx,61659339,0,https://modelscope.cn/models/Wan-AI/Wan2.2-Animate-14B/resolve/master/process_checkpoint/det/yolov10m.onnx"
+        ],
+        "has_model_probe": true,
+        "source": "presets/Wan-Animate.json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Generate or upload a face mask, connect a face reference, then check Wan-Animate models before running."
+      },
+      "upload_slots": {
+        "scene_canvas_image": "wan_face_reference_image",
+        "sam3_input_video": "wan_face_source_video",
+        "sam3_mask_video": "wan_face_sam3_mask"
+      },
+      "text_inputs": {
+        "prompt": "wan_face_prompt"
+      },
+      "params": {
+        "prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_var_number": 0,
+        "scene_var_number2": 30,
+        "scene_var_number3": 16,
+        "scene_var_number4": 0,
+        "scene_var_number5": 0.25,
+        "scene_var_number6": 0.6,
+        "scene_var_number7": 5,
+        "scene_var_number8": 35,
+        "scene_switch_option1": true,
+        "scene_switch_option2": true,
+        "scene_switch_option3": true,
+        "scene_switch_option4": false,
+        "scene_steps": 4,
+        "scene_image_number": 1
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "Wan-Animate"
+      }
+    },
+    {
+      "id": "wan_face_advanced",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 1296,
+      "y": 1344,
+      "w": 280,
+      "h": 275,
+      "title": "Advanced Config / 高级配置",
+      "target_preset_id": "wan_face_preset",
+      "config": {
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan-Animate"
+      }
+    },
+    {
+      "id": "wan_face_result",
+      "type": "result",
+      "x": 2232,
+      "y": -120,
+      "w": 340,
+      "h": 330,
+      "title": "Face Swap Result / 人脸替换结果",
+      "producer": {
+        "preset_node_id": "wan_face_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 30,
+        "percent": 0,
+        "message": "After the face mask and reference are ready, run Wan-Animate."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "wan_face_tip_note",
+      "type": "note",
+      "x": 2232,
+      "y": 264,
+      "w": 430,
+      "h": 125,
+      "title": "Reference Strength / 参考强度",
+      "text": "Face Swap defaults lower motion reference strength and moderate face reference strength. Tune these values if identity or motion drifts. / 人脸替换默认降低运动参考强度，并使用中等人脸参考强度；身份或动作漂移时可微调。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "wan_face_edge_video_to_sam3",
+      "type": "media",
+      "from": "wan_face_source_video",
+      "to": "wan_face_sam3_mask",
+      "slot": "source"
+    },
+    {
+      "id": "wan_face_edge_video_to_preset",
+      "type": "upload",
+      "from": "wan_face_source_video",
+      "to": "wan_face_preset",
+      "slot": "sam3_input_video"
+    },
+    {
+      "id": "wan_face_edge_mask_to_preset",
+      "type": "upload",
+      "from": "wan_face_sam3_mask",
+      "to": "wan_face_preset",
+      "slot": "sam3_mask_video"
+    },
+    {
+      "id": "wan_face_edge_ref_to_preset",
+      "type": "upload",
+      "from": "wan_face_reference_image",
+      "to": "wan_face_preset",
+      "slot": "scene_canvas_image"
+    },
+    {
+      "id": "wan_face_edge_prompt",
+      "type": "text",
+      "from": "wan_face_prompt",
+      "to": "wan_face_preset",
+      "slot": "prompt"
+    },
+    {
+      "id": "wan_face_edge_models",
+      "type": "config",
+      "from": "wan_face_models",
+      "to": "wan_face_preset",
+      "slot": "models"
+    },
+    {
+      "id": "wan_face_edge_resolution",
+      "type": "config",
+      "from": "wan_face_resolution",
+      "to": "wan_face_preset",
+      "slot": "resolution"
+    },
+    {
+      "id": "wan_face_edge_advanced",
+      "type": "config",
+      "from": "wan_face_advanced",
+      "to": "wan_face_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "wan_face_edge_result",
+      "type": "generate",
+      "from": "wan_face_preset",
+      "to": "wan_face_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "wan_animate_sam3_face_swap_20260606065441_template_20260606065607",
+    "title": "Wan-Animate SAM3 人脸替换",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 1 个 preset 节点和 11 个模型依赖。运行前请检查模型。",
+      "models": [
+        "diffusion_models,Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors,17317143060,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy_fp8_scaled/resolve/master/Wan22Animate/Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+        "checkpoints,sam3.1_multiplex_fp16.safetensors,1745546848,0,https://www.modelscope.cn/models/Comfy-Org/sam3.1/resolve/master/checkpoints/sam3.1_multiplex_fp16.safetensors",
+        "clip_vision,clip_vision_h.safetensors,1264219396,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/clip_vision/clip_vision_h.safetensors",
+        "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
+        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
+        "loras,lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,738005744,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+        "loras,WanAnimate_relight_lora_fp16.safetensors,1436672440,0,https://modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/LoRAs/Wan22_relight/WanAnimate_relight_lora_fp16.safetensors",
+        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl",
+        "detection,vitpose_h_wholebody_data.bin,2548958740,0,https://modelscope.cn/models/Kijai/vitpose_comfy/resolve/master/onnx/vitpose_h_wholebody_data.bin",
+        "detection,vitpose_h_wholebody_model.onnx,420252,0,https://modelscope.cn/models/Kijai/vitpose_comfy/resolve/master/onnx/vitpose_h_wholebody_model.onnx",
+        "detection,yolov10m.onnx,61659339,0,https://modelscope.cn/models/Wan-AI/Wan2.2-Animate-14B/resolve/master/process_checkpoint/det/yolov10m.onnx"
+      ]
+    },
+    "preview": "",
+    "saved_at": "2026-06-06T06:56:08Z"
+  }
+}

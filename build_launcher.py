@@ -1,0 +1,97 @@
+import os
+import shutil
+import shared
+import requests
+from datetime import datetime
+
+win32_root = os.path.dirname(os.path.dirname(__file__))
+python_embeded_path = os.path.join(win32_root, 'python_embeded')
+
+is_win32_standalone_build = os.path.exists(python_embeded_path) and os.path.isdir(python_embeded_path)
+
+win32_cmd = r'''
+@echo off
+.\python_embeded\python.exe -s SimpAI_Studio\{cmds} %*
+echo All done.
+pause
+'''
+
+
+def build_launcher():
+    if not is_win32_standalone_build:
+        return
+
+    branchs = {"SimpAI_Studio": "entry_with_update.py", "SimpAI_Studio_without_update": "launch.py"}
+
+    for (name, cmd) in branchs.items():
+        win32_cmd_preset = win32_cmd.replace('{cmds}', f'{cmd}')
+        bat_path = os.path.join(win32_root, f'run_{name}.bat')
+        if not os.path.exists(bat_path) or name=='SimpAI_Studio_commit':
+            with open(bat_path, "w", encoding="utf-8") as f:
+                f.write(win32_cmd_preset)
+    return
+
+def ready_checker():
+    if not is_win32_standalone_build:
+        return
+    
+    for filename in os.listdir(shared.root):
+        if 'Comfyd' in filename and filename.endswith(".bat"):
+            source_file = os.path.join(shared.root, filename)
+            target_file = os.path.join(win32_root, filename)
+            shutil.copy2(source_file, target_file)
+    for filename in os.listdir(shared.root):
+        if 'checker' in filename and filename.endswith(".bat"):
+            source_file = os.path.join(shared.root, filename)
+            target_file = os.path.join(win32_root, filename)
+            shutil.copy2(source_file, target_file)
+
+
+def download_if_updated(url, save_path):
+    if os.path.exists(save_path):
+        local_mtime = os.path.getmtime(save_path)
+        local_mtime_str = datetime.fromtimestamp(local_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+        local_file_size = os.path.getsize(save_path)
+    else:
+        local_mtime = None
+        local_file_size = 0
+    try:
+        response = requests.get(url, allow_redirects=True, stream=True)
+        response.raise_for_status()  # 检查请求是否成功
+    except requests.exceptions.RequestException as e:
+        print(f"无法访问的 URL: {e}")
+        return False
+    
+    remote_mtime_str = response.headers.get("Last-Modified")
+    if not remote_mtime_str:
+        remote_mtime = None
+    else:
+        remote_mtime = datetime.strptime(remote_mtime_str, '%a, %d %b %Y %H:%M:%S GMT')
+    
+    remote_file_size = int(response.headers.get('Content-Length', 0))
+    if local_mtime and remote_mtime:
+        local_mtime_dt = datetime.fromtimestamp(local_mtime)
+        if local_mtime_dt >= remote_mtime and remote_file_size==local_file_size:
+            return False
+
+
+    partial_path = save_path + ".partial"
+    try:
+        with requests.get(url, stream=True, allow_redirects=True, timeout=(5, 30)) as r:
+            r.raise_for_status()
+            with open(partial_path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        print(f"Downloaded the lastest lib file and save to: {save_path}")
+    except requests.exceptions.RequestException as e:
+        print(f"Update lib file: {e}")
+        return False
+
+    if os.path.getsize(partial_path) == remote_file_size:
+        os.replace(partial_path, save_path)
+        if remote_mtime:
+            remote_mtime_timestamp = int(remote_mtime.timestamp())
+            os.utime(save_path, (remote_mtime_timestamp, remote_mtime_timestamp))
+        return True
+    return False
+

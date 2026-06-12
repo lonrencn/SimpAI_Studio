@@ -1,0 +1,144 @@
+import cv2
+import numpy as np
+from extras.easy_dwpose.dwpose import DWposeDetector
+from extras.open_pose import OpenposeDetector
+
+def centered_canny(x: np.ndarray, canny_low_threshold, canny_high_threshold):
+    assert isinstance(x, np.ndarray)
+    assert x.ndim == 2 and x.dtype == np.uint8
+
+    y = cv2.Canny(x, int(canny_low_threshold), int(canny_high_threshold))
+    y = y.astype(np.float32) / 255.0
+    return y
+
+
+def centered_canny_color(x: np.ndarray, canny_low_threshold, canny_high_threshold):
+    assert isinstance(x, np.ndarray)
+    assert x.ndim == 3 and x.shape[2] == 3
+
+    result = [centered_canny(x[..., i], canny_low_threshold, canny_high_threshold) for i in range(3)]
+    result = np.stack(result, axis=2)
+    return result
+
+
+def pyramid_canny_color(x: np.ndarray, canny_low_threshold, canny_high_threshold):
+    assert isinstance(x, np.ndarray)
+    assert x.ndim == 3 and x.shape[2] == 3
+
+    H, W, C = x.shape
+    acc_edge = None
+
+    for k in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+        Hs, Ws = int(H * k), int(W * k)
+        small = cv2.resize(x, (Ws, Hs), interpolation=cv2.INTER_AREA)
+        edge = centered_canny_color(small, canny_low_threshold, canny_high_threshold)
+        if acc_edge is None:
+            acc_edge = edge
+        else:
+            acc_edge = cv2.resize(acc_edge, (edge.shape[1], edge.shape[0]), interpolation=cv2.INTER_LINEAR)
+            acc_edge = acc_edge * 0.75 + edge * 0.25
+
+    return acc_edge
+
+
+def norm255(x, low=4, high=96):
+    assert isinstance(x, np.ndarray)
+    assert x.ndim == 2 and x.dtype == np.float32
+
+    v_min = np.percentile(x, low)
+    v_max = np.percentile(x, high)
+
+    x -= v_min
+    x /= v_max - v_min
+
+    return x * 255.0
+
+
+def canny_pyramid(x, canny_low_threshold, canny_high_threshold):
+    # For some reasons, SAI's Control-lora Canny seems to be trained on canny maps with non-standard resolutions.
+    # Then we use pyramid to use all resolutions to avoid missing any structure in specific resolutions.
+
+    color_canny = pyramid_canny_color(x, canny_low_threshold, canny_high_threshold)
+    result = np.sum(color_canny, axis=2)
+
+    return norm255(result, low=1, high=99).clip(0, 255).astype(np.uint8)
+
+
+def cpds(x):
+    # cv2.decolor is not "decolor", it is Cewu Lu's method
+    # See http://www.cse.cuhk.edu.hk/leojia/projects/color2gray/index.html
+    # See https://docs.opencv.org/3.0-beta/modules/photo/doc/decolor.html
+
+    raw = cv2.GaussianBlur(x, (0, 0), 0.8)
+    density, boost = cv2.decolor(raw)
+
+    raw = raw.astype(np.float32)
+    density = density.astype(np.float32)
+    boost = boost.astype(np.float32)
+
+    offset = np.sum((raw - boost) ** 2.0, axis=2) ** 0.5
+    result = density + offset
+
+    return norm255(result, low=4, high=96).clip(0, 255).astype(np.uint8)
+
+def dwpose(x):
+    detector = DWposeDetector()
+    result = detector(x, output_type="np", include_hands=False, include_face=False)
+
+    return result
+
+def openpose(x, stick_scaling=False):
+    detector = OpenposeDetector.from_pretrained().to()
+    result = detector(x, output_type="np", include_hand=True, include_face=True, xinsr_stick_scaling=stick_scaling, detect_resolution=512 if stick_scaling else 1024)
+
+    return result
+
+def openpose_have(x, parts=[]):
+    detector = OpenposeDetector.from_pretrained().to()
+    image, poses = detector(x, output_type="np", include_hand=True, include_face=True, detect_resolution=1024, image_and_json=True)
+    people = poses['people'][0] if len(poses['people'])>0 else None
+    if not people:
+        return False
+    have_face = ('face_keypoints_2d' in people) if 'face' in parts else None
+    have_body = ('pose_keypoints_2d' in people) if 'body' in parts else None
+    have_hand = ('hand_left_keypoints_2d' in people or 'hand_right_keypoints_2d' in people) if 'hand' in parts else None
+    have_flag = None
+    if have_face:
+        have_flag = have_face
+    if have_body:
+        if have_flag:
+            have_flag = have_flag and have_body
+        else:
+            have_flag = have_body
+    if have_hand:
+        if have_flag:
+            have_flag = have_flag and have_hand
+        else:
+            have_flag = have_hand
+    print(f'openpose_have is True: {parts}')
+    return have_flag
+
+
+def normalizedBG(image, threshold=200):
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray_image, 100, 200)
+    edge_pixels = image[edges == 255]
+    if len(edge_pixels) == 0:
+        return 255 - image
+    avg_brightness = np.mean(edge_pixels)
+    if avg_brightness > threshold:
+        return 255 - image
+    return image
+
+
+def zoe_depth(x, resolution=512):
+    try:
+        from extras.zoe import ZoeDetector
+    except ImportError as e:
+        print(f"Error: Could not import ZoeDetector from extras: {e}")
+        return x
+
+    detector = ZoeDetector.from_pretrained()
+    result = detector(x, detect_resolution=resolution, output_type="np")
+
+    return result

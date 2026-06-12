@@ -1,0 +1,1183 @@
+{
+  "126": {
+    "inputs": {
+      "width_factor": [
+        "174",
+        0
+      ],
+      "height_factor": [
+        "175",
+        0
+      ],
+      "overlap_rate": 0.05,
+      "image": [
+        "165",
+        0
+      ]
+    },
+    "class_type": "TTP_Tile_image_size",
+    "_meta": {
+      "title": "TTP分块参数设置"
+    }
+  },
+  "132": {
+    "inputs": {
+      "image": "welcome.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "i2i_inpaint_image"
+    }
+  },
+  "135": {
+    "inputs": {
+      "text": [
+        "166",
+        1
+      ],
+      "clip": [
+        "241",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "136": {
+    "inputs": {
+      "seed": [
+        "168",
+        0
+      ],
+      "steps": [
+        "167",
+        0
+      ],
+      "cfg": [
+        "166",
+        4
+      ],
+      "sampler_name": [
+        "166",
+        7
+      ],
+      "scheduler": [
+        "166",
+        8
+      ],
+      "denoise": [
+        "200",
+        0
+      ],
+      "model": [
+        "250",
+        0
+      ],
+      "positive": [
+        "144",
+        0
+      ],
+      "negative": [
+        "135",
+        0
+      ],
+      "latent_image": [
+        "166:146",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "144": {
+    "inputs": {
+      "text": [
+        "166",
+        0
+      ],
+      "clip": [
+        "241",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "165": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "megapixels": [
+        "170",
+        1
+      ],
+      "resolution_steps": 16,
+      "image": [
+        "166:112",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "Scale Image to Total Pixels"
+    }
+  },
+  "166": {
+    "inputs": {
+      "prompt": "",
+      "negative_prompt": "",
+      "width": 1024,
+      "height": 1024,
+      "cfg": 1,
+      "steps": 24,
+      "refiner_step": 16,
+      "sampler": "euler_ancestral",
+      "scheduler": "beta",
+      "denoise": 1,
+      "clip_skip": -1,
+      "inpaint_disable_initial_latent": false,
+      "wavespeed_strength": 0.12,
+      "save_final_enhanced_image_only": false
+    },
+    "class_type": "GeneralInput",
+    "_meta": {
+      "title": "GeneralInput"
+    }
+  },
+  "167": {
+    "inputs": {
+      "value": "a/6",
+      "a": [
+        "166",
+        5
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "168": {
+    "inputs": {
+      "seed": 0
+    },
+    "class_type": "SeedInput",
+    "_meta": {
+      "title": "SeedInput"
+    }
+  },
+  "169": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "var_number"
+    }
+  },
+  "170": {
+    "inputs": {
+      "value": "a",
+      "a": [
+        "169",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "171": {
+    "inputs": {
+      "value": 3
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "172": {
+    "inputs": {
+      "value": 2
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "173": {
+    "inputs": {
+      "image": [
+        "193",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "174": {
+    "inputs": {
+      "boolean": [
+        "176",
+        0
+      ],
+      "on_true": [
+        "171",
+        0
+      ],
+      "on_false": [
+        "172",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "175": {
+    "inputs": {
+      "boolean": [
+        "176",
+        0
+      ],
+      "on_true": [
+        "172",
+        0
+      ],
+      "on_false": [
+        "171",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "176": {
+    "inputs": {
+      "comparison": "a > b",
+      "a": [
+        "173",
+        0
+      ],
+      "b": [
+        "173",
+        1
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "177": {
+    "inputs": {
+      "images": [
+        "254",
+        0
+      ]
+    },
+    "class_type": "SaveImageWebsocket",
+    "_meta": {
+      "title": "SaveImageWebsocket"
+    }
+  },
+  "178": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "180",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_2"
+    }
+  },
+  "179": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "178",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_3"
+    }
+  },
+  "180": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "195",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_1"
+    }
+  },
+  "181": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "179",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_4"
+    }
+  },
+  "184": {
+    "inputs": {
+      "mask": [
+        "132",
+        1
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "InvertMask"
+    }
+  },
+  "185": {
+    "inputs": {
+      "fill_background": true,
+      "background_color": "#FFFFFF",
+      "RGBA_image": [
+        "132",
+        0
+      ],
+      "mask": [
+        "184",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: ImageRemoveAlpha",
+    "_meta": {
+      "title": "LayerUtility: ImageRemoveAlpha"
+    }
+  },
+  "186": {
+    "inputs": {
+      "image": [
+        "193",
+        0
+      ]
+    },
+    "class_type": "GetImageSize+",
+    "_meta": {
+      "title": "🔧 Get Image Size"
+    }
+  },
+  "187": {
+    "inputs": {
+      "value": "a*b/10000",
+      "a": [
+        "186",
+        0
+      ],
+      "b": [
+        "186",
+        1
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "188": {
+    "inputs": {
+      "comparison": "a > b",
+      "a": [
+        "187",
+        0
+      ],
+      "b": [
+        "191",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "190": {
+    "inputs": {
+      "boolean": [
+        "188",
+        0
+      ],
+      "on_true": [
+        "193",
+        0
+      ],
+      "on_false": [
+        "240",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "191": {
+    "inputs": {
+      "value": "a/2*100",
+      "a": [
+        "169",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "192": {
+    "inputs": {
+      "mask": [
+        "132",
+        1
+      ]
+    },
+    "class_type": "easy isMaskEmpty",
+    "_meta": {
+      "title": "Is Mask Empty"
+    }
+  },
+  "193": {
+    "inputs": {
+      "boolean": [
+        "192",
+        0
+      ],
+      "on_true": [
+        "132",
+        0
+      ],
+      "on_false": [
+        "185",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "194": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": false,
+      "model": [
+        "245",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ"
+    }
+  },
+  "195": {
+    "inputs": {
+      "enable_fp16_accumulation": true,
+      "model": [
+        "194",
+        0
+      ]
+    },
+    "class_type": "ModelPatchTorchSettings",
+    "_meta": {
+      "title": "Model Patch Torch Settings"
+    }
+  },
+  "200": {
+    "inputs": {
+      "value": 0.25
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "var_number3"
+    }
+  },
+  "203": {
+    "inputs": {
+      "seed": 42,
+      "resolution": [
+        "239",
+        0
+      ],
+      "max_resolution": 0,
+      "batch_size": 1,
+      "uniform_batch_size": false,
+      "color_correction": "wavelet",
+      "temporal_overlap": 0,
+      "prepend_frames": 0,
+      "input_noise_scale": 0,
+      "latent_noise_scale": 0,
+      "offload_device": "cpu",
+      "enable_debug": false,
+      "image": [
+        "238",
+        0
+      ],
+      "dit": [
+        "211",
+        0
+      ],
+      "vae": [
+        "205",
+        0
+      ]
+    },
+    "class_type": "SeedVR2VideoUpscaler",
+    "_meta": {
+      "title": "SeedVR2 Video Upscaler (v2.5.12)"
+    }
+  },
+  "204": {
+    "inputs": {
+      "model": "seedvr2_ema_3b_fp16.safetensors",
+      "device": "cuda:0",
+      "blocks_to_swap": 32,
+      "swap_io_components": false,
+      "offload_device": "cpu",
+      "cache_model": false,
+      "attention_mode": "flash_attn"
+    },
+    "class_type": "SeedVR2LoadDiTModel",
+    "_meta": {
+      "title": "SeedVR2 (Down)Load DiT Model"
+    }
+  },
+  "205": {
+    "inputs": {
+      "model": "ema_vae_fp16.safetensors",
+      "device": "cuda:0",
+      "encode_tiled": true,
+      "encode_tile_size": 1024,
+      "encode_tile_overlap": 128,
+      "decode_tiled": true,
+      "decode_tile_size": 1024,
+      "decode_tile_overlap": 128,
+      "tile_debug": "false",
+      "offload_device": "cpu",
+      "cache_model": false
+    },
+    "class_type": "SeedVR2LoadVAEModel",
+    "_meta": {
+      "title": "SeedVR2 (Down)Load VAE Model"
+    }
+  },
+  "211": {
+    "inputs": {
+      "boolean": [
+        "228",
+        0
+      ],
+      "on_true": [
+        "204",
+        0
+      ],
+      "on_false": [
+        "213",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "213": {
+    "inputs": {
+      "model": "seedvr2_ema_3b_fp16.safetensors",
+      "device": "cuda:0",
+      "blocks_to_swap": 32,
+      "swap_io_components": false,
+      "offload_device": "cpu",
+      "cache_model": false,
+      "attention_mode": "sdpa"
+    },
+    "class_type": "SeedVR2LoadDiTModel",
+    "_meta": {
+      "title": "SeedVR2 (Down)Load DiT Model"
+    }
+  },
+  "214": {
+    "inputs": {
+      "value": 3072
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "var_number2"
+    }
+  },
+  "221": {
+    "inputs": {
+      "samples": [
+        "136",
+        0
+      ],
+      "vae": [
+        "231",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "223": {
+    "inputs": {
+      "boolean": [
+        "227",
+        0
+      ],
+      "on_true": [
+        "233",
+        0
+      ],
+      "on_false": [
+        "221",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "224": {
+    "inputs": {
+      "padding": 128,
+      "tiles": [
+        "166:111",
+        0
+      ],
+      "positions": [
+        "166:127",
+        1
+      ],
+      "original_size": [
+        "166:127",
+        2
+      ],
+      "grid_size": [
+        "166:127",
+        3
+      ]
+    },
+    "class_type": "TTP_Image_Assy",
+    "_meta": {
+      "title": "TTP_Image_Assy"
+    }
+  },
+  "227": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "easy boolean",
+    "_meta": {
+      "title": "switch_option2"
+    }
+  },
+  "228": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "easy boolean",
+    "_meta": {
+      "title": "switch_option1"
+    }
+  },
+  "229": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "base_model"
+    }
+  },
+  "231": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "vae_model"
+    }
+  },
+  "232": {
+    "inputs": {
+      "vae_name": "UltraFlux-vae_v1.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "233": {
+    "inputs": {
+      "samples": [
+        "136",
+        0
+      ],
+      "vae": [
+        "232",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "234": {
+    "inputs": {
+      "width_factor": 2,
+      "height_factor": 2,
+      "overlap_rate": 0.2,
+      "image": [
+        "237",
+        0
+      ]
+    },
+    "class_type": "TTP_Tile_image_size",
+    "_meta": {
+      "title": "TTP_Tile_image_size"
+    }
+  },
+  "235": {
+    "inputs": {
+      "value": "round(a/16)*16",
+      "a": [
+        "234",
+        1
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "236": {
+    "inputs": {
+      "value": "round(a/16)*16",
+      "a": [
+        "234",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "237": {
+    "inputs": {
+      "shorter_edge": [
+        "214",
+        0
+      ],
+      "images": [
+        "193",
+        0
+      ]
+    },
+    "class_type": "ResizeImagesByShorterEdge",
+    "_meta": {
+      "title": "Resize Images by Shorter Edge"
+    }
+  },
+  "238": {
+    "inputs": {
+      "tile_width": [
+        "236",
+        0
+      ],
+      "tile_height": [
+        "235",
+        0
+      ],
+      "image": [
+        "237",
+        0
+      ]
+    },
+    "class_type": "TTP_Image_Tile_Batch",
+    "_meta": {
+      "title": "TTP_Image_Tile_Batch"
+    }
+  },
+  "239": {
+    "inputs": {
+      "side": "Shortest",
+      "image": [
+        "238",
+        0
+      ]
+    },
+    "class_type": "easy imageSizeBySide",
+    "_meta": {
+      "title": "ImageSize (Side)"
+    }
+  },
+  "240": {
+    "inputs": {
+      "padding": 64,
+      "tiles": [
+        "203",
+        0
+      ],
+      "positions": [
+        "238",
+        1
+      ],
+      "original_size": [
+        "238",
+        2
+      ],
+      "grid_size": [
+        "238",
+        3
+      ]
+    },
+    "class_type": "TTP_Image_Assy",
+    "_meta": {
+      "title": "TTP_Image_Assy"
+    }
+  },
+  "241": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default",
+      "any": [
+        "190",
+        0
+      ]
+    },
+    "class_type": "CLIPLoader_Any",
+    "_meta": {
+      "title": "clip_model"
+    }
+  },
+  "242": {
+    "inputs": {
+      "unet_name": "placeholder.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "base_model_gguf"
+    }
+  },
+  "243": {
+    "inputs": {
+      "comparison": "a == b",
+      "a": [
+        "244",
+        0
+      ],
+      "b": [
+        "246",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "244": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "i2i_model_type"
+    }
+  },
+  "245": {
+    "inputs": {
+      "boolean": [
+        "243",
+        0
+      ],
+      "on_true": [
+        "229",
+        0
+      ],
+      "on_false": [
+        "242",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "246": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "247": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "249",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_9"
+    }
+  },
+  "248": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "252",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_6"
+    }
+  },
+  "249": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "251",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_8"
+    }
+  },
+  "250": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "247",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_10"
+    }
+  },
+  "251": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "248",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_7"
+    }
+  },
+  "252": {
+    "inputs": {
+      "lora_name": "placeholder.safetensors",
+      "strength_model": 0,
+      "model": [
+        "181",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_5"
+    }
+  },
+  "253": {
+    "inputs": {
+      "value": 0.5
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "var_number4"
+    }
+  },
+  "254": {
+    "inputs": {
+      "method": "mkl",
+      "strength": [
+        "253",
+        0
+      ],
+      "multithread": true,
+      "image_target": [
+        "224",
+        0
+      ],
+      "image_ref": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "ColorMatchV2",
+    "_meta": {
+      "title": "ColorMatchV2"
+    }
+  },
+  "166:112": {
+    "inputs": {
+      "anything": [
+        "190",
+        0
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "Clean VRAM Used"
+    }
+  },
+  "166:153": {
+    "inputs": {
+      "value": "round(a/16)*16",
+      "a": [
+        "126",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "166:154": {
+    "inputs": {
+      "value": "round(a/16)*16",
+      "a": [
+        "126",
+        1
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "166:127": {
+    "inputs": {
+      "tile_width": [
+        "166:153",
+        0
+      ],
+      "tile_height": [
+        "166:154",
+        0
+      ],
+      "image": [
+        "165",
+        0
+      ]
+    },
+    "class_type": "TTP_Image_Tile_Batch",
+    "_meta": {
+      "title": "TTP_Image_Tile_Batch"
+    }
+  },
+  "166:128": {
+    "inputs": {
+      "image": [
+        "166:127",
+        0
+      ]
+    },
+    "class_type": "easy imageBatchToImageList",
+    "_meta": {
+      "title": "Image Batch To Image List"
+    }
+  },
+  "166:146": {
+    "inputs": {
+      "pixels": [
+        "166:128",
+        0
+      ],
+      "vae": [
+        "231",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "166:163": {
+    "inputs": {
+      "images": [
+        "223",
+        0
+      ]
+    },
+    "class_type": "easy imageListToImageBatch",
+    "_meta": {
+      "title": "Image List To Image Batch"
+    }
+  },
+  "166:111": {
+    "inputs": {
+      "anything": [
+        "166:163",
+        0
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "Clean VRAM Used"
+    }
+  }
+}

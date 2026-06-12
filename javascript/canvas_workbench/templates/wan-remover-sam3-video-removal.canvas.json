@@ -1,0 +1,817 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "wan_remover_sam3_video_removal_20260606065634_template_20260606065742",
+  "title": "Wan-Remover SAM3 视频移除",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-06T06:57:43Z",
+  "viewport": {
+    "x": -462,
+    "y": 91,
+    "zoom": 0.40839703859205295
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    },
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "wan_remover_group_input",
+      "title": "1. Source Video / 源视频",
+      "x": -160,
+      "y": -190,
+      "w": 630,
+      "h": 1030,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "wan_remover_group_mask",
+      "title": "2. SAM3 Mask / SAM3 遮罩",
+      "x": 510,
+      "y": -190,
+      "w": 500,
+      "h": 820,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "wan_remover_group_config",
+      "title": "3. Configs / 配置",
+      "x": 1070,
+      "y": -190,
+      "w": 516,
+      "h": 1873,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "3",
+      "locked": false
+    },
+    {
+      "id": "wan_remover_group_run",
+      "title": "4. Remove Result / 移除结果",
+      "x": 1630,
+      "y": -190,
+      "w": 1050,
+      "h": 1300,
+      "color": "#2563eb",
+      "alpha": 0.09,
+      "shortcut": "4",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "wan_remover_intro_note",
+      "type": "note",
+      "x": -96,
+      "y": -120,
+      "w": 500,
+      "h": 130,
+      "title": "Video Removal / 视频移除",
+      "text": "Use SAM3 to mark the unwanted object or person, then run Wan-Remover to reconstruct the background. / 用 SAM3 标记不想要的物体或人物，再运行 Wan-Remover 重建背景。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "wan_remover_source_video",
+      "type": "video",
+      "x": -96,
+      "y": 72,
+      "w": 500,
+      "h": 300,
+      "title": "Source Video / 待移除源视频",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: replace this video or connect a video Result before generating the mask."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "sam3_input_video"
+      }
+    },
+    {
+      "id": "wan_remover_hint",
+      "type": "text",
+      "x": -96,
+      "y": 504,
+      "w": 500,
+      "h": 120,
+      "title": "Removal Hint / 移除提示",
+      "text": {
+        "value": "移除遮罩区域中的主体，并根据周围背景自然补全，不要留下边缘痕迹。",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "wan_remover_sam3_mask",
+      "type": "sam3_video_mask",
+      "x": 576,
+      "y": -120,
+      "w": 380,
+      "h": 640,
+      "title": "SAM3 Removal Mask / SAM3 移除遮罩",
+      "input_node_id": "wan_remover_source_video",
+      "params": {
+        "prompt": "object or person to remove",
+        "score_threshold_detection": 0.5,
+        "new_det_thresh": 0.7,
+        "fill_hole_area": 16,
+        "recondition_every_nth_frame": 16,
+        "postprocess_strength": 1,
+        "invert_mask": false
+      },
+      "asset": null,
+      "source": {
+        "kind": "sam3_video_mask",
+        "module": "enhanced.sam3_video_mask",
+        "source_node_id": "wan_remover_source_video"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Connect the source video, then generate or upload the removal mask video."
+      }
+    },
+    {
+      "id": "wan_remover_models",
+      "type": "config",
+      "config_kind": "models",
+      "x": 1128,
+      "y": -120,
+      "w": 380,
+      "h": 330,
+      "title": "Models Config / 模型配置",
+      "target_preset_id": "wan_remover_preset",
+      "config": {
+        "defaults": {
+          "base_model": "Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": []
+        },
+        "values": {
+          "base_model": "Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan-Remover"
+      }
+    },
+    {
+      "id": "wan_remover_resolution",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 1128,
+      "y": 624,
+      "w": 380,
+      "h": 315,
+      "title": "Resolution Config / 分辨率配置",
+      "target_preset_id": "wan_remover_preset",
+      "config": {
+        "defaults": {
+          "template": "Wan",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "640|1:1",
+            "720|1:1",
+            "832|1:1",
+            "960|1:1",
+            "1024|1:1",
+            "1280|1:1"
+          ],
+          "resolution_control": {
+            "mode": "video_keep_input_area",
+            "source": "video_first_frame",
+            "base_width": 640,
+            "base_height": 640,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "video",
+            "preprocess_fit": "proportional",
+            "preserve_audio": true
+          }
+        },
+        "values": {
+          "template": "Preset",
+          "aspect_ratio": "640|1:1",
+          "width": 640,
+          "height": 640,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan-Remover"
+      }
+    },
+    {
+      "id": "wan_remover_preset",
+      "type": "preset",
+      "x": 1704,
+      "y": -120,
+      "w": 430,
+      "h": 590,
+      "title": "Wan-Remover SAM3 Video Removal",
+      "preset": {
+        "name": "Wan-Remover",
+        "display_name": "Wan-Remover",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Wan",
+        "engine_type": "video",
+        "scene_frontend": "v1.1",
+        "scene_theme": "Wan-Remover-SAM3 Video Removal",
+        "task_method": "wan_remover_sam3_cn"
+      },
+      "schema": {
+        "version": "v1.1",
+        "scene_frontend": "v1.1",
+        "engine_type": "video",
+        "theme_title": "Wan-MiniMaxRemover Video Removal Editing Tools",
+        "default_theme": "Wan-Remover-SAM3 Video Removal",
+        "themes": [
+          "Wan-Remover-SAM3 Video Removal"
+        ],
+        "per_theme": {
+          "Wan-Remover-SAM3 Video Removal": {
+            "task_method": "wan_remover_sam3_cn",
+            "defaults": {
+              "prompt": "",
+              "scene_var_number": 0,
+              "scene_var_number2": 30,
+              "scene_var_number3": 30,
+              "scene_var_number4": 0,
+              "scene_var_number7": 20,
+              "scene_switch_option1": true,
+              "scene_switch_option2": true,
+              "scene_steps": 6,
+              "scene_image_number": 1
+            }
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "sam3_input_video",
+            "label": "#1 SAM3 Source Video",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "#2 SAM3 Mask Video",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "scene_canvas_image",
+            "label": "Canvas Image",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_input_image1",
+            "label": "Input Image 1",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_input_image2",
+            "label": "Input Image 2",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_video",
+            "label": "Scene Video",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_audio",
+            "label": "Audio",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Positive Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "seed_random",
+            "label": "Random Seed",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "image_seed",
+            "label": "Seed",
+            "type": "number",
+            "min": 0,
+            "max": 1125899906842623,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number",
+            "label": "Duration limit (seconds) [0 = no limit]",
+            "type": "number",
+            "min": 0,
+            "max": 60,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number2",
+            "label": "Interpolate to total frames",
+            "type": "number",
+            "min": 16,
+            "max": 60,
+            "step": 1,
+            "default": 30
+          },
+          {
+            "key": "scene_var_number3",
+            "label": "Reference video override FPS",
+            "type": "number",
+            "min": 16,
+            "max": 60,
+            "step": 1,
+            "default": 30
+          },
+          {
+            "key": "scene_var_number7",
+            "label": "Mask expansion",
+            "type": "number",
+            "min": -255,
+            "max": 255,
+            "step": 1,
+            "default": 20
+          },
+          {
+            "key": "scene_switch_option1",
+            "label": "Use Tiled VAE Decode",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "scene_switch_option2",
+            "label": "SageAttention SpeedUp",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "scene_steps",
+            "label": "Scene Steps",
+            "type": "number",
+            "min": 4,
+            "max": 10,
+            "step": 1,
+            "default": 6
+          }
+        ]
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": []
+        },
+        "overrides": {
+          "base_model": "Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "wan_remover_models",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "Wan",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "640|1:1",
+            "720|1:1",
+            "832|1:1",
+            "960|1:1",
+            "1024|1:1",
+            "1280|1:1"
+          ],
+          "resolution_control": {
+            "mode": "video_keep_input_area",
+            "source": "video_first_frame",
+            "base_width": 640,
+            "base_height": 640,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "video",
+            "preprocess_fit": "proportional",
+            "preserve_audio": true
+          }
+        },
+        "overrides": {
+          "template": "Preset",
+          "aspect_ratio": "640|1:1",
+          "width": 640,
+          "height": 640,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "source_node_id": "wan_remover_resolution",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "source_node_id": "wan_remover_advanced",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "diffusion_models,Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors,2254156824,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors",
+          "checkpoints,sam3.1_multiplex_fp16.safetensors,1745546848,0,https://www.modelscope.cn/models/Comfy-Org/sam3.1/resolve/master/checkpoints/sam3.1_multiplex_fp16.safetensors",
+          "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
+          "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+        ],
+        "has_model_probe": true,
+        "source": "presets/Wan-Remover.json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Generate or upload the SAM3 mask, then check Wan-Remover models before running."
+      },
+      "upload_slots": {
+        "sam3_input_video": "wan_remover_source_video",
+        "sam3_mask_video": "wan_remover_sam3_mask"
+      },
+      "text_inputs": {
+        "prompt": "wan_remover_hint"
+      },
+      "params": {
+        "prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_var_number": 0,
+        "scene_var_number2": 30,
+        "scene_var_number3": 30,
+        "scene_var_number4": 0,
+        "scene_var_number7": 20,
+        "scene_switch_option1": true,
+        "scene_switch_option2": true,
+        "scene_steps": 6,
+        "scene_image_number": 1
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "Wan-Remover"
+      }
+    },
+    {
+      "id": "wan_remover_advanced",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 1248,
+      "y": 1320,
+      "w": 250,
+      "h": 260,
+      "title": "Advanced Config / 高级配置",
+      "target_preset_id": "wan_remover_preset",
+      "config": {
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan-Remover"
+      }
+    },
+    {
+      "id": "wan_remover_result",
+      "type": "result",
+      "x": 2184,
+      "y": -120,
+      "w": 340,
+      "h": 330,
+      "title": "Removal Result / 移除结果",
+      "producer": {
+        "preset_node_id": "wan_remover_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 30,
+        "percent": 0,
+        "message": "Run Wan-Remover after source video and SAM3 mask are ready."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "wan_remover_tip_note",
+      "type": "note",
+      "x": 2184,
+      "y": 264,
+      "w": 430,
+      "h": 160,
+      "title": "Edge Cleanup / 边缘清理",
+      "text": "If a removed object leaves a halo, increase Mask expansion and regenerate. / 如果移除后留下边缘痕迹，可提高 Mask expansion 后重新生成。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "wan_remover_edge_video_to_sam3",
+      "type": "media",
+      "from": "wan_remover_source_video",
+      "to": "wan_remover_sam3_mask",
+      "slot": "source"
+    },
+    {
+      "id": "wan_remover_edge_video_to_preset",
+      "type": "upload",
+      "from": "wan_remover_source_video",
+      "to": "wan_remover_preset",
+      "slot": "sam3_input_video"
+    },
+    {
+      "id": "wan_remover_edge_mask_to_preset",
+      "type": "upload",
+      "from": "wan_remover_sam3_mask",
+      "to": "wan_remover_preset",
+      "slot": "sam3_mask_video"
+    },
+    {
+      "id": "wan_remover_edge_hint",
+      "type": "text",
+      "from": "wan_remover_hint",
+      "to": "wan_remover_preset",
+      "slot": "prompt"
+    },
+    {
+      "id": "wan_remover_edge_models",
+      "type": "config",
+      "from": "wan_remover_models",
+      "to": "wan_remover_preset",
+      "slot": "models"
+    },
+    {
+      "id": "wan_remover_edge_resolution",
+      "type": "config",
+      "from": "wan_remover_resolution",
+      "to": "wan_remover_preset",
+      "slot": "resolution"
+    },
+    {
+      "id": "wan_remover_edge_advanced",
+      "type": "config",
+      "from": "wan_remover_advanced",
+      "to": "wan_remover_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "wan_remover_edge_result",
+      "type": "generate",
+      "from": "wan_remover_preset",
+      "to": "wan_remover_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "wan_remover_sam3_video_removal_20260606065634_template_20260606065742",
+    "title": "Wan-Remover SAM3 视频移除",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 1 个 preset 节点和 4 个模型依赖。运行前请检查模型。",
+      "models": [
+        "diffusion_models,Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors,2254156824,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors",
+        "checkpoints,sam3.1_multiplex_fp16.safetensors,1745546848,0,https://www.modelscope.cn/models/Comfy-Org/sam3.1/resolve/master/checkpoints/sam3.1_multiplex_fp16.safetensors",
+        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
+        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+      ]
+    },
+    "preview": "",
+    "saved_at": "2026-06-06T06:57:43Z"
+  }
+}

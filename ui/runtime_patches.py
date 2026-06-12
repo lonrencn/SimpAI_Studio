@@ -1,0 +1,525 @@
+from __future__ import annotations
+
+import os
+from collections.abc import Callable
+from pathlib import Path
+
+import gradio
+import gradio.blocks
+import gradio.routes
+from starlette.responses import Response
+
+
+_APP_TREE_PATCHED_SENTINEL = "simpleai_node_index_cache"
+_APP_TREE_CHILDREN_ASSIGNMENT = "\t\tn.children = subtree.children;\n"
+_APP_TREE_ORIGINAL_LOOKUP = """function find_node_by_id(tree, id) {
+\tif (tree.id === id) {
+\t\treturn tree;
+\t}
+
+\tif (tree.children) {
+\t\tfor (const child of tree.children) {
+\t\t\tconst result = find_node_by_id(child, id);
+
+\t\t\tif (result) {
+\t\t\t\treturn result;
+\t\t\t}
+\t\t}
+\t}
+
+\treturn null;
+}"""
+_IMAGE_DROP_PATCHED_SENTINEL = "simpleai_image_drop_snapshot"
+_IMAGE_UPLOAD_KEEP_SENTINEL = "simpleai_keep_value_during_image_upload"
+_IMAGE_DROP_ORIGINAL_HANDLER = """  async function on_drop(evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    $$invalidate(2, dragging = false);
+    if (value) {
+      handle_clear();
+      await tick();
+    }
+    $$invalidate(1, active_source = "upload");
+    await tick();
+    upload_input.load_files_from_drop(evt);
+  }"""
+_IMAGE_DROP_ORIGINAL_HANDLER_SVELTE5 = """async function on_drop(evt) {
+\t\tevt.preventDefault();
+\t\tevt.stopPropagation();
+\t\tdragging(false);
+
+\t\tif (value()) {
+\t\t\thandle_clear();
+\t\t\tawait tick();
+\t\t}
+
+\t\tactive_source("upload");
+\t\tawait tick();
+\t\tget(upload_input).load_files_from_drop(evt);
+\t}"""
+_IMAGE_UPLOAD_CLEAR_ORIGINAL_HANDLER = """    if ($$self.$$.dirty[0] & /*uploading, active_streaming*/
+    2097153) {
+      if (uploading && !active_streaming) $$invalidate(3, value = null);
+    }"""
+_IMAGE_UPLOAD_CLEAR_ORIGINAL_HANDLER_SVELTE5 = """\tlegacy_pre_effect(() => (deep_read_state(uploading()), get(active_streaming)), () => {
+\t\tif (uploading() && !get(active_streaming)) value(null);
+\t});"""
+_APP_TREE_PATCH_CACHE: dict[tuple[str, int, int], str] = {}
+_IMAGE_DROP_PATCH_CACHE: dict[tuple[str, int, int], str] = {}
+_GRADIO_JS_PATCH_CACHE: dict[tuple[str, int, int], str] = {}
+_GRADIO_JS_PATCH_READER_CACHE: dict[str, Callable[[Path], str | None]] | None = None
+_BLOCK_GET_CONFIG_COMPAT_SENTINEL = "_simpai_gradio6_block_get_config_compat"
+
+
+def _env_flag_enabled(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _app_tree_patch_disabled() -> bool:
+    return _env_flag_enabled("SIMPAI_DISABLE_GRADIO_APP_TREE_PATCH") or _env_flag_enabled(
+        "SIMPAI_DISABLE_GRADIO_ASSET_PATCHES"
+    )
+
+
+def _image_drop_patch_disabled() -> bool:
+    return _env_flag_enabled("SIMPAI_DISABLE_GRADIO_ASSET_PATCHES")
+
+
+def _asset_needs_app_tree_patch(text: str) -> bool:
+    return (
+        _APP_TREE_ORIGINAL_LOOKUP in text
+        and _APP_TREE_CHILDREN_ASSIGNMENT in text
+        and _APP_TREE_PATCHED_SENTINEL not in text
+    )
+
+
+def _asset_needs_image_drop_patch(text: str) -> bool:
+    return (
+        (
+            (_IMAGE_DROP_ORIGINAL_HANDLER in text or _IMAGE_DROP_ORIGINAL_HANDLER_SVELTE5 in text)
+            and _IMAGE_DROP_PATCHED_SENTINEL not in text
+        )
+        or (
+            (
+                _IMAGE_UPLOAD_CLEAR_ORIGINAL_HANDLER in text
+                or _IMAGE_UPLOAD_CLEAR_ORIGINAL_HANDLER_SVELTE5 in text
+            )
+            and _IMAGE_UPLOAD_KEEP_SENTINEL not in text
+        )
+    )
+
+
+def _patch_app_tree_asset(text: str) -> str:
+    """
+    Gradio 6.9 repeatedly scans the whole app tree for every output update.
+    SimpAI has a large component tree, so cache id -> node lookups per root.
+    """
+    patched_lookup = """const simpleai_node_index_cache = new WeakMap();
+const simpleai_node_index_trace_state = { count: 0 };
+const simpleai_node_index_ttl_ms = 30;
+
+function trace_node_index(event, detail) {
+\ttry {
+\t\tif (!globalThis.__simpleai_trace_app_tree_cache) return;
+\t\tsimpleai_node_index_trace_state.count += 1;
+\t\tconst count = simpleai_node_index_trace_state.count;
+\t\tif (count <= 40 || count % 100 === 0) {
+\t\t\tconsole.log("[UI-TRACE] app_tree_cache." + event, Object.assign({ count }, detail || {}));
+\t\t}
+\t} catch (_) {}
+}
+
+function invalidate_node_index(tree) {
+\tif (tree) {
+\t\tsimpleai_node_index_cache.delete(tree);
+\t\ttrace_node_index("invalidate", { root_id: tree.id });
+\t}
+}
+
+function build_node_index(tree) {
+\tconst map = new Map();
+\tconst stack = tree ? [tree] : [];
+\twhile (stack.length > 0) {
+\t\tconst node = stack.pop();
+\t\tif (!node) continue;
+\t\tif (!map.has(node.id)) map.set(node.id, node);
+\t\tif (node.children) {
+\t\t\tfor (let i = node.children.length - 1; i >= 0; i--) {
+\t\t\t\tstack.push(node.children[i]);
+\t\t\t}
+\t\t}
+\t}
+\treturn map;
+}
+
+function find_node_by_id(tree, id) {
+\tif (!tree) return null;
+\tlet record = simpleai_node_index_cache.get(tree);
+\tlet index = record?.index;
+\tconst now = Date.now();
+\tif (!index || record.expires_at <= now) {
+\t\tindex = build_node_index(tree);
+\t\trecord = { index, expires_at: now + simpleai_node_index_ttl_ms };
+\t\tsimpleai_node_index_cache.set(tree, record);
+\t\ttrace_node_index("build", { root_id: tree.id, size: index.size, requested_id: id });
+\t}
+\tlet node = index.get(id);
+\tif (!node) {
+\t\tindex = build_node_index(tree);
+\t\tsimpleai_node_index_cache.set(tree, { index, expires_at: now + simpleai_node_index_ttl_ms });
+\t\ttrace_node_index("rebuild_miss", { root_id: tree.id, size: index.size, requested_id: id });
+\t\tnode = index.get(id);
+\t}
+\treturn node ?? null;
+}"""
+    if not _asset_needs_app_tree_patch(text):
+        return text
+    text = text.replace(_APP_TREE_ORIGINAL_LOOKUP, patched_lookup, 1)
+    text = text.replace(
+        _APP_TREE_CHILDREN_ASSIGNMENT,
+        "\t\tn.children = subtree.children;\n\t\tinvalidate_node_index(this.root);\n",
+        1,
+    )
+    return text
+
+
+def _patch_image_drop_asset(text: str) -> str:
+    if not _asset_needs_image_drop_patch(text):
+        return text
+    patched_handler = """  async function on_drop(evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    const simpleai_image_drop_transfer = evt.dataTransfer;
+    const simpleai_image_drop_snapshot = Array.from(simpleai_image_drop_transfer && simpleai_image_drop_transfer.files ? simpleai_image_drop_transfer.files : []);
+    if (!simpleai_image_drop_snapshot.length && simpleai_image_drop_transfer && simpleai_image_drop_transfer.items) {
+      for (const simpleai_image_drop_item of Array.from(simpleai_image_drop_transfer.items)) {
+        if (simpleai_image_drop_item && simpleai_image_drop_item.kind === "file") {
+          const simpleai_image_drop_item_file = simpleai_image_drop_item.getAsFile();
+          if (simpleai_image_drop_item_file) {
+            simpleai_image_drop_snapshot.push(simpleai_image_drop_item_file);
+          }
+        }
+      }
+    }
+    const simpleai_image_drop_url = simpleai_image_drop_first_url(simpleai_image_drop_transfer);
+    $$invalidate(2, dragging = false);
+    if (!simpleai_image_drop_snapshot.length && !simpleai_image_drop_url) {
+      return;
+    }
+    $$invalidate(1, active_source = "upload");
+    await tick();
+    if (simpleai_image_drop_snapshot.length) {
+      await upload_input.load_files_from_drop({ dataTransfer: { files: simpleai_image_drop_snapshot } });
+      return;
+    }
+    const simpleai_image_drop_file = await simpleai_image_drop_file_from_url(simpleai_image_drop_url);
+    if (simpleai_image_drop_file) {
+      await upload_input.load_files([simpleai_image_drop_file]);
+    }
+    function simpleai_image_drop_first_uri(text) {
+      return String(text || "").split(/\\r?\\n/).map((line) => line.trim()).find((line) => line && !line.startsWith("#")) || "";
+    }
+    function simpleai_image_drop_first_html_src(html) {
+      if (!html) return "";
+      try {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const src = doc.querySelector("img[src]")?.getAttribute("src") || "";
+        if (src) return src;
+      } catch (_) {}
+      const match = String(html).match(/<img\\b[^>]*\\bsrc=["']?([^"'\\s>]+)/i);
+      return match ? match[1] : "";
+    }
+    function simpleai_image_drop_normalize_source(source) {
+      const value = String(source || "").trim();
+      if (!value) return "";
+      try {
+        return new URL(value, document.baseURI).href;
+      } catch (_) {
+        return value;
+      }
+    }
+    function simpleai_image_drop_first_url(transfer) {
+      if (!transfer || typeof transfer.getData !== "function") return "";
+      const uri = simpleai_image_drop_first_uri(transfer.getData("text/uri-list"));
+      if (uri) return simpleai_image_drop_normalize_source(uri);
+      const html_src = simpleai_image_drop_first_html_src(transfer.getData("text/html"));
+      if (html_src) return simpleai_image_drop_normalize_source(html_src);
+      const plain = String(transfer.getData("text/plain") || "").trim();
+      return plain ? simpleai_image_drop_normalize_source(plain) : "";
+    }
+    async function simpleai_image_drop_file_from_url(source) {
+      if (!source) return null;
+      try {
+        const response = await fetch(source, { credentials: "same-origin" });
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        const mime = blob.type || "image/png";
+        if (mime && !mime.toLowerCase().startsWith("image/")) return null;
+        const raw_ext = (mime.split("/")[1] || "png").split(";")[0].replace("svg+xml", "svg");
+        const ext = raw_ext === "jpeg" ? "jpg" : raw_ext;
+        return new File([blob], "dropped-image." + ext, { type: mime });
+      } catch (_) {
+        return null;
+      }
+    }
+  }"""
+    patched_svelte5_handler = """async function on_drop(evt) {
+\t\tevt.preventDefault();
+\t\tevt.stopPropagation();
+\t\tconst simpleai_image_drop_transfer = evt.dataTransfer;
+\t\tconst simpleai_image_drop_snapshot = Array.from(simpleai_image_drop_transfer && simpleai_image_drop_transfer.files ? simpleai_image_drop_transfer.files : []);
+\t\tif (!simpleai_image_drop_snapshot.length && simpleai_image_drop_transfer && simpleai_image_drop_transfer.items) {
+\t\t\tfor (const simpleai_image_drop_item of Array.from(simpleai_image_drop_transfer.items)) {
+\t\t\t\tif (simpleai_image_drop_item && simpleai_image_drop_item.kind === "file") {
+\t\t\t\t\tconst simpleai_image_drop_item_file = simpleai_image_drop_item.getAsFile();
+\t\t\t\t\tif (simpleai_image_drop_item_file) {
+\t\t\t\t\t\tsimpleai_image_drop_snapshot.push(simpleai_image_drop_item_file);
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t}
+\t\t}
+\t\tconst simpleai_image_drop_url = simpleai_image_drop_first_url(simpleai_image_drop_transfer);
+\t\tdragging(false);
+\t\tif (!simpleai_image_drop_snapshot.length && !simpleai_image_drop_url) {
+\t\t\treturn;
+\t\t}
+\t\tactive_source("upload");
+\t\tawait tick();
+\t\tif (simpleai_image_drop_snapshot.length) {
+\t\t\tawait get(upload_input).load_files_from_drop({ dataTransfer: { files: simpleai_image_drop_snapshot } });
+\t\t\treturn;
+\t\t}
+\t\tconst simpleai_image_drop_file = await simpleai_image_drop_file_from_url(simpleai_image_drop_url);
+\t\tif (simpleai_image_drop_file) {
+\t\t\tawait get(upload_input).load_files([simpleai_image_drop_file]);
+\t\t}
+\t\tfunction simpleai_image_drop_first_uri(text) {
+\t\t\treturn String(text || "").split(/\\r?\\n/).map((line) => line.trim()).find((line) => line && !line.startsWith("#")) || "";
+\t\t}
+\t\tfunction simpleai_image_drop_first_html_src(html) {
+\t\t\tif (!html) return "";
+\t\t\ttry {
+\t\t\t\tconst doc = new DOMParser().parseFromString(html, "text/html");
+\t\t\t\tconst src = doc.querySelector("img[src]")?.getAttribute("src") || "";
+\t\t\t\tif (src) return src;
+\t\t\t} catch (_) {}
+\t\t\tconst match = String(html).match(/<img\\b[^>]*\\bsrc=["']?([^"'\\s>]+)/i);
+\t\t\treturn match ? match[1] : "";
+\t\t}
+\t\tfunction simpleai_image_drop_normalize_source(source) {
+\t\t\tconst value = String(source || "").trim();
+\t\t\tif (!value) return "";
+\t\t\ttry {
+\t\t\t\treturn new URL(value, document.baseURI).href;
+\t\t\t} catch (_) {
+\t\t\t\treturn value;
+\t\t\t}
+\t\t}
+\t\tfunction simpleai_image_drop_first_url(transfer) {
+\t\t\tif (!transfer || typeof transfer.getData !== "function") return "";
+\t\t\tconst uri = simpleai_image_drop_first_uri(transfer.getData("text/uri-list"));
+\t\t\tif (uri) return simpleai_image_drop_normalize_source(uri);
+\t\t\tconst html_src = simpleai_image_drop_first_html_src(transfer.getData("text/html"));
+\t\t\tif (html_src) return simpleai_image_drop_normalize_source(html_src);
+\t\t\tconst plain = String(transfer.getData("text/plain") || "").trim();
+\t\t\treturn plain ? simpleai_image_drop_normalize_source(plain) : "";
+\t\t}
+\t\tasync function simpleai_image_drop_file_from_url(source) {
+\t\t\tif (!source) return null;
+\t\t\ttry {
+\t\t\t\tconst response = await fetch(source, { credentials: "same-origin" });
+\t\t\t\tif (!response.ok) return null;
+\t\t\t\tconst blob = await response.blob();
+\t\t\t\tconst mime = blob.type || "image/png";
+\t\t\t\tif (mime && !mime.toLowerCase().startsWith("image/")) return null;
+\t\t\t\tconst raw_ext = (mime.split("/")[1] || "png").split(";")[0].replace("svg+xml", "svg");
+\t\t\t\tconst ext = raw_ext === "jpeg" ? "jpg" : raw_ext;
+\t\t\t\treturn new File([blob], "dropped-image." + ext, { type: mime });
+\t\t\t} catch (_) {
+\t\t\t\treturn null;
+\t\t\t}
+\t\t}
+\t}"""
+    text = text.replace(_IMAGE_DROP_ORIGINAL_HANDLER, patched_handler, 1)
+    text = text.replace(_IMAGE_DROP_ORIGINAL_HANDLER_SVELTE5, patched_svelte5_handler, 1)
+    text = text.replace(
+        _IMAGE_UPLOAD_CLEAR_ORIGINAL_HANDLER,
+        """    if ($$self.$$.dirty[0] & /*uploading, active_streaming*/
+    2097153) {
+      const simpleai_keep_value_during_image_upload = true;
+      if (!simpleai_keep_value_during_image_upload && uploading && !active_streaming) $$invalidate(3, value = null);
+    }""",
+        1,
+    )
+    text = text.replace(
+        _IMAGE_UPLOAD_CLEAR_ORIGINAL_HANDLER_SVELTE5,
+        """\tlegacy_pre_effect(() => (deep_read_state(uploading()), get(active_streaming)), () => {
+\t\tconst simpleai_keep_value_during_image_upload = true;
+\t\tif (!simpleai_keep_value_during_image_upload && uploading() && !get(active_streaming)) value(null);
+\t});""",
+        1,
+    )
+    return text
+
+
+def _read_patched_app_tree_asset(path: Path) -> str | None:
+    try:
+        stat = path.stat()
+        cache_key = (str(path), int(stat.st_mtime_ns), int(stat.st_size))
+        cached = _APP_TREE_PATCH_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+        text = path.read_text(encoding="utf-8")
+        patched = _patch_app_tree_asset(text)
+        if patched == text:
+            return None
+        _APP_TREE_PATCH_CACHE.clear()
+        _APP_TREE_PATCH_CACHE[cache_key] = patched
+        return patched
+    except Exception:
+        return None
+
+
+def _read_patched_image_drop_asset(path: Path) -> str | None:
+    try:
+        stat = path.stat()
+        cache_key = (str(path), int(stat.st_mtime_ns), int(stat.st_size))
+        cached = _IMAGE_DROP_PATCH_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+        text = path.read_text(encoding="utf-8")
+        patched = _patch_image_drop_asset(text)
+        if patched == text:
+            return None
+        _IMAGE_DROP_PATCH_CACHE.clear()
+        _IMAGE_DROP_PATCH_CACHE[cache_key] = patched
+        return patched
+    except Exception:
+        return None
+
+
+def _read_patched_gradio_js_asset(path: Path) -> str | None:
+    try:
+        stat = path.stat()
+        cache_key = (str(path), int(stat.st_mtime_ns), int(stat.st_size))
+        cached = _GRADIO_JS_PATCH_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+        text = path.read_text(encoding="utf-8")
+        patched = _patch_image_drop_asset(_patch_app_tree_asset(text))
+        if patched == text:
+            return None
+        _GRADIO_JS_PATCH_CACHE.clear()
+        _GRADIO_JS_PATCH_CACHE[cache_key] = patched
+        return patched
+    except Exception:
+        return None
+
+
+def _discover_gradio_js_patch_readers() -> dict[str, Callable[[Path], str | None]]:
+    app_tree_disabled = _app_tree_patch_disabled()
+    image_drop_disabled = _image_drop_patch_disabled()
+    if app_tree_disabled and image_drop_disabled:
+        return {}
+
+    try:
+        asset_root = Path(gradio.__file__).resolve().parent / "templates" / "frontend" / "assets"
+    except Exception:
+        return {}
+    if not asset_root.is_dir():
+        return {}
+
+    readers: dict[str, Callable[[Path], str | None]] = {}
+    for path in asset_root.glob("*.js"):
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        needs_app_tree = not app_tree_disabled and _asset_needs_app_tree_patch(text)
+        needs_image_drop = not image_drop_disabled and _asset_needs_image_drop_patch(text)
+        if needs_app_tree and needs_image_drop:
+            readers[path.name] = _read_patched_gradio_js_asset
+        elif needs_app_tree:
+            readers[path.name] = _read_patched_app_tree_asset
+        elif needs_image_drop:
+            readers[path.name] = _read_patched_image_drop_asset
+    return readers
+
+
+def _get_gradio_js_patch_readers() -> dict[str, Callable[[Path], str | None]]:
+    global _GRADIO_JS_PATCH_READER_CACHE
+    if _GRADIO_JS_PATCH_READER_CACHE is None:
+        _GRADIO_JS_PATCH_READER_CACHE = _discover_gradio_js_patch_readers()
+    return _GRADIO_JS_PATCH_READER_CACHE
+
+
+def patch_gradio_asset_file_response() -> None:
+    if not hasattr(gradio.routes, "original_FileResponse"):
+        gradio.routes.original_FileResponse = gradio.routes.FileResponse
+
+    def patched_file_response(path, *args, **kwargs):
+        try:
+            path_obj = Path(path)
+            reader = _get_gradio_js_patch_readers().get(path_obj.name)
+            if reader is not None:
+                patched = reader(path_obj)
+                if patched is not None:
+                    return Response(
+                        patched,
+                        media_type="application/javascript",
+                        headers={"Cache-Control": "no-store"},
+                    )
+        except Exception:
+            pass
+        return gradio.routes.original_FileResponse(path, *args, **kwargs)
+
+    gradio.routes.FileResponse = patched_file_response
+
+
+def patch_gradio_block_get_config_signature() -> None:
+    current = gradio.blocks.Block.get_config
+    if getattr(current, _BLOCK_GET_CONFIG_COMPAT_SENTINEL, False):
+        return
+
+    def compatible_get_config(self, cls=None):
+        try:
+            return current(self, cls)
+        except TypeError as exc:
+            message = str(exc)
+            if "positional argument" not in message and "takes" not in message:
+                raise
+            return current(self)
+
+    setattr(compatible_get_config, _BLOCK_GET_CONFIG_COMPAT_SENTINEL, True)
+    setattr(compatible_get_config, "_simpai_wrapped_get_config", current)
+    gradio.blocks.Block.get_config = compatible_get_config
+
+
+def apply_gradio6_runtime_patches() -> None:
+    patch_gradio_asset_file_response()
+
+
+def describe_gradio_runtime_patches() -> dict:
+    readers = _discover_gradio_js_patch_readers()
+    entries = []
+    for asset_name, reader in sorted(readers.items()):
+        if reader is _read_patched_app_tree_asset:
+            patch_name = "app_tree"
+        elif reader is _read_patched_image_drop_asset:
+            patch_name = "image_drop_replace"
+        elif reader is _read_patched_gradio_js_asset:
+            patch_name = "app_tree+image_drop_replace"
+        else:
+            patch_name = getattr(reader, "__name__", "unknown")
+        entries.append({"asset": asset_name, "patch": patch_name, "reader": getattr(reader, "__name__", "")})
+
+    return {
+        "gradio_version": getattr(gradio, "__version__", "0"),
+        "disabled": {
+            "all": _env_flag_enabled("SIMPAI_DISABLE_GRADIO_ASSET_PATCHES"),
+            "app_tree": _app_tree_patch_disabled(),
+            "image_drop_replace": _image_drop_patch_disabled(),
+        },
+        "patch_count": len(entries),
+        "patches": entries,
+    }

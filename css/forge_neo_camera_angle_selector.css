@@ -1,0 +1,58 @@
+.forge-neo-camera-angle-wrap,
+.forge-neo-camera-angle-unavailable {
+  width: 100%;
+}
+
+.forge-neo-camera-angle-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: min(720px, calc(100vh - 220px));
+}
+
+.forge-neo-camera-angle-framebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.forge-neo-camera-angle-framebar button {
+  min-height: 34px;
+  border-radius: 6px;
+  border: 1px solid var(--button-border-color);
+  background: var(--button-primary-background-fill);
+  color: var(--button-primary-text-color);
+  padding: 6px 12px;
+}
+
+.forge-neo-camera-angle-status {
+  color: var(--body-text-color-subdued);
+  font-size: 13px;
+}
+
+.forge-neo-camera-angle-status[data-state="ok"] {
+  color: var(--color-accent);
+}
+
+.forge-neo-camera-angle-status[data-state="error"] {
+  color: var(--error-text-color);
+}
+
+.forge-neo-camera-angle-frame {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 560px;
+  border: 1px solid var(--block-border-color);
+  border-radius: 8px;
+  background: #0a0a0f;
+}
+
+.forge-neo-camera-angle-unavailable {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--block-border-color);
+  border-radius: 8px;
+}

@@ -1,0 +1,708 @@
+{
+  "57": {
+    "inputs": {
+      "lora_name": "Hyper-SDXL-8steps-lora.safetensors",
+      "strength_model": 1,
+      "model": [
+        "63",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_1"
+    }
+  },
+  "63": {
+    "inputs": {
+      "ckpt_name": "juggernautXL_juggXIByRundiffusion.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "base_model"
+    }
+  },
+  "64": {
+    "inputs": {
+      "control_net_name": "xinsir_cn_union_sdxl_1.0_promax.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "65": {
+    "inputs": {
+      "type": "auto",
+      "control_net": [
+        "64",
+        0
+      ]
+    },
+    "class_type": "SetUnionControlNetType",
+    "_meta": {
+      "title": "SetUnionControlNetType"
+    }
+  },
+  "71": {
+    "inputs": {
+      "text": [
+        "90",
+        5
+      ],
+      "clip": [
+        "63",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "72": {
+    "inputs": {
+      "text": [
+        "90",
+        4
+      ],
+      "clip": [
+        "63",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "73": {
+    "inputs": {
+      "image": "白瓷雕像风格参考.webp"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "74": {
+    "inputs": {
+      "preprocessor": "DepthAnythingV2Preprocessor",
+      "resolution": [
+        "147",
+        0
+      ],
+      "image": [
+        "78",
+        0
+      ]
+    },
+    "class_type": "AIO_Preprocessor",
+    "_meta": {
+      "title": "AIO Aux Preprocessor"
+    }
+  },
+  "78": {
+    "inputs": {
+      "samples": [
+        "80",
+        0
+      ],
+      "vae": [
+        "63",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "80": {
+    "inputs": {
+      "seed": [
+        "90",
+        6
+      ],
+      "steps": 8,
+      "cfg": [
+        "90",
+        8
+      ],
+      "sampler_name": [
+        "92",
+        3
+      ],
+      "scheduler": [
+        "92",
+        4
+      ],
+      "denoise": 0.8500000000000002,
+      "model": [
+        "144:2",
+        0
+      ],
+      "positive": [
+        "81",
+        0
+      ],
+      "negative": [
+        "81",
+        1
+      ],
+      "latent_image": [
+        "82",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "81": {
+    "inputs": {
+      "strength": 0.7000000000000002,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "72",
+        0
+      ],
+      "negative": [
+        "71",
+        0
+      ],
+      "control_net": [
+        "65",
+        0
+      ],
+      "vae": [
+        "63",
+        2
+      ],
+      "image": [
+        "135",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplySD3",
+    "_meta": {
+      "title": "Apply Controlnet with VAE"
+    }
+  },
+  "82": {
+    "inputs": {
+      "pixels": [
+        "99",
+        0
+      ],
+      "vae": [
+        "63",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "83": {
+    "inputs": {
+      "width": 1280,
+      "height": 1280,
+      "interpolation": "lanczos",
+      "method": "keep proportion",
+      "condition": "always",
+      "multiple_of": 0,
+      "image": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "88": {
+    "inputs": {
+      "images": [
+        "78",
+        0
+      ]
+    },
+    "class_type": "SaveImageWebsocket",
+    "_meta": {
+      "title": "result_image2"
+    }
+  },
+  "90": {
+    "inputs": {
+      "clip_skip": -1,
+      "width": 1280,
+      "height": 1280,
+      "swap": false,
+      "batch_size": 1,
+      "positive": "(A white porcelain statue, Simple pure solid color background, monochrome, black and white:1.2)",
+      "negative": "2D,nipples,low quality, watermark,boring, generic, standard, normal, dull colors, unexciting, uninteresting, unadventurous, watermark, centered composition, balanced figure in the foreground, robed person in the foreground",
+      "seed": 146370642764002,
+      "steps": 16,
+      "cfg": 0.8,
+      "denoise": 1
+    },
+    "class_type": "Co_Input_Zho",
+    "_meta": {
+      "title": "i2i_overall_input"
+    }
+  },
+  "92": {
+    "inputs": {
+      "steps_total": 30,
+      "refiner_step": 24,
+      "cfg": 0.8,
+      "sampler_name": "euler_cfg_pp",
+      "scheduler": "sgm_uniform"
+    },
+    "class_type": "KSampler Config (rgthree)",
+    "_meta": {
+      "title": "i2i_KSampler"
+    }
+  },
+  "99": {
+    "inputs": {
+      "brightness": 1,
+      "contrast": 1.5000000000000002,
+      "saturation": 0,
+      "image": [
+        "83",
+        0
+      ]
+    },
+    "class_type": "LayerColor: BrightnessContrastV2",
+    "_meta": {
+      "title": "LayerColor: Brightness Contrast V2"
+    }
+  },
+  "100": {
+    "inputs": {
+      "images": [
+        "99",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "113": {
+    "inputs": {
+      "side": "Shortest",
+      "image": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "easy imageSizeBySide",
+    "_meta": {
+      "title": "ImageSize (Side)"
+    }
+  },
+  "117": {
+    "inputs": {
+      "value": 1280
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "118": {
+    "inputs": {
+      "side": "Longest",
+      "image": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "easy imageSizeBySide",
+    "_meta": {
+      "title": "ImageSize (Side)"
+    }
+  },
+  "119": {
+    "inputs": {
+      "width": [
+        "117",
+        0
+      ],
+      "height": [
+        "117",
+        0
+      ],
+      "interpolation": "lanczos",
+      "method": "keep proportion",
+      "condition": "always",
+      "multiple_of": 0,
+      "image": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "120": {
+    "inputs": {
+      "min": [
+        "155",
+        0
+      ],
+      "max": 1.0000000000000002,
+      "clamp": true,
+      "image": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "RemapImageRange",
+    "_meta": {
+      "title": "Remap Image Range"
+    }
+  },
+  "126": {
+    "inputs": {
+      "boolean": [
+        "128",
+        0
+      ],
+      "on_true": [
+        "119",
+        0
+      ],
+      "on_false": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "127": {
+    "inputs": {
+      "preprocessor": "DepthAnythingV2Preprocessor",
+      "resolution": [
+        "129",
+        0
+      ],
+      "image": [
+        "126",
+        0
+      ]
+    },
+    "class_type": "AIO_Preprocessor",
+    "_meta": {
+      "title": "AIO Aux Preprocessor"
+    }
+  },
+  "128": {
+    "inputs": {
+      "comparison": "a < b",
+      "a": [
+        "118",
+        0
+      ],
+      "b": [
+        "117",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "129": {
+    "inputs": {
+      "side": "Shortest",
+      "image": [
+        "126",
+        0
+      ]
+    },
+    "class_type": "easy imageSizeBySide",
+    "_meta": {
+      "title": "ImageSize (Side)"
+    }
+  },
+  "134": {
+    "inputs": {
+      "image": "welcome.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "i2i_inpaint_image"
+    }
+  },
+  "135": {
+    "inputs": {
+      "preprocessor": "LineArtPreprocessor",
+      "resolution": [
+        "113",
+        0
+      ],
+      "image": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "AIO_Preprocessor",
+    "_meta": {
+      "title": "AIO Aux Preprocessor"
+    }
+  },
+  "145": {
+    "inputs": {
+      "images": [
+        "148",
+        0
+      ]
+    },
+    "class_type": "SaveImageWebsocket",
+    "_meta": {
+      "title": "result_image1"
+    }
+  },
+  "146": {
+    "inputs": {
+      "filename_prefix": "OneKeyDepth_EXR",
+      "images": [
+        "148",
+        0
+      ]
+    },
+    "class_type": "SaveImageOpenEXR",
+    "_meta": {
+      "title": "SaveImageOpenEXR"
+    }
+  },
+  "147": {
+    "inputs": {
+      "side": "Shortest",
+      "image": [
+        "78",
+        0
+      ]
+    },
+    "class_type": "easy imageSizeBySide",
+    "_meta": {
+      "title": "ImageSize (Side)"
+    }
+  },
+  "148": {
+    "inputs": {
+      "min": [
+        "155",
+        0
+      ],
+      "max": 1.0000000000000002,
+      "clamp": true,
+      "image": [
+        "74",
+        0
+      ]
+    },
+    "class_type": "RemapImageRange",
+    "_meta": {
+      "title": "Remap Image Range"
+    }
+  },
+  "149": {
+    "inputs": {
+      "images": [
+        "135",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "150": {
+    "inputs": {
+      "value": -10.000000000000002
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "min depth value"
+    }
+  },
+  "151": {
+    "inputs": {
+      "value": -0.30000000000000004
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "default depth value"
+    }
+  },
+  "152": {
+    "inputs": {
+      "value": 1.0000000000000002
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "max depth value"
+    }
+  },
+  "153": {
+    "inputs": {
+      "boolean": [
+        "156",
+        0
+      ],
+      "on_true": [
+        "158",
+        0
+      ],
+      "on_false": [
+        "151",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "154": {
+    "inputs": {
+      "operator": "<=",
+      "a": [
+        "153",
+        0
+      ],
+      "b": [
+        "152",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: BooleanOperator",
+    "_meta": {
+      "title": "LayerUtility: Boolean Operator"
+    }
+  },
+  "155": {
+    "inputs": {
+      "boolean": [
+        "154",
+        0
+      ],
+      "on_true": [
+        "153",
+        0
+      ],
+      "on_false": [
+        "151",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "156": {
+    "inputs": {
+      "operator": ">=",
+      "a": [
+        "158",
+        0
+      ],
+      "b": [
+        "150",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: BooleanOperator",
+    "_meta": {
+      "title": "LayerUtility: Boolean Operator"
+    }
+  },
+  "158": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "159",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "159": {
+    "inputs": {
+      "value": "-0.5"
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "additional_prompt"
+    }
+  },
+  "144:0": {
+    "inputs": {
+      "ipadapter_file": "ip-adapter-plus_sdxl_vit-h.bin"
+    },
+    "class_type": "IPAdapterModelLoader",
+    "_meta": {
+      "title": "IPAdapter Model Loader"
+    }
+  },
+  "144:1": {
+    "inputs": {
+      "clip_name": "clip_vision_h.safetensors"
+    },
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "Load CLIP Vision"
+    }
+  },
+  "144:2": {
+    "inputs": {
+      "weight": 1,
+      "style_boost": 1,
+      "combine_embeds": "concat",
+      "start_at": 0,
+      "end_at": 1,
+      "embeds_scaling": "V only",
+      "model": [
+        "57",
+        0
+      ],
+      "ipadapter": [
+        "144:0",
+        0
+      ],
+      "image": [
+        "73",
+        0
+      ],
+      "clip_vision": [
+        "144:1",
+        0
+      ]
+    },
+    "class_type": "IPAdapterPreciseStyleTransfer",
+    "_meta": {
+      "title": "IPAdapter Precise Style Transfer"
+    }
+  }
+}

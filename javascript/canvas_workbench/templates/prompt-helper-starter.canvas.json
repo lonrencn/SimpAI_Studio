@@ -1,0 +1,325 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "prompt_helper_starter_20260605060342_template_20260605060451",
+  "title": "提示词助手入门",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T06:04:52Z",
+  "viewport": {
+    "x": 387,
+    "y": 152,
+    "zoom": 0.2986564510605874
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__onboarding_template": true,
+    "__onboarding_checklist_title": {
+      "en": "Prompt Helper Tour",
+      "zh": "提示词助手导览"
+    },
+    "__onboarding_checklist_steps": [
+      {
+        "key": "prompt_seed",
+        "action": "focus_node",
+        "target_node_id": "prompt_text_seed",
+        "icon": "fa-font",
+        "title": {
+          "en": "Start with seed text",
+          "zh": "从基础提示词开始"
+        },
+        "detail": {
+          "en": "This Text node is the editable prompt source.",
+          "zh": "这个 Text 节点是可编辑的提示词来源。"
+        }
+      },
+      {
+        "key": "prompt_translation",
+        "action": "focus_node",
+        "target_node_id": "prompt_translation",
+        "icon": "fa-language",
+        "title": {
+          "en": "Check Translation",
+          "zh": "查看翻译节点"
+        },
+        "detail": {
+          "en": "Translation nodes can transform prompt text.",
+          "zh": "Translation 节点可以转换提示词文本。"
+        }
+      },
+      {
+        "key": "prompt_wildcards",
+        "action": "focus_node",
+        "target_node_id": "prompt_wildcards",
+        "icon": "fa-tags",
+        "title": {
+          "en": "Inspect Wildcards Helper",
+          "zh": "检查通配符助手"
+        },
+        "detail": {
+          "en": "Wildcards can expand variations without a model.",
+          "zh": "通配符无需模型也能生成变化。"
+        }
+      },
+      {
+        "key": "prompt_final",
+        "action": "focus_node",
+        "target_node_id": "prompt_text_final",
+        "icon": "fa-pen-nib",
+        "title": {
+          "en": "Review the final draft",
+          "zh": "查看最终草稿"
+        },
+        "detail": {
+          "en": "Use this text as a preset prompt input.",
+          "zh": "这段文本可接入 preset 的 prompt 输入。"
+        }
+      },
+      {
+        "key": "prompt_templates",
+        "action": "template_library",
+        "icon": "fa-graduation-cap",
+        "title": {
+          "en": "Return to templates",
+          "zh": "回到模板库"
+        },
+        "detail": {
+          "en": "Compare this starter with the other guides.",
+          "zh": "可以和其他新手模板对照学习。"
+        }
+      }
+    ],
+    "__minimap_initialized": true,
+    "__template_source": "user",
+    "__onboarding_checklist": {
+      "completed": {
+        "add_text": true,
+        "select_node": true,
+        "inspect_node": true,
+        "prompt_seed": true,
+        "prompt_translation": true,
+        "prompt_wildcards": true,
+        "prompt_final": true
+      }
+    }
+  },
+  "groups": [
+    {
+      "id": "prompt_group_write",
+      "title": "1. Write / 写提示词",
+      "x": -120,
+      "y": -120,
+      "w": 460,
+      "h": 576,
+      "color": "#14b8a6",
+      "alpha": 0.13,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "prompt_group_transform",
+      "title": "2. Translate And Expand / 翻译与扩展",
+      "x": 420,
+      "y": -120,
+      "w": 783,
+      "h": 1292,
+      "color": "#7c3aed",
+      "alpha": 0.12,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "prompt_group_use",
+      "title": "3. Use In Presets / 接入 Preset",
+      "x": 1240,
+      "y": -120,
+      "w": 500,
+      "h": 560,
+      "color": "#f59e0b",
+      "alpha": 0.12,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "prompt_note_intro",
+      "type": "note",
+      "x": -72,
+      "y": -48,
+      "w": 350,
+      "h": 120,
+      "title": "Prompt Helper Flow / 提示词辅助流程",
+      "text": "Start with a simple Text node. Connect it to helper nodes, then copy or connect the final text into a preset prompt port. / 先从 Text 节点写基础描述，再连接到辅助节点，最后接入 preset 的 prompt 接口。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "prompt_text_seed",
+      "type": "text",
+      "x": -72,
+      "y": 144,
+      "w": 360,
+      "h": 220,
+      "title": "Seed Prompt / 基础提示词",
+      "text": {
+        "value": "a small robot painter in a sunlit studio, watercolor texture, gentle color palette",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "onboarding_text"
+      }
+    },
+    {
+      "id": "prompt_translation",
+      "type": "translation",
+      "x": 480,
+      "y": -72,
+      "w": 330,
+      "h": 300,
+      "title": "Translation / 翻译",
+      "text_input": "prompt_text_seed",
+      "input_text": "",
+      "params": {
+        "direction": "toggle",
+        "method": ""
+      },
+      "text": {
+        "value": "阳光工作室里的小机器人画家，水彩质感，柔和配色",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Connected to the seed prompt. / 已连接基础提示词。"
+      },
+      "source": {
+        "kind": "translation",
+        "module": "enhanced.translator"
+      }
+    },
+    {
+      "id": "prompt_wildcards",
+      "type": "wildcards_helper",
+      "x": 504,
+      "y": 480,
+      "w": 300,
+      "h": 430,
+      "title": "Wildcards Helper / 通配符助手",
+      "params": {
+        "target": "Array (batch)",
+        "method": "Random Select",
+        "seed_mode": "Fixed seed",
+        "name": "color",
+        "count": 3,
+        "start": 1,
+        "group_size": 1
+      },
+      "text": {
+        "value": "",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "wildcards_helper",
+        "module": "enhanced.wildcards"
+      }
+    },
+    {
+      "id": "prompt_text_wildcard_preview",
+      "type": "text",
+      "x": 840,
+      "y": 480,
+      "w": 330,
+      "h": 220,
+      "title": "Wildcard Output Preview / 通配符输出预览",
+      "text_input": "prompt_wildcards",
+      "text": {
+        "value": "",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "onboarding_text_preview"
+      }
+    },
+    {
+      "id": "prompt_note_use",
+      "type": "note",
+      "x": 1296,
+      "y": -48,
+      "w": 380,
+      "h": 140,
+      "title": "Connect To Prompt / 接入 Prompt",
+      "text": "Preset and Classic nodes expose Prompt and Negative Prompt text ports. Drag a text output into the prompt port, or copy the text manually. / Preset 和 Classic 节点会暴露 Prompt、Negative Prompt 文本接口。",
+      "style": {
+        "color": "#422006",
+        "background": "#fde68a",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "prompt_text_final",
+      "type": "text",
+      "x": 1296,
+      "y": 144,
+      "w": 380,
+      "h": 220,
+      "title": "Final Prompt Draft / 最终提示词草稿",
+      "text": {
+        "value": "a small robot painter in a sunlit studio, watercolor texture, __color__, gentle color palette",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "onboarding_text"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "prompt_edge_seed_to_translation",
+      "type": "text",
+      "from": "prompt_text_seed",
+      "to": "prompt_translation",
+      "slot": "input"
+    },
+    {
+      "id": "prompt_edge_wildcards_to_preview",
+      "type": "text",
+      "from": "prompt_wildcards",
+      "to": "prompt_text_wildcard_preview",
+      "slot": "input"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "prompt_helper_starter_20260605060342_template_20260605060451",
+    "title": "提示词助手入门",
+    "description": "从当前画布保存。",
+    "category": "starter",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "model_free",
+      "label": "无模型依赖",
+      "note": "未检测到可运行的 Preset 或 Classic 节点。",
+      "models": []
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T06:04:52Z"
+  }
+}

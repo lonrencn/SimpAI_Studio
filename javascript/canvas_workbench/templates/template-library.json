@@ -1,0 +1,1042 @@
+{
+  "version": 1,
+  "templates": [
+    {
+      "id": "canvas_quick_start",
+      "title": {
+        "en": "Canvas Quick Start",
+        "zh": "画布快速入门"
+      },
+      "description": {
+        "en": "A model-free starter canvas for navigation, node selection, ports, Inspector, and the template library.",
+        "zh": "不依赖模型的入门画布，介绍导航、节点选择、接口、Inspector 和模板库。"
+      },
+      "category": "starter",
+      "tags": ["starter", "onboarding", "basics"],
+      "type_label": {
+        "en": "Node graph",
+        "zh": "节点图"
+      },
+      "model_dependency": {
+        "mode": "model_free",
+        "label": {
+          "en": "Model-free",
+          "zh": "无模型依赖"
+        },
+        "note": {
+          "en": "Safe to browse and edit without installed models.",
+          "zh": "无需安装模型即可浏览和编辑。"
+        }
+      },
+      "path": "javascript/canvas_workbench/demo/infinite-canvas-demo-workbench.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "prompt_helper_starter",
+      "title": {
+        "en": "Prompt Helper Starter",
+        "zh": "提示词助手入门"
+      },
+      "description": {
+        "en": "A guided canvas showing Text, Translation, Wildcards Helper, and notes for prompt building.",
+        "zh": "用 Text、Translation、通配符助手和提示贴演示提示词搭建流程。"
+      },
+      "category": "starter",
+      "tags": ["starter", "prompt", "text", "wildcards"],
+      "type_label": {
+        "en": "Prompt tools",
+        "zh": "提示词工具"
+      },
+      "model_dependency": {
+        "mode": "model_free",
+        "label": {
+          "en": "Model-free",
+          "zh": "无模型依赖"
+        },
+        "note": {
+          "en": "Prompt helper nodes can be inspected without model files.",
+          "zh": "提示词辅助节点无需模型文件即可查看。"
+        }
+      },
+      "path": "javascript/canvas_workbench/templates/prompt-helper-starter.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "preset_node_basics",
+      "title": {
+        "en": "Preset Node Basics",
+        "zh": "Preset 节点入门"
+      },
+      "description": {
+        "en": "A model-free starter canvas that explains Preset nodes, prompt links, configs, model readiness, Run Queue, and Results.",
+        "zh": "不依赖模型的入门画布，讲解 Preset 节点、提示词接线、配置、模型状态、运行队列和结果。"
+      },
+      "category": "starter",
+      "tags": ["starter", "preset", "config", "models", "queue", "result"],
+      "type_label": {
+        "en": "Preset guide",
+        "zh": "Preset 引导"
+      },
+      "model_dependency": {
+        "mode": "teaching_only",
+        "label": {
+          "en": "Teaching only",
+          "zh": "教学示例"
+        },
+        "note": {
+          "en": "Uses a skipped static Preset node; no backend model is required.",
+          "zh": "使用跳过的静态 Preset 节点，不需要后端模型。"
+        }
+      },
+      "path": "javascript/canvas_workbench/templates/preset-node-basics.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "model_readiness_basics",
+      "title": {
+        "en": "Model Readiness Basics",
+        "zh": "模型就绪入门"
+      },
+      "description": {
+        "en": "A model-free guide to Models ready, Missing, Checking, Queued, Check failed, and what to do before Run.",
+        "zh": "不依赖模型的指南，讲解 Models ready、Missing、Checking、Queued、Check failed，以及运行前该做什么。"
+      },
+      "category": "starter",
+      "tags": ["starter", "models", "readiness", "missing", "download", "preset"],
+      "type_label": {
+        "en": "Model guide",
+        "zh": "模型引导"
+      },
+      "model_dependency": {
+        "mode": "teaching_only",
+        "label": {
+          "en": "Teaching only",
+          "zh": "教学示例"
+        },
+        "note": {
+          "en": "Static model status examples; no backend check or download is required.",
+          "zh": "静态模型状态示例，不需要后端检查或下载。"
+        }
+      },
+      "path": "javascript/canvas_workbench/templates/model-readiness-basics.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "run_queue_result_basics",
+      "title": {
+        "en": "Run Queue & Result Basics",
+        "zh": "运行队列与结果入门"
+      },
+      "description": {
+        "en": "A safe walkthrough of queued runs, Result placeholders, retry/history concepts, and downstream reuse.",
+        "zh": "安全演示排队任务、结果占位、重试/历史概念和下游复用。"
+      },
+      "category": "starter",
+      "tags": ["starter", "queue", "result", "history"],
+      "type_label": {
+        "en": "Workflow guide",
+        "zh": "工作流引导"
+      },
+      "model_dependency": {
+        "mode": "model_free",
+        "label": {
+          "en": "Model-free",
+          "zh": "无模型依赖"
+        },
+        "note": {
+          "en": "Uses safe Result examples rather than real generation.",
+          "zh": "使用安全的 Result 示例，不触发真实生成。"
+        }
+      },
+      "path": "javascript/canvas_workbench/templates/run-queue-result-basics.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "anima_text_to_image",
+      "title": {
+        "en": "Anima Text to Image",
+        "zh": "Anima 文生图"
+      },
+      "description": {
+        "en": "A runnable Image template for Anima classic text-to-image with prompt text nodes, Models, Resolution, Advanced Config, Run Queue, and Result placeholder.",
+        "zh": "可运行的 Anima classic 文生图模板，包含提示词 Text 节点、Models、Resolution、Advanced Config、运行队列和结果占位。"
+      },
+      "category": "image",
+      "tags": ["image", "anima", "t2i", "classic", "preset", "anime", "runnable"],
+      "type_label": {
+        "en": "Runnable preset",
+        "zh": "可运行 Preset"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires models",
+          "zh": "需要模型"
+        },
+        "note": {
+          "en": "Requires the Anima model files from presets/Anima.json. Check/download models before Run.",
+          "zh": "需要 presets/Anima.json 中的 Anima 模型文件。运行前请先检查/下载模型。"
+        },
+        "models": [
+          "anima-base-v1.0.safetensors",
+          "qwen_3_06b_base.safetensors",
+          "qwen_image_vae.safetensors",
+          "4x-AnimeSharp.pth"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/anima-text-to-image.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "flux2_a2r_image_edit",
+      "title": {
+        "en": "Flux2-A2R Image Edit",
+        "zh": "Flux2-A2R 图像编辑"
+      },
+      "description": {
+        "en": "A runnable Image-edit template for Flux2-A2R anime-to-real conversion with a source image placeholder, prompt text, configs, and Result placeholder.",
+        "zh": "可运行的 Flux2-A2R 动漫转写实图像编辑模板，包含源图占位、提示词、配置节点和结果占位。"
+      },
+      "category": "image",
+      "tags": ["image", "flux", "flux2", "a2r", "edit", "anime-to-real", "preset", "runnable"],
+      "type_label": {
+        "en": "Image edit preset",
+        "zh": "图像编辑 Preset"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires models",
+          "zh": "需要模型"
+        },
+        "note": {
+          "en": "Requires Flux2-A2R model files and a source image before Run.",
+          "zh": "运行前需要 Flux2-A2R 模型文件和一张源图。"
+        },
+        "models": [
+          "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
+          "qwen3_8b_abliterated_v2-fp8mixed.safetensors",
+          "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+          "flux2-vae.safetensors",
+          "dw-ll_ucoco_384_bs5.torchscript.pt",
+          "yolox_l.onnx"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/flux2-a2r-image-edit.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_t2v_basic",
+      "title": {
+        "en": "Wan T2V Basic",
+        "zh": "Wan 文生视频基础"
+      },
+      "description": {
+        "en": "A runnable Wan2.2 text-to-video template with motion prompt, video parameters, model checks, Run Queue, and video Result placeholder.",
+        "zh": "可运行的 Wan2.2 文生视频模板，包含动态提示词、视频参数、模型检查、运行队列和视频结果占位。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan2.2", "t2v", "text-to-video", "motion", "runnable"],
+      "type_label": {
+        "en": "Text to video",
+        "zh": "文生视频"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires models",
+          "zh": "需要模型"
+        },
+        "note": {
+          "en": "Requires Wan T2V model files before Run.",
+          "zh": "运行前需要 Wan T2V 模型文件。"
+        },
+        "models": [
+          "Wan2.2_T2V_High_Noise_14B_VACE-Q4_K_M.gguf",
+          "Wan2.2_T2V_Low_Noise_14B_VACE-Q4_K_M.gguf",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "wan_2.1_vae.safetensors",
+          "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+          "flownet.pkl"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-t2v-basic.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_i2v_basic",
+      "title": {
+        "en": "Wan I2V Basic",
+        "zh": "Wan 图生视频基础"
+      },
+      "description": {
+        "en": "A runnable Wan2.2 image-to-video template with first-frame and optional last-frame placeholders, motion prompt, model checks, and video Result placeholder.",
+        "zh": "可运行的 Wan2.2 图生视频模板，包含首帧和可选尾帧占位、运动提示词、模型检查和视频结果占位。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan2.2", "i2v", "image-to-video", "motion", "runnable"],
+      "type_label": {
+        "en": "Image to video",
+        "zh": "图生视频"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires models",
+          "zh": "需要模型"
+        },
+        "note": {
+          "en": "Requires Wan I2V model files and a first-frame image before Run.",
+          "zh": "运行前需要 Wan I2V 模型文件和一张首帧图。"
+        },
+        "models": [
+          "Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf",
+          "Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "wan_2.1_vae.safetensors",
+          "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+          "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+          "flownet.pkl"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-i2v-basic.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_video_extend",
+      "title": {
+        "en": "Wan Video Extend",
+        "zh": "Wan 视频延长"
+      },
+      "description": {
+        "en": "A runnable Wan-Extent template for extending an existing generated or imported video, with source video input, continuation prompt, model checks, and video Result placeholder.",
+        "zh": "可运行的 Wan-Extent 视频延长模板，支持接入已生成或导入的视频，包含源视频输入、续写提示词、模型检查和视频结果占位。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan2.2", "extend", "extension", "continue", "Wan-Extent", "runnable", "延长", "续写"],
+      "type_label": {
+        "en": "Video extend",
+        "zh": "视频延长"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires models",
+          "zh": "需要模型"
+        },
+        "note": {
+          "en": "Requires Wan I2V model files plus SVI extend LoRAs and a source video before Run.",
+          "zh": "运行前需要 Wan I2V 模型、SVI 延长 LoRA 和一个源视频。"
+        },
+        "models": [
+          "Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf",
+          "Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "wan_2.1_vae.safetensors",
+          "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+          "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+          "SVI_v2_PRO_Wan2.2-I2V-A14B_HIGH_lora_rank_128_fp16.safetensors",
+          "SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
+          "flownet.pkl"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-video-extend.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "qwen_tts_voice_design",
+      "title": {
+        "en": "Qwen TTS Voice Design",
+        "zh": "Qwen TTS 音色设计"
+      },
+      "description": {
+        "en": "A runnable audio template that generates speech from text and a natural-language voice instruction.",
+        "zh": "可运行的音频模板，通过文本和自然语言音色描述生成语音。"
+      },
+      "category": "audio",
+      "tags": ["audio", "tts", "qwen", "qwen3-tts", "voice-design", "speech", "runnable", "配音", "音色"],
+      "type_label": {
+        "en": "Text to speech",
+        "zh": "文本转语音"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires models",
+          "zh": "需要模型"
+        },
+        "note": {
+          "en": "Requires Qwen3-TTS VoiceDesign and tokenizer models before Run.",
+          "zh": "运行前需要 Qwen3-TTS VoiceDesign 和 tokenizer 模型。"
+        },
+        "models": [
+          "Qwen/Qwen3-TTS-Tokenizer-12Hz",
+          "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/qwen-tts-voice-design.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "qwen_tts_voice_clone",
+      "title": {
+        "en": "Qwen TTS Voice Clone",
+        "zh": "Qwen TTS 音色克隆"
+      },
+      "description": {
+        "en": "A runnable audio template for cloning a reference voice and speaking new target text.",
+        "zh": "可运行的音频模板，用参考音频克隆音色并朗读新的目标文本。"
+      },
+      "category": "audio",
+      "tags": ["audio", "tts", "qwen", "qwen3-tts", "voice-clone", "reference-audio", "speech", "runnable", "克隆", "参考音频"],
+      "type_label": {
+        "en": "Voice clone",
+        "zh": "音色克隆"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires audio + models",
+          "zh": "需要音频和模型"
+        },
+        "note": {
+          "en": "Requires Qwen3-TTS Base, tokenizer, and a reference audio clip.",
+          "zh": "需要 Qwen3-TTS Base、tokenizer 和一段参考音频。"
+        },
+        "models": [
+          "Qwen/Qwen3-TTS-Tokenizer-12Hz",
+          "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/qwen-tts-voice-clone.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "qwen_tts_custom_voice",
+      "title": {
+        "en": "Qwen TTS Custom Voice",
+        "zh": "Qwen TTS 预设音色"
+      },
+      "description": {
+        "en": "A runnable audio template using built-in Qwen TTS speakers for quick narration.",
+        "zh": "可运行的音频模板，使用 Qwen TTS 内置音色快速生成旁白。"
+      },
+      "category": "audio",
+      "tags": ["audio", "tts", "qwen", "qwen3-tts", "custom-voice", "speaker", "narration", "runnable", "预设音色", "旁白"],
+      "type_label": {
+        "en": "Preset voice",
+        "zh": "预设音色"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires models",
+          "zh": "需要模型"
+        },
+        "note": {
+          "en": "Requires Qwen3-TTS CustomVoice and tokenizer models before Run.",
+          "zh": "运行前需要 Qwen3-TTS CustomVoice 和 tokenizer 模型。"
+        },
+        "models": [
+          "Qwen/Qwen3-TTS-Tokenizer-12Hz",
+          "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/qwen-tts-custom-voice.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "qwen_tts_dialogue",
+      "title": {
+        "en": "Qwen TTS Dialogue",
+        "zh": "Qwen TTS 多角色对话"
+      },
+      "description": {
+        "en": "A runnable audio template that turns a Role: line script into merged multi-speaker dialogue.",
+        "zh": "可运行的音频模板，把“角色: 台词”脚本生成为合并的多角色对话音频。"
+      },
+      "category": "audio",
+      "tags": ["audio", "tts", "qwen", "qwen3-tts", "dialogue", "multi-speaker", "script", "runnable", "多角色", "对话"],
+      "type_label": {
+        "en": "Dialogue",
+        "zh": "多角色对话"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires audio + models",
+          "zh": "需要音频和模型"
+        },
+        "note": {
+          "en": "Requires Qwen3-TTS Base, tokenizer, and reference audio for script roles.",
+          "zh": "需要 Qwen3-TTS Base、tokenizer，以及脚本角色的参考音频。"
+        },
+        "models": [
+          "Qwen/Qwen3-TTS-Tokenizer-12Hz",
+          "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/qwen-tts-dialogue.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "ltx23_ta2v_basic",
+      "title": {
+        "en": "LTX2.3 Text+Audio to Video",
+        "zh": "LTX2.3 文本+音频生成视频"
+      },
+      "description": {
+        "en": "A runnable audio-driven video template using LTX2.3 with a replaceable audio input, prompt, configs, model checks, and video Result placeholder.",
+        "zh": "可运行的 LTX2.3 音频驱动视频模板，包含可替换音频输入、提示词、配置、模型检查和视频 Result 占位。"
+      },
+      "category": "video",
+      "tags": ["video", "audio", "ltx", "ltx2.3", "ta2v", "text-audio-to-video", "soundtrack", "runnable", "音频驱动"],
+      "type_label": {
+        "en": "Audio to video",
+        "zh": "音频生成视频"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires audio + models",
+          "zh": "需要音频和模型"
+        },
+        "note": {
+          "en": "Requires LTX2.3 transformer, text encoders, audio/video VAEs, distilled LoRA, upscaler, RIFE, and an audio clip.",
+          "zh": "需要 LTX2.3 transformer、文本编码器、音频/视频 VAE、蒸馏 LoRA、upscaler、RIFE，以及一段音频。"
+        },
+        "models": [
+          "ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+          "gemma_3_12B_it_fpmixed.safetensors",
+          "LTX23_audio_vae_bf16.safetensors",
+          "LTX23_video_vae_bf16.safetensors",
+          "flownet.pkl"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/ltx23-ta2v-basic.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "infinitetalk_ai2v_lipsync",
+      "title": {
+        "en": "InfiniteTalk AI2V Lip Sync",
+        "zh": "InfiniteTalk 图片+音频口型视频"
+      },
+      "description": {
+        "en": "A runnable talking-portrait template that connects a portrait image and speech audio to InfiniteTalk.",
+        "zh": "可运行的口型视频模板，把人物图片和语音音频连接到 InfiniteTalk。"
+      },
+      "category": "video",
+      "tags": ["video", "audio", "image", "infinitetalk", "lip-sync", "talking-portrait", "tts-chain", "runnable", "口型", "数字人"],
+      "type_label": {
+        "en": "Lip sync video",
+        "zh": "口型视频"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires image + audio + models",
+          "zh": "需要图片、音频和模型"
+        },
+        "note": {
+          "en": "Requires Wan I2V, MelBandRoFormer, InfiniteTalk patch, wav2vec2, RIFE, a portrait image, and speech audio.",
+          "zh": "需要 Wan I2V、MelBandRoFormer、InfiniteTalk patch、wav2vec2、RIFE，以及人物图片和语音音频。"
+        },
+        "models": [
+          "Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "wan_2.1_vae.safetensors",
+          "MelBandRoformer_fp16.safetensors",
+          "wan2.1_infiniteTalk_single_fp16.safetensors",
+          "wav2vec2-chinese-base_fp16.safetensors"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/infinitetalk-ai2v-lipsync.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "hunyuan_foley_video_audio",
+      "title": {
+        "en": "Hunyuan-Foley Video Audio",
+        "zh": "Hunyuan-Foley 视频音效"
+      },
+      "description": {
+        "en": "A runnable Foley template that adds generated sound effects to an imported or generated source video.",
+        "zh": "可运行的 Foley 模板，为导入或生成的源视频添加生成音效。"
+      },
+      "category": "video",
+      "tags": ["video", "audio", "foley", "hunyuan", "sound-effects", "timeline", "runnable", "拟音", "音效"],
+      "type_label": {
+        "en": "Video foley",
+        "zh": "视频拟音"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires video + models",
+          "zh": "需要视频和模型"
+        },
+        "note": {
+          "en": "Requires Hunyuan-Foley CLAP, SigLIP2, Synchformer, Foley XL, audio VAE files, and a source video.",
+          "zh": "需要 Hunyuan-Foley 的 CLAP、SigLIP2、Synchformer、Foley XL、audio VAE 文件，以及源视频。"
+        },
+        "models": [
+          "hunyuanvideo_foley_xl.pth",
+          "synchformer_state_dict.pth",
+          "vae_128d_48k.pth",
+          "clap/pytorch_model.bin",
+          "siglip2/model.safetensors"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/hunyuan-foley-video-audio.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "timeline_composite_basics",
+      "title": {
+        "en": "Timeline Composite Basics",
+        "zh": "Timeline 合成入门"
+      },
+      "description": {
+        "en": "A model-free Timeline template showing video, image, audio, keyframes, rendering, and Result reuse.",
+        "zh": "无模型依赖的 Timeline 模板，演示视频、图片、音频、关键帧、渲染和 Result 复用。"
+      },
+      "category": "starter",
+      "tags": ["starter", "timeline", "composite", "video", "audio", "image", "result", "model-free", "剪辑", "合成"],
+      "type_label": {
+        "en": "Timeline guide",
+        "zh": "Timeline 引导"
+      },
+      "model_dependency": {
+        "mode": "model_free",
+        "label": {
+          "en": "Model-free",
+          "zh": "无模型依赖"
+        },
+        "note": {
+          "en": "Uses Timeline rendering and placeholder media; no generation model is required.",
+          "zh": "使用 Timeline 渲染和占位媒体，不需要生成模型。"
+        },
+        "models": []
+      },
+      "path": "javascript/canvas_workbench/templates/timeline-composite-basics.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "result_reuse_image_chain",
+      "title": {
+        "en": "Result Reuse Image Chain",
+        "zh": "Result 复用图像链"
+      },
+      "description": {
+        "en": "A runnable two-step image chain where Anima generates a Result and Flux2-A2R reuses it as scene_canvas_image.",
+        "zh": "可运行的两步图像链：Anima 先生成 Result，Flux2-A2R 再把它复用为 scene_canvas_image。"
+      },
+      "category": "image",
+      "tags": ["image", "result", "reuse", "chain", "anima", "flux2", "a2r", "workflow", "runnable", "复用", "串联"],
+      "type_label": {
+        "en": "Result chain",
+        "zh": "结果复用链"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires models",
+          "zh": "需要模型"
+        },
+        "note": {
+          "en": "Requires both Anima and Flux2-A2R model sets before running the full chain.",
+          "zh": "完整运行链路前需要 Anima 和 Flux2-A2R 两组模型。"
+        },
+        "models": [
+          "anima-base-v1.0.safetensors",
+          "qwen_3_06b_base.safetensors",
+          "qwen_image_vae.safetensors",
+          "",
+          "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+          "flux2-vae.safetensors"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/result-reuse-image-chain.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_animate_sam3_object_replace",
+      "title": {
+        "en": "Wan-Animate SAM3 Object Replace",
+        "zh": "Wan-Animate SAM3 物体替换"
+      },
+      "description": {
+        "en": "A runnable Wan-Animate template that uses a source video, SAM3 mask video, and reference image to replace an object.",
+        "zh": "可运行的 Wan-Animate 模板，使用源视频、SAM3 遮罩视频和参考图替换物体。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan-animate", "sam3", "object-replace", "mask", "reference-image", "runnable", "物体替换", "视频编辑"],
+      "type_label": {
+        "en": "Video edit preset",
+        "zh": "视频编辑 Preset"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires video + image + models",
+          "zh": "需要视频、图片和模型"
+        },
+        "note": {
+          "en": "Requires Wan-Animate, SAM3.1, CLIP vision, UMT5, Wan VAE, relight/lightx2v LoRAs, RIFE, and detection models.",
+          "zh": "需要 Wan-Animate、SAM3.1、CLIP vision、UMT5、Wan VAE、relight/lightx2v LoRA、RIFE 和检测模型。"
+        },
+        "models": [
+          "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "sam3.1_multiplex_fp16.safetensors",
+          "clip_vision_h.safetensors",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "wan_2.1_vae.safetensors",
+          "WanAnimate_relight_lora_fp16.safetensors",
+          "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-animate-sam3-object-replace.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_animate_sam3_face_swap",
+      "title": {
+        "en": "Wan-Animate SAM3 Face Swap",
+        "zh": "Wan-Animate SAM3 人脸替换"
+      },
+      "description": {
+        "en": "A runnable Wan-Animate face-swap template with source video, SAM3 face mask, and face reference image.",
+        "zh": "可运行的 Wan-Animate 人脸替换模板，包含源视频、SAM3 人脸遮罩和人脸参考图。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan-animate", "sam3", "face-swap", "mask", "reference-image", "runnable", "人脸替换", "口型"],
+      "type_label": {
+        "en": "Face swap preset",
+        "zh": "人脸替换 Preset"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires video + image + models",
+          "zh": "需要视频、图片和模型"
+        },
+        "note": {
+          "en": "Requires the Wan-Animate and SAM3 model set plus a source video, mask video, and face reference.",
+          "zh": "需要 Wan-Animate 与 SAM3 模型组，以及源视频、遮罩视频和人脸参考图。"
+        },
+        "models": [
+          "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "sam3.1_multiplex_fp16.safetensors",
+          "clip_vision_h.safetensors",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "wan_2.1_vae.safetensors",
+          "WanAnimate_relight_lora_fp16.safetensors",
+          "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-animate-sam3-face-swap.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_remover_sam3_video_removal",
+      "title": {
+        "en": "Wan-Remover SAM3 Video Removal",
+        "zh": "Wan-Remover SAM3 视频移除"
+      },
+      "description": {
+        "en": "A runnable video-removal template using a source video and SAM3 mask video to reconstruct removed regions.",
+        "zh": "可运行的视频移除模板，使用源视频和 SAM3 遮罩视频重建被移除区域。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan-remover", "sam3", "removal", "inpaint", "mask", "runnable", "视频移除", "局部编辑"],
+      "type_label": {
+        "en": "Video removal",
+        "zh": "视频移除"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires video + models",
+          "zh": "需要视频和模型"
+        },
+        "note": {
+          "en": "Requires MiniMaxRemover, SAM3.1, Wan VAE, RIFE, and a source/mask video pair.",
+          "zh": "需要 MiniMaxRemover、SAM3.1、Wan VAE、RIFE，以及源视频/遮罩视频组合。"
+        },
+        "models": [
+          "Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors",
+          "sam3.1_multiplex_fp16.safetensors",
+          "wan_2.1_vae.safetensors",
+          "flownet.pkl"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-remover-sam3-video-removal.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_video_outpaint",
+      "title": {
+        "en": "Wan Video Outpaint",
+        "zh": "Wan 视频扩图"
+      },
+      "description": {
+        "en": "A runnable Wan-Outpaint template that expands a source video's frame with directional outpaint controls.",
+        "zh": "可运行的 Wan-Outpaint 模板，通过方向扩展参数扩大源视频画幅。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan-outpaint", "outpaint", "extend-frame", "timeline", "runnable", "视频扩图", "画幅扩展"],
+      "type_label": {
+        "en": "Video outpaint",
+        "zh": "视频扩图"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires video + models",
+          "zh": "需要视频和模型"
+        },
+        "note": {
+          "en": "Requires Wan-Animate, CLIP vision, UMT5, Wan VAE, lightx2v/WanAnimate LoRAs, RIFE, Flux2 Klein, and support encoders.",
+          "zh": "需要 Wan-Animate、CLIP vision、UMT5、Wan VAE、lightx2v/WanAnimate LoRA、RIFE、Flux2 Klein 和支撑编码器。"
+        },
+        "models": [
+          "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "clip_vision_h.safetensors",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "wan_2.1_vae.safetensors",
+          "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+          "",
+          "qwen3_8b_abliterated_v2-fp8mixed.safetensors",
+          "flux2-vae.safetensors"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-video-outpaint.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "tts_timeline_voiceover_mix",
+      "title": {
+        "en": "TTS Timeline Voiceover Mix",
+        "zh": "TTS Timeline 配音混剪"
+      },
+      "description": {
+        "en": "A runnable Qwen TTS to Timeline chain where narration audio Result is mixed with video and rendered as a final video Result.",
+        "zh": "可运行的 Qwen TTS 到 Timeline 链路：旁白音频 Result 与视频混剪后渲染为最终视频 Result。"
+      },
+      "category": "video",
+      "tags": ["video", "audio", "tts", "qwen", "timeline", "voiceover", "mix", "result", "runnable", "配音", "混剪"],
+      "type_label": {
+        "en": "Voiceover timeline",
+        "zh": "配音 Timeline"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires TTS models",
+          "zh": "需要 TTS 模型"
+        },
+        "note": {
+          "en": "Requires Qwen3-TTS VoiceDesign and tokenizer models before generating narration; Timeline rendering itself is model-free.",
+          "zh": "生成旁白前需要 Qwen3-TTS VoiceDesign 和 tokenizer 模型；Timeline 渲染本身不依赖生成模型。"
+        },
+        "models": [
+          "Qwen/Qwen3-TTS-Tokenizer-12Hz",
+          "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/tts-timeline-voiceover-mix.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_animate_sam3_person_replace",
+      "title": {
+        "en": "Wan-Animate SAM3 Person Replace",
+        "zh": "Wan-Animate SAM3 人物替换"
+      },
+      "description": {
+        "en": "A runnable Wan-Animate person replacement template with reserved source video, SAM3 mask, and person reference placeholders.",
+        "zh": "可运行的 Wan-Animate 人物替换模板，预载源视频、SAM3 遮罩和人物参考占位素材。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan-animate", "sam3", "person-replace", "mask", "reference-image", "reserved-input", "runnable", "人物替换", "视频编辑"],
+      "type_label": {
+        "en": "Person replace preset",
+        "zh": "人物替换 Preset"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires video + image + models",
+          "zh": "需要视频、图片和模型"
+        },
+        "note": {
+          "en": "Requires Wan-Animate, SAM3.1, CLIP vision, UMT5, Wan VAE, LoRAs, RIFE, and detection models.",
+          "zh": "需要 Wan-Animate、SAM3.1、CLIP vision、UMT5、Wan VAE、LoRA、RIFE 和检测模型。"
+        },
+        "models": [
+          "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "sam3.1_multiplex_fp16.safetensors",
+          "clip_vision_h.safetensors",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "wan_2.1_vae.safetensors",
+          "WanAnimate_relight_lora_fp16.safetensors",
+          "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-animate-sam3-person-replace.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_scail_motion_transfer",
+      "title": {
+        "en": "Wan-SCAIL Motion Transfer",
+        "zh": "Wan-SCAIL 动作迁移"
+      },
+      "description": {
+        "en": "A runnable Wan-SCAIL template that transfers motion from a reserved video placeholder to a reserved subject image placeholder.",
+        "zh": "可运行的 Wan-SCAIL 模板，将预占位视频动作迁移到预占位主体图。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan-scail", "motion-transfer", "reference-image", "reserved-input", "runnable", "动作迁移", "视频编辑"],
+      "type_label": {
+        "en": "Motion transfer",
+        "zh": "动作迁移"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires video + image + models",
+          "zh": "需要视频、图片和模型"
+        },
+        "note": {
+          "en": "Requires the Wan-SCAIL model, UMT5, CLIP vision, Wan VAE, lightx2v LoRA, RIFE, detection, and NLF models.",
+          "zh": "需要 Wan-SCAIL 模型、UMT5、CLIP vision、Wan VAE、lightx2v LoRA、RIFE、检测模型和 NLF。"
+        },
+        "models": [
+          "Wan21-14B-SCAIL-preview_fp8_e4m3fn_scaled_KJ.safetensors",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "clip_vision_h.safetensors",
+          "wan_2.1_vae.safetensors",
+          "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+          "flownet.pkl",
+          "nlf_l_multi_0.3.2.torchscript"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-scail-motion-transfer.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_swap_face_basic",
+      "title": {
+        "en": "Wan-Swap Face Basic",
+        "zh": "Wan-Swap 基础人脸替换"
+      },
+      "description": {
+        "en": "A runnable Wan-Swap face-swap template with reserved source video and portrait reference placeholders.",
+        "zh": "可运行的 Wan-Swap 换脸模板，预载源视频和人脸参考占位素材。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan-swap", "face-swap", "reference-image", "reserved-input", "runnable", "换脸", "人脸替换"],
+      "type_label": {
+        "en": "Face swap preset",
+        "zh": "换脸 Preset"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires video + image + models",
+          "zh": "需要视频、图片和模型"
+        },
+        "note": {
+          "en": "Requires Wan-Animate, CLIP vision, UMT5, Wan VAE, relight/lightx2v LoRAs, RIFE, and detection models.",
+          "zh": "需要 Wan-Animate、CLIP vision、UMT5、Wan VAE、relight/lightx2v LoRA、RIFE 和检测模型。"
+        },
+        "models": [
+          "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "clip_vision_h.safetensors",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "wan_2.1_vae.safetensors",
+          "WanAnimate_relight_lora_fp16.safetensors",
+          "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+          "flownet.pkl"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-swap-face-basic.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "wan_swap_motion_transfer",
+      "title": {
+        "en": "Wan-Swap Motion Transfer",
+        "zh": "Wan-Swap 动作迁移"
+      },
+      "description": {
+        "en": "A runnable Wan-Swap motion-transfer template with reserved motion video and subject reference placeholders.",
+        "zh": "可运行的 Wan-Swap 动作迁移模板，预载动作视频和主体参考占位素材。"
+      },
+      "category": "video",
+      "tags": ["video", "wan", "wan-swap", "motion-transfer", "pose", "reference-image", "reserved-input", "runnable", "动作迁移", "姿态迁移"],
+      "type_label": {
+        "en": "Motion transfer",
+        "zh": "动作迁移"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires video + image + models",
+          "zh": "需要视频、图片和模型"
+        },
+        "note": {
+          "en": "Requires the Wan-Swap/Wan-Animate model set, CLIP vision, UMT5, Wan VAE, LoRAs, RIFE, and detection models.",
+          "zh": "需要 Wan-Swap/Wan-Animate 模型组、CLIP vision、UMT5、Wan VAE、LoRA、RIFE 和检测模型。"
+        },
+        "models": [
+          "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+          "clip_vision_h.safetensors",
+          "umt5-xxl-encoder-Q8_0.gguf",
+          "wan_2.1_vae.safetensors",
+          "WanAnimate_relight_lora_fp16.safetensors",
+          "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+          "flownet.pkl"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/wan-swap-motion-transfer.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "nvidia_vsr_video_upscale",
+      "title": {
+        "en": "Nvidia-VSR Video Upscale",
+        "zh": "Nvidia-VSR 视频超分"
+      },
+      "description": {
+        "en": "A runnable Nvidia-VSR video super-resolution template with a reserved source video placeholder and optional interpolation settings.",
+        "zh": "可运行的 Nvidia-VSR 视频超分模板，预载源视频占位素材，并包含可选插帧设置。"
+      },
+      "category": "video",
+      "tags": ["video", "nvidia", "vsr", "upscale", "super-resolution", "interpolation", "reserved-input", "runnable", "视频超分", "插帧"],
+      "type_label": {
+        "en": "Video upscale",
+        "zh": "视频超分"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires runtime + optional model",
+          "zh": "需要运行环境和可选模型"
+        },
+        "note": {
+          "en": "Uses Nvidia-VSR runtime support; optional frame interpolation requires RIFE flownet.",
+          "zh": "使用 Nvidia-VSR 运行环境；可选插帧需要 RIFE flownet。"
+        },
+        "models": [
+          "flownet.pkl"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/nvidia-vsr-video-upscale.canvas.json",
+      "preview": ""
+    }
+  ]
+}

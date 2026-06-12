@@ -1,0 +1,73 @@
+
+{
+    "default_engine": {
+        "backend_engine": "SDXL",
+        "disvisible": ["backend_selection", "performance_selection", "refiner_model"],
+        "disinteractive": ["performance_selection", "refiner_model", "FaceSwap"],
+        "available_aspect_ratios_selection": "SDXL",
+        "backend_params": {
+                "task_method": "il_v_pre_aio"
+                },
+        "resolution_control": {
+            "mode": "standard",
+            "source": "none",
+            "base_width": 832,
+            "base_height": 1216,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": false,
+            "preprocess_target": "none",
+            "preprocess_fit": "scale"
+        }
+        },
+    "default_model": "miaomiaoHarem_v20.safetensors",
+    "default_refiner": "None",
+    "default_refiner_switch": 0.5,
+    "default_upscale_model": "remacri_original.safetensors",
+    "default_clip_model": "Default (model)",
+    "default_loras": [
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+	    [
+            "None",
+            1.0
+        ],
+	    [
+            "None",
+            1.0
+        ],
+	    [
+            "None",
+            1.0
+        ]
+    ],
+    "default_cfg_scale": 6.0,
+    "default_sample_sharpness": 2.0,
+    "default_sampler": "euler_ancestral",
+    "default_scheduler": "normal",
+    "default_performance": "Speed",
+    "default_prompt_negative": "extra toes,lowres, (bad), text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, signature, artistic error, username, bad feet,scan, [abstract], english text, shiny hair",
+    "default_styles": [
+        "Illustrious"
+    ],
+    "default_aspect_ratio": "832*1216",
+    "default_overwrite_step": 30,
+    "embeddings_downloads": {},
+    "lora_downloads": {},
+    "model_list": [
+        "checkpoints,miaomiaoHarem_v20.safetensors,6938040400,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/checkpoints/miaomiaoHarem_v20.safetensors",
+        "ipadapter,noob_ip_adapter.bin,1396798350,0,",
+        "upscale_models,remacri_original.safetensors,66864028,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/upscale_models/remacri_original.safetensors",
+        "clip_vision,clip_vision_h.safetensors,1264219396,0,",
+        "controlnet,lllyasviel/Annotators/ZoeD_M12_N.pt,1443406099,0,",
+        "controlnet,noob_sdxl_controlnet_inpainting.safetensors,5004167832,0,",
+        "controlnet,xinsir_cn_union_sdxl_1.0_promax.safetensors,2513342408,0,"
+    ]
+}
+

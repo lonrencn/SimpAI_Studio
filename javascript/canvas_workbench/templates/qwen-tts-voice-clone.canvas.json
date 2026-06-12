@@ -1,0 +1,289 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "qwen_tts_voice_clone_20260606070836_template_20260606070912",
+  "title": "Qwen TTS 音色克隆",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-06T07:09:13Z",
+  "viewport": {
+    "x": -23,
+    "y": 206,
+    "zoom": 0.44552404210042146
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    },
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "qwen_clone_group_input",
+      "title": "1. Reference / 参考音频",
+      "x": -130,
+      "y": -175,
+      "w": 523,
+      "h": 867,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "qwen_clone_group_tts",
+      "title": "2. Clone / 克隆生成",
+      "x": 465,
+      "y": -175,
+      "w": 566,
+      "h": 949,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "qwen_clone_group_result",
+      "title": "3. Result / 结果",
+      "x": 1090,
+      "y": -175,
+      "w": 490,
+      "h": 650,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "qwen_clone_intro_note",
+      "type": "note",
+      "x": -72,
+      "y": -120,
+      "w": 420,
+      "h": 125,
+      "title": "Voice Clone / 音色克隆",
+      "text": "Use this when you have a reference clip and want new text spoken with that voice. / 当你有一段参考音频，并希望用同一音色朗读新文本时使用这个模板。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "qwen_clone_ref_audio",
+      "type": "audio",
+      "x": -72,
+      "y": 72,
+      "w": 420,
+      "h": 280,
+      "title": "Reference Audio / 参考音频",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: replace this placeholder with a short clean reference audio clip."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "ref_audio"
+      }
+    },
+    {
+      "id": "qwen_clone_tip_note",
+      "type": "note",
+      "x": -72,
+      "y": 480,
+      "w": 420,
+      "h": 160,
+      "title": "Reference Tip / 参考建议",
+      "text": "A clear 5-15 second clip with little background noise usually works better than a long mixed track. / 5-15 秒、背景噪音少的清晰片段通常比很长的混合音轨更适合克隆。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "qwen_clone_node",
+      "type": "qwen_tts_voice_clone",
+      "qwen_tts_mode": "voice_clone",
+      "x": 528,
+      "y": -120,
+      "w": 445,
+      "h": 620,
+      "title": "Qwen TTS Voice Clone",
+      "params": {
+        "model_choice": "1.7B",
+        "precision": "bf16",
+        "device": "auto",
+        "language": "Auto",
+        "attention": "auto",
+        "seed_random": true,
+        "seed": 0,
+        "max_new_tokens": 4096,
+        "split_max_chars": 200,
+        "split_hard_max_chars": 260,
+        "top_p": 0.8,
+        "top_k": 20,
+        "temperature": 1,
+        "repetition_penalty": 1.05,
+        "unload_model_after_generate": true,
+        "decode_batch_size": 2,
+        "batch_size": 16,
+        "ref_text": "",
+        "target_text": "这是一段使用参考音色生成的新语音。请先替换左侧参考音频，再点击运行。",
+        "x_vector_only": false
+      },
+      "audio_inputs": {
+        "ref_audio": "qwen_clone_ref_audio"
+      },
+      "source": {
+        "kind": "template_qwen_tts",
+        "mode": "voice_clone",
+        "module": "enhanced.webui_qwen_tts"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Connect or replace Reference Audio before generation."
+      }
+    },
+    {
+      "id": "qwen_clone_result",
+      "type": "result",
+      "x": 1152,
+      "y": -120,
+      "w": 365,
+      "h": 330,
+      "title": "Cloned Voice Audio / 克隆音频",
+      "producer": {
+        "qwen_tts_node_id": "qwen_clone_node",
+        "preset_node_id": null,
+        "timeline_node_id": null,
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "percent": 0,
+        "message": "Replace the reference audio, then run Voice Clone."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "qwen_tts",
+        "qwen_tts_node_id": "qwen_clone_node"
+      }
+    },
+    {
+      "id": "qwen_clone_model_note",
+      "type": "note",
+      "x": 1152,
+      "y": 264,
+      "w": 365,
+      "h": 150,
+      "title": "Models / 模型",
+      "text": "Voice Clone uses the Qwen3-TTS Base model and tokenizer. It will be blocked until a real reference audio asset is available. / 音色克隆使用 Qwen3-TTS Base 模型和 tokenizer。没有真实参考音频时会被运行前检查拦截。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#4338ca",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "qwen_clone_edge_audio",
+      "type": "media",
+      "from": "qwen_clone_ref_audio",
+      "to": "qwen_clone_node",
+      "slot": "ref_audio"
+    },
+    {
+      "id": "qwen_clone_edge_result",
+      "type": "generate",
+      "from": "qwen_clone_node",
+      "to": "qwen_clone_result"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "qwen_tts_voice_clone_20260606070836_template_20260606070912",
+    "title": "Qwen TTS 音色克隆",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "model_free",
+      "label": "无模型依赖",
+      "note": "未检测到可运行的 Preset 或 Classic 节点。",
+      "models": []
+    },
+    "preview": "",
+    "saved_at": "2026-06-06T07:09:13Z"
+  }
+}

@@ -1,0 +1,715 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "model_readiness_basics_20260605061025_template_20260605061329",
+  "title": "模型就绪入门",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T06:13:30Z",
+  "viewport": {
+    "x": 378,
+    "y": 154,
+    "zoom": 0.24241116032893406
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__onboarding_template": true,
+    "__onboarding_checklist_title": {
+      "en": "Model Readiness Tour",
+      "zh": "模型就绪导览"
+    },
+    "__onboarding_checklist_steps": [
+      {
+        "key": "models_ready",
+        "action": "focus_node",
+        "target_node_id": "model_status_ready",
+        "inspect": true,
+        "icon": "fa-circle-check",
+        "title": {
+          "en": "Ready means runnable",
+          "zh": "Ready 表示可运行"
+        },
+        "detail": {
+          "en": "Ready presets have all required model files.",
+          "zh": "Ready 的 Preset 已具备所需模型文件。"
+        }
+      },
+      {
+        "key": "models_missing",
+        "action": "check_models",
+        "target_node_id": "model_status_missing",
+        "inspect": true,
+        "icon": "fa-triangle-exclamation",
+        "title": {
+          "en": "Try the missing state",
+          "zh": "查看 Missing 状态"
+        },
+        "detail": {
+          "en": "Missing means inspectable but not reliably runnable.",
+          "zh": "Missing 表示能查看编辑，但不能可靠运行。"
+        }
+      },
+      {
+        "key": "models_queued",
+        "action": "focus_node",
+        "target_node_id": "model_status_queued",
+        "icon": "fa-cloud-arrow-down",
+        "title": {
+          "en": "Queued means downloading",
+          "zh": "Queued 表示正在下载"
+        },
+        "detail": {
+          "en": "A download task was queued; wait before running.",
+          "zh": "下载任务已排队，运行前需要等待。"
+        }
+      },
+      {
+        "key": "models_error",
+        "action": "focus_node",
+        "target_node_id": "model_status_error",
+        "icon": "fa-circle-xmark",
+        "title": {
+          "en": "Check failed is recoverable",
+          "zh": "Check failed 可恢复"
+        },
+        "detail": {
+          "en": "Retry, inspect paths, or download manually.",
+          "zh": "可以重试、检查路径或手动下载。"
+        }
+      },
+      {
+        "key": "models_dependency_note",
+        "action": "focus_node",
+        "target_node_id": "model_note_template_dependency",
+        "icon": "fa-layer-group",
+        "title": {
+          "en": "Templates are not installs",
+          "zh": "模板不等于安装模型"
+        },
+        "detail": {
+          "en": "A template can load before its models are present.",
+          "zh": "模板可先加载，模型可稍后补齐。"
+        }
+      },
+      {
+        "key": "models_templates",
+        "action": "template_library",
+        "icon": "fa-graduation-cap",
+        "title": {
+          "en": "Return to templates",
+          "zh": "回到模板库"
+        },
+        "detail": {
+          "en": "Future runnable templates should show dependencies clearly.",
+          "zh": "未来可运行模板应清楚标注模型依赖。"
+        }
+      }
+    ],
+    "__minimap_initialized": true,
+    "__template_source": "user",
+    "__onboarding_checklist": {
+      "completed": {
+        "select_node": true,
+        "inspect_node": true,
+        "models_ready": true,
+        "models_missing": true,
+        "models_queued": true,
+        "models_error": true
+      }
+    }
+  },
+  "groups": [
+    {
+      "id": "model_group_status",
+      "title": "1. Status Legend / 状态说明",
+      "x": -120,
+      "y": -120,
+      "w": 2985,
+      "h": 842,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "model_group_before_run",
+      "title": "2. Before You Run / 运行前检查",
+      "x": 384,
+      "y": 960,
+      "w": 600,
+      "h": 520,
+      "color": "#f59e0b",
+      "alpha": 0.12,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "model_group_templates",
+      "title": "3. Template Dependencies / 模板依赖",
+      "x": 1200,
+      "y": 960,
+      "w": 600,
+      "h": 300,
+      "color": "#2563eb",
+      "alpha": 0.1,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "model_note_intro",
+      "type": "note",
+      "x": -48,
+      "y": -48,
+      "w": 380,
+      "h": 150,
+      "title": "Why this matters / 为什么要先看模型",
+      "text": "Preset nodes can be edited before models are installed, but real generation needs every required file. Read the model status before pressing Run. / Preset 可先编辑，但真实生成需要所有模型文件齐全。运行前先看模型状态。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "model_status_ready",
+      "type": "preset",
+      "x": 408,
+      "y": -48,
+      "w": 330,
+      "h": 300,
+      "title": "Models ready",
+      "ignored": true,
+      "preset": {
+        "name": "Model_Status_Ready",
+        "display_name": "Model Status Ready",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "ready status example",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Example",
+        "engine_type": "image",
+        "scene_frontend": "scene",
+        "scene_theme": "Status",
+        "task_method": "readiness_demo"
+      },
+      "schema": {
+        "engine_type": "image",
+        "theme_title": "Mode",
+        "default_theme": "Status",
+        "themes": [
+          "Status"
+        ],
+        "per_theme": {
+          "Status": {
+            "task_method": "readiness_demo",
+            "defaults": {}
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "Hidden",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Prompt",
+            "type": "textarea",
+            "default": "Ready: all files are available."
+          }
+        ]
+      },
+      "model_requirements": {
+        "model_list": [],
+        "has_model_probe": false,
+        "source": "starter_template"
+      },
+      "model_status": {
+        "state": "ready",
+        "ready": true,
+        "missing_count": 0,
+        "message": "All required model files are available."
+      },
+      "upload_slots": {},
+      "params": {
+        "prompt": "Ready: all files are available."
+      },
+      "status": "idle",
+      "source": {
+        "kind": "onboarding_model_status_example"
+      }
+    },
+    {
+      "id": "model_status_missing",
+      "type": "preset",
+      "x": 816,
+      "y": -48,
+      "w": 330,
+      "h": 300,
+      "title": "Missing models",
+      "ignored": true,
+      "preset": {
+        "name": "Model_Status_Missing",
+        "display_name": "Model Status Missing",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "missing status example",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Example",
+        "engine_type": "image",
+        "scene_frontend": "scene",
+        "scene_theme": "Status",
+        "task_method": "readiness_demo"
+      },
+      "schema": {
+        "engine_type": "image",
+        "theme_title": "Mode",
+        "default_theme": "Status",
+        "themes": [
+          "Status"
+        ],
+        "per_theme": {
+          "Status": {
+            "task_method": "readiness_demo",
+            "defaults": {}
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "Hidden",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Prompt",
+            "type": "textarea",
+            "default": "Missing: inspect first, install before running."
+          }
+        ]
+      },
+      "model_requirements": {
+        "model_list": [],
+        "has_model_probe": false,
+        "source": "starter_template"
+      },
+      "model_status": {
+        "state": "missing",
+        "ready": false,
+        "missing_count": 2,
+        "message": "Example: checkpoint and VAE are not available."
+      },
+      "upload_slots": {},
+      "params": {
+        "prompt": "Missing: inspect first, install before running."
+      },
+      "status": "idle",
+      "source": {
+        "kind": "onboarding_model_status_example"
+      }
+    },
+    {
+      "id": "model_status_unknown",
+      "type": "preset",
+      "x": 1224,
+      "y": -48,
+      "w": 330,
+      "h": 300,
+      "title": "Not checked yet",
+      "ignored": true,
+      "preset": {
+        "name": "Model_Status_Unknown",
+        "display_name": "Model Status Unknown",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "unknown status example",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Example",
+        "engine_type": "image",
+        "scene_frontend": "scene",
+        "scene_theme": "Status",
+        "task_method": "readiness_demo"
+      },
+      "schema": {
+        "engine_type": "image",
+        "theme_title": "Mode",
+        "default_theme": "Status",
+        "themes": [
+          "Status"
+        ],
+        "per_theme": {
+          "Status": {
+            "task_method": "readiness_demo",
+            "defaults": {}
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "Hidden",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Prompt",
+            "type": "textarea",
+            "default": "Unknown: click Check models on real presets."
+          }
+        ]
+      },
+      "model_requirements": {
+        "model_list": [],
+        "has_model_probe": false,
+        "source": "starter_template"
+      },
+      "model_status": {
+        "state": "unknown",
+        "ready": false,
+        "missing_count": 0,
+        "message": "Model availability has not been checked."
+      },
+      "upload_slots": {},
+      "params": {
+        "prompt": "Unknown: click Check models on real presets."
+      },
+      "status": "idle",
+      "source": {
+        "kind": "onboarding_model_status_example"
+      }
+    },
+    {
+      "id": "model_status_checking",
+      "type": "preset",
+      "x": 1632,
+      "y": -48,
+      "w": 330,
+      "h": 300,
+      "title": "Checking models",
+      "ignored": true,
+      "preset": {
+        "name": "Model_Status_Checking",
+        "display_name": "Model Status Checking",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "checking status example",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Example",
+        "engine_type": "image",
+        "scene_frontend": "scene",
+        "scene_theme": "Status",
+        "task_method": "readiness_demo"
+      },
+      "schema": {
+        "engine_type": "image",
+        "theme_title": "Mode",
+        "default_theme": "Status",
+        "themes": [
+          "Status"
+        ],
+        "per_theme": {
+          "Status": {
+            "task_method": "readiness_demo",
+            "defaults": {}
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "Hidden",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Prompt",
+            "type": "textarea",
+            "default": "Checking: wait for the scan to finish."
+          }
+        ]
+      },
+      "model_requirements": {
+        "model_list": [],
+        "has_model_probe": false,
+        "source": "starter_template"
+      },
+      "model_status": {
+        "state": "checking",
+        "ready": false,
+        "missing_count": 0,
+        "message": "Checking required model files..."
+      },
+      "upload_slots": {},
+      "params": {
+        "prompt": "Checking: wait for the scan to finish."
+      },
+      "status": "idle",
+      "source": {
+        "kind": "onboarding_model_status_example"
+      }
+    },
+    {
+      "id": "model_status_queued",
+      "type": "preset",
+      "x": 2040,
+      "y": -48,
+      "w": 330,
+      "h": 300,
+      "title": "Download queued",
+      "ignored": true,
+      "preset": {
+        "name": "Model_Status_Queued",
+        "display_name": "Model Status Queued",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "queued status example",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Example",
+        "engine_type": "image",
+        "scene_frontend": "scene",
+        "scene_theme": "Status",
+        "task_method": "readiness_demo"
+      },
+      "schema": {
+        "engine_type": "image",
+        "theme_title": "Mode",
+        "default_theme": "Status",
+        "themes": [
+          "Status"
+        ],
+        "per_theme": {
+          "Status": {
+            "task_method": "readiness_demo",
+            "defaults": {}
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "Hidden",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Prompt",
+            "type": "textarea",
+            "default": "Queued: wait for downloads before running."
+          }
+        ]
+      },
+      "model_requirements": {
+        "model_list": [],
+        "has_model_probe": false,
+        "source": "starter_template"
+      },
+      "model_status": {
+        "state": "queued",
+        "ready": false,
+        "missing_count": 1,
+        "message": "One model download task is queued."
+      },
+      "upload_slots": {},
+      "params": {
+        "prompt": "Queued: wait for downloads before running."
+      },
+      "status": "idle",
+      "source": {
+        "kind": "onboarding_model_status_example"
+      }
+    },
+    {
+      "id": "model_status_error",
+      "type": "preset",
+      "x": 2448,
+      "y": -48,
+      "w": 330,
+      "h": 300,
+      "title": "Check failed",
+      "ignored": true,
+      "preset": {
+        "name": "Model_Status_Error",
+        "display_name": "Model Status Error",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "error status example",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Example",
+        "engine_type": "image",
+        "scene_frontend": "scene",
+        "scene_theme": "Status",
+        "task_method": "readiness_demo"
+      },
+      "schema": {
+        "engine_type": "image",
+        "theme_title": "Mode",
+        "default_theme": "Status",
+        "themes": [
+          "Status"
+        ],
+        "per_theme": {
+          "Status": {
+            "task_method": "readiness_demo",
+            "defaults": {}
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "Hidden",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Prompt",
+            "type": "textarea",
+            "default": "Error: retry, inspect paths, or install manually."
+          }
+        ]
+      },
+      "model_requirements": {
+        "model_list": [],
+        "has_model_probe": false,
+        "source": "starter_template"
+      },
+      "model_status": {
+        "state": "error",
+        "ready": false,
+        "missing_count": 0,
+        "message": "Example: model check failed. Retry or inspect logs."
+      },
+      "upload_slots": {},
+      "params": {
+        "prompt": "Error: retry, inspect paths, or install manually."
+      },
+      "status": "idle",
+      "source": {
+        "kind": "onboarding_model_status_example"
+      }
+    },
+    {
+      "id": "model_note_before_run",
+      "type": "note",
+      "x": 444,
+      "y": 1030,
+      "w": 450,
+      "h": 185,
+      "title": "Do this before Run / 运行前做这几步",
+      "text": "1. Select the Preset. 2. Check Models ready. 3. If Missing, use Check/download models. 4. Wait for Queued downloads to finish. 5. Run only after Ready. / 先选中 Preset，确认 Models ready；缺失则检查/下载，等待队列完成后再运行。",
+      "style": {
+        "color": "#422006",
+        "background": "#fde68a",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "model_note_no_spam",
+      "type": "note",
+      "x": 444,
+      "y": 1250,
+      "w": 450,
+      "h": 150,
+      "title": "Avoid repeated Run clicks / 不要反复点 Run",
+      "text": "If models are missing, repeated Run clicks only create noise. Fix readiness first, then run once and watch the queue. / 模型缺失时反复点 Run 只会制造混乱。先解决就绪状态，再运行并查看队列。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#92400e",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "model_note_template_dependency",
+      "type": "note",
+      "x": 1260,
+      "y": 1030,
+      "w": 450,
+      "h": 150,
+      "title": "Templates are blueprints / 模板只是蓝图",
+      "text": "Starter templates are model-free guides. Future runnable templates should mark required models on the card and remain browsable even before installation. / 新手模板是无模型引导。未来可运行模板应在卡片上标注模型依赖，并允许未安装时先浏览。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#1d4ed8",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "model_readiness_basics_20260605061025_template_20260605061329",
+    "title": "模型就绪入门",
+    "description": "从当前画布保存。",
+    "category": "starter",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "model_free",
+      "label": "无模型依赖",
+      "note": "未检测到可运行的 Preset 或 Classic 节点。",
+      "models": []
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T06:13:30Z"
+  }
+}

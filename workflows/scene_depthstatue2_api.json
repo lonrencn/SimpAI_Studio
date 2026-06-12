@@ -1,0 +1,587 @@
+{
+  "52": {
+    "inputs": {
+      "text": "(Monochrome, black and white, grayscale,:1.2),masterpiece,best quality,best details,high quality,super high quality,detail,clear,super high resolutiom,8K, 4K, stunning",
+      "clip": [
+        "63",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "53": {
+    "inputs": {
+      "text": "(color:1.3),lowers,text,error,watermark,username,",
+      "clip": [
+        "63",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "54": {
+    "inputs": {
+      "strength": 0.7000000000000002,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "52",
+        0
+      ],
+      "negative": [
+        "53",
+        0
+      ],
+      "control_net": [
+        "65",
+        0
+      ],
+      "vae": [
+        "63",
+        2
+      ],
+      "image": [
+        "67",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplySD3",
+    "_meta": {
+      "title": "Apply Controlnet with VAE"
+    }
+  },
+  "55": {
+    "inputs": {
+      "seed": [
+        "90",
+        6
+      ],
+      "steps": 8,
+      "cfg": [
+        "90",
+        8
+      ],
+      "sampler_name": [
+        "92",
+        3
+      ],
+      "scheduler": [
+        "92",
+        4
+      ],
+      "denoise": 0.3500000000000001,
+      "model": [
+        "58",
+        0
+      ],
+      "positive": [
+        "54",
+        0
+      ],
+      "negative": [
+        "54",
+        1
+      ],
+      "latent_image": [
+        "59",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "57": {
+    "inputs": {
+      "lora_name": "Hyper-SDXL-8steps-lora.safetensors",
+      "strength_model": 1,
+      "model": [
+        "63",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "lora_1"
+    }
+  },
+  "58": {
+    "inputs": {
+      "weight": 1,
+      "style_boost": 1,
+      "combine_embeds": "concat",
+      "start_at": 0,
+      "end_at": 1,
+      "embeds_scaling": "V only",
+      "model": [
+        "57",
+        0
+      ],
+      "ipadapter": [
+        "98",
+        0
+      ],
+      "image": [
+        "103",
+        0
+      ],
+      "clip_vision": [
+        "97",
+        0
+      ]
+    },
+    "class_type": "IPAdapterPreciseStyleTransfer",
+    "_meta": {
+      "title": "IPAdapter Precise Style Transfer"
+    }
+  },
+  "59": {
+    "inputs": {
+      "pixels": [
+        "103",
+        0
+      ],
+      "vae": [
+        "63",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "61": {
+    "inputs": {
+      "samples": [
+        "55",
+        0
+      ],
+      "vae": [
+        "63",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "63": {
+    "inputs": {
+      "ckpt_name": "juggernautXL_juggXIByRundiffusion.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "base_model"
+    }
+  },
+  "64": {
+    "inputs": {
+      "control_net_name": "xinsir_cn_union_sdxl_1.0_promax.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "65": {
+    "inputs": {
+      "type": "auto",
+      "control_net": [
+        "64",
+        0
+      ]
+    },
+    "class_type": "SetUnionControlNetType",
+    "_meta": {
+      "title": "SetUnionControlNetType"
+    }
+  },
+  "66": {
+    "inputs": {
+      "images": [
+        "67",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "67": {
+    "inputs": {
+      "preprocessor": "LineArtPreprocessor",
+      "resolution": [
+        "69",
+        0
+      ],
+      "image": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "AIO_Preprocessor",
+    "_meta": {
+      "title": "AIO Aux Preprocessor"
+    }
+  },
+  "69": {
+    "inputs": {
+      "side": "Shortest",
+      "image": [
+        "103",
+        0
+      ]
+    },
+    "class_type": "easy imageSizeBySide",
+    "_meta": {
+      "title": "ImageSize (Side)"
+    }
+  },
+  "87": {
+    "inputs": {
+      "images": [
+        "61",
+        0
+      ]
+    },
+    "class_type": "SaveImageWebsocket",
+    "_meta": {
+      "title": "result_image3"
+    }
+  },
+  "90": {
+    "inputs": {
+      "clip_skip": -1,
+      "width": 1280,
+      "height": 1280,
+      "swap": false,
+      "batch_size": 1,
+      "positive": "+正向提示词",
+      "negative": "-负向提示词",
+      "seed": 291523930599551,
+      "steps": 8,
+      "cfg": 0.8,
+      "denoise": 1
+    },
+    "class_type": "Co_Input_Zho",
+    "_meta": {
+      "title": "i2i_overall_input"
+    }
+  },
+  "92": {
+    "inputs": {
+      "steps_total": 30,
+      "refiner_step": 24,
+      "cfg": 8,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "sgm_uniform"
+    },
+    "class_type": "KSampler Config (rgthree)",
+    "_meta": {
+      "title": "i2i_KSampler"
+    }
+  },
+  "97": {
+    "inputs": {
+      "clip_name": "clip_vision_h.safetensors"
+    },
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "Load CLIP Vision"
+    }
+  },
+  "98": {
+    "inputs": {
+      "ipadapter_file": "ip-adapter-plus_sdxl_vit-h.bin"
+    },
+    "class_type": "IPAdapterModelLoader",
+    "_meta": {
+      "title": "IPAdapter Model Loader"
+    }
+  },
+  "100": {
+    "inputs": {
+      "value": 1280
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "101": {
+    "inputs": {
+      "side": "Longest",
+      "image": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "easy imageSizeBySide",
+    "_meta": {
+      "title": "ImageSize (Side)"
+    }
+  },
+  "102": {
+    "inputs": {
+      "width": [
+        "100",
+        0
+      ],
+      "height": [
+        "100",
+        0
+      ],
+      "interpolation": "lanczos",
+      "method": "keep proportion",
+      "condition": "always",
+      "multiple_of": 0,
+      "image": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "103": {
+    "inputs": {
+      "min": [
+        "125",
+        0
+      ],
+      "max": 1.0000000000000002,
+      "clamp": true,
+      "image": [
+        "110",
+        0
+      ]
+    },
+    "class_type": "RemapImageRange",
+    "_meta": {
+      "title": "Remap Image Range"
+    }
+  },
+  "109": {
+    "inputs": {
+      "boolean": [
+        "111",
+        0
+      ],
+      "on_true": [
+        "102",
+        0
+      ],
+      "on_false": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "110": {
+    "inputs": {
+      "preprocessor": "DepthAnythingV2Preprocessor",
+      "resolution": [
+        "112",
+        0
+      ],
+      "image": [
+        "109",
+        0
+      ]
+    },
+    "class_type": "AIO_Preprocessor",
+    "_meta": {
+      "title": "AIO Aux Preprocessor"
+    }
+  },
+  "111": {
+    "inputs": {
+      "comparison": "a < b",
+      "a": [
+        "101",
+        0
+      ],
+      "b": [
+        "100",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "112": {
+    "inputs": {
+      "side": "Shortest",
+      "image": [
+        "109",
+        0
+      ]
+    },
+    "class_type": "easy imageSizeBySide",
+    "_meta": {
+      "title": "ImageSize (Side)"
+    }
+  },
+  "114": {
+    "inputs": {
+      "images": [
+        "103",
+        0
+      ]
+    },
+    "class_type": "SaveImageWebsocket",
+    "_meta": {
+      "title": "result_image4"
+    }
+  },
+  "119": {
+    "inputs": {
+      "image": "welcome.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "i2i_inpaint_image"
+    }
+  },
+  "120": {
+    "inputs": {
+      "value": -10.000000000000002
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "min depth value"
+    }
+  },
+  "121": {
+    "inputs": {
+      "value": -0.30000000000000004
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "default depth value"
+    }
+  },
+  "122": {
+    "inputs": {
+      "value": 1.0000000000000002
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "max depth value"
+    }
+  },
+  "123": {
+    "inputs": {
+      "boolean": [
+        "126",
+        0
+      ],
+      "on_true": [
+        "128",
+        0
+      ],
+      "on_false": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "124": {
+    "inputs": {
+      "operator": "<=",
+      "a": [
+        "123",
+        0
+      ],
+      "b": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: BooleanOperator",
+    "_meta": {
+      "title": "LayerUtility: Boolean Operator"
+    }
+  },
+  "125": {
+    "inputs": {
+      "boolean": [
+        "124",
+        0
+      ],
+      "on_true": [
+        "123",
+        0
+      ],
+      "on_false": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "126": {
+    "inputs": {
+      "operator": ">=",
+      "a": [
+        "128",
+        0
+      ],
+      "b": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: BooleanOperator",
+    "_meta": {
+      "title": "LayerUtility: Boolean Operator"
+    }
+  },
+  "128": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "129",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "129": {
+    "inputs": {
+      "value": "-0.5"
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "additional_prompt"
+    }
+  }
+}

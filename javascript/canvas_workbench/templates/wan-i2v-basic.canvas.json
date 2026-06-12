@@ -1,0 +1,911 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "wan_i2v_basic_20260604124114_template_20260604124507_20260605063748_template_202",
+  "title": "Wan 图生视频基础",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T06:39:14Z",
+  "viewport": {
+    "x": 246,
+    "y": 7,
+    "zoom": 0.3212564889335815
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "__template_source": "user",
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    }
+  },
+  "groups": [
+    {
+      "id": "wan_i2v_group_input",
+      "title": "1. Frames And Motion / 帧与运动",
+      "x": -160,
+      "y": -190,
+      "w": 640,
+      "h": 1188,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "wan_i2v_group_config",
+      "title": "2. Video Configs / 视频配置",
+      "x": 540,
+      "y": -190,
+      "w": 516,
+      "h": 1969,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "wan_i2v_group_run",
+      "title": "3. Animate And Reuse / 生成与复用",
+      "x": 1120,
+      "y": -190,
+      "w": 1069,
+      "h": 1347,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "wan_i2v_intro_note",
+      "type": "note",
+      "x": -90,
+      "y": -127,
+      "w": 500,
+      "h": 135,
+      "title": "Image To Video / 图生视频",
+      "text": "Replace the first frame before running. The second image can be used as an optional last frame when you want stronger end-state control. / 运行前替换首帧。需要更强的结尾控制时，可使用第二张图作为可选尾帧。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "wan_i2v_first_frame",
+      "type": "image",
+      "x": -95,
+      "y": 55,
+      "w": 250,
+      "h": 285,
+      "title": "First Frame / 首帧",
+      "asset": null,
+      "mask": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: drop or replace this image before running Wan I2V."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "scene_canvas_image"
+      }
+    },
+    {
+      "id": "wan_i2v_last_frame",
+      "type": "image",
+      "x": 175,
+      "y": 55,
+      "w": 250,
+      "h": 285,
+      "title": "Optional Last Frame / 可选尾帧",
+      "asset": null,
+      "mask": null,
+      "status": {
+        "state": "optional",
+        "message": "Optional: connect a last frame only when needed."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "scene_input_image1"
+      }
+    },
+    {
+      "id": "wan_i2v_prompt_text",
+      "type": "text",
+      "x": -95,
+      "y": 380,
+      "w": 520,
+      "h": 165,
+      "title": "Motion Prompt / 运动提示词",
+      "text": {
+        "value": "人物轻轻转头看向镜头，发丝和衣服随微风轻微摆动，镜头缓慢前推，整体动作自然平稳。",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "wan_i2v_negative_text",
+      "type": "text",
+      "x": -100,
+      "y": 670,
+      "w": 520,
+      "h": 185,
+      "title": "Negative Prompt / 负向提示词",
+      "text": {
+        "value": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "wan_i2v_models_config",
+      "type": "config",
+      "config_kind": "models",
+      "x": 600,
+      "y": -100,
+      "w": 400,
+      "h": 545,
+      "title": "Models Config / 模型配置",
+      "target_preset_id": "wan_i2v_preset",
+      "config": {
+        "defaults": {
+          "base_model": "Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf",
+          "refiner_model": "Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+              "weight": 0.5
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+              "weight": 1.2
+            }
+          ]
+        },
+        "values": {
+          "base_model": "Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf",
+          "refiner_model": "Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+              "weight": 0.5
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+              "weight": 1.2
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan(I2V)"
+      }
+    },
+    {
+      "id": "wan_i2v_resolution_config",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 600,
+      "y": 648,
+      "w": 400,
+      "h": 430,
+      "title": "Resolution Config / 分辨率配置",
+      "target_preset_id": "wan_i2v_preset",
+      "config": {
+        "defaults": {
+          "template": "Wan",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "640|1:1",
+            "720|1:1",
+            "832|1:1",
+            "960|1:1",
+            "1024|1:1",
+            "1280|1:1",
+            "origin|Original"
+          ],
+          "resolution_control": {
+            "mode": "image_keep_input_area",
+            "source": "scene_canvas_image",
+            "base_width": 640,
+            "base_height": 640,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "image",
+            "preprocess_fit": "proportional"
+          }
+        },
+        "values": {
+          "template": "Preset",
+          "aspect_ratio": "origin|Original",
+          "width": 640,
+          "height": 640,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan(I2V)"
+      }
+    },
+    {
+      "id": "wan_i2v_preset",
+      "type": "preset",
+      "x": 1176,
+      "y": -96,
+      "w": 445,
+      "h": 690,
+      "title": "Wan(I2V)",
+      "preset": {
+        "name": "Wan(I2V)",
+        "display_name": "Wan(I2V)",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "",
+          "default_prompt_negative": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+        }
+      },
+      "runtime": {
+        "backend_engine": "Wan",
+        "engine_type": "video",
+        "scene_frontend": "v1.1",
+        "scene_theme": "Basic",
+        "task_method": "wan2.2_cn"
+      },
+      "schema": {
+        "version": "v1.1",
+        "scene_frontend": "v1.1",
+        "engine_type": "video",
+        "theme_title": "Wan2.2 Image-to-Video",
+        "default_theme": "Basic",
+        "themes": [
+          "Basic"
+        ],
+        "per_theme": {
+          "Basic": {
+            "task_method": "wan2.2_cn",
+            "defaults": {
+              "prompt": "",
+              "scene_var_number": 5,
+              "scene_var_number2": 30,
+              "scene_var_number3": 1,
+              "scene_var_number4": 1,
+              "scene_switch_option1": false,
+              "scene_switch_option2": true,
+              "scene_steps": 6,
+              "scene_image_number": 1
+            }
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "#1 First Frame",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "scene_input_image1",
+            "label": "#2 Optional Last Frame",
+            "visible": true,
+            "interactive": true
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Positive Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "negative_prompt",
+            "label": "Negative Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "seed_random",
+            "label": "Random Seed",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "image_seed",
+            "label": "Seed",
+            "type": "number",
+            "min": 0,
+            "max": 1125899906842623,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number",
+            "label": "Motion Length",
+            "type": "number",
+            "min": 1,
+            "max": 10,
+            "step": 1,
+            "default": 5
+          },
+          {
+            "key": "scene_var_number2",
+            "label": "Interpolate Frames",
+            "type": "number",
+            "min": 16,
+            "max": 60,
+            "step": 1,
+            "default": 30
+          },
+          {
+            "key": "scene_var_number3",
+            "label": "CFG Scale",
+            "type": "number",
+            "min": 1,
+            "max": 5,
+            "step": 0.1,
+            "default": 1
+          },
+          {
+            "key": "scene_var_number4",
+            "label": "Motion boost strength",
+            "type": "number",
+            "min": 1,
+            "max": 1.3,
+            "step": 0.05,
+            "default": 1
+          },
+          {
+            "key": "scene_switch_option1",
+            "label": "Use Tiled VAE Decode",
+            "type": "checkbox",
+            "default": false
+          },
+          {
+            "key": "scene_switch_option2",
+            "label": "High-noise stage acceleration",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "scene_steps",
+            "label": "Scene Steps",
+            "type": "number",
+            "min": 6,
+            "max": 10,
+            "step": 1,
+            "default": 6
+          },
+          {
+            "key": "scene_image_number",
+            "label": "Video Number",
+            "type": "number",
+            "min": 1,
+            "max": 5,
+            "step": 1,
+            "default": 1
+          }
+        ]
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf",
+          "refiner_model": "Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+              "weight": 0.5
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+              "weight": 1.2
+            }
+          ]
+        },
+        "overrides": {
+          "base_model": "Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf",
+          "refiner_model": "Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+              "weight": 0.5
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+              "weight": 1.2
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "wan_i2v_models_config",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "Wan",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "640|1:1",
+            "720|1:1",
+            "832|1:1",
+            "960|1:1",
+            "1024|1:1",
+            "1280|1:1",
+            "origin|Original"
+          ],
+          "resolution_control": {
+            "mode": "image_keep_input_area",
+            "source": "scene_canvas_image",
+            "base_width": 640,
+            "base_height": 640,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "image",
+            "preprocess_fit": "proportional"
+          }
+        },
+        "overrides": {
+          "template": "Preset",
+          "aspect_ratio": "origin|Original",
+          "width": 640,
+          "height": 640,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "source_node_id": "wan_i2v_resolution_config",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "source_node_id": "wan_i2v_advanced_config",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "checkpoints,Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf,9651728896,0,",
+          "checkpoints,Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf,9651728896,0,",
+          "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
+          "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
+          "loras,wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors,634645944,0,https://www.modelscope.cn/models/lightx2v/Wan2.2-Distill-Loras/resolve/master/wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+          "loras,wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors,739472104,0,https://www.modelscope.cn/models/lightx2v/Wan2.2-Distill-Loras/resolve/master/wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+          "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+        ],
+        "has_model_probe": true,
+        "source": "presets/Wan(I2V).json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Model requirements loaded from presets/Wan(I2V).json; replace the first frame and check models before running."
+      },
+      "upload_slots": {
+        "scene_canvas_image": "wan_i2v_first_frame",
+        "scene_input_image1": "wan_i2v_last_frame"
+      },
+      "text_inputs": {
+        "prompt": "wan_i2v_prompt_text",
+        "negative_prompt": "wan_i2v_negative_text"
+      },
+      "params": {
+        "prompt": "",
+        "negative_prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_var_number": 5,
+        "scene_var_number2": 30,
+        "scene_var_number3": 1,
+        "scene_var_number4": 1,
+        "scene_switch_option1": false,
+        "scene_switch_option2": true,
+        "scene_steps": 6,
+        "scene_image_number": 1
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "Wan(I2V)"
+      }
+    },
+    {
+      "id": "wan_i2v_advanced_config",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 600,
+      "y": 1320,
+      "w": 390,
+      "h": 385,
+      "title": "Advanced Config / 高级配置",
+      "target_preset_id": "wan_i2v_preset",
+      "config": {
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan(I2V)"
+      }
+    },
+    {
+      "id": "wan_i2v_result",
+      "type": "result",
+      "x": 1680,
+      "y": -96,
+      "w": 390,
+      "h": 330,
+      "title": "Generated Video / 生成视频",
+      "producer": {
+        "preset_node_id": "wan_i2v_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 30,
+        "percent": 0,
+        "message": "Replace the first frame, then run Wan I2V. The generated video appears here."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "wan_i2v_reuse_note",
+      "type": "note",
+      "x": 1680,
+      "y": 288,
+      "w": 445,
+      "h": 125,
+      "title": "Reuse Video / 复用视频",
+      "text": "A completed video Result can be previewed, sent to Media Browser, trimmed on Timeline, or used in video comparison workflows. / 完成的视频 Result 可预览、进入媒体浏览、放入 Timeline 裁剪，或用于视频对比流程。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "wan_i2v_edge_first",
+      "type": "upload",
+      "from": "wan_i2v_first_frame",
+      "to": "wan_i2v_preset",
+      "slot": "scene_canvas_image"
+    },
+    {
+      "id": "wan_i2v_edge_last",
+      "type": "upload",
+      "from": "wan_i2v_last_frame",
+      "to": "wan_i2v_preset",
+      "slot": "scene_input_image1"
+    },
+    {
+      "id": "wan_i2v_edge_prompt",
+      "type": "text",
+      "from": "wan_i2v_prompt_text",
+      "to": "wan_i2v_preset",
+      "slot": "prompt"
+    },
+    {
+      "id": "wan_i2v_edge_negative",
+      "type": "text",
+      "from": "wan_i2v_negative_text",
+      "to": "wan_i2v_preset",
+      "slot": "negative_prompt"
+    },
+    {
+      "id": "wan_i2v_edge_models",
+      "type": "config",
+      "from": "wan_i2v_models_config",
+      "to": "wan_i2v_preset",
+      "slot": "models"
+    },
+    {
+      "id": "wan_i2v_edge_resolution",
+      "type": "config",
+      "from": "wan_i2v_resolution_config",
+      "to": "wan_i2v_preset",
+      "slot": "resolution"
+    },
+    {
+      "id": "wan_i2v_edge_advanced",
+      "type": "config",
+      "from": "wan_i2v_advanced_config",
+      "to": "wan_i2v_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "wan_i2v_edge_result",
+      "type": "generate",
+      "from": "wan_i2v_preset",
+      "to": "wan_i2v_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "wan_i2v_basic_20260604124114_template_20260604124507_20260605063748_template_202",
+    "title": "Wan 图生视频基础",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 1 个 preset 节点和 7 个模型依赖。运行前请检查模型。",
+      "models": [
+        "checkpoints,Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf,9651728896,0,",
+        "checkpoints,Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf,9651728896,0,",
+        "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
+        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
+        "loras,wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors,634645944,0,https://www.modelscope.cn/models/lightx2v/Wan2.2-Distill-Loras/resolve/master/wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+        "loras,wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors,739472104,0,https://www.modelscope.cn/models/lightx2v/Wan2.2-Distill-Loras/resolve/master/wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+      ]
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T06:39:14Z"
+  }
+}

@@ -1,0 +1,373 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "run_queue_result_basics_20260605061502_template_20260605061534_template_20260606",
+  "title": "运行队列与结果入门",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-06T07:25:24Z",
+  "viewport": {
+    "x": 441,
+    "y": 242,
+    "zoom": 0.29865645106058736
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__onboarding_template": true,
+    "__onboarding_checklist_title": {
+      "en": "Run Queue Tour",
+      "zh": "运行队列导览"
+    },
+    "__onboarding_checklist_steps": [
+      {
+        "key": "queue_widget",
+        "action": "run_queue",
+        "icon": "fa-list-check",
+        "title": {
+          "en": "Open the queue panel",
+          "zh": "打开运行队列面板"
+        },
+        "detail": {
+          "en": "The top widget opens live and recent runs.",
+          "zh": "顶部控件可打开实时任务和最近任务。"
+        }
+      },
+      {
+        "key": "queue_placeholder",
+        "action": "focus_node",
+        "target_node_id": "queue_result_queued",
+        "icon": "fa-clock",
+        "title": {
+          "en": "Queued placeholder",
+          "zh": "排队占位"
+        },
+        "detail": {
+          "en": "A Result node appears before output is ready.",
+          "zh": "输出准备好前会先出现 Result 节点。"
+        }
+      },
+      {
+        "key": "queue_running",
+        "action": "focus_node",
+        "target_node_id": "queue_result_running",
+        "icon": "fa-spinner",
+        "title": {
+          "en": "Running preview",
+          "zh": "运行预览"
+        },
+        "detail": {
+          "en": "Progress and preview update while a run is active.",
+          "zh": "任务运行时会更新进度和预览。"
+        }
+      },
+      {
+        "key": "queue_finished",
+        "action": "focus_node",
+        "target_node_id": "queue_result_finished",
+        "icon": "fa-circle-check",
+        "title": {
+          "en": "Finished result",
+          "zh": "完成结果"
+        },
+        "detail": {
+          "en": "Finished outputs remain reusable on canvas.",
+          "zh": "完成输出会留在画布上继续复用。"
+        }
+      },
+      {
+        "key": "queue_reuse",
+        "action": "focus_node",
+        "target_node_id": "queue_note_reuse",
+        "icon": "fa-share-nodes",
+        "title": {
+          "en": "Downstream reuse",
+          "zh": "下游复用"
+        },
+        "detail": {
+          "en": "Result outputs can feed later workflow nodes.",
+          "zh": "Result 输出可以接入后续工作流节点。"
+        }
+      }
+    ],
+    "__minimap_initialized": true,
+    "__template_source": "user",
+    "__onboarding_checklist": {
+      "completed": {
+        "select_node": true,
+        "inspect_node": true,
+        "queue_placeholder": true,
+        "queue_running": true,
+        "queue_finished": true,
+        "queue_reuse": true
+      }
+    }
+  },
+  "scheduler": {
+    "state": "finished",
+    "index": 2,
+    "current_title": "Example onboarding chain / 示例入门链路",
+    "updated_at": "2026-05-23T00:00:00Z",
+    "steps": [
+      {
+        "node_id": "queue_result_queued",
+        "title": "Queued placeholder / 排队占位",
+        "type": "result",
+        "state": "finished"
+      },
+      {
+        "node_id": "queue_result_running",
+        "title": "Running preview / 运行预览",
+        "type": "result",
+        "state": "finished"
+      },
+      {
+        "node_id": "queue_result_finished",
+        "title": "Finished result / 完成结果",
+        "type": "result",
+        "state": "finished"
+      }
+    ]
+  },
+  "groups": [
+    {
+      "id": "queue_group_widget",
+      "title": "1. Top Widget / 顶部控件",
+      "x": -120,
+      "y": -120,
+      "w": 470,
+      "h": 462,
+      "color": "#14b8a6",
+      "alpha": 0.13,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "queue_group_lifecycle",
+      "title": "2. Result Lifecycle / 结果生命周期",
+      "x": 408,
+      "y": -120,
+      "w": 1160,
+      "h": 450,
+      "color": "#2563eb",
+      "alpha": 0.11,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "queue_group_reuse",
+      "title": "3. Reuse And History / 复用与历史",
+      "x": 408,
+      "y": 384,
+      "w": 1160,
+      "h": 300,
+      "color": "#22c55e",
+      "alpha": 0.1,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "queue_note_widget",
+      "type": "note",
+      "x": -72,
+      "y": -48,
+      "w": 350,
+      "h": 145,
+      "title": "Run Queue Widget / 运行队列控件",
+      "text": "The top Run Queue widget summarizes scheduler state, active runs, backend queue size, failures, and recent outputs. / 顶部运行队列控件汇总链路状态、活动任务、后端队列、失败和最近输出。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "queue_note_panel",
+      "type": "note",
+      "x": -72,
+      "y": 144,
+      "w": 350,
+      "h": 160,
+      "title": "Open The Panel / 打开面板",
+      "text": "Click the widget to inspect selected chain steps, live runs, and recent runs. / 点击控件可以查看选中链路、实时任务和最近任务。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#0f766e",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "queue_result_queued",
+      "type": "result",
+      "x": 468,
+      "y": -48,
+      "w": 340,
+      "h": 330,
+      "title": "Queued Placeholder / 排队占位",
+      "producer": {
+        "preset_node_id": null,
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "example",
+        "queue_position": 1,
+        "step": 0,
+        "total_steps": 28,
+        "percent": 0.08,
+        "message": "A Result node appears immediately after Run. / 点击 Run 后会立刻出现 Result 占位节点。"
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "onboarding_result_example"
+      }
+    },
+    {
+      "id": "queue_result_running",
+      "type": "result",
+      "x": 828,
+      "y": -48,
+      "w": 340,
+      "h": 330,
+      "title": "Running Preview / 运行预览",
+      "producer": {
+        "preset_node_id": null,
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "preview",
+        "queue_position": 0,
+        "step": 12,
+        "total_steps": 28,
+        "percent": 0.42,
+        "message": "While running, the placeholder updates progress and preview. / 运行中，占位节点会更新进度和预览。"
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "onboarding_result_example"
+      }
+    },
+    {
+      "id": "queue_result_finished",
+      "type": "result",
+      "x": 1188,
+      "y": -48,
+      "w": 340,
+      "h": 330,
+      "title": "Finished Result / 完成结果",
+      "producer": {
+        "preset_node_id": null,
+        "run_id": "queue_run_finished_example",
+        "task_id": "onboarding-task-example"
+      },
+      "status": {
+        "state": "finished",
+        "queue_position": 0,
+        "step": 28,
+        "total_steps": 28,
+        "percent": 1,
+        "message": "Finished outputs stay on the canvas and can be reused downstream. / 完成结果会留在画布上，并可作为下游输入复用。"
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "onboarding_result_example"
+      }
+    },
+    {
+      "id": "queue_note_retry",
+      "type": "note",
+      "x": 468,
+      "y": 456,
+      "w": 470,
+      "h": 145,
+      "title": "Retry And History / 重试与历史",
+      "text": "Real generated Result nodes show Retry and History actions. Retry refreshes the same placeholder; History keeps run events and errors. / 真实生成的 Result 会显示 Retry 和 History。Retry 刷新同一个占位节点，History 保留事件与错误。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "queue_note_reuse",
+      "type": "note",
+      "x": 996,
+      "y": 456,
+      "w": 490,
+      "h": 145,
+      "title": "Downstream Reuse / 下游复用",
+      "text": "Drag a finished Result output into another preset input slot to build multi-step workflows. If upstream changes, stale markers tell you to rerun. / 把完成的 Result 输出拖到下游 preset 输入槽，就能搭建多步工作流。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#166534",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [],
+  "runs": [
+    {
+      "id": "queue_run_finished_example",
+      "state": "finished",
+      "preset_node_id": "",
+      "qwen_tts_node_id": "",
+      "producer_node_id": "",
+      "producer_type": "onboarding",
+      "mode": "Finished run example / 完成任务示例",
+      "placeholder_node_id": "queue_result_finished",
+      "task_id": "onboarding-task-example",
+      "backend": "Canvas",
+      "message": "Example finished run. Real runs will include output paths and events. / 示例完成任务。真实任务会包含输出路径与事件。",
+      "percent": 1,
+      "resolved_seed": null,
+      "input_count": null,
+      "output_count": 1,
+      "created_at": "2026-05-23T00:00:00Z",
+      "finished_at": "2026-05-23T00:00:00Z",
+      "updated_at": "2026-05-23T00:00:00Z",
+      "error": "",
+      "details": ""
+    }
+  ],
+  "batch_jobs": [],
+  "template": {
+    "id": "run_queue_result_basics_20260605061502_template_20260605061534_template_20260606",
+    "title": "运行队列与结果入门",
+    "description": "从当前画布保存。",
+    "category": "starter",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "model_free",
+      "label": "无模型依赖",
+      "note": "未检测到可运行的 Preset 或 Classic 节点。",
+      "models": []
+    },
+    "preview": "",
+    "saved_at": "2026-06-06T07:25:24Z"
+  }
+}

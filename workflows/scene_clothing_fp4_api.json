@@ -1,0 +1,821 @@
+{
+  "5": {
+    "inputs": {
+      "direction": "right",
+      "match_image_size": true,
+      "image1": [
+        "154",
+        0
+      ],
+      "image2": [
+        "261",
+        0
+      ]
+    },
+    "class_type": "ImageConcanate",
+    "_meta": {
+      "title": "Image Concatenate"
+    }
+  },
+  "8": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "clip_model"
+    }
+  },
+  "27": {
+    "inputs": {
+      "clip_name": "sigclip_vision_patch14_384.safetensors"
+    },
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "Load CLIP Vision"
+    }
+  },
+  "30": {
+    "inputs": {
+      "style_model_name": "flux1-redux-dev.safetensors"
+    },
+    "class_type": "StyleModelLoader",
+    "_meta": {
+      "title": "Load Style Model"
+    }
+  },
+  "31": {
+    "inputs": {
+      "text": [
+        "255",
+        0
+      ],
+      "clip": [
+        "271",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "33": {
+    "inputs": {
+      "guidance": [
+        "255",
+        8
+      ],
+      "conditioning": [
+        "31",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "FluxGuidance"
+    }
+  },
+  "34": {
+    "inputs": {
+      "noise_mask": true,
+      "positive": [
+        "197",
+        0
+      ],
+      "negative": [
+        "124",
+        0
+      ],
+      "vae": [
+        "75",
+        0
+      ],
+      "pixels": [
+        "5",
+        0
+      ],
+      "mask": [
+        "152",
+        0
+      ]
+    },
+    "class_type": "InpaintModelConditioning",
+    "_meta": {
+      "title": "InpaintModelConditioning"
+    }
+  },
+  "35": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "279",
+        0
+      ]
+    },
+    "class_type": "DifferentialDiffusion",
+    "_meta": {
+      "title": "Differential Diffusion"
+    }
+  },
+  "37": {
+    "inputs": {
+      "samples": [
+        "265",
+        0
+      ],
+      "vae": [
+        "75",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "65": {
+    "inputs": {
+      "width": [
+        "155",
+        0
+      ],
+      "height": [
+        "155",
+        1
+      ],
+      "x": [
+        "155",
+        0
+      ],
+      "y": 0,
+      "image": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "ImageCrop",
+    "_meta": {
+      "title": "Image Crop"
+    }
+  },
+  "75": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "vae_model"
+    }
+  },
+  "112": {
+    "inputs": {
+      "width": [
+        "155",
+        0
+      ],
+      "height": [
+        "155",
+        1
+      ],
+      "batch_size": 1,
+      "color": 0
+    },
+    "class_type": "EmptyImage",
+    "_meta": {
+      "title": "EmptyImage"
+    }
+  },
+  "113": {
+    "inputs": {
+      "direction": "right",
+      "match_image_size": true,
+      "image1": [
+        "112",
+        0
+      ],
+      "image2": [
+        "266",
+        0
+      ]
+    },
+    "class_type": "ImageConcanate",
+    "_meta": {
+      "title": "Image Concatenate"
+    }
+  },
+  "117": {
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "113",
+        0
+      ]
+    },
+    "class_type": "ImageToMask",
+    "_meta": {
+      "title": "Convert Image to Mask"
+    }
+  },
+  "124": {
+    "inputs": {
+      "conditioning": [
+        "31",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "131": {
+    "inputs": {
+      "images": [
+        "260",
+        0
+      ]
+    },
+    "class_type": "SaveImageWebsocket",
+    "_meta": {
+      "title": "SaveImageWebsocket"
+    }
+  },
+  "152": {
+    "inputs": {
+      "expand": 3,
+      "incremental_expandrate": 0,
+      "tapered_corners": true,
+      "flip_input": false,
+      "blur_radius": 2.5,
+      "lerp_alpha": 1,
+      "decay_factor": 1,
+      "fill_holes": [
+        "255",
+        20
+      ],
+      "mask": [
+        "117",
+        0
+      ]
+    },
+    "class_type": "GrowMaskWithBlur",
+    "_meta": {
+      "title": "Grow Mask With Blur"
+    }
+  },
+  "154": {
+    "inputs": {
+      "width": [
+        "155",
+        0
+      ],
+      "height": [
+        "155",
+        1
+      ],
+      "interpolation": "lanczos",
+      "method": "fill / crop",
+      "condition": "always",
+      "multiple_of": 0,
+      "image": [
+        "256",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "155": {
+    "inputs": {
+      "image": [
+        "261",
+        0
+      ]
+    },
+    "class_type": "GetImageSize+",
+    "_meta": {
+      "title": "🔧 Get Image Size"
+    }
+  },
+  "180": {
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "ImageToMask",
+    "_meta": {
+      "title": "Convert Image to Mask"
+    }
+  },
+  "183": {
+    "inputs": {
+      "invert_mask": false,
+      "detect": "mask_area",
+      "top_reserve": [
+        "236",
+        0
+      ],
+      "bottom_reserve": [
+        "236",
+        0
+      ],
+      "left_reserve": [
+        "235",
+        0
+      ],
+      "right_reserve": [
+        "235",
+        0
+      ],
+      "round_to_multiple": "64",
+      "image": [
+        "258",
+        0
+      ],
+      "mask": [
+        "180",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: CropByMask V2",
+    "_meta": {
+      "title": "LayerUtility: CropByMask V2"
+    }
+  },
+  "184": {
+    "inputs": {
+      "invert_mask": false,
+      "background_image": [
+        "258",
+        0
+      ],
+      "croped_image": [
+        "189",
+        0
+      ],
+      "crop_box": [
+        "183",
+        2
+      ],
+      "croped_mask": [
+        "231",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: RestoreCropBox",
+    "_meta": {
+      "title": "LayerUtility: RestoreCropBox"
+    }
+  },
+  "185": {
+    "inputs": {
+      "invert_mask": false,
+      "detect": "mask_area",
+      "top_reserve": [
+        "236",
+        0
+      ],
+      "bottom_reserve": [
+        "236",
+        0
+      ],
+      "left_reserve": [
+        "235",
+        0
+      ],
+      "right_reserve": [
+        "235",
+        0
+      ],
+      "round_to_multiple": "64",
+      "image": [
+        "257",
+        0
+      ],
+      "mask": [
+        "180",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: CropByMask V2",
+    "_meta": {
+      "title": "LayerUtility: CropByMask V2"
+    }
+  },
+  "189": {
+    "inputs": {
+      "width": [
+        "190",
+        0
+      ],
+      "height": [
+        "190",
+        1
+      ],
+      "interpolation": "lanczos",
+      "method": "stretch",
+      "condition": "always",
+      "multiple_of": 0,
+      "image": [
+        "65",
+        0
+      ]
+    },
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "🔧 Image Resize"
+    }
+  },
+  "190": {
+    "inputs": {
+      "image": [
+        "183",
+        0
+      ]
+    },
+    "class_type": "GetImageSize+",
+    "_meta": {
+      "title": "🔧 Get Image Size"
+    }
+  },
+  "197": {
+    "inputs": {
+      "downsampling_factor": 1.5,
+      "downsampling_function": "area",
+      "mode": "keep aspect ratio",
+      "weight": 1,
+      "autocrop_margin": 0.05,
+      "conditioning": [
+        "33",
+        0
+      ],
+      "style_model": [
+        "30",
+        0
+      ],
+      "clip_vision": [
+        "27",
+        0
+      ],
+      "image": [
+        "256",
+        0
+      ]
+    },
+    "class_type": "ReduxAdvanced",
+    "_meta": {
+      "title": "ReduxAdvanced"
+    }
+  },
+  "231": {
+    "inputs": {
+      "expand": 10,
+      "incremental_expandrate": 0,
+      "tapered_corners": true,
+      "flip_input": false,
+      "blur_radius": 10,
+      "lerp_alpha": 1,
+      "decay_factor": 1,
+      "fill_holes": [
+        "255",
+        20
+      ],
+      "mask": [
+        "183",
+        1
+      ]
+    },
+    "class_type": "GrowMaskWithBlur",
+    "_meta": {
+      "title": "Grow Mask With Blur"
+    }
+  },
+  "234": {
+    "inputs": {
+      "image": [
+        "258",
+        0
+      ]
+    },
+    "class_type": "GetImageSize+",
+    "_meta": {
+      "title": "🔧 Get Image Size"
+    }
+  },
+  "235": {
+    "inputs": {
+      "value": "a*0.2",
+      "a": [
+        "234",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "236": {
+    "inputs": {
+      "value": "a*0.2+b*0.1",
+      "a": [
+        "234",
+        1
+      ],
+      "b": [
+        "234",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "254": {
+    "inputs": {
+      "seed": 0
+    },
+    "class_type": "SeedInput",
+    "_meta": {
+      "title": "SeedInput"
+    }
+  },
+  "255": {
+    "inputs": {
+      "prompt": "",
+      "additional_prompt": "",
+      "ip_image": "welcome.png",
+      "ip_image1": "welcome.png",
+      "ip_image2": "None",
+      "ip_image3": "None",
+      "inpaint_image": "welcome.png",
+      "inpaint_mask": "welcome.png",
+      "width": 1024,
+      "height": 1024,
+      "cfg": 50,
+      "steps": 25,
+      "var_number": 0,
+      "var_number2": 0,
+      "var_number3": 0,
+      "var_number4": 0,
+      "var_number5": 0,
+      "var_number6": 0,
+      "var_number7": 0,
+      "var_number8": 0,
+      "var_number9": 0,
+      "var_number10": 0,
+      "switch_option1": false,
+      "switch_option2": false,
+      "switch_option3": false,
+      "switch_option4": false,
+      "model_type": 1,
+      "model_type2": 1,
+      "clip_type": 1
+    },
+    "class_type": "SceneInput",
+    "_meta": {
+      "title": "SceneInput"
+    }
+  },
+  "256": {
+    "inputs": {
+      "image_name": [
+        "255",
+        2
+      ],
+      "image": "None"
+    },
+    "class_type": "LoadInputImage",
+    "_meta": {
+      "title": "LoadInputImage"
+    }
+  },
+  "257": {
+    "inputs": {
+      "image_name": [
+        "255",
+        5
+      ],
+      "image": "None"
+    },
+    "class_type": "LoadInputImage",
+    "_meta": {
+      "title": "LoadInputImage"
+    }
+  },
+  "258": {
+    "inputs": {
+      "image_name": [
+        "255",
+        4
+      ],
+      "image": "None"
+    },
+    "class_type": "LoadInputImage",
+    "_meta": {
+      "title": "LoadInputImage"
+    }
+  },
+  "260": {
+    "inputs": {
+      "width": [
+        "255",
+        6
+      ],
+      "height": [
+        "255",
+        7
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "stretch",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 1,
+      "device": "cpu",
+      "image": [
+        "184",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "261": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "upscale_method": "lanczos",
+      "keep_proportion": "total_pixels",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 16,
+      "device": "cpu",
+      "image": [
+        "183",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "263": {
+    "inputs": {
+      "value": 0
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "wavespeed_strength"
+    }
+  },
+  "265": {
+    "inputs": {
+      "seed": [
+        "254",
+        0
+      ],
+      "steps": [
+        "255",
+        9
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "35",
+        0
+      ],
+      "positive": [
+        "34",
+        0
+      ],
+      "negative": [
+        "34",
+        1
+      ],
+      "latent_image": [
+        "34",
+        2
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "266": {
+    "inputs": {
+      "width": [
+        "261",
+        1
+      ],
+      "height": [
+        "261",
+        2
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 16,
+      "device": "cpu",
+      "image": [
+        "185",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "268": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "sdxl"
+    },
+    "class_type": "DualCLIPLoaderGGUF",
+    "_meta": {
+      "title": "clip_model"
+    }
+  },
+  "270": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "int"
+    }
+  },
+  "271": {
+    "inputs": {
+      "boolean": [
+        "272",
+        0
+      ],
+      "on_true": [
+        "8",
+        0
+      ],
+      "on_false": [
+        "268",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "272": {
+    "inputs": {
+      "comparison": "a == b",
+      "a": [
+        "255",
+        26
+      ],
+      "b": [
+        "270",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "279": {
+    "inputs": {
+      "model_path": "svdq-fp4_r32-flux.1-fill-dev.safetensors",
+      "cache_threshold": [
+        "263",
+        0
+      ],
+      "attention": "nunchaku-fp16",
+      "cpu_offload": "auto",
+      "device_id": 0,
+      "data_type": "bfloat16",
+      "i2f_mode": "enabled"
+    },
+    "class_type": "NunchakuFluxDiTLoader",
+    "_meta": {
+      "title": "base_model"
+    }
+  }
+}

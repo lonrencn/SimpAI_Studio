@@ -1,0 +1,2 @@
+commit=6b47c953
+# Record the adapted Forge source commit here.

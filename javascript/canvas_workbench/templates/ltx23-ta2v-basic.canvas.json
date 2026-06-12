@@ -1,0 +1,759 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "ltx23_ta2v_basic_20260605064211_template_20260605064344",
+  "title": "LTX2.3 文本+音频生成视频",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T06:43:45Z",
+  "viewport": {
+    "x": 278,
+    "y": 133,
+    "zoom": 0.22413304692565988
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "ltx23_ta2v_group_input",
+      "title": "1. Audio And Prompt / 音频与提示词",
+      "x": -160,
+      "y": -190,
+      "w": 640,
+      "h": 780,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "ltx23_ta2v_group_config",
+      "title": "2. Configs / 配置",
+      "x": 540,
+      "y": -190,
+      "w": 523,
+      "h": 1980,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "ltx23_ta2v_group_run",
+      "title": "3. Generate / 生成",
+      "x": 1120,
+      "y": -190,
+      "w": 1054,
+      "h": 1221,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ltx23_ta2v_intro",
+      "type": "note",
+      "x": -96,
+      "y": -120,
+      "w": 520,
+      "h": 135,
+      "title": "Audio-Driven Video / 音频驱动视频",
+      "text": "Use LTX2.3 Text+Audio to Video when a soundtrack, speech, or rhythm should guide the generated clip. Replace the Audio node first. / 当音乐、语音或节奏需要引导生成视频时，使用 LTX2.3 Text+Audio to Video。请先替换 Audio 节点。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "ltx23_ta2v_audio",
+      "type": "audio",
+      "x": -96,
+      "y": 72,
+      "w": 520,
+      "h": 260,
+      "title": "Driving Audio / 驱动音频",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: replace this audio placeholder or connect an audio Result before Run."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "scene_audio"
+      }
+    },
+    {
+      "id": "ltx23_ta2v_prompt",
+      "type": "text",
+      "x": -96,
+      "y": 480,
+      "w": 520,
+      "h": 155,
+      "title": "Video Prompt / 视频提示词",
+      "text": {
+        "value": "风格：现实 - 电影风格。夜晚城市天台上，一个角色跟随音乐节奏缓慢转身，霓虹光在脸上移动，镜头轻微环绕，画面节奏与音频起伏同步。",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "ltx23_ta2v_negative",
+      "type": "text",
+      "x": -96,
+      "y": 792,
+      "w": 520,
+      "h": 130,
+      "title": "Negative Prompt / 负向提示词",
+      "text": {
+        "value": "字幕，中文字幕，水印，blurry, oversaturated, pixelated, low resolution, grainy, distorted, noise, compression artifacts, jpeg artifacts, glitches, watermark, text, logo, signature, copyright, subtitles, distorted sound, saturated sound, loud",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "ltx23_ta2v_models",
+      "type": "config",
+      "config_kind": "models",
+      "x": 600,
+      "y": -96,
+      "w": 400,
+      "h": 545,
+      "title": "Models Config / 模型配置",
+      "target_preset_id": "ltx23_ta2v_preset",
+      "config": {
+        "defaults": {
+          "base_model": "ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "refiner_model": "None",
+          "clip_model": "gemma_3_12B_it_fpmixed.safetensors",
+          "vae": "LTX23_video_vae_bf16.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+              "weight": 0.6
+            }
+          ]
+        },
+        "values": {
+          "base_model": "ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "refiner_model": "None",
+          "clip_model": "gemma_3_12B_it_fpmixed.safetensors",
+          "vae": "LTX23_video_vae_bf16.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+              "weight": 0.6
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "LTX2.3(TA2V)"
+      }
+    },
+    {
+      "id": "ltx23_ta2v_resolution",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 600,
+      "y": 672,
+      "w": 400,
+      "h": 430,
+      "title": "Resolution Config / 分辨率配置",
+      "target_preset_id": "ltx23_ta2v_preset",
+      "config": {
+        "defaults": {
+          "template": "Flux",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "896|1:1",
+            "1024|1:1",
+            "1280|1:1",
+            "1408|1:1",
+            "1536|1:1",
+            "1792|1:1"
+          ],
+          "resolution_control": {
+            "mode": "standard",
+            "source": "none",
+            "base_width": 1024,
+            "base_height": 1024,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": false,
+            "preprocess_target": "none",
+            "preprocess_fit": "scale"
+          }
+        },
+        "values": {
+          "template": "Preset",
+          "aspect_ratio": "1024|1:1",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "LTX2.3(TA2V)"
+      }
+    },
+    {
+      "id": "ltx23_ta2v_preset",
+      "type": "preset",
+      "x": 1176,
+      "y": -96,
+      "w": 445,
+      "h": 660,
+      "title": "LTX2.3 Text+Audio to Video",
+      "preset": {
+        "name": "LTX2.3(TA2V)",
+        "display_name": "LTX2.3(TA2V)",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "",
+          "default_prompt_negative": "字幕，中文字幕，水印，blurry, oversaturated, pixelated, low resolution, grainy, distorted, noise, compression artifacts, jpeg artifacts, glitches, watermark, text, logo, signature, copyright, subtitles, distorted sound, saturated sound, loud"
+        }
+      },
+      "runtime": {
+        "backend_engine": "Comfy",
+        "engine_type": "video",
+        "scene_frontend": "v1.1",
+        "scene_theme": "Text+Audio to Video",
+        "task_method": "ltx2.3_t2v_cn"
+      },
+      "schema": {
+        "version": "v1.1",
+        "scene_frontend": "v1.1",
+        "engine_type": "video",
+        "theme_title": "LTX2.3 Text-to-Video [Optional audio input]",
+        "default_theme": "Text+Audio to Video",
+        "themes": [
+          "Text-to-Video",
+          "Text+Audio to Video"
+        ],
+        "per_theme": {
+          "Text+Audio to Video": {
+            "task_method": "ltx2.3_t2v_cn",
+            "defaults": {
+              "prompt": "",
+              "scene_var_number": 8,
+              "scene_var_number2": 30,
+              "scene_var_number7": 30,
+              "scene_switch_option1": true,
+              "scene_steps": 11,
+              "scene_image_number": 1
+            }
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_audio",
+            "label": "#1 Audio",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "scene_canvas_image",
+            "label": "Canvas Image",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_input_image1",
+            "label": "Input Image 1",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_input_image2",
+            "label": "Input Image 2",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_video",
+            "label": "Scene Video",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "SAM3 Source Video",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "SAM3 Mask Video",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Positive Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "negative_prompt",
+            "label": "Negative Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "seed_random",
+            "label": "Random Seed",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "image_seed",
+            "label": "Seed",
+            "type": "number",
+            "min": 0,
+            "max": 1125899906842623,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number",
+            "label": "Duration",
+            "type": "number",
+            "min": 1,
+            "max": 30,
+            "step": 1,
+            "default": 8
+          },
+          {
+            "key": "scene_var_number2",
+            "label": "Interpolate Frames",
+            "type": "number",
+            "min": 24,
+            "max": 60,
+            "step": 1,
+            "default": 30
+          },
+          {
+            "key": "scene_var_number7",
+            "label": "Output FPS",
+            "type": "number",
+            "min": 24,
+            "max": 50,
+            "step": 1,
+            "default": 30
+          },
+          {
+            "key": "scene_switch_option1",
+            "label": "Generate with audio input",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "scene_steps",
+            "label": "Scene Steps",
+            "type": "number",
+            "min": 11,
+            "max": 11,
+            "step": 1,
+            "default": 11
+          },
+          {
+            "key": "scene_image_number",
+            "label": "Video Number",
+            "type": "number",
+            "min": 1,
+            "max": 5,
+            "step": 1,
+            "default": 1
+          }
+        ]
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "refiner_model": "None",
+          "clip_model": "gemma_3_12B_it_fpmixed.safetensors",
+          "vae": "LTX23_video_vae_bf16.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+              "weight": 0.6
+            }
+          ]
+        },
+        "overrides": {
+          "base_model": "ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "refiner_model": "None",
+          "clip_model": "gemma_3_12B_it_fpmixed.safetensors",
+          "vae": "LTX23_video_vae_bf16.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+              "weight": 0.6
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "ltx23_ta2v_models",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "Flux",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "896|1:1",
+            "1024|1:1",
+            "1280|1:1",
+            "1408|1:1",
+            "1536|1:1",
+            "1792|1:1"
+          ],
+          "resolution_control": {
+            "mode": "standard",
+            "source": "none",
+            "base_width": 1024,
+            "base_height": 1024,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": false,
+            "preprocess_target": "none",
+            "preprocess_fit": "scale"
+          }
+        },
+        "overrides": {
+          "template": "Preset",
+          "aspect_ratio": "1024|1:1",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "source_node_id": "ltx23_ta2v_resolution",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "source_node_id": "ltx23_ta2v_advanced",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "diffusion_models,ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors,25016398608,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/diffusion_models/ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "loras,ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors,7605507256,0,https://www.modelscope.cn/models/Lightricks/LTX-2.3/resolve/master/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+          "loras,ltx/gemma-3-12b-it-abliterated_heretic_lora_rank64_bf16.safetensors,628203616,0,https://www.modelscope.cn/models/Comfy-Org/ltx-2/resolve/master/split_files/loras/gemma-3-12b-it-abliterated_heretic_lora_rank64_bf16.safetensors",
+          "text_encoders,ltx-2.3_text_projection_bf16.safetensors,2312149072,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/text_encoders/ltx-2.3_text_projection_bf16.safetensors",
+          "text_encoders,gemma_3_12B_it_fpmixed.safetensors,13708659515,0,https://www.modelscope.cn/models/Comfy-Org/ltx-2/resolve/master/split_files/text_encoders/gemma_3_12B_it_fpmixed.safetensors",
+          "latent_upscale_models,ltx-2.3-spatial-upscaler-x2-1.1.safetensors,995743560,0,https://www.modelscope.cn/models/Lightricks/LTX-2.3/resolve/master/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+          "vae,LTX23_audio_vae_bf16.safetensors,364855188,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/vae/LTX23_audio_vae_bf16.safetensors",
+          "vae,LTX23_video_vae_bf16.safetensors,1452258578,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/vae/LTX23_video_vae_bf16.safetensors",
+          "vae,taeltx2_3.safetensors,23531296,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/vae/taeltx2_3.safetensors",
+          "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+        ],
+        "has_model_probe": true,
+        "source": "presets/LTX2.3(TA2V).json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Model requirements loaded from presets/LTX2.3(TA2V).json; replace audio and check models before running."
+      },
+      "upload_slots": {
+        "scene_audio": "ltx23_ta2v_audio"
+      },
+      "text_inputs": {
+        "prompt": "ltx23_ta2v_prompt",
+        "negative_prompt": "ltx23_ta2v_negative"
+      },
+      "params": {
+        "prompt": "",
+        "negative_prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_var_number": 8,
+        "scene_var_number2": 30,
+        "scene_var_number7": 30,
+        "scene_switch_option1": true,
+        "scene_steps": 11,
+        "scene_image_number": 1
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "LTX2.3(TA2V)"
+      }
+    },
+    {
+      "id": "ltx23_ta2v_advanced",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 648,
+      "y": 1368,
+      "w": 360,
+      "h": 365,
+      "title": "Advanced Config / 高级配置",
+      "target_preset_id": "ltx23_ta2v_preset",
+      "config": {
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "LTX2.3(TA2V)"
+      }
+    },
+    {
+      "id": "ltx23_ta2v_result",
+      "type": "result",
+      "x": 1680,
+      "y": -96,
+      "w": 360,
+      "h": 330,
+      "title": "TA2V Result / 音频驱动视频结果",
+      "producer": {
+        "preset_node_id": "ltx23_ta2v_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 30,
+        "percent": 0,
+        "message": "Replace audio, check models, then run LTX2.3 TA2V."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "ltx23_ta2v_reuse_note",
+      "type": "note",
+      "x": 1680,
+      "y": 312,
+      "w": 445,
+      "h": 130,
+      "title": "Next Steps / 后续复用",
+      "text": "Completed video Results can feed Timeline, Wan-Extent, Hunyuan-Foley, or comparison nodes. / 完成的视频 Result 可接入 Timeline、Wan-Extent、Hunyuan-Foley 或对比节点。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "ltx23_ta2v_edge_audio",
+      "type": "upload",
+      "from": "ltx23_ta2v_audio",
+      "to": "ltx23_ta2v_preset",
+      "slot": "scene_audio"
+    },
+    {
+      "id": "ltx23_ta2v_edge_prompt",
+      "type": "text",
+      "from": "ltx23_ta2v_prompt",
+      "to": "ltx23_ta2v_preset",
+      "slot": "prompt"
+    },
+    {
+      "id": "ltx23_ta2v_edge_negative",
+      "type": "text",
+      "from": "ltx23_ta2v_negative",
+      "to": "ltx23_ta2v_preset",
+      "slot": "negative_prompt"
+    },
+    {
+      "id": "ltx23_ta2v_edge_models",
+      "type": "config",
+      "from": "ltx23_ta2v_models",
+      "to": "ltx23_ta2v_preset",
+      "slot": "models"
+    },
+    {
+      "id": "ltx23_ta2v_edge_resolution",
+      "type": "config",
+      "from": "ltx23_ta2v_resolution",
+      "to": "ltx23_ta2v_preset",
+      "slot": "resolution"
+    },
+    {
+      "id": "ltx23_ta2v_edge_advanced",
+      "type": "config",
+      "from": "ltx23_ta2v_advanced",
+      "to": "ltx23_ta2v_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "ltx23_ta2v_edge_result",
+      "type": "generate",
+      "from": "ltx23_ta2v_preset",
+      "to": "ltx23_ta2v_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "ltx23_ta2v_basic_20260605064211_template_20260605064344",
+    "title": "LTX2.3 文本+音频生成视频",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 1 个 preset 节点和 10 个模型依赖。运行前请检查模型。",
+      "models": [
+        "diffusion_models,ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors,25016398608,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/diffusion_models/ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+        "loras,ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors,7605507256,0,https://www.modelscope.cn/models/Lightricks/LTX-2.3/resolve/master/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+        "loras,ltx/gemma-3-12b-it-abliterated_heretic_lora_rank64_bf16.safetensors,628203616,0,https://www.modelscope.cn/models/Comfy-Org/ltx-2/resolve/master/split_files/loras/gemma-3-12b-it-abliterated_heretic_lora_rank64_bf16.safetensors",
+        "text_encoders,ltx-2.3_text_projection_bf16.safetensors,2312149072,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/text_encoders/ltx-2.3_text_projection_bf16.safetensors",
+        "text_encoders,gemma_3_12B_it_fpmixed.safetensors,13708659515,0,https://www.modelscope.cn/models/Comfy-Org/ltx-2/resolve/master/split_files/text_encoders/gemma_3_12B_it_fpmixed.safetensors",
+        "latent_upscale_models,ltx-2.3-spatial-upscaler-x2-1.1.safetensors,995743560,0,https://www.modelscope.cn/models/Lightricks/LTX-2.3/resolve/master/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+        "vae,LTX23_audio_vae_bf16.safetensors,364855188,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/vae/LTX23_audio_vae_bf16.safetensors",
+        "vae,LTX23_video_vae_bf16.safetensors,1452258578,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/vae/LTX23_video_vae_bf16.safetensors",
+        "vae,taeltx2_3.safetensors,23531296,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/vae/taeltx2_3.safetensors",
+        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+      ]
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T06:43:45Z"
+  }
+}

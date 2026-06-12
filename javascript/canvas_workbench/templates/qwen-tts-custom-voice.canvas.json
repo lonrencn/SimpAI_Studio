@@ -1,0 +1,251 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "qwen_tts_custom_voice_20260606070920_template_20260606070959",
+  "title": "Qwen TTS 预设音色",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-06T07:10:00Z",
+  "viewport": {
+    "x": 179,
+    "y": 178,
+    "zoom": 0.48265104560879
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    },
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "qwen_custom_group_node",
+      "title": "1. Built-In Speaker / 内置音色",
+      "x": -100,
+      "y": -155,
+      "w": 578,
+      "h": 1146,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "qwen_custom_group_result",
+      "title": "2. Audio Result / 音频结果",
+      "x": 545,
+      "y": -155,
+      "w": 807,
+      "h": 629,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "2",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "qwen_custom_intro_note",
+      "type": "note",
+      "x": -48,
+      "y": -96,
+      "w": 470,
+      "h": 120,
+      "title": "Preset Speaker / 预设音色",
+      "text": "Custom Voice is good for product narration and quick voice lines because it does not need a reference clip. / 预设音色适合产品旁白和快速语音线，不需要参考音频。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "qwen_custom_node",
+      "type": "qwen_tts_custom_voice",
+      "qwen_tts_mode": "custom_voice",
+      "x": -48,
+      "y": 96,
+      "w": 470,
+      "h": 610,
+      "title": "Qwen TTS Custom Voice",
+      "params": {
+        "model_choice": "1.7B",
+        "precision": "bf16",
+        "device": "auto",
+        "language": "Auto",
+        "attention": "auto",
+        "seed_random": true,
+        "seed": 0,
+        "max_new_tokens": 4096,
+        "split_max_chars": 200,
+        "split_hard_max_chars": 260,
+        "top_p": 0.8,
+        "top_k": 20,
+        "temperature": 1,
+        "repetition_penalty": 1.05,
+        "unload_model_after_generate": true,
+        "decode_batch_size": 2,
+        "batch_size": 16,
+        "text": "今天的更新已经完成。接下来我们会继续完善音频、视频和时间线的联动体验。",
+        "speaker": "Serena",
+        "custom_speaker_name": "",
+        "instruct": "Clear, friendly product narration with steady pacing and natural pauses."
+      },
+      "audio_inputs": {},
+      "source": {
+        "kind": "template_qwen_tts",
+        "mode": "custom_voice",
+        "module": "enhanced.webui_qwen_tts"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Requires local Qwen3-TTS CustomVoice model files before generation."
+      }
+    },
+    {
+      "id": "qwen_custom_result",
+      "type": "result",
+      "x": 624,
+      "y": -96,
+      "w": 360,
+      "h": 330,
+      "title": "Custom Voice Audio / 预设音色音频",
+      "producer": {
+        "qwen_tts_node_id": "qwen_custom_node",
+        "preset_node_id": null,
+        "timeline_node_id": null,
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "percent": 0,
+        "message": "Run Qwen TTS Custom Voice; generated narration appears here."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "qwen_tts",
+        "qwen_tts_node_id": "qwen_custom_node"
+      }
+    },
+    {
+      "id": "qwen_custom_speaker_note",
+      "type": "note",
+      "x": 1032,
+      "y": -48,
+      "w": 250,
+      "h": 255,
+      "title": "Speakers / 音色",
+      "text": "Built-in speaker names include Ryan, Serena, Uncle_fu, Vivian, Aiden, Ono_anna, Sohee, Dylan, and Eric. / 内置音色包括 Ryan、Serena、Uncle_fu、Vivian、Aiden、Ono_anna、Sohee、Dylan、Eric。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#4338ca",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "qwen_custom_reuse_note",
+      "type": "note",
+      "x": 624,
+      "y": 288,
+      "w": 650,
+      "h": 135,
+      "title": "Timeline Ready / 可进 Timeline",
+      "text": "After generation, drag the Result into Timeline or connect it to a video preset with an audio input. / 生成后，把 Result 拖进 Timeline，或连接到带音频输入的视频 preset。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "qwen_custom_edge_result",
+      "type": "generate",
+      "from": "qwen_custom_node",
+      "to": "qwen_custom_result"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "qwen_tts_custom_voice_20260606070920_template_20260606070959",
+    "title": "Qwen TTS 预设音色",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "model_free",
+      "label": "无模型依赖",
+      "note": "未检测到可运行的 Preset 或 Classic 节点。",
+      "models": []
+    },
+    "preview": "",
+    "saved_at": "2026-06-06T07:10:00Z"
+  }
+}

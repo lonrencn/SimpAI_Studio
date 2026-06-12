@@ -1,0 +1,12523 @@
+import io
+import base64
+import html
+import numpy as np
+import gradio as gr
+import os
+import json
+import time
+import re
+import random
+import tempfile
+import wave
+import functools
+import mimetypes
+
+try:
+    from extras.media_normalize import patch_gradio_processing_utils_for_missing_ffprobe as _patch_gradio_processing_utils_for_missing_ffprobe
+
+    _patch_gradio_processing_utils_for_missing_ffprobe()
+except Exception:
+    pass
+import shared
+import modules.config
+import modules.canvas_workbench_project as canvas_workbench_project
+import modules.html
+import modules.async_worker as worker
+import modules.constants as constants
+import modules.flags as flags
+import modules.style_sorter as style_sorter
+import modules.meta_parser
+import modules.batch_utils as batch_utils
+import modules.canvas_danbooru_preflight as canvas_danbooru_preflight
+import modules.canvas_danbooru_service as canvas_danbooru_service
+import modules.canvas_vlm_agent as canvas_vlm_agent
+import modules.canvas_vlm_runtime as canvas_vlm_runtime
+import modules.describe_vlm_chat as describe_vlm_chat
+import modules.canvas_workbench_media_gallery as canvas_workbench_media_gallery
+import modules.canvas_workbench_danbooru_gallery as canvas_workbench_danbooru_gallery
+import copy
+import args_manager
+import ldm_patched.modules.model_management as model_management
+from ui.components.sketch_image import create_sketch_image
+from ui.layout.floating import floating_card, floating_panel, floating_shell
+from ui.bootstrap import apply_webui_assets, create_root_blocks, launch_root_app
+from ui.update_helpers import dataset_update, dropdown_update, gr_update, skip_update as skip_component_update
+from ui.events.topbar import (
+    bind_topbar_identity_events,
+    bind_topbar_load_chain,
+    bind_topbar_navigation_events,
+    bind_topbar_store_events,
+)
+from ui.layout.topbar import create_topbar_layout
+from ui.layout.resolution_control import create_main_resolution_control, create_scene_resolution_control
+
+from extras.inpaint_mask import SAMOptions
+from PIL import Image
+from modules.sdxl_styles import legal_style_names, fooocus_expansion
+from modules.auth import auth_enabled, check_auth
+from modules.access_mode import is_local_mode, user_can_download_models, user_can_generate, user_has_full_local_access
+import modules.identity_access as identity_access
+import modules.util as util
+from modules.meta_parser import switch_scene_theme, switch_scene_theme_safe, switch_scene_theme_select, switch_scene_theme_ready_to_gen, get_welcome_image, describe_prompt_for_scene, extract_scene_image
+
+import comfy.comfy_version as comfy_version
+import enhanced.gallery as gallery_util
+import enhanced.parameter_profiles as parameter_profiles
+import enhanced.topbar  as topbar
+import enhanced.toolbox  as toolbox
+import enhanced.translator  as translator
+import enhanced.version as version
+import enhanced.wildcards as wildcards
+import enhanced.simpleai as simpleai
+import enhanced.all_parameters as ads
+import simpleai_base.api_params as api_params
+import modules.regen_manifest as regen_manifest
+from enhanced.simpleai import comfyd 
+from enhanced.vlm import VLM, vlm
+from enhanced.inference_artist import get_artist_tags_string
+import modules.model_loader as model_loader
+from modules.model_path_utils import find_model_in_dirs, first_model_dir
+import enhanced.qwen_multiangle as qwen_multiangle
+import enhanced.flux_anglelight as flux_anglelight
+import enhanced.transfer_style_gallery as transfer_style_gallery
+import enhanced.sam3_video_mask as sam3_video_mask
+import logging
+logger = logging.getLogger(__name__)
+regen_manifest.ensure_api_params_backend_arg(api_params)
+if isinstance(getattr(api_params, "backend_args", None), list) and "keep_vlm_model_loaded" not in api_params.backend_args:
+    api_params.backend_args.append("keep_vlm_model_loaded")
+
+START_TIMESTAMP = time.time()
+COMPARE_BUTTON_ICON = "🔍"
+_REFRESH_FILES_CACHE_KEY = "__refresh_files_cache"
+_REFRESH_FILES_CHOICES_KEY = "__refresh_files_choices_signature"
+MAIN_VLM_USER_VERSION_KEY = "main_vlm_version"
+MAIN_VLM_CUSTOM_KEYS = {
+    "api_name": "vlm_custom_api_name",
+    "provider": "vlm_custom_provider",
+    "base_url": "vlm_custom_base_url",
+    "model": "vlm_custom_model",
+    "api_key": "vlm_custom_api_key",
+    "api_format": "vlm_custom_api_format",
+    "supports_images": "vlm_custom_supports_images",
+}
+
+
+def compare_button_gr_update(value=None, visible=True, ready=False):
+    return gr_update(
+        value=COMPARE_BUTTON_ICON if value is None else value,
+        visible=visible,
+        size='sm',
+        variant='primary' if ready else 'secondary',
+    )
+MAIN_VLM_CUSTOM_PROVIDERS = [
+    {"key": "openai", "label": "OpenAI", "base_url": "https://api.openai.com/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "ollama_local", "label": "Ollama Local", "label_cn": "Ollama 本地", "base_url": "http://127.0.0.1:11434/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "lmstudio_local", "label": "LM Studio Local", "label_cn": "LM Studio 本地", "base_url": "http://127.0.0.1:1234/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "google", "label": "Google Gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai", "format": "openai_compatible", "supports_images": True},
+    {"key": "deepseek", "label": "DeepSeek", "base_url": "https://api.deepseek.com/v1", "format": "openai_compatible", "supports_images": False},
+    {"key": "xai", "label": "xAI", "base_url": "https://api.x.ai/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "zai", "label": "Z.ai", "base_url": "https://open.bigmodel.cn/api/paas/v4", "format": "openai_compatible", "supports_images": True},
+    {"key": "minimax_global", "label": "MiniMax Global", "base_url": "https://api.minimax.io/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "kimi_global", "label": "Kimi Global", "base_url": "https://api.moonshot.ai/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "byteplus", "label": "BytePlus", "base_url": "https://ark.ap-southeast.bytepluses.com/api/v3", "format": "openai_compatible", "supports_images": True},
+    {"key": "openrouter", "label": "OpenRouter", "base_url": "https://openrouter.ai/api/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "novita", "label": "Novita", "base_url": "https://api.novita.ai/v3/openai", "format": "openai_compatible", "supports_images": True},
+    {"key": "siliconflow", "label": "硅基流动", "base_url": "https://api.siliconflow.cn/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "alibaba", "label": "阿里云 DashScope", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "tencent", "label": "腾讯云", "base_url": "https://api.hunyuan.cloud.tencent.com/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "ppio", "label": "PPIO", "base_url": "https://api.ppinfra.com/v3/openai", "format": "openai_compatible", "supports_images": True},
+    {"key": "ollama_cloud", "label": "Ollama Cloud", "base_url": "https://ollama.com/v1", "format": "openai_compatible", "supports_images": True},
+    {"key": "custom", "label": "Custom OpenAI Compatible", "label_cn": "自定义 OpenAI Compatible", "base_url": "", "format": "openai_compatible", "supports_images": True},
+]
+
+
+def _as_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() not in ("0", "false", "no", "off", "")
+    return bool(value)
+
+
+def _main_vlm_lang(state=None):
+    lang = state.get("__lang") if isinstance(state, dict) else state
+    return simpleai.normalize_ui_lang(lang or args_manager.args.language)
+
+
+def _main_vlm_text(state, en, cn):
+    return en if _main_vlm_lang(state) == "en" else (cn or en)
+
+
+def _main_vlm_provider_by_key(provider_key):
+    provider_key = str(provider_key or "").strip()
+    for provider in MAIN_VLM_CUSTOM_PROVIDERS:
+        if provider["key"] == provider_key:
+            return provider
+    return MAIN_VLM_CUSTOM_PROVIDERS[0]
+
+
+def _main_vlm_provider_label(provider, state=None):
+    if _main_vlm_lang(state) == "en":
+        return provider.get("label") or provider["key"]
+    return provider.get("label_cn") or provider.get("label") or provider["key"]
+
+
+def _main_vlm_provider_choices(state=None):
+    return [(_main_vlm_provider_label(provider, state), provider["key"]) for provider in MAIN_VLM_CUSTOM_PROVIDERS]
+
+
+def _main_vlm_ui_texts(state=None):
+    return {
+        "help_title": _main_vlm_text(state, "Custom API", "自定义 API"),
+        "help_aria": _main_vlm_text(state, "Custom VLM help", "Custom VLM 帮助"),
+        "help_heading": _main_vlm_text(state, "Custom VLM", "自定义 VLM"),
+        "help_endpoint": _main_vlm_text(state, "Use an OpenAI-compatible endpoint.", "使用 OpenAI-compatible 接口。"),
+        "help_key": _main_vlm_text(state, "API Key is optional for local Ollama/LM Studio.", "本机 Ollama/LM Studio 可不填 API Key。"),
+        "api_name_label": _main_vlm_text(state, "API Name", "接口名称"),
+        "api_name_placeholder": _main_vlm_text(state, "Custom / Ollama / LM Studio", "Custom / Ollama / LM Studio"),
+        "provider_label": _main_vlm_text(state, "Provider", "服务商"),
+        "api_format_label": _main_vlm_text(state, "API Format", "接口格式"),
+        "base_url_label": _main_vlm_text(state, "API Base URL", "接口地址"),
+        "base_url_placeholder": _main_vlm_text(state, "Ollama: http://127.0.0.1:11434/v1    LM Studio: http://127.0.0.1:1234/v1", "Ollama: http://127.0.0.1:11434/v1    LM Studio: http://127.0.0.1:1234/v1"),
+        "model_label": _main_vlm_text(state, "Model", "模型"),
+        "api_key_label": _main_vlm_text(state, "API Key", "API Key"),
+        "api_key_placeholder": _main_vlm_text(state, "Optional for Ollama/LM Studio", "Ollama/LM Studio 可留空"),
+        "support_image_label": _main_vlm_text(state, "Support Image", "支持图像输入"),
+        "fetch_models": _main_vlm_text(state, "Fetch Models", "拉取模型"),
+        "test_api": _main_vlm_text(state, "Test API", "测试 API"),
+    }
+
+
+def _main_vlm_custom_help_html(state=None):
+    texts = _main_vlm_ui_texts(state)
+    return (
+        '<div class="describe-vlm-custom-help-row">'
+        f'<strong>{html.escape(texts["help_title"])}</strong>'
+        '<span class="describe-vlm-custom-help" tabindex="0" role="button" '
+        f'aria-label="{html.escape(texts["help_aria"])}">?</span>'
+        '<div class="describe-vlm-custom-help-tip" role="tooltip">'
+        f'<b>{html.escape(texts["help_heading"])}</b>'
+        f'<p>{html.escape(texts["help_endpoint"])}</p>'
+        '<p>Ollama: <code>http://127.0.0.1:11434/v1</code></p>'
+        '<p>LM Studio: <code>http://127.0.0.1:1234/v1</code></p>'
+        f'<p>{html.escape(texts["help_key"])}</p>'
+        '</div>'
+        '</div>'
+    )
+
+
+def _vlm_resolve_version(value):
+    value = str(value or "").strip()
+    if value == VLM.CUSTOM_VERSION or re.search(r"(^|\s)Custom($|\s)", value):
+        return VLM.CUSTOM_VERSION
+    if value in VLM.VERSIONS or value.endswith("-Thinking"):
+        return VLM.resolve_version(value)
+    for version in sorted(VLM.VERSIONS.keys(), key=len, reverse=True):
+        if version in value:
+            return version
+    return VLM.DEFAULT_VERSION
+
+
+def _vlm_model_choice_label(version):
+    version = _vlm_resolve_version(version)
+    status = VLM.get_version_status(version)
+    return f'{status["icon"]} {version}'
+
+
+def _vlm_model_choices():
+    return [_vlm_model_choice_label(version) for version in VLM.VERSIONS.keys()] + [_vlm_model_choice_label(VLM.CUSTOM_VERSION)]
+
+
+def _vlm_model_status_html(version):
+    version = _vlm_resolve_version(version)
+    status = VLM.get_version_status(version)
+    state_class = "ready" if status["exists"] else "missing"
+    if version == VLM.CUSTOM_VERSION and status["exists"]:
+        title = "Custom OpenAI-compatible API is ready."
+    elif version == VLM.CUSTOM_VERSION:
+        missing = ", ".join(status["missing_files"][:3])
+        title = f'Custom API settings incomplete: {missing}'
+    elif status["exists"]:
+        title = "All required model files exist."
+    else:
+        missing = ", ".join(status["missing_files"][:3])
+        if len(status["missing_files"]) > 3:
+            missing += f', +{len(status["missing_files"]) - 3} more'
+        title = f'Missing model files: {missing}'
+    return (
+        f'<div class="describe-vlm-model-state {state_class}" title="{html.escape(title)}">'
+        f'<span class="describe-vlm-model-state-icon">{status["icon"]}</span>'
+        f'<span>{html.escape(status["label"])}</span>'
+        f'</div>'
+    )
+
+
+def _main_vlm_custom_settings_from_state(state):
+    state = state if isinstance(state, dict) else {}
+    provider_key = str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["provider"], state, "custom") or "custom").strip() or "custom"
+    provider = _main_vlm_provider_by_key(provider_key)
+    return {
+        "api_name": str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["api_name"], state, "Custom") or "Custom").strip() or "Custom",
+        "provider": provider["key"],
+        "base_url": str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["base_url"], state, "") or "").strip(),
+        "model": str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["model"], state, "") or "").strip(),
+        "api_key": str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["api_key"], state, "") or "").strip(),
+        "api_format": str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["api_format"], state, provider.get("format") or "openai_compatible") or "openai_compatible").strip() or "openai_compatible",
+        "supports_images": _as_bool(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["supports_images"], state, True), True),
+    }
+
+
+def _apply_main_vlm_custom_settings(settings):
+    settings = settings or {}
+    VLM.set_custom_config(
+        api_name=settings.get("api_name", "Custom"),
+        base_url=settings.get("base_url", ""),
+        model=settings.get("model", ""),
+        api_key=settings.get("api_key", ""),
+        api_format=settings.get("api_format", "openai_compatible"),
+        supports_images=_as_bool(settings.get("supports_images"), True),
+    )
+
+
+def _main_vlm_selected_version_from_state(state):
+    state = state if isinstance(state, dict) else {}
+    saved = ads.get_user_default(MAIN_VLM_USER_VERSION_KEY, state, None)
+    if saved:
+        return _vlm_resolve_version(saved)
+    return _vlm_resolve_version(ads.get_admin_default('vlm_version'))
+
+
+def _main_vlm_save_user_default(key, value, state):
+    if isinstance(state, dict) and state.get("__session") and state.get("ua_hash"):
+        ads.set_user_default_value(key, value, state)
+        return True
+    return False
+
+
+def _main_vlm_save_admin_version(version, state):
+    state = state if isinstance(state, dict) else {}
+    try:
+        ads.set_admin_default_value('vlm_version', version, state)
+        return True
+    except Exception as exc:
+        logger.warning("Main VLM version admin persistence failed: %s", exc)
+        return False
+
+
+def _main_vlm_save_selected_version(version, state, persist_admin=False):
+    version = _vlm_resolve_version(version)
+    _main_vlm_save_user_default(MAIN_VLM_USER_VERSION_KEY, version, state)
+    if persist_admin or version == VLM.CUSTOM_VERSION:
+        _main_vlm_save_admin_version(version, state)
+    return version
+
+
+def _main_vlm_custom_message_html(message="", state="info"):
+    if not message:
+        return ""
+    state_class = html.escape(str(state or "info"))
+    return f'<div class="describe-vlm-custom-message {state_class}">{html.escape(str(message))}</div>'
+
+
+def build_resolution_video_meta(video_path, source_id, active_source):
+    if video_path is None:
+        return "{}"
+    try:
+        fps, frame_count, width, height = sam3_video_mask._get_video_meta(str(video_path))
+        if width <= 0 or height <= 0:
+            return "{}"
+        payload = {
+            "active": str(active_source or ""),
+            str(source_id): {
+                "kind": "video",
+                "width": int(width),
+                "height": int(height),
+                "fps": float(fps or 0),
+                "frames": int(frame_count or 0),
+                "path": os.path.abspath(str(video_path)) if isinstance(video_path, str) else "",
+            },
+        }
+        return json.dumps(payload, ensure_ascii=False)
+    except Exception as exc:
+        logger.warning("Failed to read resolution video meta for %s: %s", video_path, exc)
+        return "{}"
+
+def get_cookie_value(cookie_string, key):
+    pattern = rf'{key}=([^;]+)'
+    match = re.search(pattern, cookie_string)
+    if match:
+        return match.group(1)
+    return None
+
+def _get_request_identity_did(request):
+    try:
+        headers = getattr(request, "headers", {}) or {}
+        if "cookie" not in headers:
+            return ""
+        sid = get_cookie_value(headers["cookie"], "aitoken")
+        if not sid or not hasattr(shared.token, "check_sstoken_and_get_did"):
+            return ""
+        user_agent = headers.get("user-agent", "") if hasattr(headers, "get") else ""
+        ua_hash = hashlib.sha256(user_agent.encode("utf-8")).hexdigest()
+        did = shared.token.check_sstoken_and_get_did(sid, ua_hash)
+        return "" if did == "Unknown" else str(did or "")
+    except Exception as e:
+        logger.debug(f"[IdentityAccess] status monitor did check failed: {e}")
+        return ""
+
+def _pending_user_access_count_for_admin(user_did):
+    try:
+        token = getattr(shared, "token", None)
+        if token is None or not user_did or not token.is_admin(user_did):
+            return 0
+        return sum(
+            1 for record in identity_access.access_records(token)
+            if record.get("status") == "pending" and not record.get("is_admin")
+        )
+    except Exception as e:
+        logger.debug(f"[IdentityAccess] pending access count failed: {e}")
+        return 0
+
+def get_start_timestamp(request: gr.Request):
+    global START_TIMESTAMP
+
+    online_users, domain_online_nodes, domain_online_users, new_msg_number = 0, 0, 0, 0
+    if "cookie" in request.headers:
+        sid = get_cookie_value(request.headers["cookie"], "aitoken")
+        if sid:
+            online_users, domain_online_nodes, domain_online_users, new_msg_number = shared.token.log_access(sid)
+            #node_all, usesr_all, new_msg = shared.token.get_global_status(sid,0)
+        
+    qsize = worker.get_task_size()
+    vram_ram_info = model_management.get_vram_ram_used()
+    if new_msg_number>0:
+        logger.info(f'new messages: {shared.token.get_global_msg_all()}')
+    user_did = _get_request_identity_did(request)
+    is_admin = bool(user_did and getattr(shared, "token", None) is not None and shared.token.is_admin(user_did))
+    pending_access_count = _pending_user_access_count_for_admin(user_did) if is_admin else 0
+    return f'{START_TIMESTAMP},{qsize},{vram_ram_info[0]},{vram_ram_info[1]},{vram_ram_info[2]},{vram_ram_info[3]},{online_users},{domain_online_users},{domain_online_nodes},{pending_access_count},{1 if is_admin else 0}'
+
+def get_wildcards_list(request: gr.Request):
+    wildcard_list = wildcards.get_wildcards_samples(trans=False)
+    wildcard_list = [w[0] for w in wildcard_list]
+    wildcard_list = ','.join(wildcard_list)
+    return wildcard_list
+
+def get_task(*args):
+    args = list(args)
+    args.pop(0)
+    args = api_params.normalization(args, modules.config.default_max_lora_number, modules.config.default_controlnet_image_count, modules.config.default_enhance_tabs)
+    return worker.AsyncTask(args=args)
+
+def _raw_task_arg_index(api_arg_name):
+    normalized_index = api_params.all_args.index(api_arg_name)
+    loras_index = api_params.all_args.index("loras")
+    expanded_lora_count = modules.config.default_max_lora_number * 3
+    if normalized_index <= loras_index:
+        return 1 + normalized_index
+    return 1 + normalized_index + expanded_lora_count - 1
+
+def _apply_model_params_state_to_task_args(args, model_state):
+    args = list(args)
+    if not isinstance(model_state, dict) or not model_state.get("__model_params_state"):
+        return args
+
+    def set_arg(api_name, value):
+        if value is None:
+            return
+        index = _raw_task_arg_index(api_name)
+        if 0 <= index < len(args):
+            args[index] = value
+
+    set_arg("base_model", model_state.get("base_model"))
+    set_arg("refiner_model", model_state.get("refiner_model"))
+    set_arg("refiner_switch", model_state.get("refiner_switch"))
+    set_arg("vae_name", model_state.get("vae_name"))
+
+    lora_start = _raw_task_arg_index("loras")
+    loras = _normalize_lora_triplets(model_state.get("loras"))
+    for index, (enabled, model_name, weight) in enumerate(loras[:modules.config.default_max_lora_number]):
+        raw_index = lora_start + index * 3
+        if raw_index + 2 >= len(args):
+            break
+        args[raw_index] = bool(enabled)
+        args[raw_index + 1] = model_name
+        args[raw_index + 2] = weight
+
+    params_index = _raw_task_arg_index("params_backend")
+    if 0 <= params_index < len(args):
+        params = dict(args[params_index] or {})
+        clip_model = model_state.get("clip_model")
+        if clip_model and clip_model not in (modules.flags.default_clip, modules.flags.default_vae, "auto"):
+            params["clip_model"] = str(clip_model).replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+        else:
+            params.pop("clip_model", None)
+        upscale_model = str(model_state.get("upscale_model") or "default").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+        params["upscale_model"] = upscale_model or "default"
+        args[params_index] = params
+    return args
+
+def get_task_with_model_params_state(*args):
+    args = list(args)
+    if not args:
+        return get_task(*args)
+    model_state = args.pop()
+    args = _apply_model_params_state_to_task_args(args, model_state)
+    return get_task(*args)
+
+
+def get_task_with_resolution_multiplier(*args):
+    args = list(args)
+    args.pop(0)
+    resolution_quantize_step = args.pop() if len(args) > 0 else flags.default_resolution_quantize_step
+    resolution_multiplier = args.pop() if len(args) > 0 else 1.0
+    args = api_params.normalization(args, modules.config.default_max_lora_number, modules.config.default_controlnet_image_count, modules.config.default_enhance_tabs)
+
+    try:
+        m = float(resolution_multiplier)
+    except Exception:
+        m = 1.0
+
+    if m > 1.0:
+        try:
+            m = max(1.0, min(2.0, m))
+            try:
+                step = int(resolution_quantize_step)
+            except Exception:
+                step = 8
+            if step not in flags.resolution_quantize_steps:
+                step = flags.default_resolution_quantize_step
+
+            aspect_ratios_index = api_params.all_args.index('aspect_ratios_selection')
+            overwrite_width_index = api_params.all_args.index('overwrite_width')
+            overwrite_height_index = api_params.all_args.index('overwrite_height')
+
+            overwrite_width = int(args[overwrite_width_index]) if args[overwrite_width_index] is not None else -1
+            overwrite_height = int(args[overwrite_height_index]) if args[overwrite_height_index] is not None else -1
+
+            base_w = overwrite_width
+            base_h = overwrite_height
+            if base_w <= 0 or base_h <= 0:
+                try:
+                    import re
+                    raw = str(args[aspect_ratios_index] or "")
+                    raw = raw.split(',', 1)[0]
+                    m2 = re.search(r'(\d+)\D+(\d+)', raw.replace('×', 'x'))
+                    if m2:
+                        base_w = int(m2.group(1))
+                        base_h = int(m2.group(2))
+                except Exception:
+                    base_w = -1
+                    base_h = -1
+
+            if base_w > 0 and base_h > 0:
+                def _quantize(v):
+                    v = int(round(float(v) / float(step)) * step)
+                    if v <= 0:
+                        v = step
+                    return v
+
+                args[overwrite_width_index] = _quantize(base_w * m)
+                args[overwrite_height_index] = _quantize(base_h * m)
+        except Exception:
+            pass
+
+    return worker.AsyncTask(args=args)
+
+def get_task_with_resolution_multiplier_and_model_state(*args):
+    args = list(args)
+    if len(args) < 3:
+        return get_task_with_resolution_multiplier(*args)
+    resolution_quantize_step = args.pop()
+    resolution_multiplier = args.pop()
+    model_state = args.pop()
+    args = _apply_model_params_state_to_task_args(args, model_state)
+    return get_task_with_resolution_multiplier(*(args + [resolution_multiplier, resolution_quantize_step]))
+
+def _minimal_dropdown_choices(*values):
+    result = []
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, (list, tuple, set)):
+            candidates = value
+        else:
+            candidates = [value]
+        for candidate in candidates:
+            if candidate is None:
+                continue
+            candidate = str(candidate)
+            if not candidate:
+                continue
+            if candidate not in result:
+                result.append(candidate)
+    return result
+
+def refresh_files_clicked(state_params, use_model_filter: bool = True, show_info: bool = True, defer_choices: bool = False):
+    engine = state_params.get('engine', 'Fooocus') if isinstance(state_params, dict) else 'Fooocus'
+    task_method = state_params.get('task_method', None) if isinstance(state_params, dict) else None
+    defer_choice_updates = bool(defer_choices and not show_info)
+    preset_prepared = state_params.get('__preset_prepared', {}) if isinstance(state_params, dict) else {}
+    has_preset_prepared = isinstance(preset_prepared, dict) and bool(preset_prepared)
+    preset_base_model = preset_prepared.get('base_model') or preset_prepared.get('Base Model') or preset_prepared.get('default_model')
+    preset_refiner_model = preset_prepared.get('refiner_model') or preset_prepared.get('Refiner Model') or preset_prepared.get('default_refiner')
+    preset_backend_params = preset_prepared.get('engine', {}).get('backend_params', {}) if isinstance(preset_prepared.get('engine', {}), dict) else {}
+    preset_clip_model = (
+        preset_prepared.get('clip_model')
+        or preset_prepared.get('CLIP Model')
+        or preset_prepared.get('default_clip_model')
+        or preset_backend_params.get('clip_model')
+        or (state_params.get('clip_model') if isinstance(state_params, dict) else None)
+    )
+    preset_vae_model = (
+        preset_prepared.get('vae')
+        or preset_prepared.get('VAE')
+        or preset_prepared.get('default_vae')
+        or preset_backend_params.get('vae_model')
+        or (None if has_preset_prepared else (state_params.get('vae') if isinstance(state_params, dict) else None))
+        or flags.default_vae
+    )
+    preset_upscale_model = (
+        preset_prepared.get('upscale_model')
+        or preset_prepared.get('Upscale Model')
+        or preset_prepared.get('default_upscale_model')
+        or preset_backend_params.get('upscale_model')
+        or (state_params.get('upscale_model') if isinstance(state_params, dict) else None)
+    )
+    preset_lora_names = []
+
+    for i in range(modules.config.default_max_lora_number):
+        lora_combined = preset_prepared.get(f'lora_combined_{i + 1}')
+        if not lora_combined:
+            continue
+        try:
+            split_data = str(lora_combined).split(' : ')
+            lora_name = split_data[0]
+            if len(split_data) >= 3:
+                lora_name = split_data[1]
+            if lora_name and lora_name != 'None':
+                preset_lora_names.append(lora_name)
+        except Exception:
+            continue
+
+    # Without model filtering, backend/task choices share the same global model
+    # catalogs, so cross-backend preset switches can reuse choices.
+    refresh_engine_key = str(engine or '') if use_model_filter else ''
+    refresh_task_method_key = str(task_method or '') if use_model_filter else ''
+    refresh_signature = (
+        refresh_engine_key,
+        refresh_task_method_key,
+        bool(use_model_filter),
+        str(preset_base_model or ''),
+        str(preset_refiner_model or ''),
+        str(preset_clip_model or ''),
+        str(preset_vae_model or ''),
+        str(preset_upscale_model or ''),
+        tuple(str(name or '') for name in preset_lora_names),
+    )
+
+    cache_entry = state_params.get(_REFRESH_FILES_CACHE_KEY) if isinstance(state_params, dict) else None
+    force_file_scan = bool(show_info and not defer_choice_updates)
+    if force_file_scan:
+        try:
+            import modules.canvas_workbench_models as canvas_workbench_models
+            canvas_workbench_models.invalidate_model_catalog_cache()
+        except Exception:
+            pass
+    if defer_choice_updates:
+        # Preset navigation only needs the preset values/layout immediately.
+        # Large dropdown choices are refreshed when Models is opened or the
+        # user explicitly refreshes files.
+        model_filenames = list(getattr(modules.config, 'model_filenames', []) or [])
+        lora_filenames = list(getattr(modules.config, 'lora_filenames', []) or [])
+        vae_filenames = list(getattr(modules.config, 'vae_filenames', []) or [])
+        clip_filenames = list(getattr(modules.config, 'clip_filenames', []) or [])
+        upscale_model_filenames = list(getattr(modules.config, 'upscale_model_filenames', []) or [])
+        cache_hit = isinstance(cache_entry, dict) and cache_entry.get("signature") == refresh_signature
+    elif not force_file_scan and isinstance(cache_entry, dict) and cache_entry.get("signature") == refresh_signature:
+        model_filenames = list(cache_entry.get("model_filenames") or [])
+        lora_filenames = list(cache_entry.get("lora_filenames") or [])
+        vae_filenames = list(cache_entry.get("vae_filenames") or [])
+        clip_filenames = list(cache_entry.get("clip_filenames") or [])
+        upscale_model_filenames = list(cache_entry.get("upscale_model_filenames") or [])
+        cache_hit = True
+    else:
+        model_filenames, lora_filenames, vae_filenames, clip_filenames = modules.config.update_files(engine, task_method, use_model_filter=use_model_filter)
+        upscale_model_filenames = list(getattr(modules.config, 'upscale_model_filenames', []) or [])
+        cache_hit = False
+    if cache_hit:
+        modules.config.model_filenames = list(model_filenames or [])
+        modules.config.lora_filenames = list(lora_filenames or [])
+        modules.config.vae_filenames = list(vae_filenames or [])
+        modules.config.clip_filenames = list(clip_filenames or [])
+        modules.config.upscale_model_filenames = list(upscale_model_filenames or [])
+
+    def _include_current_choice(choices, *values):
+        result = list(choices or [])
+        for value in values:
+            if not value or value in ('None', flags.default_vae, getattr(flags, 'default_clip', flags.default_vae), 'auto', 'default'):
+                continue
+            value = str(value).replace('\\', os.sep).replace('/', os.sep)
+            if value not in result:
+                result.append(value)
+        return result
+
+    if defer_choice_updates:
+        model_choices = _minimal_dropdown_choices(preset_base_model) or None
+        refiner_choices = _minimal_dropdown_choices('None', preset_refiner_model)
+        clip_choices = _minimal_dropdown_choices(flags.default_clip, preset_clip_model)
+        vae_choices = _minimal_dropdown_choices(flags.default_vae, preset_vae_model)
+        upscale_choices = _minimal_dropdown_choices('default', preset_upscale_model)
+        lora_choices = _minimal_dropdown_choices('None', preset_lora_names)
+        choices_reused = False
+    else:
+        model_filenames = _include_current_choice(model_filenames, preset_base_model, preset_refiner_model)
+        lora_filenames = _include_current_choice(lora_filenames, *preset_lora_names)
+        clip_filenames = _include_current_choice(clip_filenames, preset_clip_model)
+        vae_filenames = _include_current_choice(vae_filenames, preset_vae_model)
+        upscale_model_filenames = _include_current_choice(upscale_model_filenames, preset_upscale_model)
+
+        model_choices = list(model_filenames or [])
+        refiner_choices = ['None'] + model_choices
+        clip_choices = [flags.default_clip] + list(clip_filenames or [])
+        vae_choices = [flags.default_vae] + list(vae_filenames or [])
+        upscale_choices = ['default'] + list(upscale_model_filenames or [])
+        lora_choices = ['None'] + list(lora_filenames or [])
+        choices_signature = (
+            tuple(model_choices),
+            tuple(refiner_choices),
+            tuple(clip_choices),
+            tuple(vae_choices),
+            tuple(upscale_choices),
+            tuple(lora_choices),
+        )
+        previous_choices_signature = state_params.get(_REFRESH_FILES_CHOICES_KEY) if isinstance(state_params, dict) else None
+        choices_reused = bool(not show_info and previous_choices_signature == choices_signature)
+    if isinstance(state_params, dict):
+        if not defer_choice_updates:
+            state_params[_REFRESH_FILES_CACHE_KEY] = {
+                "signature": refresh_signature,
+                "model_filenames": list(model_filenames or []),
+                "lora_filenames": list(lora_filenames or []),
+                "vae_filenames": list(vae_filenames or []),
+                "clip_filenames": list(clip_filenames or []),
+                "upscale_model_filenames": list(upscale_model_filenames or []),
+            }
+            state_params[_REFRESH_FILES_CHOICES_KEY] = choices_signature
+    util.log_ui_trace(
+        logger,
+        "[UI-TRACE] refresh_files_clicked | preset=%r, engine=%r, task_method=%r, cache_hit=%s, choices_reused=%s, choices_deferred=%s, models=%s, loras=%s, clip=%s, vae=%s, upscale=%s",
+        state_params.get('__preset', None) if isinstance(state_params, dict) else None,
+        engine,
+        task_method,
+        cache_hit,
+        choices_reused,
+        defer_choice_updates,
+        len(model_filenames or []),
+        len(lora_filenames or []),
+        len(clip_filenames or []),
+        len(vae_filenames or []),
+        len(upscale_model_filenames or []),
+    )
+    if show_info:
+        try:
+            gr.Info(f"Files refreshed. Models: {len(model_filenames)}, LoRAs: {len(lora_filenames)}, CLIP/Text Encoders: {len(clip_filenames)}, VAEs: {len(vae_filenames)}, Upscale: {len(upscale_model_filenames)}.")
+        except Exception as e:
+            logger.info(f"[RefreshFiles] gr.Info failed: {e}")
+
+    is_scene_state = isinstance(state_params, dict) and isinstance(state_params.get("scene_frontend"), dict)
+    hidden_models = set()
+    if is_scene_state:
+        engine_data = preset_prepared.get("engine", {}) if isinstance(preset_prepared, dict) else {}
+        engine_disvisible = engine_data.get("disvisible", []) if isinstance(engine_data, dict) else []
+        scene_disvisible = state_params.get("scene_frontend", {}).get("disvisible", [])
+        if isinstance(engine_disvisible, list):
+            hidden_models.update(engine_disvisible)
+        if isinstance(scene_disvisible, list):
+            hidden_models.update(scene_disvisible)
+        if "scene_base_model" in hidden_models:
+            hidden_models.add("base_model")
+        if "scene_refiner_model" in hidden_models:
+            hidden_models.add("refiner_model")
+
+    def _model_choices_update(choices, value=None, control_name=None):
+        update = {}
+        if not choices_reused and choices is not None:
+            update["choices"] = choices
+        if is_scene_state:
+            if value is not None:
+                update["value"] = value
+            if control_name:
+                update["visible"] = control_name not in hidden_models
+        return gr_update(**update) if update else skip_component_update()
+
+    results = [_model_choices_update(model_choices, preset_base_model, "base_model")]
+    results += [_model_choices_update(refiner_choices, preset_refiner_model, "refiner_model")]
+    results += [_model_choices_update(clip_choices, preset_clip_model, "clip_model")]
+    results += [_model_choices_update(vae_choices, preset_vae_model, "vae")]
+    results += [_model_choices_update(upscale_choices, preset_upscale_model, "upscale_model")]
+    for _ in range(modules.config.default_max_lora_number):
+        if choices_reused:
+            results += [skip_component_update(), skip_component_update(), skip_component_update()]
+        elif defer_choice_updates:
+            results += [
+                skip_component_update(),
+                gr_update(choices=lora_choices),
+                skip_component_update(),
+            ]
+        else:
+            results += [
+                gr_update(interactive=True),
+                gr_update(choices=lora_choices),
+                gr_update(interactive=True),
+            ]
+    return results
+
+
+def _format_generation_eta(seconds):
+    try:
+        value = int(round(float(seconds)))
+    except (TypeError, ValueError):
+        return None
+    if value < 0:
+        return None
+    if value < 60:
+        return f"ETA:{value}s"
+    minutes, seconds = divmod(value, 60)
+    if minutes < 60:
+        return f"ETA:{minutes}m {seconds:02d}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"ETA:{hours}h {minutes:02d}m"
+
+def generate_clicked(task: worker.AsyncTask, state):
+    user_did = None
+    try:
+        if isinstance(state, dict) and "user" in state and state["user"] is not None:
+            user_did = state["user"].get_did()
+    except Exception:
+        user_did = None
+
+    with model_management.interrupt_processing_mutex:
+        model_management.interrupt_processing = False
+    if len(task.args) == 0:
+        return
+    try:
+        effective_user_did = user_did
+        if not effective_user_did and hasattr(shared.token, "get_default_workspace_did"):
+            effective_user_did = shared.token.get_default_workspace_did()
+        if not user_can_generate(effective_user_did or ""):
+            gr.Info("Current identity is not allowed to generate images.")
+            logger.info(f"[Generate] blocked by identity permission: user_did={effective_user_did}")
+            return
+    except Exception as e:
+        logger.warning(f"[Generate] permission check failed, continuing for compatibility: {e}")
+    is_mobile = state["__is_mobile"]
+    preset_name = state.get("__preset") if isinstance(state, dict) else None
+    waiting_welcome_image = get_welcome_image(is_mobile=is_mobile, is_change=True)
+    main_welcome_image = get_welcome_image(
+        preset_name,
+        is_mobile,
+        no_welcome=ads.get_admin_default("no_welcome_checkbox"),
+    )
+    is_fooocus = state["engine"] == 'Fooocus'
+    task_meta = f"task_id={getattr(task, 'task_id', None)}, user_did={user_did}, task_class={getattr(task, 'task_class', None)}, task_name={getattr(task, 'task_name', None)}, task_method={getattr(task, 'task_method', None)}"
+    task.simpleai_generation_had_output = False
+
+    MAX_WAIT_TIME = 1800
+    POLL_INTERVAL = 0.1
+    _NO_UPDATE_VALUE = object()
+    component_visibility = {
+        "progress_html": None,
+        "progress_window": None,
+        "progress_gallery": None,
+        "progress_video": None,
+        "gallery": None,
+        "comparison_box": None,
+        "compare_btn": None,
+    }
+    button_interactive_state = {
+        "stop": None,
+        "skip": None,
+    }
+    comparison_state_sent = None
+    last_progress_gallery_key = None
+    last_progress_gallery_resend_time = 0.0
+
+    def tracked_component_update(name, visible=None, value=_NO_UPDATE_VALUE, **kwargs):
+        update_kwargs = {}
+        visibility_changed = False
+        if visible is not None and component_visibility.get(name) != visible:
+            update_kwargs["visible"] = visible
+            component_visibility[name] = visible
+            visibility_changed = True
+        if value is not _NO_UPDATE_VALUE:
+            update_kwargs["value"] = value
+        if kwargs and (visibility_changed or value is not _NO_UPDATE_VALUE):
+            update_kwargs.update(kwargs)
+        return gr_update(**update_kwargs) if update_kwargs else skip_component_update()
+
+    def progress_html_update(percentage, title, visible=True, eta_text=None):
+        return tracked_component_update(
+            "progress_html",
+            visible=visible,
+            value=modules.html.make_progress_html(percentage, title, eta_text=eta_text),
+        )
+
+    def progress_gallery_clear_update(preserve_layout=True):
+        nonlocal last_progress_gallery_key, last_progress_gallery_resend_time
+        last_progress_gallery_key = None
+        last_progress_gallery_resend_time = 0.0
+        return tracked_component_update(
+            "progress_gallery",
+            visible="hidden" if preserve_layout else False,
+            value=None,
+        )
+
+    def progress_gallery_results_update(results, force=False):
+        nonlocal last_progress_gallery_key, last_progress_gallery_resend_time
+        if not results:
+            return progress_gallery_clear_update(preserve_layout=True)
+        has_video_result = any(
+            isinstance(path, str) and path.lower().endswith(('.mp4', '.webm'))
+            for path in results
+        )
+        result_key = tuple(str(path) for path in results)
+        result_count = len(results)
+        try:
+            expected_result_count = int(getattr(task, "image_number", 1) or 1)
+        except Exception:
+            expected_result_count = 1
+        preview_single_result = expected_result_count <= 1 and result_count == 1
+        same_result_key = last_progress_gallery_key == result_key
+        if not force and same_result_key and component_visibility.get("progress_gallery") is True:
+            now = time.time()
+            if now - last_progress_gallery_resend_time < 0.75:
+                return skip_component_update()
+            last_progress_gallery_resend_time = now
+        else:
+            last_progress_gallery_resend_time = time.time()
+        last_progress_gallery_key = result_key
+        force_visible_update = bool(results) and not force
+        if force or force_visible_update:
+            component_visibility["progress_gallery"] = None
+        logger.info(
+            "[UI-TRACE] progress_gallery.update | count=%s, expected=%s, force=%s, force_visible=%s, preview_single=%s, has_video=%s, same_key=%s",
+            result_count,
+            expected_result_count,
+            force,
+            force_visible_update,
+            preview_single_result,
+            has_video_result,
+            same_result_key,
+        )
+        return tracked_component_update(
+            "progress_gallery",
+            visible=True,
+            value=results,
+            label="Finished Videos" if has_video_result else "Finished Images",
+            allow_preview=True,
+            preview=preview_single_result,
+            selected_index=None,
+            fit_columns=False,
+        )
+
+    def current_task_gallery_update(force=False):
+        if getattr(task, "disable_intermediate_results", False) and not force:
+            return progress_gallery_clear_update(preserve_layout=True)
+        return progress_gallery_results_update(getattr(task, "results", None), force=force)
+
+    def comparison_state_update(value=False):
+        nonlocal comparison_state_sent
+        if comparison_state_sent == value:
+            return skip_component_update()
+        comparison_state_sent = value
+        return value
+
+    def compare_button_update(visible=True):
+        return tracked_component_update("compare_btn", visible=True, value=COMPARE_BUTTON_ICON, size='sm', variant='secondary')
+
+    def controls_interactive_updates(interactive):
+        updates = []
+        for name in ("stop", "skip"):
+            if button_interactive_state[name] == interactive:
+                updates.append(skip_component_update())
+            else:
+                button_interactive_state[name] = interactive
+                updates.append(gr_update(interactive=interactive))
+        return tuple(updates)
+
+    worker.add_task(task)
+    qsize = worker.get_task_size()
+    MAX_LOOP_NUM = qsize
+    last_update_time = time.time()
+    loop_num = 0
+    ready_flag = False
+    queue_start_time = time.time()
+    logged_queue_wait = False
+    logger.info(f"[Generate] enqueue: qsize={qsize}, {task_meta}")
+    try:
+        while qsize > 0:
+            current_time = time.time()
+            if len(task.yields) > 0 or len(task.results) > 0 or task.processing:
+                ready_flag = True
+                logger.info(f"[Generate] queue_exit(activity): waited={current_time - queue_start_time:.2f}s, qsize={qsize}, {task_meta}")
+                break
+            if (current_time - MAX_WAIT_TIME*loop_num - last_update_time) < MAX_WAIT_TIME:
+                if (not logged_queue_wait) and (current_time - queue_start_time) >= 5.0:
+                    logged_queue_wait = True
+                    logger.warning(f"[Generate] queue_wait: waited={current_time - queue_start_time:.2f}s, qsize={qsize}, processing_id={worker.get_processing_id()}, {task_meta}")
+                stop_update, skip_update = controls_interactive_updates(False)
+                yield progress_html_update(1, f'Generation task queued ({qsize}). Please wait...'), \
+                    tracked_component_update("progress_window", visible=True, value=waiting_welcome_image), \
+                    current_task_gallery_update(), \
+                    tracked_component_update("progress_video", visible=False), \
+                    tracked_component_update("gallery", visible=False), \
+                    comparison_state_update(False), \
+                    tracked_component_update("comparison_box", visible=False), \
+                    compare_button_update(False), \
+                    stop_update, \
+                    skip_update
+                if qsize<=1 or worker.get_processing_id() == task.task_id:
+                    ready_flag = True
+                    logger.info(f"[Generate] queue_exit(turn): waited={current_time - queue_start_time:.2f}s, qsize={qsize}, processing_id={worker.get_processing_id()}, {task_meta}")
+                    break
+            else:
+                loop_num += 1
+                if loop_num > MAX_LOOP_NUM:
+                    logger.info(f"[Generate] queue_restart_worker: loop_num={loop_num}, max_loop={MAX_LOOP_NUM}, {task_meta}")
+                    worker.restart(task)
+                    break
+            time.sleep(POLL_INTERVAL)
+            qsize = worker.get_task_size()
+    except GeneratorExit:
+        logger.warning(f"[Generate] client_disconnected(queue): waited={time.time() - queue_start_time:.2f}s, qsize={qsize}, {task_meta}")
+        raise
+    except BaseException:
+        logger.exception(f"[Generate] error(queue): waited={time.time() - queue_start_time:.2f}s, qsize={qsize}, {task_meta}")
+        raise
+    
+    execution_start_time = time.perf_counter()
+    finished = False
+    ready_flag = True if qsize<=1 else ready_flag
+    MAX_WAIT_TIME = 1800 if task.content_type == 'image' else 7200
+    POLL_INTERVAL = 0.08
+    in_progress = False
+    local_start_time = time.time()
+    last_heartbeat_time = local_start_time
+    HEARTBEAT_INTERVAL = 1.0
+    UNLOCK_CONTROLS_AFTER = 5.0
+    logged_controls_unlock = False
+    logged_first_yield = False
+    yields_processed = 0
+    logger.info(f"[Generate] start: qsize={qsize}, ready_flag={ready_flag}, {task_meta}")
+
+    last_update_time = time.time()
+
+    preview_cache = []
+    preview_cache_index = 0
+    last_preview_title = ""
+    last_preview_percentage = 0
+    last_preview_backend_percentage = 0
+    last_preview_eta_text = None
+    last_preview_frame_time = local_start_time
+    next_preview_ui_time = local_start_time
+    last_preview_shown_title = ""
+    last_preview_shown_percentage = 0
+    waiting_for_new_step_frame = False
+    preview_interval = 1.0 / 8.0
+    last_preview_image = None
+    max_video_preview_cache = 128
+    progress_eta_image_key = None
+    progress_eta_started_at = local_start_time
+    progress_eta_last_step = None
+
+    def generation_progress_display(percentage, title, now):
+        nonlocal progress_eta_image_key, progress_eta_started_at, progress_eta_last_step
+
+        status = modules.html.parse_generation_progress_text(title)
+        image_index = status.get("image_index")
+        image_count = status.get("image_count")
+        image_key = (image_index, image_count) if image_index is not None and image_count is not None else None
+        step = status.get("step")
+        has_sampling_steps = step is not None and status.get("total_steps")
+
+        if image_key is not None and image_key != progress_eta_image_key:
+            progress_eta_image_key = image_key
+            progress_eta_started_at = now
+            progress_eta_last_step = step
+        elif step is not None and progress_eta_last_step is not None and step < progress_eta_last_step:
+            progress_eta_started_at = now
+
+        if step is not None:
+            progress_eta_last_step = step
+
+        display_percentage = modules.html.progress_number_from_text(percentage, title)
+        eta_text = status.get("eta_text")
+        if not eta_text and has_sampling_steps and 0.5 <= display_percentage < 99.5:
+            elapsed = max(0.0, now - progress_eta_started_at)
+            if elapsed >= 0.25:
+                eta_seconds = elapsed * (100.0 - display_percentage) / max(display_percentage, 0.01)
+                eta_text = _format_generation_eta(eta_seconds)
+        return display_percentage, eta_text
+
+    try:
+        if task.content_type == 'video':
+            stop_update, skip_update = controls_interactive_updates(False)
+            yield progress_html_update(1, 'Preparing task. Loading models...'), \
+                tracked_component_update("progress_window", visible=True, value=waiting_welcome_image), \
+                current_task_gallery_update(), \
+                tracked_component_update("progress_video", visible=False), \
+                tracked_component_update("gallery", visible=False), \
+                comparison_state_update(False), \
+                tracked_component_update("comparison_box", visible=False), \
+                compare_button_update(False), \
+                stop_update, \
+                skip_update
+
+        while not finished:
+            current_time = time.time()
+            force_unlock_update = False
+            if (current_time - last_update_time > MAX_WAIT_TIME) or not ready_flag:
+                stop_update, skip_update = controls_interactive_updates(True)
+                yield progress_html_update(0, 'Generation task timed out.'), \
+                    tracked_component_update("progress_window", visible=True), \
+                    current_task_gallery_update(), \
+                    tracked_component_update("progress_video", visible=False), \
+                    tracked_component_update("gallery", visible=False), \
+                    comparison_state_update(False), \
+                    tracked_component_update("comparison_box", visible=False), \
+                    compare_button_update(False), \
+                    stop_update, \
+                    skip_update
+                logger.error(f"[Generate] timeout: max_wait={MAX_WAIT_TIME}, ready_flag={ready_flag}, last_update_time={last_update_time}, {task_meta}")
+                task.last_stop = 'stop'
+                worker.worker.stop_processing(task, 0, 'timeout')
+                if (task.processing):
+                    logger.error(f"[Generate] timeout_interrupt: {task_meta}")
+                    worker.worker.interrupt_processing()
+                stop_update, skip_update = controls_interactive_updates(True)
+                yield tracked_component_update("progress_html", visible=False), \
+                    tracked_component_update("progress_window", visible=True), \
+                    current_task_gallery_update(), \
+                    tracked_component_update("progress_video", visible=False), \
+                    tracked_component_update("gallery", visible=False), \
+                    comparison_state_update(False), \
+                    tracked_component_update("comparison_box", visible=False), \
+                    compare_button_update(False), \
+                    stop_update, \
+                    skip_update
+                break
+
+            if len(task.yields) == 0:
+                time.sleep(POLL_INTERVAL)
+
+            controls_unlocked = (current_time - local_start_time) >= UNLOCK_CONTROLS_AFTER
+            if controls_unlocked and (not logged_controls_unlock):
+                logged_controls_unlock = True
+                logger.info(f"[Generate] controls_unlocked: unlock_after={UNLOCK_CONTROLS_AFTER}s, {task_meta}")
+                force_unlock_update = True
+
+            if task.content_type == 'video' and len(preview_cache) > 1 and current_time >= next_preview_ui_time:
+                head_flag = task.yields[0][0] if len(task.yields) > 0 else None
+
+                can_rotate_now = (len(task.yields) == 0) or (head_flag != 'preview')
+                if can_rotate_now:
+                    preview_cache_index = (preview_cache_index + 1) % len(preview_cache)
+                    cached_image = preview_cache[preview_cache_index]
+                    last_preview_frame_time = current_time
+                    next_preview_ui_time += preview_interval
+                    if next_preview_ui_time <= current_time:
+                        next_preview_ui_time = current_time + preview_interval
+                    stop_update, skip_update = controls_interactive_updates(controls_unlocked)
+                    yield progress_html_update(last_preview_percentage, last_preview_title, eta_text=last_preview_eta_text), \
+                        tracked_component_update("progress_window", visible=True, value=cached_image), \
+                        current_task_gallery_update(), \
+                        tracked_component_update("progress_video", visible=False), \
+                        tracked_component_update("gallery", visible=False), \
+                        comparison_state_update(False), \
+                        tracked_component_update("comparison_box", visible=False), \
+                        compare_button_update(False), \
+                        stop_update, \
+                        skip_update
+                    continue
+
+            if len(task.yields) > 0:
+                flag, product = task.yields.pop(0)
+                yields_processed += 1
+                in_progress = True
+                if not logged_first_yield:
+                    logged_first_yield = True
+                    logger.info(f"[Generate] first_yield: delay={current_time - local_start_time:.2f}s, flag={flag}, {task_meta}")
+
+                if flag == 'status':
+                    continue
+
+                if flag == 'preview':
+                    last_update_time = current_time
+                    previous_percentage = last_preview_backend_percentage
+                    percentage, title, image = product
+                    display_percentage, eta_text = generation_progress_display(percentage, title, current_time)
+                    new_step_frame_arrived = False
+
+                    title_changed = title != last_preview_title
+                    percentage_reset = False
+                    if previous_percentage > 1.5:
+                        percentage_reset = percentage < previous_percentage and percentage <= 1.0
+                    else:
+                        percentage_reset = percentage < previous_percentage and percentage <= 0.05
+                    step_changed = title_changed or percentage_reset
+                    if step_changed:
+                        last_preview_title = title
+                        waiting_for_new_step_frame = True
+                        if task.content_type != 'video':
+                            preview_cache = []
+                            preview_cache_index = 0
+
+                    if image is not None:
+                        last_preview_image = image
+                        if waiting_for_new_step_frame:
+                            preview_cache = []
+                            preview_cache_index = 0
+                            waiting_for_new_step_frame = False
+                            new_step_frame_arrived = True
+
+                        preview_cache.append(image)
+                        if task.content_type == 'video' and len(preview_cache) > max_video_preview_cache:
+                            overflow = len(preview_cache) - max_video_preview_cache
+                            del preview_cache[:overflow]
+                            preview_cache_index = max(0, preview_cache_index - overflow)
+
+                    last_preview_backend_percentage = percentage
+                    last_preview_percentage = display_percentage
+                    last_preview_eta_text = eta_text
+                    image_to_show = image
+                    if image_to_show is None and (not waiting_for_new_step_frame or task.content_type == 'video'):
+                        if last_preview_image is not None:
+                            image_to_show = last_preview_image
+                        elif len(preview_cache) > 0:
+                            preview_cache_index = len(preview_cache) - 1
+                            image_to_show = preview_cache[preview_cache_index]
+                    if image_to_show is not None:
+                        last_preview_frame_time = current_time
+
+                    should_yield_preview = False
+                    if new_step_frame_arrived:
+                        should_yield_preview = True
+                    elif step_changed:
+                        should_yield_preview = True
+                    elif image_to_show is not None:
+                        should_yield_preview = current_time >= next_preview_ui_time
+                    else:
+                        should_yield_preview = (
+                            (display_percentage != last_preview_shown_percentage or title != last_preview_shown_title)
+                            and current_time >= next_preview_ui_time
+                        )
+
+                    if not should_yield_preview:
+                        continue
+
+                    if step_changed or new_step_frame_arrived:
+                        next_preview_ui_time = current_time + preview_interval
+                    else:
+                        next_preview_ui_time += preview_interval
+                        if next_preview_ui_time <= current_time:
+                            next_preview_ui_time = current_time + preview_interval
+                    last_preview_shown_percentage = display_percentage
+                    last_preview_shown_title = title
+                    preview_image_update = skip_component_update()
+                    if image_to_show is not None:
+                        preview_image_update = tracked_component_update("progress_window", visible=True, value=image_to_show)
+                    stop_update, skip_update = controls_interactive_updates(controls_unlocked)
+                    yield progress_html_update(display_percentage, title, eta_text=eta_text), \
+                        preview_image_update, \
+                        current_task_gallery_update(), \
+                        tracked_component_update("progress_video", visible=False), \
+                        tracked_component_update("gallery", visible=False), \
+                        comparison_state_update(False), \
+                        tracked_component_update("comparison_box", visible=False), \
+                        compare_button_update(False), \
+                        stop_update, \
+                        skip_update
+                if flag == 'results':
+                    preview_cache = []
+                    last_update_time = current_time
+                    task.simpleai_generation_had_output = bool(product)
+                    preview_image_update = tracked_component_update("progress_window", visible=True, value=last_preview_image) if last_preview_image is not None else tracked_component_update("progress_window", visible=True)
+
+                    stop_update, skip_update = controls_interactive_updates(True)
+                    yield tracked_component_update("progress_html", visible=True), \
+                        preview_image_update, \
+                        progress_gallery_results_update(product), \
+                        tracked_component_update("progress_video", visible=False), \
+                        tracked_component_update("gallery", visible=False), \
+                        comparison_state_update(False), \
+                        tracked_component_update("comparison_box", visible=False), \
+                        compare_button_update(False), \
+                        stop_update, \
+                        skip_update
+                if flag == 'finish':
+                    preview_cache = []
+                    if not args_manager.args.disable_enhance_output_sorting and is_fooocus:
+                        product = sort_enhance_images(product, task)
+
+                    if not product:
+                        user_cancel_action = getattr(task, 'user_cancel_action', None)
+                        if user_cancel_action is None and getattr(task, 'last_stop', False) in ['stop', 'skip']:
+                            user_cancel_action = task.last_stop
+                        had_prior_output = bool(getattr(task, "simpleai_generation_had_output", False))
+                        try:
+                            if user_cancel_action in ['stop', 'skip']:
+                                gr.Info("Generation skipped or stopped by user.")
+                            else:
+                                gr.Warning("Generation failed: backend returned no results. Check the console log for details.")
+                        except Exception as e:
+                            logger.info(f"[Generate] gr.Info/Warning failed: {e}")
+                        if user_cancel_action in ['stop', 'skip']:
+                            logger.info(f"[Generate] finish_empty_results_user_cancel: action={user_cancel_action}, {task_meta}")
+                        else:
+                            logger.warning(f"[Generate] finish_empty_results: {task_meta}")
+                        task.simpleai_generation_had_output = had_prior_output
+                        if had_prior_output:
+                            stop_update, skip_update = controls_interactive_updates(True)
+                            yield tracked_component_update("progress_html", visible=False), \
+                                tracked_component_update("progress_window", visible=False, value=main_welcome_image), \
+                                current_task_gallery_update(force=True), \
+                                tracked_component_update("progress_video", visible=False, value=None), \
+                                tracked_component_update("gallery", visible=False), \
+                                comparison_state_update(False), \
+                                tracked_component_update("comparison_box", visible=False), \
+                                compare_button_update(False), \
+                                stop_update, \
+                                skip_update
+                            finished = True
+                            continue
+                        stop_update, skip_update = controls_interactive_updates(True)
+                        yield tracked_component_update("progress_html", visible=False), \
+                            tracked_component_update("progress_window", visible=True, value=main_welcome_image), \
+                            progress_gallery_clear_update(preserve_layout=False), \
+                            tracked_component_update("progress_video", visible=False, value=None), \
+                            tracked_component_update("gallery", visible=False), \
+                            comparison_state_update(False), \
+                            tracked_component_update("comparison_box", visible=False), \
+                            compare_button_update(False), \
+                            stop_update, \
+                            skip_update
+                        finished = True
+                        continue
+
+                    task.simpleai_generation_had_output = True
+
+                    stop_update, skip_update = controls_interactive_updates(True)
+                    yield tracked_component_update("progress_html", visible=False), \
+                        tracked_component_update("progress_window", visible=False, value=main_welcome_image), \
+                        progress_gallery_results_update(product, force=True), \
+                        tracked_component_update("progress_video", visible=False, value=None), \
+                        tracked_component_update("gallery", visible=False), \
+                        comparison_state_update(False), \
+                        tracked_component_update("comparison_box", visible=False), \
+                        compare_button_update(False), \
+                        stop_update, \
+                        skip_update
+                    finished = True
+
+                    # delete Fooocus temp images, only keep gradio temp images
+                    if args_manager.args.disable_image_log:
+                        for filepath in product:
+                            if isinstance(filepath, str) and os.path.exists(filepath):
+                                os.remove(filepath)
+
+            elif task.content_type == 'video' and len(preview_cache) > 1 and current_time >= next_preview_ui_time:
+                preview_cache_index = (preview_cache_index + 1) % len(preview_cache)
+                cached_image = preview_cache[preview_cache_index]
+                last_preview_frame_time = current_time
+                next_preview_ui_time += preview_interval
+                if next_preview_ui_time <= current_time:
+                    next_preview_ui_time = current_time + preview_interval
+
+                stop_update, skip_update = controls_interactive_updates(controls_unlocked)
+                yield progress_html_update(last_preview_percentage, last_preview_title, eta_text=last_preview_eta_text), \
+                    tracked_component_update("progress_window", visible=True, value=cached_image), \
+                    current_task_gallery_update(), \
+                    tracked_component_update("progress_video", visible=False), \
+                    tracked_component_update("gallery", visible=False), \
+                    comparison_state_update(False), \
+                    tracked_component_update("comparison_box", visible=False), \
+                    compare_button_update(False), \
+                    stop_update, \
+                    skip_update
+            elif (current_time - last_heartbeat_time) >= HEARTBEAT_INTERVAL or force_unlock_update:
+                if not force_unlock_update:
+                    last_heartbeat_time = current_time
+                    if in_progress:
+                        continue
+                else:
+                    last_heartbeat_time = current_time
+
+                title = 'Preparing task. Loading models...' if not controls_unlocked else 'Task in progress...'
+                stop_update, skip_update = controls_interactive_updates(controls_unlocked)
+                yield progress_html_update(max(last_preview_percentage, 1), title), \
+                    skip_component_update(), \
+                    current_task_gallery_update(), \
+                    tracked_component_update("progress_video", visible=False), \
+                    tracked_component_update("gallery", visible=False), \
+                    comparison_state_update(False), \
+                    tracked_component_update("comparison_box", visible=False), \
+                    compare_button_update(False), \
+                    stop_update, \
+                    skip_update
+    except GeneratorExit:
+        logger.warning(f"[Generate] client_disconnected(running): in_progress={in_progress}, yields_processed={yields_processed}, {task_meta}")
+        raise
+    except BaseException:
+        logger.exception(f"[Generate] error(running): in_progress={in_progress}, yields_processed={yields_processed}, {task_meta}")
+        raise
+    finally:
+        execution_time = time.perf_counter() - execution_start_time
+        logger.info(f"[Generate] end: finished={finished}, in_progress={in_progress}, yields_processed={yields_processed}, exec_s={execution_time:.2f}, {task_meta}")
+
+    return
+
+
+def _admin_access_records():
+    return identity_access.access_records(getattr(shared, "token", None))
+
+
+def _admin_access_admin_did():
+    return identity_access.admin_did(getattr(shared, "token", None))
+
+
+_ADMIN_ACCESS_TEXTS = {
+    "en": {
+        "requires_base": "User access management requires the new local-mode simpleai_base wheel.",
+        "no_admin": "No Admin yet. The first local identity will become Admin.",
+        "no_applications": "No user applications yet.",
+        "header_status": "Status",
+        "header_generate": "Generate",
+        "header_models": "Models",
+        "header_nickname": "Nickname",
+        "header_did": "DID",
+        "status_pending": "Pending",
+        "status_allowed": "Allowed",
+        "status_blocked": "Blocked",
+        "role_admin": "Admin",
+        "unnamed": "Unnamed",
+        "unknown": "Unknown",
+        "yes": "Yes",
+        "no": "No",
+        "msg_applications_refreshed": "Applications refreshed.",
+        "msg_only_admin_approve": "Only Admin can approve users.",
+        "msg_admin_full_access": "Admin already has full access.",
+        "msg_no_user_selected": "No user selected.",
+        "msg_user_approved": "User approved.",
+        "msg_approve_failed": "Approve failed.",
+        "msg_only_admin_reject": "Only Admin can reject users.",
+        "msg_admin_cannot_reject": "Admin cannot be rejected here.",
+        "msg_user_rejected": "User rejected.",
+        "msg_reject_failed": "Reject failed.",
+        "msg_only_admin_update_user": "Only Admin can update user permissions.",
+        "msg_admin_always_full_access": "Admin always has full access.",
+        "msg_user_permission_saved": "User permission saved.",
+        "msg_failed_user_generate": "Failed to update user generate permission.",
+        "msg_failed_user_download": "Failed to update user model download permission.",
+        "msg_user_permission_not_persist": "User permission did not persist. Please refresh and try again.",
+        "msg_only_admin_update_guest": "Only Admin can update guest permissions.",
+        "msg_guest_permission_saved": "Guest permission saved.",
+        "msg_failed_guest_generate": "Failed to update guest generate permission.",
+        "msg_failed_guest_download": "Failed to update guest model download permission.",
+        "msg_guest_permission_not_persist": "Guest permission did not persist. Please refresh and try again.",
+    },
+    "cn": {
+        "requires_base": "用户权限管理需要安装新版本地模式 simpleai_base wheel。",
+        "no_admin": "尚未设置管理员。第一个绑定的本地身份会成为管理员。",
+        "no_applications": "暂无用户申请。",
+        "header_status": "状态",
+        "header_generate": "生图",
+        "header_models": "模型",
+        "header_nickname": "昵称",
+        "header_did": "DID",
+        "status_pending": "待审核",
+        "status_allowed": "已允许",
+        "status_blocked": "已停用",
+        "role_admin": "管理员",
+        "unnamed": "未命名",
+        "unknown": "未知",
+        "yes": "是",
+        "no": "否",
+        "msg_applications_refreshed": "用户申请已刷新。",
+        "msg_only_admin_approve": "只有管理员可以批准用户。",
+        "msg_admin_full_access": "管理员已经拥有完整权限。",
+        "msg_no_user_selected": "未选择用户。",
+        "msg_user_approved": "用户已批准。",
+        "msg_approve_failed": "批准失败。",
+        "msg_only_admin_reject": "只有管理员可以拒绝用户。",
+        "msg_admin_cannot_reject": "不能在这里拒绝管理员。",
+        "msg_user_rejected": "用户已拒绝。",
+        "msg_reject_failed": "拒绝失败。",
+        "msg_only_admin_update_user": "只有管理员可以修改用户权限。",
+        "msg_admin_always_full_access": "管理员始终拥有完整权限。",
+        "msg_user_permission_saved": "用户权限已保存。",
+        "msg_failed_user_generate": "保存用户生图权限失败。",
+        "msg_failed_user_download": "保存用户模型下载权限失败。",
+        "msg_user_permission_not_persist": "用户权限未持久化，请刷新后重试。",
+        "msg_only_admin_update_guest": "只有管理员可以修改游客权限。",
+        "msg_guest_permission_saved": "游客权限已保存。",
+        "msg_failed_guest_generate": "保存游客生图权限失败。",
+        "msg_failed_guest_download": "保存游客模型下载权限失败。",
+        "msg_guest_permission_not_persist": "游客权限未持久化，请刷新后重试。",
+    },
+}
+
+
+def _admin_access_lang(state=None):
+    lang = state.get("__lang") if isinstance(state, dict) else state
+    return simpleai.normalize_ui_lang(lang)
+
+
+def _admin_access_text(key, state=None):
+    lang = _admin_access_lang(state)
+    return _ADMIN_ACCESS_TEXTS.get(lang, {}).get(key) or _ADMIN_ACCESS_TEXTS["en"].get(key) or key
+
+
+def _admin_access_markdown(state=None):
+    token = getattr(shared, "token", None)
+    if token is None or not hasattr(token, "get_user_access_list"):
+        return f'<div class="admin-access-empty">{html.escape(_admin_access_text("requires_base", state))}</div>'
+
+    try:
+        admin_did = token.get_admin_did() if hasattr(token, "get_admin_did") else ""
+    except Exception:
+        admin_did = ""
+    if not admin_did:
+        return f'<div class="admin-access-empty">{html.escape(_admin_access_text("no_admin", state))}</div>'
+
+    records = _admin_access_records()
+    if not records:
+        return f'<div class="admin-access-empty">{html.escape(_admin_access_text("no_applications", state))}</div>'
+
+    status_labels = {
+        "pending": _admin_access_text("status_pending", state),
+        "allowed": _admin_access_text("status_allowed", state),
+        "blocked": _admin_access_text("status_blocked", state),
+    }
+    rows = []
+    for record in records:
+        nickname = html.escape(record["nickname"] or _admin_access_text("unnamed", state)).replace("\n", " ")
+        status = html.escape(status_labels.get(record["status"], record["status"] or _admin_access_text("unknown", state)))
+        status_class = html.escape(record["status"] or "unknown")
+        generate = _admin_access_text("yes", state) if record["can_generate"] else _admin_access_text("no", state)
+        download = _admin_access_text("yes", state) if record["can_download_models"] else _admin_access_text("no", state)
+        generate_class = "yes" if record["can_generate"] else "no"
+        download_class = "yes" if record["can_download_models"] else "no"
+        did = html.escape(record["did"])
+        rows.append(
+            "<tr>"
+            f'<td><span class="admin-access-status {status_class}">{status}</span></td>'
+            f'<td><span class="admin-access-pill {generate_class}">{generate}</span></td>'
+            f'<td><span class="admin-access-pill {download_class}">{download}</span></td>'
+            f'<td class="admin-access-name">{nickname}</td>'
+            f'<td><code>{did}</code></td>'
+            "</tr>"
+        )
+    header_status = html.escape(_admin_access_text("header_status", state))
+    header_generate = html.escape(_admin_access_text("header_generate", state))
+    header_models = html.escape(_admin_access_text("header_models", state))
+    header_nickname = html.escape(_admin_access_text("header_nickname", state))
+    header_did = html.escape(_admin_access_text("header_did", state))
+    return (
+        '<div class="admin-access-list">'
+        '<table>'
+        f'<thead><tr><th>{header_status}</th><th>{header_generate}</th><th>{header_models}</th><th>{header_nickname}</th><th>{header_did}</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody>'
+        '</table>'
+        '</div>'
+    )
+
+
+def _admin_access_choice(record, state=None):
+    nickname = str(record.get("nickname") or _admin_access_text("unnamed", state)).replace("|", "/").replace("\n", " ")
+    status = str(record.get("status") or "pending")
+    role = _admin_access_text("role_admin", state) if record.get("is_admin") else _admin_access_text(f"status_{status}", state)
+    did = str(record["did"])
+    short_did = f"{did[:8]}...{did[-6:]}" if len(did) > 18 else did
+    label = f"{nickname} ({role}) - {short_did}"
+    return (label, record["did"])
+
+
+def _admin_access_selected_did(selected):
+    return identity_access.normalize_user_access_selection(selected)
+
+
+def _admin_access_initial_selection():
+    records = _admin_access_records()
+    pending = [record for record in records if record.get("status") == "pending"]
+    selected = pending[0] if pending else (records[0] if records else None)
+    return selected["did"] if selected else None
+
+
+def _admin_access_initial_snapshot():
+    records = _admin_access_records()
+    pending = [record for record in records if record.get("status") == "pending"]
+    selected_record = pending[0] if pending else (records[0] if records else None)
+    selected = selected_record["did"] if selected_record else None
+    selected_is_admin = bool(selected and selected == _admin_access_admin_did())
+    return {
+        "records": records,
+        "selected": selected,
+        "choices": [_admin_access_choice(record) for record in records],
+        "selected_can_generate": _admin_access_can_generate_for(selected),
+        "selected_can_download_models": _admin_access_can_download_models_for(selected),
+        "selected_interactive": bool(selected) and not selected_is_admin,
+        "guest_can_generate": _admin_access_guest_can_generate(),
+        "guest_can_download_models": _admin_access_guest_can_download_models(),
+    }
+
+
+def _admin_access_is_admin(state=None):
+    return identity_access.state_is_admin(getattr(shared, "token", None), state)
+
+
+def _admin_access_can_manage(state=None):
+    return identity_access.can_manage_access(getattr(shared, "token", None), state)
+
+
+def _admin_access_can_generate_for(selected):
+    return identity_access.can_generate_for(getattr(shared, "token", None), selected)
+
+
+def _admin_access_can_download_models_for(selected):
+    return identity_access.can_download_models_for(
+        getattr(shared, "token", None),
+        selected,
+        ads.get_admin_default("default_user_can_download_models"),
+    )
+
+
+def _admin_access_guest_can_generate():
+    return identity_access.guest_can_generate(
+        getattr(shared, "token", None),
+        ads.get_admin_default("guest_can_generate"),
+    )
+
+
+def _admin_access_guest_can_download_models():
+    return identity_access.guest_can_download_models(
+        getattr(shared, "token", None),
+        ads.get_admin_default("guest_can_download_models"),
+    )
+
+
+def _admin_access_message_html(message="", level="info"):
+    message = str(message or "").strip()
+    if not message:
+        return '<div class="admin-access-message is-empty"></div>'
+    level = level if level in {"info", "success", "warning", "error"} else "info"
+    return f'<div class="admin-access-message {level}">{html.escape(message)}</div>'
+
+
+def _admin_access_refresh(selected=None, state=None, status_message="", status_level="info"):
+    records = _admin_access_records()
+    choices = [_admin_access_choice(record, state) for record in records]
+    dids = {record["did"] for record in records}
+    selected = _admin_access_selected_did(selected)
+    if selected not in dids:
+        pending = [record["did"] for record in records if record.get("status") == "pending"]
+        selected = pending[0] if pending else (records[0]["did"] if records else None)
+    selected_is_admin = bool(selected and selected == _admin_access_admin_did())
+
+    selected_can_generate = _admin_access_can_generate_for(selected)
+    selected_can_download_models = _admin_access_can_download_models_for(selected)
+
+    token = getattr(shared, "token", None)
+    can_manage = _admin_access_can_manage(state)
+    guest_can_generate = _admin_access_guest_can_generate()
+    guest_can_download_models = _admin_access_guest_can_download_models()
+
+    can_set_guest = can_manage and token is not None and hasattr(token, "set_guest_can_generate")
+    can_set_guest_download = can_manage and token is not None and hasattr(token, "set_guest_can_download_models")
+    can_edit_selected = can_manage and bool(selected) and not selected_is_admin
+    return (
+        _admin_access_markdown(state),
+        dropdown_update(choices=choices, value=selected, interactive=can_manage),
+        gr_update(value=selected_can_generate, interactive=can_edit_selected),
+        gr_update(value=selected_can_download_models, interactive=can_edit_selected),
+        gr_update(value=guest_can_generate, interactive=can_set_guest),
+        gr_update(value=guest_can_download_models, interactive=can_set_guest_download),
+        _admin_access_message_html(status_message, status_level),
+        gr_update(interactive=can_manage),
+        gr_update(interactive=can_manage),
+        gr_update(interactive=can_edit_selected),
+        gr_update(interactive=can_manage and (can_set_guest or can_set_guest_download)),
+    )
+
+
+def _admin_access_refresh_clicked(selected=None, state=None):
+    return _admin_access_refresh(selected, state, _admin_access_text("msg_applications_refreshed", state), "info")
+
+
+def _admin_access_select(selected, state=None):
+    selected = _admin_access_selected_did(selected)
+    can_generate = _admin_access_can_generate_for(selected)
+    can_download_models = _admin_access_can_download_models_for(selected)
+    has_selected = bool(selected)
+    selected_is_admin = bool(selected and selected == _admin_access_admin_did())
+    can_edit_selected = _admin_access_can_manage(state) and has_selected and not selected_is_admin
+    return (
+        gr_update(value=can_generate, interactive=can_edit_selected),
+        gr_update(value=can_download_models, interactive=can_edit_selected),
+        _admin_access_message_html(),
+    )
+
+
+def _admin_access_approve(selected, can_generate, can_download_models, state):
+    selected = _admin_access_selected_did(selected)
+    token = getattr(shared, "token", None)
+    if not _admin_access_can_manage(state):
+        logger.debug("[IdentityAccess] approve ignored: current session is not Admin")
+        return _admin_access_refresh(selected, state, _admin_access_text("msg_only_admin_approve", state), "warning")
+    if selected and selected == _admin_access_admin_did():
+        logger.debug("[IdentityAccess] approve ignored: Admin already has full access")
+        return _admin_access_refresh(selected, state, _admin_access_text("msg_admin_full_access", state), "info")
+    message = _admin_access_text("msg_no_user_selected", state)
+    level = "warning"
+    if selected and token is not None:
+        if hasattr(token, "approve_user_with_permissions"):
+            result = token.approve_user_with_permissions(selected, bool(can_generate), bool(can_download_models))
+        elif hasattr(token, "approve_user"):
+            result = token.approve_user(selected, bool(can_generate))
+        else:
+            result = "Unknown"
+        if result == "OK":
+            logger.debug("[IdentityAccess] user approved: %s", selected)
+            message = _admin_access_text("msg_user_approved", state)
+            level = "success"
+        else:
+            logger.warning("[IdentityAccess] approve failed: did=%s, result=%s", selected, result)
+            message = _admin_access_text("msg_approve_failed", state)
+            level = "error"
+    return _admin_access_refresh(selected, state, message, level)
+
+
+def _admin_access_reject(selected, state):
+    selected = _admin_access_selected_did(selected)
+    token = getattr(shared, "token", None)
+    if not _admin_access_can_manage(state):
+        logger.debug("[IdentityAccess] reject ignored: current session is not Admin")
+        return _admin_access_refresh(selected, state, _admin_access_text("msg_only_admin_reject", state), "warning")
+    if selected and selected == _admin_access_admin_did():
+        logger.debug("[IdentityAccess] reject ignored: Admin cannot be rejected here")
+        return _admin_access_refresh(selected, state, _admin_access_text("msg_admin_cannot_reject", state), "warning")
+    message = _admin_access_text("msg_no_user_selected", state)
+    level = "warning"
+    if selected and token is not None and hasattr(token, "reject_user"):
+        result = token.reject_user(selected)
+        if result == "OK":
+            logger.debug("[IdentityAccess] user rejected: %s", selected)
+            message = _admin_access_text("msg_user_rejected", state)
+            level = "success"
+        else:
+            logger.warning("[IdentityAccess] reject failed: did=%s, result=%s", selected, result)
+            message = _admin_access_text("msg_reject_failed", state)
+            level = "error"
+    return _admin_access_refresh(selected, state, message, level)
+
+
+def _admin_access_set_user_permissions(selected, can_generate, can_download_models, state):
+    selected = _admin_access_selected_did(selected)
+    token = getattr(shared, "token", None)
+    if not _admin_access_can_manage(state):
+        logger.debug("[IdentityAccess] user permission save ignored: current session is not Admin")
+        return _admin_access_refresh(selected, state, _admin_access_text("msg_only_admin_update_user", state), "warning")
+    if selected and selected == _admin_access_admin_did():
+        logger.debug("[IdentityAccess] user permission save ignored: Admin always has full access")
+        return _admin_access_refresh(selected, state, _admin_access_text("msg_admin_always_full_access", state), "info")
+    if not selected:
+        return _admin_access_refresh(selected, state, _admin_access_text("msg_no_user_selected", state), "warning")
+    message = _admin_access_text("msg_user_permission_saved", state)
+    level = "success"
+    result = identity_access.set_user_permissions(token, selected, can_generate, can_download_models, state)
+    if result.get("generate_result") != "OK":
+        logger.warning("[IdentityAccess] failed to update user generate permission: did=%s, result=%s", selected, result.get("generate_result"))
+        message = _admin_access_text("msg_failed_user_generate", state)
+        level = "error"
+    elif result.get("download_result") != "OK":
+        logger.warning("[IdentityAccess] failed to update user model download permission: did=%s, result=%s", selected, result.get("download_result"))
+        message = _admin_access_text("msg_failed_user_download", state)
+        level = "error"
+    elif result.get("ok"):
+        if not result.get("persisted"):
+            message = _admin_access_text("msg_user_permission_not_persist", state)
+            level = "error"
+            logger.warning(
+                "[IdentityAccess] user permission did not persist: did=%s, wanted=(%s,%s), saved=(%s,%s)",
+                selected,
+                bool(can_generate),
+                bool(can_download_models),
+                result.get("saved_generate"),
+                result.get("saved_download"),
+            )
+        else:
+            logger.debug("[IdentityAccess] user permission saved: did=%s", selected)
+    return _admin_access_refresh(selected, state, message, level)
+
+
+def _admin_access_set_guest_permissions(can_generate, can_download_models, selected, state):
+    token = getattr(shared, "token", None)
+    if not _admin_access_can_manage(state):
+        logger.debug("[IdentityAccess] guest permission save ignored: current session is not Admin")
+        return _admin_access_refresh(selected, state, _admin_access_text("msg_only_admin_update_guest", state), "warning")
+    message = _admin_access_text("msg_guest_permission_saved", state)
+    level = "success"
+    result = identity_access.set_guest_permissions(token, can_generate, can_download_models, state)
+    if result.get("generate_result") != "OK":
+        logger.warning("[IdentityAccess] failed to update guest generate permission: result=%s", result.get("generate_result"))
+        message = _admin_access_text("msg_failed_guest_generate", state)
+        level = "error"
+    elif result.get("download_result") != "OK":
+        logger.warning("[IdentityAccess] failed to update guest model download permission: result=%s", result.get("download_result"))
+        message = _admin_access_text("msg_failed_guest_download", state)
+        level = "error"
+    elif result.get("ok"):
+        if not result.get("persisted"):
+            message = _admin_access_text("msg_guest_permission_not_persist", state)
+            level = "error"
+            logger.warning(
+                "[IdentityAccess] guest permission did not persist: wanted=(%s,%s), saved=(%s,%s)",
+                bool(can_generate),
+                bool(can_download_models),
+                result.get("saved_generate"),
+                result.get("saved_download"),
+            )
+        else:
+            logger.debug("[IdentityAccess] guest permission saved")
+    return _admin_access_refresh(selected, state, message, level)
+
+
+def sort_enhance_images(images, task):
+    if not task.should_enhance or len(images) <= task.images_to_enhance_count:
+        return images
+
+    sorted_images = []
+    walk_index = task.images_to_enhance_count
+
+    for index, enhanced_img in enumerate(images[:task.images_to_enhance_count]):
+        sorted_images.append(enhanced_img)
+        if index not in task.enhance_stats:
+            continue
+        target_index = walk_index + task.enhance_stats[index]
+        if walk_index < len(images) and target_index <= len(images):
+            sorted_images += images[walk_index:target_index]
+        walk_index += task.enhance_stats[index]
+
+    return sorted_images
+
+
+def inpaint_mode_change(mode, inpaint_engine_version, outpaint, state):
+    mode = _normalize_inpaint_mode(mode)
+    outpaint = outpaint if isinstance(outpaint, list) else []
+    inpaint_engine_choices, inpaint_engine_version = _get_inpaint_engine_choices_and_value(state, inpaint_engine_version)
+
+    if mode == modules.flags.inpaint_option_detail:
+        detail_value = 'None' if 'None' in inpaint_engine_choices else (inpaint_engine_choices[0] if inpaint_engine_choices else 'None')
+        return [
+            skip_component_update(), gr_update(value=[]),
+            dataset_update(samples=modules.config.example_inpaint_prompts),
+            False, dropdown_update(choices=inpaint_engine_choices, value=detail_value), 0.5, 0.2
+        ]
+    
+    engine = 'Fooocus' if 'engine' not in state else state['engine']
+    if mode == modules.flags.inpaint_option_modify:
+        return [
+            skip_component_update(), gr_update(value=[]),
+            dataset_update(samples=modules.config.example_inpaint_prompts),
+            True, dropdown_update(choices=inpaint_engine_choices, value=inpaint_engine_version), 1.0 if engine=='Fooocus' else 1.0, 0.2
+        ]
+    
+    return [
+        gr_update(value=''), skip_component_update(),
+        dataset_update(samples=modules.config.example_inpaint_prompts),
+        False, dropdown_update(choices=inpaint_engine_choices, value=inpaint_engine_version), 1.0 if engine=='Fooocus' else 1.0 if len(outpaint)>0 else 1.0, 1.0 if len(outpaint) > 0 else 0.618
+    ]
+
+
+def inpaint_outpaint_selections_change(mode, outpaint):
+    mode = _normalize_inpaint_mode(mode)
+    outpaint = outpaint if isinstance(outpaint, list) else []
+    if mode == modules.flags.inpaint_option_detail:
+        return 0.5, 0.2
+    if mode == modules.flags.inpaint_option_modify:
+        return 1.0, 0.2
+    return 1.0, 1.0 if len(outpaint) > 0 else 0.618
+
+
+def enhance_inpaint_mode_change(mode, inpaint_engine_version, state):
+    mode = _normalize_inpaint_mode(mode)
+    inpaint_engine_choices, inpaint_engine_version = _get_inpaint_engine_choices_and_value(state, inpaint_engine_version)
+
+    if mode == modules.flags.inpaint_option_detail:
+        detail_value = 'None' if 'None' in inpaint_engine_choices else (inpaint_engine_choices[0] if inpaint_engine_choices else 'None')
+        return [
+            False, dropdown_update(choices=inpaint_engine_choices, value=detail_value), 0.5, 0.2
+        ]
+
+    if mode == modules.flags.inpaint_option_modify:
+        return [
+            True, dropdown_update(choices=inpaint_engine_choices, value=inpaint_engine_version), 1.0, 0.2
+        ]
+
+    return [
+        False, dropdown_update(choices=inpaint_engine_choices, value=inpaint_engine_version), 1.0, 0.618
+    ]
+
+
+def _normalize_inpaint_mode(mode):
+    if isinstance(mode, str):
+        mode = mode.strip()
+    allowed = list(modules.flags.inpaint_options)
+    if mode in allowed:
+        return mode
+    if isinstance(mode, str):
+        mode_lower = mode.lower()
+        if mode_lower.startswith('improve detail') or '细节' in mode:
+            return modules.flags.inpaint_option_detail
+        if mode_lower.startswith('modify content') or '内容' in mode or '修改' in mode:
+            return modules.flags.inpaint_option_modify
+        if mode_lower.startswith('inpaint or outpaint') or '扩图' in mode or '默认' in mode:
+            return modules.flags.inpaint_option_default
+    fallback = modules.config.default_inpaint_method
+    if fallback in allowed:
+        return fallback
+    return allowed[0] if allowed else mode
+
+
+def _get_inpaint_engine_choices_and_value(state, inpaint_engine_version):
+    state = state if isinstance(state, dict) else {}
+    task_method = state.get('task_method', '')
+    if isinstance(task_method, dict):
+        task_method = next(iter(task_method.values()), '') if task_method else ''
+    elif isinstance(task_method, list):
+        task_method = task_method[0] if task_method else ''
+    task_method = str(task_method or '').strip()
+
+    if task_method not in modules.flags.inpaint_engine_versions:
+        backend_engine = str(state.get('backend_engine') or state.get('engine') or '').strip()
+        backend_fallbacks = {
+            'Z-image': 'z_image_turbo_aio_cn',
+            'Zimage': 'z_image_turbo_aio_cn',
+            'Wan': 'wan_aio_cn',
+            'Qwen': 'qwen_aio_cn',
+            'Flux': 'flux_aio',
+            'Comfy': 'SDXL',
+            'SDXL': 'SDXL',
+            'Fooocus': 'SDXL',
+        }
+        task_lower = task_method.lower()
+        if 'z_image' in task_lower or 'z-image' in task_lower:
+            task_method = 'z_image_turbo_aio_cn'
+        elif 'wan' in task_lower:
+            task_method = 'wan_aio_cn'
+        elif 'qwen' in task_lower:
+            task_method = 'qwen_aio_cn'
+        elif 'flux' in task_lower:
+            task_method = 'flux_aio'
+        else:
+            task_method = backend_fallbacks.get(backend_engine, 'SDXL')
+
+    choices = modules.flags.inpaint_engine_versions.get(task_method, modules.flags.inpaint_engine_versions["SDXL"])
+    choices = list(choices) if isinstance(choices, (list, tuple)) else []
+    if not choices:
+        choices = list(modules.flags.inpaint_engine_versions.get("SDXL", []))
+
+    value = inpaint_engine_version
+    if value == 'empty' or value not in choices:
+        value = choices[0] if choices else 'None'
+    if value not in choices and choices:
+        value = choices[0]
+
+    return choices, value
+
+
+def _initial_inpaint_engine_choices_and_value():
+    task_method = modules.flags.get_engine_default_backend_params(modules.config.backend_engine).get('task_method', '')
+    return _get_inpaint_engine_choices_and_value(
+        {'backend_engine': modules.config.backend_engine, 'engine': modules.config.backend_engine, 'task_method': task_method},
+        modules.config.default_inpaint_engine_version,
+    )
+def check_generating_state(state_is_generating=None, pending_tasks=None, worker_processing=None):
+    if state_is_generating is None:
+        state_is_generating = False
+    if pending_tasks is None:
+        import modules.async_worker
+        pending_tasks = modules.async_worker.pending_tasks
+    if worker_processing is None:
+        import modules.async_worker
+        worker_processing = modules.async_worker.worker_processing is not None
+    return state_is_generating or pending_tasks > 0 or worker_processing
+
+def get_initial_params_backend():
+    params = {}
+    clip_model = modules.config.default_clip_model
+    if clip_model in (modules.flags.default_clip, modules.flags.default_vae, 'auto'):
+        default_engine = modules.config.default_engine
+        if isinstance(default_engine, dict):
+            backend_params = default_engine.get("backend_params", {})
+            if isinstance(backend_params, dict):
+                clip_model = backend_params.get("clip_model", clip_model)
+    if clip_model and clip_model not in (modules.flags.default_clip, modules.flags.default_vae, 'auto'):
+        params["clip_model"] = str(clip_model).replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+    upscale_model = modules.config.default_upscale_model or 'default'
+    default_engine = modules.config.default_engine
+    if isinstance(default_engine, dict):
+        backend_params = default_engine.get("backend_params", {})
+        if isinstance(backend_params, dict):
+            upscale_model = backend_params.get("upscale_model", upscale_model)
+    params["upscale_model"] = str(upscale_model or 'default').replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+    return params
+
+def _normalize_lora_triplets(raw_loras=None):
+    raw_loras = list(raw_loras or [])
+    loras = []
+    for index in range(modules.config.default_max_lora_number):
+        raw = raw_loras[index] if index < len(raw_loras) else ("None", 1.0)
+        enabled = True
+        model = "None"
+        weight = 1.0
+        if isinstance(raw, dict):
+            enabled = bool(raw.get("enabled", True))
+            model = raw.get("model", raw.get("name", raw.get("filename", "None")))
+            weight = raw.get("weight", raw.get("strength", 1.0))
+        elif isinstance(raw, (list, tuple)):
+            if len(raw) >= 3:
+                enabled, model, weight = raw[0], raw[1], raw[2]
+            elif len(raw) >= 2:
+                model, weight = raw[0], raw[1]
+            elif len(raw) == 1:
+                model = raw[0]
+        try:
+            weight = float(weight)
+        except Exception:
+            weight = 1.0
+        loras.append([bool(enabled), str(model or "None"), weight])
+    return loras
+
+def _model_params_state_payload(base_model=None, refiner_model=None, refiner_switch=None, clip_model=None, vae_name=None, upscale_model=None, loras=None):
+    try:
+        refiner_switch = float(refiner_switch)
+    except Exception:
+        refiner_switch = modules.config.default_refiner_switch
+    return {
+        "__model_params_state": True,
+        "base_model": base_model or modules.config.default_base_model_name,
+        "refiner_model": refiner_model or modules.config.default_refiner_model_name or "None",
+        "refiner_switch": refiner_switch,
+        "clip_model": clip_model or modules.config.default_clip_model,
+        "vae_name": vae_name or modules.config.default_vae,
+        "upscale_model": upscale_model or modules.config.default_upscale_model or "default",
+        "loras": _normalize_lora_triplets(loras if loras is not None else modules.config.default_loras),
+    }
+
+def get_initial_model_params_state():
+    return _model_params_state_payload(
+        modules.config.default_base_model_name,
+        modules.config.default_refiner_model_name,
+        modules.config.default_refiner_switch,
+        modules.config.default_clip_model,
+        modules.config.default_vae,
+        modules.config.default_upscale_model,
+        modules.config.default_loras,
+    )
+
+def _parse_bool_like(value, default=True):
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    text = str(value).strip().lower()
+    if text in ("1", "true", "yes", "on", "enable", "enabled"):
+        return True
+    if text in ("0", "false", "no", "off", "disable", "disabled"):
+        return False
+    return default
+
+def _model_params_state_from_state_params(state_params, fallback_state=None):
+    fallback = fallback_state if isinstance(fallback_state, dict) and fallback_state.get("__model_params_state") else get_initial_model_params_state()
+    if not isinstance(state_params, dict):
+        return fallback
+
+    preset_prepared = state_params.get("__preset_prepared", {})
+    if not isinstance(preset_prepared, dict):
+        preset_prepared = {}
+    preset_backend_params = preset_prepared.get("engine", {}).get("backend_params", {}) if isinstance(preset_prepared.get("engine", {}), dict) else {}
+
+    base_model = (
+        preset_prepared.get("base_model")
+        or preset_prepared.get("Base Model")
+        or preset_prepared.get("default_model")
+        or state_params.get("base_model")
+        or fallback.get("base_model")
+    )
+    refiner_model = (
+        preset_prepared.get("refiner_model")
+        or preset_prepared.get("Refiner Model")
+        or preset_prepared.get("default_refiner")
+        or state_params.get("refiner_model")
+        or fallback.get("refiner_model")
+    )
+    refiner_switch = (
+        preset_prepared.get("refiner_switch")
+        or preset_prepared.get("Refiner Switch At")
+        or state_params.get("refiner_switch")
+        or fallback.get("refiner_switch")
+    )
+    clip_model = (
+        preset_prepared.get("clip_model")
+        or preset_prepared.get("CLIP Model")
+        or preset_prepared.get("default_clip_model")
+        or preset_backend_params.get("clip_model")
+        or state_params.get("clip_model")
+        or fallback.get("clip_model")
+    )
+    vae_name = (
+        preset_prepared.get("vae")
+        or preset_prepared.get("VAE")
+        or preset_prepared.get("default_vae")
+        or preset_backend_params.get("vae_model")
+        or state_params.get("vae")
+        or fallback.get("vae_name")
+    )
+    upscale_model = (
+        preset_prepared.get("upscale_model")
+        or preset_prepared.get("Upscale Model")
+        or preset_prepared.get("default_upscale_model")
+        or preset_backend_params.get("upscale_model")
+        or state_params.get("upscale_model")
+        or fallback.get("upscale_model")
+    )
+
+    raw_loras = (
+        preset_prepared.get("default_loras")
+        or preset_prepared.get("loras")
+        or preset_backend_params.get("default_loras")
+        or preset_backend_params.get("loras")
+    )
+    if raw_loras:
+        loras = _normalize_lora_triplets(raw_loras)
+    else:
+        loras = _normalize_lora_triplets(fallback.get("loras"))
+        for index in range(modules.config.default_max_lora_number):
+            combined = preset_prepared.get(f"lora_combined_{index + 1}") or state_params.get(f"lora_combined_{index + 1}")
+            if not combined:
+                continue
+            fallback_lora = loras[index] if index < len(loras) else [False, "None", 1.0]
+            parts = [part.strip() for part in str(combined).split(" : ")]
+            enabled, model_name, weight = fallback_lora
+            if len(parts) >= 3:
+                enabled = _parse_bool_like(parts[0], enabled)
+                model_name = parts[1] or "None"
+                weight = parts[2]
+            elif len(parts) >= 2:
+                model_name = parts[0] or "None"
+                weight = parts[1]
+                enabled = str(model_name).strip().lower() != "none"
+            elif len(parts) == 1:
+                model_name = parts[0] or "None"
+                enabled = str(model_name).strip().lower() != "none"
+            try:
+                weight = float(weight)
+            except Exception:
+                weight = fallback_lora[2]
+            loras[index] = [bool(enabled), str(model_name or "None"), weight]
+
+    return _model_params_state_payload(
+        base_model,
+        refiner_model,
+        refiner_switch,
+        clip_model,
+        vae_name,
+        upscale_model,
+        loras,
+    )
+
+def _render_models_js_panel(current_model_params_state=None):
+    model_state = current_model_params_state if isinstance(current_model_params_state, dict) and current_model_params_state.get("__model_params_state") else get_initial_model_params_state()
+    loras = _normalize_lora_triplets(model_state.get("loras"))
+
+    def esc(value):
+        return html.escape(str(value if value is not None else ""), quote=True)
+
+    def i18n_span(en, cn):
+        return f'<span data-simpai-i18n-en="{esc(en)}" data-simpai-i18n-cn="{esc(cn)}">{esc(cn or en)}</span>'
+
+    def browser_button_attrs(title_en, title_cn):
+        attrs = [
+            f'title="{esc(title_cn or title_en)}"',
+            f'aria-label="{esc(title_cn or title_en)}"',
+            f'data-simpai-i18n-title-en="{esc(title_en)}"',
+            f'data-simpai-i18n-title-cn="{esc(title_cn)}"',
+        ]
+        return " ".join(attrs)
+
+    def model_field(key, target, label_en, label_cn):
+        value = esc(model_state.get(key))
+        browse_attrs = browser_button_attrs(f"Browse {label_en}", f"浏览{label_cn}")
+        return (
+            f'<label class="simpai-models-js-field" data-simpai-model-card="{esc(target)}">'
+            f'{i18n_span(label_en, label_cn)}'
+            '<div class="simpai-models-js-inputrow">'
+            f'<select class="simpai-models-js-select" data-simpai-model-field="{esc(key)}" data-simpai-browser-target="{esc(target)}" data-simpai-select-type="{esc(target)}">'
+            f'<option value="{value}" selected>{value}</option>'
+            '</select>'
+            f'<button type="button" class="simpai-models-js-browse simpai-models-js-iconbtn" {browse_attrs} data-simpai-model-browser="{esc(target)}">...</button>'
+            '</div>'
+            '</label>'
+        )
+
+    def slider_field(key, card, label_en, label_cn, value, minimum, maximum, step):
+        value_text = esc(value)
+        return (
+            f'<label class="simpai-models-js-field" data-simpai-model-card="{esc(card)}">'
+            f'{i18n_span(label_en, label_cn)}'
+            '<div class="simpai-models-js-sliderrow">'
+            f'<input type="range" data-simpai-model-range="{esc(key)}" value="{value_text}" min="{esc(minimum)}" max="{esc(maximum)}" step="{esc(step)}">'
+            f'<input type="number" data-simpai-model-field="{esc(key)}" value="{value_text}" min="{esc(minimum)}" max="{esc(maximum)}" step="{esc(step)}">'
+            '</div>'
+            '</label>'
+        )
+
+    lora_rows = []
+    split_index = modules.config.default_max_lora_number // 2
+    for index, (enabled, model_name, weight) in enumerate(loras):
+        if index == split_index:
+            lora_rows.append('<div class="simpai-models-js-lora-split" aria-hidden="true"></div>')
+        checked = " checked" if enabled else ""
+        disabled = "" if enabled else " disabled"
+        row_class = "simpai-models-js-lora-row" if enabled else "simpai-models-js-lora-row is-disabled"
+        lora_title_en = f"Enable LoRA {index + 1}"
+        lora_title_cn = f"启用 LoRA {index + 1}"
+        browse_lora_attrs = browser_button_attrs(f"Browse LoRA {index + 1}", f"浏览 LoRA {index + 1}")
+        lora_rows.append(
+            f'<div class="{row_class}">'
+            f'<label class="simpai-models-js-check" title="{esc(lora_title_cn)}" data-simpai-i18n-title-en="{esc(lora_title_en)}" data-simpai-i18n-title-cn="{esc(lora_title_cn)}"><input type="checkbox" data-simpai-lora-enabled="{index}"{checked}>'
+            f'<span>#{index + 1}</span></label>'
+            f'<select class="simpai-models-js-select" data-simpai-lora-model="{index}" data-simpai-browser-target="lora" data-simpai-select-type="lora"{disabled}>'
+            f'<option value="{esc(model_name)}" selected>{esc(model_name)}</option>'
+            '</select>'
+            '<div class="simpai-models-js-sliderrow simpai-models-js-lora-weight-control">'
+            f'<input type="range" data-simpai-lora-weight-range="{index}" value="{esc(weight)}" min="{esc(modules.config.default_loras_min_weight)}" max="{esc(modules.config.default_loras_max_weight)}" step="0.05"{disabled}>'
+            f'<input type="number" data-simpai-lora-weight="{index}" value="{esc(weight)}" min="{esc(modules.config.default_loras_min_weight)}" max="{esc(modules.config.default_loras_max_weight)}" step="0.05"{disabled}>'
+            '</div>'
+            f'<button type="button" class="simpai-models-js-browse simpai-models-js-iconbtn" {browse_lora_attrs} data-simpai-lora-browser="{index}">...</button>'
+            '</div>'
+        )
+
+    return (
+        '<section class="simpai-models-js-panel" data-simpai-models-js-root="1">'
+        '<div class="simpai-models-js-grid">'
+        f'{model_field("base_model", "base", "Base Model", "基础模型")}'
+        f'{model_field("refiner_model", "refiner", "Refiner", "精修模型")}'
+        f'{model_field("clip_model", "clip", "CLIP / Text Encoder", "CLIP / 文本编码器")}'
+        f'{model_field("vae_name", "vae", "VAE", "VAE")}'
+        f'{model_field("upscale_model", "upscale", "Upscale Model", "放大模型")}'
+        f'{slider_field("refiner_switch", "refiner_switch", "Refiner Switch", "精修切换点", model_state.get("refiner_switch"), "0.1", "1.0", "0.0001")}'
+        '</div>'
+        '<div class="simpai-models-js-loras">'
+        '<div class="simpai-models-js-subhead">LoRA</div>'
+        f'{"".join(lora_rows)}'
+        '</div>'
+        '</section>'
+    )
+
+apply_webui_assets()
+
+title = f'{version.branch}-让创作如此轻松! Make creation a breeze!'
+
+shared.gradio_root = create_root_blocks(title=title, concurrency_count=5)
+
+get_local_url = f'http://{args_manager.args.listen}:{args_manager.args.port}{args_manager.args.webroot}'
+logo_imag_path = os.path.abspath(f'./presets/image/simpai_logo.jpg')
+logo_imag_url = f'/file={logo_imag_path}'
+_initial_main_vlm_lang_state = {"__lang": args_manager.args.language}
+_initial_main_vlm_texts = _main_vlm_ui_texts(_initial_main_vlm_lang_state)
+_initial_main_vlm_custom_settings = _main_vlm_custom_settings_from_state({})
+_apply_main_vlm_custom_settings(_initial_main_vlm_custom_settings)
+_initial_main_vlm_version = _main_vlm_selected_version_from_state({})
+VLM.set_version(_initial_main_vlm_version)
+_initial_preview_welcome_image = get_welcome_image(
+    modules.config.preset,
+    False,
+    no_welcome=ads.get_admin_default("no_welcome_checkbox"),
+)
+
+with shared.gradio_root:
+    state_topbar = gr.State({})
+    cached_input_image = gr.State(None)
+    params_backend = gr.State(get_initial_params_backend())
+    model_params_state = gr.State(get_initial_model_params_state())
+    system_params = gr.JSON({}, visible=False)
+    gallery_index_stat = gr.Textbox(value='', visible=False)
+    currentTask = gr.State(worker.AsyncTask(args=[]))
+    legacy_api_slot_25 = gr.State(None)
+    legacy_api_slot_26 = gr.State(None)
+    legacy_api_slot_27 = gr.State(False)
+    legacy_api_slot_28 = gr.State(None)
+    inpaint_engine_state = gr.State('empty')
+    state_is_generating = gr.State(False)
+    comparison_state = gr.State(False)
+    random_aspect_ratio_state = gr.State(None)
+    scene_video_backup = gr.State(None)
+    scene_audio_backup = gr.State(None)
+    scene_original_video_path = gr.State(None)
+    scene_original_video_backup = gr.State(None)
+    active_video_source = gr.State(None)
+    resolution_source_meta = gr.Textbox(value="{}", visible="hidden", elem_id="resolution_source_meta", elem_classes=["resolution-hidden-control"])
+    resolution_quantize_step = gr.Number(value=flags.default_resolution_quantize_step, visible="hidden", elem_id="resolution_quantize_step", elem_classes=["resolution-hidden-control"])
+    # Hidden bridge values from the custom resolution widget. Gradio 6 validates
+    # Slider bounds before callbacks, while source/original sizes can exceed 2048.
+    overwrite_width = gr.Number(
+        label='Forced Overwrite of Generating Width',
+        minimum=-1, step=1, value=-1, precision=0,
+        visible="hidden",
+        elem_id="overwrite_width",
+        elem_classes=["resolution-hidden-control"],
+        info='Set as -1 to disable. For developer debugging. Results will be worse for non-standard numbers that SDXL is not trained on.'
+    )
+    overwrite_height = gr.Number(
+        label='Forced Overwrite of Generating Height',
+        minimum=-1, step=1, value=-1, precision=0,
+        visible="hidden",
+        elem_id="overwrite_height",
+        elem_classes=["resolution-hidden-control"],
+    )
+    with gr.Row():
+        with gr.Column(scale=2):
+            with gr.Group(elem_id='main_content'):
+                topbar_layout = create_topbar_layout(
+                    root_blocks=shared.gradio_root,
+                    button_num=shared.BUTTON_NUM,
+                    gallery_index_stat=gallery_index_stat,
+                    get_start_timestamp=get_start_timestamp,
+                    get_wildcards_list=get_wildcards_list,
+                    preset_samples=topbar.get_preset_samples(),
+                )
+                start_timestamp = topbar_layout.start_timestamp
+                bar_store_button = topbar_layout.bar_store_button
+                bar_buttons = topbar_layout.bar_buttons
+                preset_store = topbar_layout.preset_store
+                preset_store_list = topbar_layout.preset_store_list
+
+                canvas_workbench_request = gr.Textbox(value="", visible="hidden", elem_id="canvas_workbench_request", elem_classes=["sai-gradio-hidden-bridge"])
+                canvas_workbench_response = gr.Textbox(value="", visible="hidden", elem_id="canvas_workbench_response", elem_classes=["sai-gradio-hidden-bridge"])
+                canvas_workbench_bridge_btn = gr.Button("Canvas workbench bridge", visible="hidden", elem_id="canvas_workbench_bridge_btn", elem_classes=["sai-gradio-hidden-bridge"])
+                canvas_workbench_bridge_btn.click(
+                    canvas_workbench_project.handle_bridge_request,
+                    inputs=[canvas_workbench_request, state_topbar],
+                    outputs=[canvas_workbench_response],
+                    queue=False,
+                    show_progress=False,
+                )
+
+                missing_model_modal = floating_shell(
+                    visible=False,
+                    elem_id="missing_model_modal",
+                    elem_classes=["missing-model-modal"])
+                with missing_model_modal:
+                    modal_content = floating_card(
+                        elem_id="missing_model_modal_content",
+                        scale=1,
+                        min_width=800
+                    )
+                    with modal_content:
+                        with gr.Row(elem_id="missing_model_modal_header"):
+                            missing_model_title = gr.Markdown("### The following model files are missing. Click download to fetch them.", elem_id="missing_model_modal_handle")
+                            missing_model_minimize_btn = gr.Button(value="−", size="sm", min_width=40, elem_id="missing_model_modal_minimize_btn")
+                            close_missing_model_btn = gr.Button(value="×", size="sm", min_width=40, elem_id="missing_model_modal_close_btn")
+
+                        missing_model_total_progress = gr.HTML(value="", visible=False, elem_id="missing_model_total_progress")
+
+                        missing_model_list = gr.HTML(value="", elem_id="missing_model_list")
+                        missing_model_download_request = gr.Textbox(value="", visible="hidden", elem_id="missing_model_download_request", elem_classes=["sai-gradio-hidden-bridge"])
+                        missing_model_download_one_btn = gr.Button("Download one missing model", visible="hidden", elem_id="missing_model_download_one_btn", elem_classes=["sai-gradio-hidden-bridge"])
+                        missing_model_cancel_request = gr.Textbox(value="", visible="hidden", elem_id="missing_model_cancel_request", elem_classes=["sai-gradio-hidden-bridge"])
+                        missing_model_cancel_one_btn = gr.Button("Stop one missing model download", visible="hidden", elem_id="missing_model_cancel_one_btn", elem_classes=["sai-gradio-hidden-bridge"])
+
+                        with gr.Row(elem_id="missing_model_modal_actions"):
+                            missing_model_btn = gr.Button("Download selected preset models", visible=False)
+
+                missing_model_check_request = gr.Textbox(value="", visible="hidden", elem_id="missing_model_check_request", elem_classes=["sai-gradio-hidden-bridge"])
+                missing_model_check_btn = gr.Button("Check missing models", visible="hidden", elem_id="missing_model_check_btn", elem_classes=["sai-gradio-hidden-bridge"])
+                missing_model_refresh_btn = gr.Button("Refresh missing model downloads", visible="hidden", elem_id="missing_model_refresh_btn", elem_classes=["sai-gradio-hidden-bridge"])
+                missing_model_nav_refresh_btn = gr.Button("Refresh missing model navbar", visible="hidden", elem_id="missing_model_nav_refresh_btn", elem_classes=["sai-gradio-hidden-bridge"])
+
+                _MISSING_MODEL_TEXTS = {
+                    "en": {
+                        "title": "### The following model files are missing. Click download to fetch them.",
+                        "total_download": "Total download",
+                        "empty": "All required models are ready.",
+                        "model": "Model",
+                        "status": "Status",
+                        "action": "Action",
+                        "missing": "Missing",
+                        "error": "Error",
+                        "download": "Download",
+                        "download_all": "Download all",
+                        "retry": "Retry",
+                        "downloading": "Downloading",
+                        "download_queue": "Download queue",
+                        "queued": "Queued",
+                        "queue_empty": "No active downloads.",
+                        "stop": "Stop",
+                        "stopped": "Stopped",
+                    },
+                    "cn": {
+                        "title": "### 以下模型文件缺失，请点击下载获取",
+                        "total_download": "总下载",
+                        "empty": "所需模型已就绪。",
+                        "model": "模型",
+                        "status": "状态",
+                        "action": "操作",
+                        "missing": "缺失",
+                        "error": "错误",
+                        "download": "下载",
+                        "download_all": "全部下载",
+                        "retry": "重试",
+                        "downloading": "正在下载",
+                        "download_queue": "下载队列",
+                        "queued": "等待中",
+                        "queue_empty": "没有正在下载的任务。",
+                        "stop": "停止",
+                        "stopped": "已停止",
+                    },
+                }
+                missing_model_active_contexts = {}
+
+                def _missing_model_lang(state_params=None):
+                    lang = state_params.get("__lang") if isinstance(state_params, dict) else state_params
+                    return simpleai.normalize_ui_lang(lang)
+
+                def _missing_model_text(key, state_params=None):
+                    lang = _missing_model_lang(state_params)
+                    return _MISSING_MODEL_TEXTS.get(lang, {}).get(key) or _MISSING_MODEL_TEXTS["en"].get(key) or key
+
+                def _missing_model_title_update(state_params=None):
+                    return gr_update(value=_missing_model_text("title", state_params))
+
+                def _make_missing_model_progress_html(percent, state_params=None):
+                    try:
+                        p = float(percent)
+                    except Exception:
+                        p = 0.0
+                    p = max(0.0, min(100.0, p))
+                    p_int = int(round(p))
+                    p_txt = f"{p:.1f}%"
+                    label = html.escape(_missing_model_text("total_download", state_params))
+                    return f'<div class="mm-progress"><progress value="{p_int}" max="100"></progress><span class="mm-progress-label">{label}</span><span class="mm-progress-percent">{p_txt}</span></div>'
+
+                def _get_state_user_did(state_params):
+                    try:
+                        if isinstance(state_params, dict) and state_params.get("user"):
+                            return state_params["user"].get_did()
+                    except Exception:
+                        pass
+                    try:
+                        user_session = state_params.get('__session', '') if isinstance(state_params, dict) else ''
+                        ua_hash = state_params.get('ua_hash', '') if isinstance(state_params, dict) else ''
+                        if user_session and hasattr(shared.token, 'check_sstoken_and_get_did'):
+                            return shared.token.check_sstoken_and_get_did(user_session, ua_hash)
+                    except Exception:
+                        pass
+                    return None
+
+                def _missing_model_context_key(state_params, user_did=None):
+                    if user_did:
+                        return f"did:{user_did}"
+                    if isinstance(state_params, dict):
+                        session = str(state_params.get("__session", "") or "")
+                        ua_hash = str(state_params.get("ua_hash", "") or "")
+                        if session or ua_hash:
+                            return f"session:{session}:{ua_hash}"
+                    return "global"
+
+                def _set_missing_model_active_context(state_params, context, user_did=None):
+                    key = _missing_model_context_key(state_params, user_did=user_did)
+                    missing_model_active_contexts[key] = dict(context or {})
+
+                def _get_missing_model_active_context(state_params, user_did=None):
+                    key = _missing_model_context_key(state_params, user_did=user_did)
+                    return dict(missing_model_active_contexts.get(key) or {})
+
+                def _missing_model_context_token(context):
+                    context = context if isinstance(context, dict) else {}
+                    kind = str(context.get("kind") or "preset").strip().lower()
+                    if kind == "vlm":
+                        custom_api = context.get("custom_api") if isinstance(context.get("custom_api"), dict) else {}
+                        try:
+                            custom_token = json.dumps(custom_api, sort_keys=True, default=str)
+                        except Exception:
+                            custom_token = str(custom_api)
+                        return ("vlm", str(context.get("version") or "").strip(), custom_token)
+                    return ("preset", str(context.get("preset") or "").strip())
+
+                def _missing_model_active_context_matches(expected_context, state_params, user_did=None):
+                    current = _get_missing_model_active_context(state_params, user_did=user_did)
+                    if not current:
+                        return True
+                    return _missing_model_context_token(current) == _missing_model_context_token(expected_context)
+
+                def _parse_missing_model_request(button_value):
+                    text = str(button_value or "").strip()
+                    if not text.startswith("{"):
+                        return {}
+                    try:
+                        payload = json.loads(text)
+                    except Exception:
+                        return {}
+                    return payload if isinstance(payload, dict) else {}
+
+                def _vlm_missing_model_status_payload(request_payload, user_did=None):
+                    request_payload = request_payload if isinstance(request_payload, dict) else {}
+                    version = _vlm_resolve_version(request_payload.get("version") or request_payload.get("preset") or VLM.current_version)
+                    params = {"version": version}
+                    custom_api = request_payload.get("custom_api") if isinstance(request_payload.get("custom_api"), dict) else {}
+                    if custom_api:
+                        params.update(
+                            {
+                                "custom_provider": custom_api.get("provider") or "custom",
+                                "custom_api_format": custom_api.get("api_format") or "openai_compatible",
+                                "custom_base_url": custom_api.get("base_url") or "",
+                                "custom_model": custom_api.get("model") or "",
+                                "custom_api_key": custom_api.get("api_key") or "",
+                            }
+                        )
+                    payload = {
+                        "project_id": "describe_image_chat",
+                        "node_id": "describe_vlm_chat",
+                        "params": params,
+                        "user_context": {"user_did": user_did} if user_did else {},
+                    }
+                    if custom_api.get("api_key"):
+                        payload["api_key"] = custom_api.get("api_key")
+                    return payload
+
+                def _missing_models_from_vlm_status(status):
+                    rows = []
+                    for item in (status.get("missing_models") if isinstance(status, dict) else []):
+                        if not isinstance(item, dict):
+                            continue
+                        cata = str(item.get("cata") or "LLM").strip()
+                        path_file = str(item.get("path_file") or "").strip()
+                        if not cata or not path_file:
+                            continue
+                        rows.append(
+                            (
+                                cata,
+                                path_file,
+                                str(item.get("human_size") or ""),
+                                item.get("url") or "",
+                                item.get("size") or 0,
+                            )
+                        )
+                    return rows
+
+                def _get_missing_models_for_vlm_request(request_payload, user_did=None):
+                    status_payload = _vlm_missing_model_status_payload(request_payload, user_did=user_did)
+                    status = canvas_vlm_runtime.canvas_vlm_model_status(status_payload)
+                    params = status_payload.get("params") if isinstance(status_payload.get("params"), dict) else {}
+                    version = str(status.get("version") or params.get("version") or VLM.DEFAULT_VERSION)
+                    return f"VLM: {version}", _missing_models_from_vlm_status(status), status
+
+                def _get_missing_models_for_preset(preset_name, user_did=None, state_params=None):
+                    raw_model_list = []
+                    if isinstance(state_params, dict) and state_params.get("__preset") == preset_name:
+                        raw_model_list = state_params.get("__preset_model_list_raw") or []
+                    if raw_model_list:
+                        missing_models = model_loader.get_missing_model_list_from_entries(
+                            preset_name,
+                            raw_model_list,
+                            user_did=user_did,
+                        )
+                    else:
+                        missing_models = model_loader.get_missing_model_list(preset_name, user_did=user_did)
+                    if missing_models:
+                        return preset_name, missing_models
+                    variant_names = []
+                    if preset_name and (not preset_name.endswith("_fp4")) and (not preset_name.endswith("_int4")):
+                        variant_names = [f"{preset_name}_fp4", f"{preset_name}_int4"]
+                    for variant_name in variant_names:
+                        variant_missing = model_loader.get_missing_model_list(variant_name, user_did=user_did)
+                        if variant_missing:
+                            util.log_ui_trace(
+                                logger,
+                                "[UI-TRACE] missing_model_modal.variant_hit | preset=%r, variant=%r, missing=%s",
+                                preset_name,
+                                variant_name,
+                                len(variant_missing),
+                            )
+                            return variant_name, variant_missing
+                    return preset_name, []
+
+                def _get_missing_model_status(cata, path_file):
+                    status_key = (str(cata) + "/" + str(path_file)).replace("\\", "/").strip("/")
+                    return status_key, model_loader.get_download_status(status_key)
+
+                def _calculate_missing_model_progress(missing_models):
+                    total_current = 0
+                    total_size = 0
+                    has_error = False
+                    has_in_progress = False
+                    for cata, path_file, human_size, url, preset_size in missing_models:
+                        status_key, status = _get_missing_model_status(cata, path_file)
+                        try:
+                            declared_size = int(preset_size or 0)
+                        except Exception:
+                            declared_size = 0
+
+                        status_total = 0
+                        status_current = 0
+                        if status:
+                            try:
+                                status_total = int(status.get("total", 0) or 0)
+                            except Exception:
+                                status_total = 0
+                            try:
+                                status_current = int(status.get("current", 0) or 0)
+                            except Exception:
+                                status_current = 0
+
+                        row_total = status_total or declared_size
+                        if row_total > 0:
+                            total_size += row_total
+
+                        if status:
+                            if "error" in status or status.get("cancelled"):
+                                has_error = True
+                            else:
+                                has_in_progress = True
+                            if row_total > 0:
+                                total_current += max(0, min(status_current, row_total))
+
+                    percent_total = 0.0 if total_size <= 0 else max(0.0, min(100.0, (total_current / total_size) * 100.0))
+                    return percent_total, has_error, has_in_progress
+
+                def _format_missing_model_queue_size(current, total):
+                    def _fmt(value):
+                        try:
+                            value = int(value or 0)
+                        except Exception:
+                            value = 0
+                        if value <= 0:
+                            return ""
+                        for unit in ("B", "KB", "MB", "GB", "TB"):
+                            if value < 1024 or unit == "TB":
+                                return f"{value:.1f} {unit}" if unit != "B" else f"{value} B"
+                            value = value / 1024
+                        return ""
+
+                    current_text = _fmt(current)
+                    total_text = _fmt(total)
+                    if current_text and total_text:
+                        return f"{current_text} / {total_text}"
+                    return total_text or current_text
+
+                def _render_download_queue_html(state_params=None):
+                    queue_rows = model_loader.get_download_queue_snapshot()
+                    if not queue_rows:
+                        return ""
+
+                    rows = []
+                    for item in queue_rows:
+                        status = str(item.get("status") or "queued")
+                        status_text = _missing_model_text(status, state_params)
+                        if status_text == status and status == "done":
+                            status_text = "Done" if _missing_model_lang(state_params) == "en" else "已完成"
+                        try:
+                            percent = float(item.get("percent", 0.0) or 0.0)
+                        except Exception:
+                            percent = 0.0
+                        percent = max(0.0, min(100.0, percent))
+                        progress_html = ""
+                        if status in ("queued", "downloading") and int(item.get("total", 0) or 0) > 0:
+                            progress_html = f'<progress value="{int(percent)}" max="100"></progress>'
+                        size_text = _format_missing_model_queue_size(item.get("current"), item.get("total"))
+                        meta_parts = [part for part in [item.get("task_id"), size_text] if part]
+                        meta_html = "".join(f"<span>{html.escape(str(part))}</span>" for part in meta_parts)
+                        error_text = str(item.get("error") or "")
+                        status_title = f' title="{html.escape(error_text)}"' if error_text else ""
+                        task_id = str(item.get("task_id") or "")
+                        cata, path_file = ("", "")
+                        if "/" in task_id:
+                            cata, path_file = task_id.split("/", 1)
+                        queue_action_html = ""
+                        if status in ("queued", "downloading") and cata and path_file:
+                            queue_payload = json.dumps(
+                                {
+                                    "kind": "queue",
+                                    "preset": "",
+                                    "cata": cata,
+                                    "path_file": path_file,
+                                },
+                                ensure_ascii=False,
+                            )
+                            queue_action_html = (
+                                '<button type="button" class="missing-model-cancel-one" '
+                                f'data-model-payload="{html.escape(queue_payload, quote=True)}">'
+                                f'{html.escape(_missing_model_text("stop", state_params))}</button>'
+                            )
+                        rows.append(
+                            '<div class="missing-model-queue-row">'
+                            '<div class="mm-model-main">'
+                            f'<div class="mm-model-name" title="{html.escape(str(item.get("task_id") or ""))}">{html.escape(str(item.get("file_name") or item.get("task_id") or ""))}</div>'
+                            f'<div class="mm-model-meta">{meta_html}</div>'
+                            '</div>'
+                            f'<div class="mm-model-status"><span class="mm-row-status {html.escape(status)}"{status_title}>{html.escape(status_text)}'
+                            f'{(" %.1f%%" % percent) if status == "downloading" else ""}</span>{progress_html}</div>'
+                            f'<div class="mm-model-action">{queue_action_html}</div>'
+                            '</div>'
+                        )
+
+                    return (
+                        '<div class="missing-model-queue-section">'
+                        f'<div class="missing-model-section-title">{html.escape(_missing_model_text("download_queue", state_params))}</div>'
+                        '<div class="missing-model-html missing-model-queue-html">'
+                        + "".join(rows) +
+                        '</div>'
+                        '</div>'
+                    )
+
+                def _render_missing_model_required_html(preset_name, missing_models, state_params=None, payload_extra=None):
+                    if not missing_models:
+                        return (
+                            '<div class="missing-model-preset-section">'
+                            f'<div class="missing-model-html empty">{html.escape(_missing_model_text("empty", state_params))}</div>'
+                            '</div>'
+                        )
+
+                    rows = []
+                    for index, (cata, path_file, human_size, url, size) in enumerate(missing_models):
+                        model_name = os.path.basename(str(path_file or "").strip("[]")) or str(path_file or "")
+                        status_key, status = _get_missing_model_status(cata, path_file)
+                        status_html = '<span class="mm-row-status idle">{}</span>'.format(html.escape(_missing_model_text("missing", state_params)))
+                        button_disabled = ""
+                        button_text = _missing_model_text("download", state_params)
+                        button_class = "missing-model-download-one"
+                        if status:
+                            if status.get("cancelled"):
+                                status_html = f'<span class="mm-row-status cancelled">{html.escape(_missing_model_text("stopped", state_params))}</span>'
+                                button_text = _missing_model_text("retry", state_params)
+                            elif "error" in status:
+                                err_msg = html.escape(str(status.get("error", "")))
+                                status_html = f'<span class="mm-row-status error" title="{err_msg}">{html.escape(_missing_model_text("error", state_params))}</span>'
+                                button_text = _missing_model_text("retry", state_params)
+                            else:
+                                try:
+                                    percent = float(status.get("percent", 0.0))
+                                except Exception:
+                                    percent = 0.0
+                                downloading_text = html.escape(_missing_model_text("downloading", state_params))
+                                status_html = (
+                                    f'<span class="mm-row-status downloading">{downloading_text} {percent:.1f}%</span>'
+                                    f'<progress value="{int(max(0, min(100, percent)))}" max="100"></progress>'
+                                )
+                                button_text = _missing_model_text("stop", state_params)
+                                button_class = "missing-model-cancel-one"
+                        row_payload = {
+                            "preset": preset_name,
+                            "cata": cata,
+                            "path_file": path_file,
+                            "url": url,
+                            "size": size,
+                        }
+                        if isinstance(payload_extra, dict):
+                            row_payload.update(payload_extra)
+                        payload = json.dumps(
+                            row_payload,
+                            ensure_ascii=False,
+                        )
+                        rows.append(
+                            '<div class="missing-model-row" data-status-key="{status_key}">'
+                            '<div class="mm-model-main">'
+                            '<div class="mm-model-name" title="{full_name}">{model_name}</div>'
+                            '<div class="mm-model-meta"><span>{cata}</span><span>{human_size}</span></div>'
+                            '</div>'
+                            '<div class="mm-model-status">{status_html}</div>'
+                            '<button type="button" class="{button_class}" data-model-payload="{payload}"{button_disabled}>{button_text}</button>'
+                            '</div>'
+                        .format(
+                                status_key=html.escape(status_key),
+                                full_name=html.escape(str(path_file or "")),
+                                model_name=html.escape(model_name),
+                                cata=html.escape(str(cata or "")),
+                                human_size=html.escape(str(human_size or "")),
+                                status_html=status_html,
+                                payload=html.escape(payload, quote=True),
+                                button_class=html.escape(button_class),
+                                button_disabled=button_disabled,
+                                button_text=html.escape(button_text),
+                            )
+                        )
+                    head_html = (
+                        '<div class="missing-model-preset-section">'
+                        '<div class="missing-model-html">'
+                        '<div class="missing-model-html-head">'
+                        f'<span>{html.escape(_missing_model_text("model", state_params))}</span>'
+                        f'<span>{html.escape(_missing_model_text("status", state_params))}</span>'
+                        f'<span>{html.escape(_missing_model_text("action", state_params))}</span>'
+                        '</div>'
+                    )
+                    return (
+                        head_html
+                        + "".join(rows) +
+                        '</div></div>'
+                    )
+
+                def _render_missing_model_list_html(preset_name, missing_models, state_params=None, payload_extra=None):
+                    current_html = _render_missing_model_required_html(preset_name, missing_models, state_params, payload_extra)
+                    queue_html = _render_download_queue_html(state_params)
+                    if queue_html:
+                        return '<div class="missing-model-panel">' + current_html + queue_html + '</div>'
+                    return current_html
+
+                def _missing_model_panel_has_visible_rows(html_value):
+                    text = str(html_value or "")
+                    return "missing-model-row" in text or "missing-model-queue-row" in text
+
+                def check_and_show_missing_models(button_value, state_params):
+                    """Check whether models are missing and show the prompt modal."""
+
+                    if ads.get_user_default("no_model_modal_checkbox", state_params, False):
+                        util.log_ui_trace(logger, "[UI-TRACE] missing_model_modal.skip_disabled | button=%r", button_value)
+                        return [gr_update(visible=False), _missing_model_title_update(state_params), gr_update(value=""), gr_update(visible=False, value=""), gr_update(visible=False)]
+                    request_payload = _parse_missing_model_request(button_value)
+                    request_kind = str(request_payload.get("kind") or "").strip().lower()
+                    if request_kind == "vlm":
+                        user_did = _get_state_user_did(state_params)
+                        start_perf = time.perf_counter()
+                        preset_name, missing_models, status = _get_missing_models_for_vlm_request(request_payload, user_did=user_did)
+                        version_name = str(status.get("version") or request_payload.get("version") or VLM.DEFAULT_VERSION)
+                        _set_missing_model_active_context(
+                            state_params,
+                            {"kind": "vlm", "version": version_name, "custom_api": request_payload.get("custom_api") or {}},
+                            user_did=user_did,
+                        )
+                        after_missing = time.perf_counter()
+                        util.log_ui_trace(
+                            logger,
+                            "[UI-TRACE] missing_model_modal.check_vlm | version=%r, missing=%s, missing_scan=%.3fs",
+                            version_name,
+                            len(missing_models or []),
+                            after_missing - start_perf,
+                        )
+                        if missing_models:
+                            total_size = 0
+                            for cata, path_file, human_size, url, size in missing_models:
+                                try:
+                                    total_size += int(size or 0)
+                                except Exception:
+                                    pass
+                            progress_value = ""
+                            progress_visible = False
+                            if total_size > 0:
+                                progress_value = _make_missing_model_progress_html(0, state_params)
+                                progress_visible = True
+                            payload_extra = {"kind": "vlm", "version": version_name}
+                            html_value = _render_missing_model_list_html(preset_name, missing_models, state_params, payload_extra=payload_extra)
+                            return [gr_update(visible=True),
+                                    _missing_model_title_update(state_params),
+                                    gr_update(value=html_value),
+                                    gr_update(visible=progress_visible, value=progress_value),
+                                    gr_update(visible=True, value=_missing_model_text("download_all", state_params))]
+                        return [gr_update(visible=False), _missing_model_title_update(state_params), gr_update(value=""), gr_update(visible=False, value=""), gr_update(visible=False)]
+                    preset_name = str(button_value or '')
+                    preset_name = preset_name.replace(getattr(topbar, "PRESET_MISSING_MARKER", "\u2B07"), '').strip()
+                    if not preset_name and isinstance(state_params, dict):
+                        preset_name = str(state_params.get('__preset', '') or '').strip()
+                    if not preset_name:
+                        util.log_ui_trace(logger, "[UI-TRACE] missing_model_modal.skip_empty_preset | button=%r", button_value)
+                        return [gr_update(visible=False), _missing_model_title_update(state_params), gr_update(value=""), gr_update(visible=False, value=""), gr_update(visible=False)]
+                    user_did = _get_state_user_did(state_params)
+                    start_perf = time.perf_counter()
+                    preset_name, missing_models = _get_missing_models_for_preset(preset_name, user_did=user_did, state_params=state_params)
+                    _set_missing_model_active_context(
+                        state_params,
+                        {"kind": "preset", "preset": preset_name},
+                        user_did=user_did,
+                    )
+                    after_missing = time.perf_counter()
+                    util.log_ui_trace(
+                        logger,
+                        "[UI-TRACE] missing_model_modal.check | preset=%r, missing=%s, missing_scan=%.3fs",
+                        preset_name,
+                        len(missing_models or []),
+                        after_missing - start_perf,
+                    )
+
+                    if missing_models:
+                        total_size = 0
+                        for cata, path_file, human_size, url, size in missing_models:
+                            try:
+                                total_size += int(size or 0)
+                            except Exception:
+                                pass
+
+                        progress_value = ""
+                        progress_visible = False
+                        if total_size > 0:
+                            progress_value = _make_missing_model_progress_html(0, state_params)
+                            progress_visible = True
+                        html_value = _render_missing_model_list_html(preset_name, missing_models, state_params)
+                        after_render = time.perf_counter()
+                        util.log_ui_trace(
+                            logger,
+                            "[UI-TRACE] missing_model_modal.render | preset=%r, rows=%s, render=%.3fs, total=%.3fs",
+                            preset_name,
+                            len(missing_models or []),
+                            after_render - after_missing,
+                            after_render - start_perf,
+                        )
+                        return [gr_update(visible=True),
+                                _missing_model_title_update(state_params),
+                                gr_update(value=html_value),
+                                gr_update(visible=progress_visible, value=progress_value),
+                                gr_update(visible=True, value=_missing_model_text("download_all", state_params))]
+                    else:
+                        html_value = _render_missing_model_list_html(preset_name, [], state_params)
+                        if _missing_model_panel_has_visible_rows(html_value):
+                            return [gr_update(visible=True), _missing_model_title_update(state_params), gr_update(value=html_value), gr_update(visible=False, value=""), gr_update(visible=False)]
+                        return [gr_update(visible=False), _missing_model_title_update(state_params), gr_update(value=""), gr_update(visible=False, value=""), gr_update(visible=False)]
+
+                def _render_active_missing_model_modal_updates(state_params, user_did=None):
+                    active_context = _get_missing_model_active_context(state_params, user_did=user_did)
+                    payload_extra = None
+                    if active_context.get("kind") == "vlm":
+                        preset_name, missing_models, status = _get_missing_models_for_vlm_request(active_context, user_did=user_did)
+                        payload_extra = {"kind": "vlm", "version": str(status.get("version") or active_context.get("version") or VLM.DEFAULT_VERSION)}
+                    elif active_context.get("kind") == "preset":
+                        preset_name = str(active_context.get("preset") or "").strip()
+                        _, missing_models = _get_missing_models_for_preset(preset_name, user_did=user_did, state_params=state_params)
+                    else:
+                        preset_name = str(state_params.get('__preset', '') or '').strip() if isinstance(state_params, dict) else ""
+                        _, missing_models = _get_missing_models_for_preset(preset_name, user_did=user_did, state_params=state_params) if preset_name else ("", [])
+
+                    html_value = _render_missing_model_list_html(preset_name, missing_models, state_params, payload_extra=payload_extra)
+                    if not _missing_model_panel_has_visible_rows(html_value):
+                        return [gr_update(visible=False), _missing_model_title_update(state_params), gr_update(value=""), gr_update(visible=False, value="")]
+
+                    percent_total, _has_error, has_in_progress = _calculate_missing_model_progress(missing_models)
+                    progress_visible = bool(has_in_progress)
+                    progress_html = _make_missing_model_progress_html(percent_total, state_params) if progress_visible else ""
+                    return [
+                        gr_update(visible=True),
+                        _missing_model_title_update(state_params),
+                        gr_update(value=html_value),
+                        gr_update(visible=progress_visible, value=progress_html),
+                    ]
+
+                def download_models(state_params):
+                    empty_buttons_update = [skip_component_update() for _ in range(len(bar_buttons))]
+                    empty_system_update = [skip_component_update()]
+                    user_did = _get_state_user_did(state_params)
+                    active_context = _get_missing_model_active_context(state_params, user_did=user_did)
+
+                    if active_context.get("kind") == "vlm":
+                        preset_name, missing_models, status = _get_missing_models_for_vlm_request(active_context, user_did=user_did)
+                        version_name = str(status.get("version") or active_context.get("version") or VLM.DEFAULT_VERSION)
+                        has_download_access = user_can_download_models(user_did)
+
+                        if not has_download_access:
+                            gr.Info("Current identity is not allowed to download models.")
+                            return [gr_update(visible=True), _missing_model_title_update(state_params), skip_component_update(), gr_update(visible=False, value="")] + empty_buttons_update + empty_system_update
+                        if shared.args.disable_backend:
+                            gr.Info("Model download tasks are disabled because the app was started with --disable-backend.")
+                            return [gr_update(visible=True), _missing_model_title_update(state_params), skip_component_update(), gr_update(visible=False, value="")] + empty_buttons_update + empty_system_update
+                        if not missing_models:
+                            return _render_active_missing_model_modal_updates(state_params, user_did=user_did) + empty_buttons_update + empty_system_update
+
+                        gr.Info(f"Starting VLM model download: {version_name}. Please wait and check the console for progress.")
+                        for cata, path_file, human_size, url, size in missing_models:
+                            model_loader.download_model_entry(cata, path_file, size=size, url=url, user_did=user_did, async_task=True)
+                        return _render_active_missing_model_modal_updates(state_params, user_did=user_did) + empty_buttons_update + empty_system_update
+
+                    if active_context.get("kind") == "preset":
+                        preset_name = str(active_context.get("preset") or "").strip()
+                    else:
+                        preset_name = str(state_params.get('__preset', '') or '').strip()
+
+                    if not preset_name:
+                        return [gr_update(visible=True), _missing_model_title_update(state_params), skip_component_update(), gr_update(visible=False, value="")] + empty_buttons_update + empty_system_update
+
+                    has_download_access = user_can_download_models(user_did)
+
+                    if not has_download_access:
+                        gr.Info("Current identity is not allowed to download models.")
+                        return [gr_update(visible=False), _missing_model_title_update(state_params), skip_component_update(), gr_update(visible=False, value="")] + empty_buttons_update + empty_system_update
+                    if shared.args.disable_backend:
+                        gr.Info("Model download tasks are disabled because the app was started with --disable-backend.")
+                        return [gr_update(visible=True), _missing_model_title_update(state_params), skip_component_update(), gr_update(visible=False, value="")] + empty_buttons_update + empty_system_update
+
+                    gr.Info(f"Starting preset model download: {preset_name}. Please wait and check the console for progress.")
+                    model_loader.download_model_files(preset_name, user_did=user_did, async_task=True)
+                    return _render_active_missing_model_modal_updates(state_params, user_did=user_did) + empty_buttons_update + empty_system_update
+
+                def download_one_missing_model(request_payload, state_params):
+                    empty_buttons_update = [skip_component_update() for _ in range(len(bar_buttons))]
+                    empty_system_update = [skip_component_update()]
+                    try:
+                        payload = json.loads(request_payload or "{}")
+                    except Exception:
+                        payload = {}
+
+                    preset_name = str(payload.get("preset") or state_params.get('__preset', '') or '').strip()
+                    cata = str(payload.get("cata") or "").strip()
+                    path_file = str(payload.get("path_file") or "").strip()
+                    url = payload.get("url") or ""
+                    size = payload.get("size") or 0
+                    payload_kind = str(payload.get("kind") or "").strip().lower()
+                    if not preset_name or not cata or not path_file:
+                        return [gr_update(visible=True), _missing_model_title_update(state_params), skip_component_update(), gr_update(visible=False, value="")] + empty_buttons_update + empty_system_update
+
+                    user_did = _get_state_user_did(state_params)
+                    has_download_access = user_can_download_models(user_did)
+                    if not has_download_access:
+                        gr.Info("Current identity is not allowed to download models.")
+                        return [gr_update(visible=True), _missing_model_title_update(state_params), skip_component_update(), gr_update(visible=False, value="")] + empty_buttons_update + empty_system_update
+                    if shared.args.disable_backend:
+                        gr.Info("Model download tasks are disabled because the app was started with --disable-backend.")
+                        return [gr_update(visible=True), _missing_model_title_update(state_params), skip_component_update(), gr_update(visible=False, value="")] + empty_buttons_update + empty_system_update
+
+                    payload_extra = None
+                    if payload_kind == "vlm":
+                        preset_name, missing_models, status = _get_missing_models_for_vlm_request(payload, user_did=user_did)
+                        payload_extra = {"kind": "vlm", "version": str(status.get("version") or payload.get("version") or VLM.DEFAULT_VERSION)}
+                    else:
+                        _, missing_models = _get_missing_models_for_preset(preset_name, user_did=user_did, state_params=state_params)
+                    allowed = None
+                    for item in missing_models:
+                        if str(item[0]) == cata and str(item[1]) == path_file:
+                            allowed = item
+                            break
+                    if allowed is None:
+                        return [gr_update(visible=True), _missing_model_title_update(state_params), gr_update(value=_render_missing_model_list_html(preset_name, missing_models, state_params, payload_extra=payload_extra)), gr_update(visible=False, value="")] + empty_buttons_update + empty_system_update
+
+                    util.log_ui_trace(logger, "[UI-TRACE] missing_model_modal.download_one | preset=%r, cata=%r, path=%r", preset_name, cata, path_file)
+                    model_loader.download_model_entry(cata, path_file, size=size, url=url, user_did=user_did, async_task=True)
+                    return _render_active_missing_model_modal_updates(state_params, user_did=user_did) + empty_buttons_update + empty_system_update
+
+                def cancel_one_missing_model_download(request_payload, state_params):
+                    empty_buttons_update = [skip_component_update() for _ in range(len(bar_buttons))]
+                    empty_system_update = [skip_component_update()]
+                    try:
+                        payload = json.loads(request_payload or "{}")
+                    except Exception:
+                        payload = {}
+
+                    payload_kind = str(payload.get("kind") or "").strip().lower()
+                    preset_name = str(payload.get("preset") or state_params.get('__preset', '') or '').strip()
+                    cata = str(payload.get("cata") or "").strip()
+                    path_file = str(payload.get("path_file") or "").strip()
+                    if (not cata) or (not path_file) or ((not preset_name) and payload_kind != "queue"):
+                        return [gr_update(visible=True), _missing_model_title_update(state_params), skip_component_update(), gr_update(visible=False, value="")] + empty_buttons_update + empty_system_update
+
+                    user_did = _get_state_user_did(state_params)
+                    task_id = (str(cata) + "/" + str(path_file)).replace("\\", "/").strip("/")
+                    stopped = model_loader.cancel_download_task(task_id)
+                    util.log_ui_trace(logger, "[UI-TRACE] missing_model_modal.cancel_one | preset=%r, task_id=%r, stopped=%s", preset_name, task_id, stopped)
+
+                    payload_extra = None
+                    if payload_kind == "queue":
+                        return _render_active_missing_model_modal_updates(state_params, user_did=user_did) + empty_buttons_update + empty_system_update
+                    elif payload_kind == "vlm":
+                        preset_name, missing_models, status = _get_missing_models_for_vlm_request(payload, user_did=user_did)
+                        payload_extra = {"kind": "vlm", "version": str(status.get("version") or payload.get("version") or VLM.DEFAULT_VERSION)}
+                    else:
+                        _, missing_models = _get_missing_models_for_preset(preset_name, user_did=user_did, state_params=state_params)
+
+                    percent_total, _has_error, has_in_progress = _calculate_missing_model_progress(missing_models)
+                    progress_visible = bool(has_in_progress)
+                    progress_html = _make_missing_model_progress_html(percent_total, state_params) if progress_visible else ""
+                    return [
+                        gr_update(visible=True),
+                        _missing_model_title_update(state_params),
+                        gr_update(value=_render_missing_model_list_html(preset_name, missing_models, state_params, payload_extra=payload_extra)),
+                        gr_update(visible=progress_visible, value=progress_html),
+                    ] + empty_buttons_update + empty_system_update
+
+                def refresh_missing_model_modal(state_params):
+                    empty_buttons_update = [skip_component_update() for _ in range(len(bar_buttons))]
+                    empty_system_update = [skip_component_update()]
+                    user_did = _get_state_user_did(state_params)
+                    modal_updates = _render_active_missing_model_modal_updates(state_params, user_did=user_did)
+                    if model_loader.has_active_download_tasks():
+                        return modal_updates + empty_buttons_update + empty_system_update
+                    nav_updates = topbar.refresh_nav_bars(state_params)
+                    button_updates = nav_updates[1 : 1 + len(bar_buttons)]
+                    system_update = topbar.update_topbar_js_params(state_params, include_canvas_catalogs=False)
+                    return modal_updates + button_updates + system_update
+
+                def refresh_missing_model_nav_state(state_params):
+                    active = model_loader.has_active_download_tasks()
+                    system_update = topbar.update_topbar_js_params(state_params, include_canvas_catalogs=False)
+                    if system_update and isinstance(system_update[0], dict):
+                        system_update[0]["__missing_model_download_active"] = active
+                    if active:
+                        return [skip_component_update() for _ in range(len(bar_buttons))] + system_update
+                    nav_updates = topbar.refresh_nav_bars(state_params)
+                    button_updates = nav_updates[1 : 1 + len(bar_buttons)]
+                    return button_updates + system_update
+
+                def close_missing_model_modal():
+                    return gr_update(visible=False)
+
+                close_missing_model_btn.click(close_missing_model_modal, outputs=missing_model_modal)
+                missing_model_minimize_btn.click(
+                    fn=None,
+                    js="""() => {
+                        const app = (typeof gradioApp === 'function') ? gradioApp() : document;
+                        const content = app.getElementById('missing_model_modal_content');
+                        if (!content) return;
+                        const isMin = content.classList.contains('minimized');
+                        if (!isMin) {
+                            content.dataset.prevLeft = content.style.getPropertyValue('left') || '';
+                            content.dataset.prevTop = content.style.getPropertyValue('top') || '';
+                            content.dataset.prevLeftPriority = content.style.getPropertyPriority('left') || '';
+                            content.dataset.prevTopPriority = content.style.getPropertyPriority('top') || '';
+                            content.classList.add('minimized');
+                            requestAnimationFrame(() => {
+                                const r = content.getBoundingClientRect();
+                                const margin = 12;
+                                content.style.setProperty('left', `${Math.max(margin, window.innerWidth - margin - r.width)}px`, 'important');
+                                content.style.setProperty('top', `${Math.max(margin, window.innerHeight - margin - r.height)}px`, 'important');
+                            });
+                        } else {
+                            content.classList.remove('minimized');
+                            const prevLeft = content.dataset.prevLeft || '';
+                            const prevTop = content.dataset.prevTop || '';
+                            if (prevLeft) content.style.setProperty('left', prevLeft, content.dataset.prevLeftPriority || '');
+                            else content.style.removeProperty('left');
+                            if (prevTop) content.style.setProperty('top', prevTop, content.dataset.prevTopPriority || '');
+                            else content.style.removeProperty('top');
+                        }
+                    }""",
+                    show_progress=False,
+                    queue=False
+                )
+                missing_model_download_finish_js = "(html, state)=>{try{if(typeof startMissingModelDownloadNavMonitor === 'function') startMissingModelDownloadNavMonitor('download_finish'); if(state&&typeof refresh_topbar_status_js === 'function') refresh_topbar_status_js(state); syncMissingModelDownloadCompleteUi(html, state);}catch(e){console.warn('[UI-TRACE] missing_model_modal.download_finish_failed', e);}}"
+                missing_model_refresh_finish_js = "(html, state)=>{try{window.__missingModelRefreshInFlight=false; if(state&&typeof refresh_topbar_status_js === 'function') refresh_topbar_status_js(state); syncMissingModelDownloadCompleteUi(html, state);}catch(e){window.__missingModelRefreshInFlight=false; console.warn('[UI-TRACE] missing_model_modal.refresh_failed', e);}}"
+                missing_model_nav_refresh_finish_js = "(state)=>{try{if(typeof finishMissingModelNavRefresh === 'function') finishMissingModelNavRefresh(state);}catch(e){window.__missingModelNavRefreshInFlight=false; console.warn('[UI-TRACE] missing_model_nav.refresh_failed', e);}}"
+                missing_model_download_evt = missing_model_btn.click(download_models, inputs=[state_topbar], outputs=[missing_model_modal, missing_model_title, missing_model_list, missing_model_total_progress] + bar_buttons + [system_params], api_name="download_models", show_progress=False, queue=False)
+                missing_model_download_evt.then(
+                    fn=lambda html, state: None,
+                    inputs=[missing_model_list, system_params],
+                    js=missing_model_download_finish_js,
+                    queue=False,
+                    show_progress=False,
+                )
+                missing_model_download_one_evt = missing_model_download_one_btn.click(download_one_missing_model, inputs=[missing_model_download_request, state_topbar], outputs=[missing_model_modal, missing_model_title, missing_model_list, missing_model_total_progress] + bar_buttons + [system_params], api_name="download_one_missing_model", show_progress=False, queue=False)
+                missing_model_download_one_evt.then(
+                    fn=lambda html, state: None,
+                    inputs=[missing_model_list, system_params],
+                    js=missing_model_download_finish_js,
+                    queue=False,
+                    show_progress=False,
+                )
+                missing_model_cancel_one_evt = missing_model_cancel_one_btn.click(cancel_one_missing_model_download, inputs=[missing_model_cancel_request, state_topbar], outputs=[missing_model_modal, missing_model_title, missing_model_list, missing_model_total_progress] + bar_buttons + [system_params], api_name="cancel_one_missing_model_download", show_progress=False, queue=False)
+                missing_model_cancel_one_evt.then(
+                    fn=lambda html, state: None,
+                    inputs=[missing_model_list, system_params],
+                    js=missing_model_download_finish_js,
+                    queue=False,
+                    show_progress=False,
+                )
+                missing_model_refresh_evt = missing_model_refresh_btn.click(refresh_missing_model_modal, inputs=[state_topbar], outputs=[missing_model_modal, missing_model_title, missing_model_list, missing_model_total_progress] + bar_buttons + [system_params], api_name="refresh_missing_model_modal", show_progress=False, queue=False)
+                missing_model_refresh_evt.then(
+                    fn=lambda html, state: None,
+                    inputs=[missing_model_list, system_params],
+                    js=missing_model_refresh_finish_js,
+                    queue=False,
+                    show_progress=False,
+                )
+                missing_model_nav_refresh_evt = missing_model_nav_refresh_btn.click(refresh_missing_model_nav_state, inputs=[state_topbar], outputs=bar_buttons + [system_params], api_name="refresh_missing_model_nav_state", show_progress=False, queue=False)
+                missing_model_nav_refresh_evt.then(
+                    fn=lambda state: None,
+                    inputs=system_params,
+                    js=missing_model_nav_refresh_finish_js,
+                    queue=False,
+                    show_progress=False,
+                )
+                missing_model_check_btn.click(
+                    check_and_show_missing_models,
+                    inputs=[missing_model_check_request, state_topbar],
+                    outputs=[missing_model_modal, missing_model_title, missing_model_list, missing_model_total_progress, missing_model_btn],
+                    api_name="check_missing_models_after_nav",
+                    show_progress=False,
+                    queue=False,
+                ).then(
+                    fn=lambda html: None,
+                    inputs=[missing_model_list],
+                    js="(html)=>{try{reopenMissingModelPopupIfNeeded(html);}catch(e){console.warn('[UI-TRACE] missing_model_modal.reopen_failed', e);}}",
+                    queue=False,
+                    show_progress=False,
+                )
+
+                with gr.Row(elem_id='main_layout_row'):
+                    with gr.Column(scale=2, visible=True, elem_classes='preview_column'):
+                        with gr.Row(elem_id="missing_model_welcome_hint", elem_classes=["missing-model-welcome-hint"]):
+                            missing_model_welcome_hint_text = gr.HTML("", elem_id="missing_model_welcome_hint_text")
+                            missing_model_welcome_hint_btn = gr.Button("Download models", size="sm", elem_id="missing_model_welcome_hint_btn")
+                            missing_model_welcome_hint_close = gr.Button("×", size="sm", elem_id="missing_model_welcome_hint_close", variant="secondary")
+
+                        missing_model_welcome_hint_btn.click(
+                            lambda state_params: check_and_show_missing_models("", state_params),
+                            inputs=[state_topbar],
+                            outputs=[missing_model_modal, missing_model_title, missing_model_list, missing_model_total_progress, missing_model_btn],
+                            api_name="check_missing_models_from_welcome_hint",
+                            show_progress=False,
+                            queue=False,
+                        ).then(
+                            fn=lambda html: None,
+                            inputs=[missing_model_list],
+                            js="(html)=>{try{reopenMissingModelPopupIfNeeded(html);}catch(e){console.warn('[UI-TRACE] missing_model_modal.reopen_failed', e);}}",
+                            queue=False,
+                            show_progress=False,
+                        )
+                        missing_model_welcome_hint_close.click(
+                            fn=None,
+                            js="() => { try { if (window.hideMissingModelWelcomeHint) window.hideMissingModelWelcomeHint(true); } catch (e) { console.warn('[UI-TRACE] missing_model_hint_close_failed', e); } }",
+                            show_progress=False,
+                            queue=False,
+                        )
+
+
+                        with gr.Row():
+                            progress_window = gr.Image(label='Preview', show_label=False, visible=True, height=768, elem_id='preview_generating',
+                                                elem_classes=['main_view'], value=_initial_preview_welcome_image, interactive=False, buttons=["fullscreen"])
+                            progress_gallery = gr.Gallery(label='Finished Images', show_label=True, object_fit='contain', elem_id='finished_gallery',
+                                                height=768, visible="hidden", elem_classes=['main_view', 'image_gallery'], columns=4,
+                                                interactive=False, allow_preview=True, preview=True, selected_index=None, fit_columns=False)
+                            comparison_box = gr.ImageSlider(label='Input / Output Comparison', show_label=True, visible=False, height=768, max_height=768,
+                                                            elem_id='comparison_box', elem_classes=['main_view'])
+                            progress_video = gr.Video(label='Generated Video', show_label=True, visible=False, height=768,
+                                                elem_classes=['main_view', 'video_player'], elem_id='video_player', autoplay=True)
+                            gallery = gr.Gallery(label='Gallery', show_label=True, object_fit='contain', visible=False, height=768,
+                                        elem_classes=['resizable_area', 'main_view', 'final_gallery', 'image_gallery'],
+                                        elem_id='final_gallery', allow_preview=True, preview=True, selected_index=None,
+                                        columns=4, interactive=False, fit_columns=False )
+                        gr.HTML(
+                            '<div class="simpleai-result-surface-guard-frame"></div>',
+                            elem_id='simpleai_result_surface_guard',
+                            elem_classes=['simpleai-result-surface-guard'],
+                        )
+
+                        progress_html = gr.HTML(value=modules.html.make_progress_html(32, 'Progress 32%'), visible=False,
+                                            elem_id='progress-bar', elem_classes='progress-bar')
+
+                        with gr.Group(visible=False, elem_classes='infobox_group') as prompt_info_container:
+                            prompt_info_box = gr.Markdown(toolbox.make_infobox_markdown(None, args_manager.args.theme), visible=False, elem_id='infobox', elem_classes='infobox')
+                            prompt_info_close_btn = gr.Button(value='×', size='sm', elem_classes=['note_close_btn'], min_width=30, visible=False)
+
+                        with gr.Group(visible=False, elem_id='image_toolbox', elem_classes=['toolbox']) as image_toolbox:
+                            image_tools_box_title = gr.Markdown('<b>ToolBox</b>', visible=True)
+                            open_folder_btn = gr.Button(value='📁', size='sm', visible=True, elem_classes=['toolbox_icon_btn'])
+                            open_folder_btn.click(toolbox.open_output_folder, inputs=state_topbar, outputs=[open_folder_btn], show_progress=False)
+                            compare_btn = gr.Button(COMPARE_BUTTON_ICON, visible=True, size='sm', elem_id='compare_btn', elem_classes=['toolbox_icon_btn'])
+                            prompt_info_button = gr.Button(value='ℹ️', size='sm', visible=True, elem_classes=['toolbox_icon_btn'])
+                            prompt_regen_button = gr.Button(value='🔁', size='sm', visible=True, elem_classes=['toolbox_icon_btn'])
+                            prompt_delete_button = gr.Button(value='🗑️', size='sm', visible=True, elem_classes=['toolbox_icon_btn'])
+                            prompt_info_evt = prompt_info_button.click(toolbox.toggle_prompt_info, inputs=state_topbar, outputs=[prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar], show_progress=False)
+                            prompt_info_evt.then(lambda: None, queue=False, show_progress=False, js='()=>{try{showPromptInfoOverlayFromInfobox(); traceResultPanelStateSoon("prompt_info.click.after");}catch(e){console.warn("[UI-TRACE] prompt_info.dom_trace_failed", e);}}')
+                            prompt_info_close_evt = prompt_info_close_btn.click(toolbox.close_prompt_info, inputs=state_topbar, outputs=[prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar], show_progress=False)
+                            prompt_info_close_evt.then(lambda: None, queue=False, show_progress=False, js='()=>{try{hidePromptInfoOverlay(); traceResultPanelStateSoon("prompt_info.close.after");}catch(e){console.warn("[UI-TRACE] prompt_info_close.dom_trace_failed", e);}}')
+
+                        with gr.Group(visible="hidden", elem_classes='toolbox_note') as params_note_box:
+                            params_note_info = gr.Markdown(elem_classes='note_info', visible="hidden")
+                            params_note_close_button = gr.Button(value='×', size='sm', elem_id='params_note_close_button', elem_classes=['note_close_btn'], min_width=30, visible="hidden")
+                            params_note_input_name = gr.Textbox(show_label=False, placeholder="Type preset name here.", min_width=100, elem_id='params_note_input_name', elem_classes='preset_input', visible="hidden")
+                            params_note_delete_button = gr.Button(value='Enter', elem_id='params_note_delete_button', visible="hidden")
+                            params_note_regen_button = gr.Button(value='Enter', elem_id='params_note_regen_button', visible="hidden")
+                            params_note_preset_button = gr.Button(value='Enter', elem_id='params_note_preset_button', visible="hidden")
+
+                        with gr.Accordion("Finished Images Catalog", open=False, visible=False, elem_id='finished_images_catalog') as index_radio:
+                            with gr.Row(elem_id="gallery_browser_toolbar", elem_classes=["simpleai-main-gallery-browser"]):
+                                with gr.Row(elem_id="gallery_browser_left", elem_classes=["simpleai-main-gallery-browser-left"]):
+                                    with gr.Row(elem_id="gallery_browser_folder_group", elem_classes=["gallery-browser-folder-group"]):
+                                        gallery_browser_prev_folder_btn = gr.Button("▲", size="sm", elem_id="gallery_browser_prev_folder_btn", elem_classes=["gallery-browser-folder-step"], min_width=28, scale=0, interactive=False)
+                                        gallery_browser_folder = gr.Dropdown(choices=[], value=None, show_label=False, elem_id="gallery_browser_folder", elem_classes=["gallery-browser-folder-control"], min_width=156, scale=0)
+                                        gallery_browser_next_folder_btn = gr.Button("▼", size="sm", elem_id="gallery_browser_next_folder_btn", elem_classes=["gallery-browser-folder-step"], min_width=28, scale=0, interactive=False)
+                                    gallery_browser_status = gr.Markdown("", elem_id="gallery_browser_status", elem_classes=["gallery-browser-status"])
+                                    gallery_browser_refresh_btn = gr.Button("Refresh", size="sm", elem_id="gallery_browser_refresh_btn")
+                                with gr.Row(elem_id="gallery_browser_switch", elem_classes=["simpleai-main-gallery-browser-switch"]):
+                                    with gr.Row(elem_id="gallery_media_switch_row", elem_classes=["gallery_media_switch"]):
+                                        gallery_images_btn = gr.Button("Images", size="sm", elem_id="gallery_images_btn")
+                                        gallery_videos_btn = gr.Button("Videos", size="sm", elem_id="gallery_videos_btn")
+                                        canvas_gallery_refresh_btn = gr.Button("Canvas gallery refresh", size="sm", visible="hidden", elem_id="canvas_gallery_refresh_btn", elem_classes=["sai-gradio-hidden-bridge"])
+                                with gr.Row(elem_id="gallery_browser_right", elem_classes=["simpleai-main-gallery-browser-right"]):
+                                    gallery_browser_more_btn = gr.Button("Load more", size="sm", elem_id="gallery_browser_more_btn", interactive=False)
+                            gallery_browser_payload = gr.Textbox(value="", visible="hidden", elem_id="gallery_browser_payload", elem_classes=["sai-gradio-hidden-bridge"])
+                            gallery_browser_state = gr.Textbox(value="", visible="hidden", elem_id="gallery_browser_state", elem_classes=["sai-gradio-hidden-bridge"])
+                            gallery_media_switch_request = gr.Textbox(value="", visible="hidden", elem_id="gallery_media_switch_request", elem_classes=["sai-gradio-hidden-bridge"])
+                            gallery_browser_load_btn = gr.Button("Gallery browser load", size="sm", visible="hidden", elem_id="gallery_browser_load_btn", elem_classes=["sai-gradio-hidden-bridge"])
+                            gallery_index = gr.Dropdown(choices=None, value=None, show_label=False, allow_custom_value=True, elem_id="gallery_index_bridge", elem_classes=["sai-gradio-hidden-bridge"])
+                    with gr.Column(scale=1, visible=True, elem_classes=['scene_panel', 'simpai-mounted-hidden'], elem_id='scene_panel') as scene_panel:
+                        with gr.Row(elem_id="scene_primary_row"):
+                            scene_additional_prompt = gr.Textbox(label="Blessing words", show_label=True, max_lines=1, elem_id='scene_additional_prompt', elem_classes=['scene_input', 'simpai-mounted-hidden'])
+                            scene_theme = gr.Radio(choices=modules.flags.scene_themes, label="Themes", value=modules.flags.scene_themes[0])
+
+                        # Qwen Multiangle Camera Control
+                        with gr.Accordion("📸 3D Camera Control", open=False, visible=True, elem_id="camera_control_accordion", elem_classes=['simpai-mounted-hidden']) as camera_control_accordion:
+                            gr.HTML(value=qwen_multiangle.get_viewer_html(), elem_id="qwen_viewer_container")
+                        
+                        # Flux Anglelight Lighting Control
+                        with gr.Accordion("💡 3D Lighting Control", open=False, visible=True, elem_id="anglelight_control_accordion", elem_classes=['simpai-mounted-hidden']) as anglelight_control_accordion:
+                            gr.HTML(value=flux_anglelight.get_viewer_html(), elem_id="flux_anglelight_viewer_container")
+
+                            qwen_image_data = gr.Textbox(visible=False, elem_id="qwen_image_data")
+                            qwen_image_data.change(
+                                fn=None,
+                                js="""(val) => {
+                                    const iframe = document.getElementById('qwen_multiangle_iframe');
+                                    if (iframe && iframe.contentWindow) {
+                                        iframe.contentWindow.postMessage({
+                                            type: 'UPDATE_IMAGE',
+                                            imageUrl: val
+                                        }, '*');
+                                    }
+                                    const iframe2 = document.getElementById('flux_anglelight_iframe');
+                                    if (iframe2 && iframe2.contentWindow) {
+                                        iframe2.contentWindow.postMessage({
+                                            type: 'UPDATE_IMAGE',
+                                            imageUrl: val
+                                        }, '*');
+                                    }
+                                }""",
+                                inputs=[qwen_image_data],
+                                outputs=None
+                            )
+
+                        with gr.Accordion("🎞️ SAM3 Video Mask (Double Click to Open Frames Editor)", open=False, visible=True, elem_id="sam3_video_mask_accordion", elem_classes=['simpai-mounted-hidden']) as sam3_video_mask_accordion:
+                            gr.HTML(value=sam3_video_mask.get_viewer_html(), elem_id="sam3_video_mask_html")
+                            sam3_original_video_path = gr.State(None)
+                            with gr.Row():
+                                sam3_input_video = gr.Video(label="Video (Upload)", show_label=True, sources=["upload"], height=300, elem_id="sam3_input_video")
+                                sam3_mask_video = gr.Video(label="Mask Video (Preview / Upload)", show_label=True, sources=["upload"], height=300, elem_id="sam3_output_mask_video")
+                            sam3_mask_upload_file = gr.File(
+                                label="SAM3 Mask Upload Bridge",
+                                file_types=[".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".png", ".jpg", ".jpeg", ".webp", ".bmp"],
+                                type="filepath",
+                                visible="hidden",
+                                elem_id="sam3_mask_upload_file",
+                                elem_classes=["sai-gradio-hidden-bridge"],
+                            )
+                            sam3_trim_payload = gr.Textbox(visible="hidden", elem_id="sam3_trim_payload", elem_classes=["sai-gradio-hidden-bridge"])
+                            with gr.Accordion("💬 SAM3 Prompt Segmentation", open=False, visible=True):
+                                with gr.Column():
+                                    sam3_prompt_text = gr.Textbox(label="Segmentation Prompt", show_label=True, max_lines=1, placeholder="e.g. woman, dress", elem_id="sam3_prompt_text", elem_classes=['danbooru-autocomplete-input'])
+                                    sam3_trigger_translate_btn = gr.Button(visible=False, elem_id="sam3_trigger_translate_btn")
+                                    sam3_trigger_translate_btn.click(fn=sam3_video_mask.translate_prompt_slim, inputs=[sam3_prompt_text], outputs=[sam3_prompt_text], queue=False, show_progress=False)
+                                    with gr.Row():
+                                        sam3_generate_btn = gr.Button("✅ Generate Mask", elem_id="sam3_generate_btn", size="sm")
+                                        sam3_stop_btn = gr.Button("Stop", visible=False, elem_id="sam3_stop_btn", size="sm")
+                            sam3_editor_payload = gr.Textbox(visible="hidden", elem_id="sam3_editor_payload", elem_classes=["sai-gradio-hidden-bridge"])
+                            sam3_points_generate_btn = gr.Button("SAM3 Points Generate", visible="hidden", elem_id="sam3_points_generate_btn", elem_classes=["sai-gradio-hidden-bridge"])
+                            with gr.Accordion("🔧 SAM3 Params", open=False, visible=True):
+                                with gr.Row(elem_id="sam3_params_row_1"):
+                                    sam3_score_threshold_detection = gr.Slider(label="Detection Score Threshold", minimum=0.0, maximum=1.0, step=0.05, value=0.5)
+                                    sam3_new_det_thresh = gr.Slider(label="New Detection Threshold", minimum=0.0, maximum=1.0, step=0.05, value=0.7)
+                                with gr.Row(elem_id="sam3_params_row_2"):
+                                    sam3_fill_hole_area = gr.Slider(label="Fill Hole Area", minimum=0, maximum=512, step=1, value=16)
+                                    sam3_recondition_every_nth_frame = gr.Slider(label="Recondition Every Nth Frame", minimum=1, maximum=128, step=1, value=16)
+                                with gr.Row(elem_id="sam3_params_row_3"):
+                                    sam3_postprocess_strength = gr.Slider(label="Mask Smoothing Strength", minimum=0, maximum=5, step=1, value=0)
+                                    sam3_invert_mask = gr.Checkbox(label="Invert Mask", value=False)
+
+                        with gr.Accordion("🎨 Style Selector", open=False, visible=True, elem_id="style_transfer_accordion", elem_classes=['simpai-mounted-hidden']) as style_transfer_accordion:
+                            gr.HTML(value=transfer_style_gallery.get_viewer_html(), elem_id="transfer_style_gallery_container_scene")
+
+                        with gr.Group(visible=True, elem_id="pose_studio", elem_classes=['simpai-mounted-hidden', 'sai-pose-studio-scene-entry']) as pose_studio:
+                            gr.HTML(
+                                value="""
+<div id="pose_studio_scene_control" class="sai-pose-studio-scene-control" data-pose-studio-scene-open tabindex="0">
+  <button type="button" class="sai-pose-studio-scene-open" data-pose-studio-scene-open title="Open Pose Studio Editor">
+    <i class="fa-solid fa-pen-to-square"></i><span>Pose Studio</span>
+  </button>
+</div>
+""",
+                                elem_id="pose_studio_scene_control_html",
+                            )
+                            pose_studio_scene_payload = gr.Textbox(value="", visible="hidden", elem_id="pose_studio_scene_payload", elem_classes=["sai-gradio-hidden-bridge"])
+                            pose_studio_scene_target = gr.Textbox(value="scene_input_image1", visible="hidden", elem_id="pose_studio_scene_target", elem_classes=["sai-gradio-hidden-bridge"])
+                            pose_studio_scene_state = gr.Textbox(value="", visible="hidden", elem_id="pose_studio_scene_state", elem_classes=["sai-gradio-hidden-bridge"])
+                            pose_studio_scene_apply_btn = gr.Button("Pose Studio Apply", visible="hidden", elem_id="pose_studio_scene_apply_btn", elem_classes=["sai-gradio-hidden-bridge"])
+
+                        with gr.Group(visible=True, elem_id="gaussian_studio", elem_classes=['simpai-mounted-hidden', 'sai-gaussian-studio-scene-entry']) as gaussian_studio:
+                            gr.HTML(
+                                value="""
+<div id="gaussian_studio_scene_control" class="sai-gaussian-studio-scene-control" data-gaussian-studio-scene-open tabindex="0">
+  <button type="button" class="sai-gaussian-studio-scene-open" data-gaussian-studio-scene-open title="Open Gaussian Studio Editor">
+    <i class="fa-solid fa-cube"></i><span>Gaussian Studio</span>
+  </button>
+  <small data-gaussian-studio-scene-status data-sai-gaussian-default-status="1">Input Image 1 reference -> Gaussian Studio -> Canvas output</small>
+</div>
+""",
+                                elem_id="gaussian_studio_scene_control_html",
+                            )
+                            gaussian_studio_scene_payload = gr.Textbox(value="", visible="hidden", elem_id="gaussian_studio_scene_payload", elem_classes=["sai-gradio-hidden-bridge"])
+                            gaussian_studio_scene_target = gr.Textbox(value="scene_canvas_image", visible="hidden", elem_id="gaussian_studio_scene_target", elem_classes=["sai-gradio-hidden-bridge"])
+                            gaussian_studio_scene_state = gr.Textbox(value="", visible="hidden", elem_id="gaussian_studio_scene_state", elem_classes=["sai-gradio-hidden-bridge"])
+                            gaussian_studio_scene_apply_btn = gr.Button("Gaussian Studio Apply", visible="hidden", elem_id="gaussian_studio_scene_apply_btn", elem_classes=["sai-gradio-hidden-bridge"])
+
+                        scene_canvas_image = create_sketch_image(label='Upload and canvas(1)', show_label=True, type='numpy', height=420, width=630, brush_color="#70FF81", image_mode='RGBA', elem_id='scene_canvas')
+                        with gr.Row(elem_id="scene_input_images") as scene_input_images:
+                            scene_input_image1 = gr.Image(label='Upload prompt image(2)', value=None, sources=['upload'], type='numpy', image_mode='RGBA', show_label=True, height=300, buttons=["fullscreen"], elem_id="scene_input_image1")
+                            scene_input_image2 = gr.Image(label='Upload prompt image(3)', value=None, sources=['upload'], type='numpy', image_mode='RGBA', show_label=True, height=300, buttons=["fullscreen"], elem_id="scene_input_image2")
+                            scene_input_image3 = gr.Image(label='Upload prompt image(4)', value=None, sources=['upload'], type='numpy', image_mode='RGBA', show_label=True, height=300, buttons=["fullscreen"], elem_id="scene_input_image3")
+                            scene_input_image4 = gr.Image(label='Upload prompt image(5)', value=None, sources=['upload'], type='numpy', image_mode='RGBA', show_label=True, height=300, buttons=["fullscreen"], elem_id="scene_input_image4")
+                        with gr.Accordion("📦 Batch", open=False, elem_id="scene_batch_accordion") as scene_batch_accordion:
+                            scene_batch_target = gr.Radio(label="Batch Target", choices=[("Upload and canvas(1)", "scene_canvas_image"), ("Upload prompt image(2)", "scene_input_image1"), ("Upload prompt image(3)", "scene_input_image2"), ("Upload prompt image(4)", "scene_input_image3"), ("Upload prompt image(5)", "scene_input_image4")], value="scene_input_image1", elem_id="scene_batch_target")
+                            scene_batch_folder = gr.Textbox(label="Folder(Local Path)", placeholder="e.g. D:\\images\\inputs")
+                            scene_batch_files = gr.File(label="Upload images", file_count="multiple", file_types=[".png", ".jpg", ".jpeg", ".webp", ".bmp"], type="filepath")
+                            scene_batch_status = gr.Textbox(label="Batch status", value="", lines=1, max_lines=1, interactive=False, elem_id="scene_batch_status", elem_classes=["simpleai-status-textbox"])
+                            scene_batch_id = gr.State("")
+                            with gr.Row():
+                                scene_batch_start = gr.Button(value="Batch Start", size="sm", elem_classes=["simpleai-batch-start-button"])
+                                scene_batch_stop = gr.Button(value="Batch Stop", size="sm", elem_classes=["simpleai-batch-stop-button"])
+                        
+                        def update_qwen_image(image):
+                            if image is None:
+                                return None
+                            try:
+                                if isinstance(image, np.ndarray):
+                                    pil_image = Image.fromarray(image)
+                                    max_size = 512
+                                    if pil_image.width > max_size or pil_image.height > max_size:
+                                        pil_image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                                    
+                                    buffered = io.BytesIO()
+                                    pil_image.save(buffered, format="PNG")
+                                    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+                                    return f"data:image/png;base64,{img_str}"
+                            except Exception as e:
+                                print(f"Error converting image for Qwen viewer: {e}")
+                                return None
+                            return None
+
+                        def apply_pose_studio_scene_image(payload, target):
+                            target = str(target or "scene_input_image1").strip()
+                            target = target if target in ("scene_input_image1", "scene_input_image2") else "scene_input_image1"
+                            data = {}
+                            if isinstance(payload, dict):
+                                data = payload
+                            elif isinstance(payload, str) and payload.strip():
+                                try:
+                                    data = json.loads(payload)
+                                except Exception:
+                                    data = {}
+
+                            def normalize_source(value):
+                                text = str(value or "").strip()
+                                if not text:
+                                    return ""
+                                if text.startswith("/file="):
+                                    try:
+                                        from urllib.parse import unquote
+                                        return unquote(text[len("/file="):])
+                                    except Exception:
+                                        return text[len("/file="):]
+                                return text
+
+                            def collect_sources(obj):
+                                if not isinstance(obj, dict):
+                                    return []
+                                sources = []
+                                for key in ("image_data_url", "data_url", "path", "output_path", "original_output_path", "preview_url"):
+                                    if obj.get(key):
+                                        sources.append(normalize_source(obj.get(key)))
+                                for key in ("pose_image", "asset_ref"):
+                                    sources.extend(collect_sources(obj.get(key)))
+                                return sources
+
+                            image_value = None
+                            image_source = ""
+                            for source in collect_sources(data):
+                                image_value = util.normalize_gradio_image_value(source, image_mode="RGBA")
+                                if image_value is not None:
+                                    image_source = source
+                                    break
+
+                            state_payload = {
+                                "ok": image_value is not None,
+                                "slot": target,
+                                "source": image_source,
+                                "pose_image": data.get("pose_image") or data.get("asset_ref") or {},
+                                "pose_data": data.get("pose_data") or {},
+                                "editor_state": data.get("editor_state") or {},
+                                "applied_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                            }
+                            state_json = json.dumps(state_payload, ensure_ascii=False)
+                            if image_value is None:
+                                return skip_component_update(), skip_component_update(), state_json
+                            if target == "scene_input_image1":
+                                return gr_update(value=image_value), skip_component_update(), state_json
+                            return skip_component_update(), gr_update(value=image_value), state_json
+
+                        pose_studio_scene_apply_btn.click(
+                            apply_pose_studio_scene_image,
+                            inputs=[pose_studio_scene_payload, pose_studio_scene_target],
+                            outputs=[scene_input_image1, scene_input_image2, pose_studio_scene_state],
+                            queue=False,
+                            show_progress=False,
+                        ).then(
+                            lambda: None,
+                            js='()=>{try{if(typeof refresh_scene_localization==="function") refresh_scene_localization(); if(typeof refreshResolutionControlSource==="function") refreshResolutionControlSource("scene_input_image1","pose_studio"); else if(typeof syncResolutionControlWidgets==="function") syncResolutionControlWidgets();}catch(e){console.warn("[SimpAI Pose Studio] scene bridge refresh failed", e);}}',
+                            queue=False,
+                            show_progress=False,
+                        )
+
+                        def apply_gaussian_studio_scene_image(payload, target):
+                            target = str(target or "scene_canvas_image").strip()
+                            target = target if target in ("scene_canvas_image", "scene_input_image1", "scene_input_image2") else "scene_canvas_image"
+                            data = {}
+                            if isinstance(payload, dict):
+                                data = payload
+                            elif isinstance(payload, str) and payload.strip():
+                                try:
+                                    data = json.loads(payload)
+                                except Exception:
+                                    data = {}
+
+                            def normalize_source(value):
+                                text = str(value or "").strip()
+                                if not text:
+                                    return ""
+                                if text.startswith("/file="):
+                                    try:
+                                        from urllib.parse import unquote
+                                        return unquote(text[len("/file="):])
+                                    except Exception:
+                                        return text[len("/file="):]
+                                return text
+
+                            def collect_sources(obj):
+                                if not isinstance(obj, dict):
+                                    return []
+                                sources = []
+                                for key in ("image_data_url", "data_url", "path", "output_path", "original_output_path", "preview_url"):
+                                    if obj.get(key):
+                                        sources.append(normalize_source(obj.get(key)))
+                                for key in ("render_asset", "asset_ref", "gaussian_image"):
+                                    sources.extend(collect_sources(obj.get(key)))
+                                return sources
+
+                            image_value = None
+                            image_source = ""
+                            for source in collect_sources(data):
+                                image_value = util.normalize_gradio_image_value(source, image_mode="RGBA")
+                                if image_value is not None:
+                                    image_source = source
+                                    break
+
+                            gaussian_state = data.get("gaussian_state") if isinstance(data.get("gaussian_state"), dict) else {}
+                            state_payload = {
+                                "ok": image_value is not None,
+                                "slot": target,
+                                "source": image_source,
+                                "render_asset": data.get("render_asset") or data.get("asset_ref") or {},
+                                "ply_asset": data.get("ply_asset") or {},
+                                "ply_path": data.get("ply_path") or gaussian_state.get("ply_path") or "",
+                                "reference_asset": data.get("reference_asset") or {},
+                                "reference_signature": data.get("reference_signature") or gaussian_state.get("reference_signature") or "",
+                                "reference_capture_signature": data.get("reference_capture_signature") or gaussian_state.get("reference_capture_signature") or "",
+                                "reference_data_signature": data.get("reference_data_signature") or gaussian_state.get("reference_data_signature") or "",
+                                "camera_state": data.get("camera_state") or gaussian_state.get("camera_state") or {},
+                                "extrinsics": data.get("extrinsics") if data.get("extrinsics") is not None else gaussian_state.get("extrinsics"),
+                                "intrinsics": data.get("intrinsics") if data.get("intrinsics") is not None else gaussian_state.get("intrinsics"),
+                                "params": data.get("params") or gaussian_state.get("params") or {},
+                                "applied_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                            }
+                            state_json = json.dumps(state_payload, ensure_ascii=False)
+                            if image_value is None:
+                                return skip_component_update(), skip_component_update(), skip_component_update(), state_json
+                            if target == "scene_canvas_image":
+                                canvas_value = util.normalize_gradio_sketch_value({"image": image_value}, image_mode="RGBA")
+                                return gr_update(value=canvas_value), skip_component_update(), skip_component_update(), state_json
+                            if target == "scene_input_image1":
+                                return skip_component_update(), gr_update(value=image_value), skip_component_update(), state_json
+                            return skip_component_update(), skip_component_update(), gr_update(value=image_value), state_json
+
+                        gaussian_studio_scene_apply_btn.click(
+                            apply_gaussian_studio_scene_image,
+                            inputs=[gaussian_studio_scene_payload, gaussian_studio_scene_target],
+                            outputs=[scene_canvas_image, scene_input_image1, scene_input_image2, gaussian_studio_scene_state],
+                            queue=False,
+                            show_progress=False,
+                        ).then(
+                            lambda: None,
+                            js='async()=>{try{if(window.SimpAIGaussianStudioEditor?.syncSceneCanvasFromBridge) await window.SimpAIGaussianStudioEditor.syncSceneCanvasFromBridge(); if(typeof refresh_scene_localization==="function") refresh_scene_localization(); if(typeof refreshResolutionControlSource==="function") refreshResolutionControlSource("scene_input_image1","gaussian_studio"); else if(typeof syncResolutionControlWidgets==="function") syncResolutionControlWidgets();}catch(e){console.warn("[SimpAI Gaussian Studio] scene bridge refresh failed", e);}}',
+                            queue=False,
+                            show_progress=False,
+                        )
+
+                        scene_input_image1.change(update_qwen_image, inputs=[scene_input_image1], outputs=[qwen_image_data], queue=False, show_progress=False)
+                        
+                        def on_video_upload(video_path):
+                            if video_path is None:
+                                return None, None, None, "{}"
+                            meta = build_resolution_video_meta(video_path, "scene_video", "scene")
+                            try:
+                                preview_path = util.compress_video(video_path)
+                                gr.Info("Compression completed!")
+                                return preview_path, video_path, "scene", meta
+                            except Exception as e:
+                                gr.Warning(f"Compression failed: {e}")
+                                return video_path, video_path, "scene", meta
+
+                        def on_sam3_video_upload(video_path):
+                            preview_path, original_path, source = sam3_video_mask.on_video_upload_with_preview(video_path)
+                            meta = build_resolution_video_meta(original_path or video_path, "sam3_input_video", "sam3") if video_path is not None else "{}"
+                            return preview_path, original_path, source, meta, ""
+
+                        def on_sam3_mask_upload(mask_path, original_video_path, video_path, trim_payload):
+                            if mask_path is None:
+                                return None
+                            source_path = sam3_video_mask.resolve_sam3_backend_video_path(video_path, original_video_path, trim_payload)
+                            if not source_path or not isinstance(source_path, str) or not os.path.exists(source_path):
+                                gr.Warning("Upload a SAM3 source video first to auto-match mask frames.")
+                                return mask_path
+                            try:
+                                mask_mime = mimetypes.guess_type(str(mask_path))[0] or "video/mp4"
+                                out_dir = sam3_video_mask.sam3_mask_output_dir("ui_uploads")
+                                out_path = sam3_video_mask.normalize_mask_media_to_source_video(
+                                    str(mask_path),
+                                    mask_mime,
+                                    str(source_path),
+                                    out_dir,
+                                    node_id="webui",
+                                )
+                                gr.Info("SAM3 mask matched to source video frames.")
+                                return out_path
+                            except Exception as e:
+                                logger.exception("SAM3 mask upload normalization failed")
+                                gr.Warning(f"SAM3 mask normalization failed: {e}")
+                                return mask_path
+
+                        def sam3_generation_start_updates():
+                            sam3_video_mask.reset_sam3_cancel("webui")
+                            return gr_update(interactive=False), gr_update(visible=True)
+
+                        def sam3_generation_finish_updates():
+                            return gr_update(interactive=True), gr_update(visible=False)
+
+                        def sam3_points_generate_wrapper(*args):
+                            try:
+                                return sam3_video_mask.generate_mask_by_points(*args, unload_callback=unload_models_clicked, cancel_token="webui")
+                            finally:
+                                sam3_video_mask.clear_sam3_cancel("webui")
+
+                        def sam3_prompt_generate_wrapper(*args):
+                            try:
+                                return sam3_video_mask.generate_mask_by_prompt(*args, unload_callback=unload_models_clicked, cancel_token="webui")
+                            finally:
+                                sam3_video_mask.clear_sam3_cancel("webui")
+
+                        scene_video = gr.Video(label="Video (Upload)", visible=True, sources=["upload"], height=400, elem_id="scene_video", elem_classes=['simpai-mounted-hidden'])
+                        scene_video.upload(on_video_upload, inputs=[scene_video], outputs=[scene_video, scene_original_video_path, active_video_source, resolution_source_meta], show_progress=True, queue=False) \
+                            .then(lambda: None, js='()=>{if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_video", "upload");}')
+                        scene_video_placeholder = gr.HTML('<div style="height: 400px; display: flex; align-items: center; justify-content: center; border: 2px dashed #ccc; border-radius: 8px; background: rgba(128,128,128,0.1); color: #888; font-size: 16px;"><span>Hide When Generating...</span></div>', visible=False, elem_id="scene_video_placeholder")
+                        scene_resolution_control = create_scene_resolution_control()
+                        scene_resolution_override_accordion = scene_resolution_control.container
+                        scene_use_resolution_override_checkbox = scene_resolution_control.use_override_checkbox
+                        scene_resolution_override = scene_resolution_control.html
+                        scene_aspect_ratio = scene_resolution_control.selection
+                        scene_audio = gr.Audio(label="Audio (Upload)", visible=True, sources=["upload"], type="filepath", elem_id="scene_audio", elem_classes=['simpai-mounted-hidden'])
+                        scene_audio_placeholder = gr.HTML('<div style="padding: 20px; text-align: center; border: 2px dashed #ccc; border-radius: 8px; background: rgba(128,128,128,0.1); color: #888;">Hide When Generating...</div>', visible=False, elem_id="scene_audio_placeholder")
+                        scene_additional_prompt_2 = gr.Textbox(label="Blessing words", show_label=True, max_lines=1, visible=True, elem_classes=['scene_input_2', 'simpai-mounted-hidden'], elem_id='scene_additional_prompt_2')
+                        
+                        sam3_input_video.upload(on_sam3_video_upload, inputs=[sam3_input_video], outputs=[sam3_input_video, sam3_original_video_path, active_video_source, resolution_source_meta, sam3_trim_payload], show_progress=True) \
+                            .then(lambda: None, js='()=>{if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("sam3_input_video", "upload");}')
+                        sam3_mask_video.upload(on_sam3_mask_upload, inputs=[sam3_mask_video, sam3_original_video_path, sam3_input_video, sam3_trim_payload], outputs=[sam3_mask_video], show_progress=True)
+                        sam3_mask_upload_file.upload(on_sam3_mask_upload, inputs=[sam3_mask_upload_file, sam3_original_video_path, sam3_input_video, sam3_trim_payload], outputs=[sam3_mask_video], show_progress=True)
+                        sam3_points_evt = sam3_points_generate_btn.click(sam3_generation_start_updates, outputs=[sam3_generate_btn, sam3_stop_btn], queue=False, show_progress=False) \
+                            .then(
+                                sam3_points_generate_wrapper,
+                                inputs=[sam3_original_video_path, sam3_input_video, sam3_trim_payload, sam3_editor_payload, sam3_mask_video, sam3_score_threshold_detection, sam3_new_det_thresh, sam3_fill_hole_area, sam3_recondition_every_nth_frame, sam3_postprocess_strength, sam3_invert_mask],
+                                outputs=[sam3_mask_video],
+                                js='(...args)=>{try{return window.sam3PointsGeneratePayload ? window.sam3PointsGeneratePayload(...args) : args;}catch(e){console.warn("[SAM3] points payload handoff failed", e); return args;}}',
+                                show_progress=True,
+                            ) \
+                            .then(sam3_generation_finish_updates, outputs=[sam3_generate_btn, sam3_stop_btn], queue=False, show_progress=False)
+                        sam3_prompt_evt = sam3_generate_btn.click(sam3_generation_start_updates, outputs=[sam3_generate_btn, sam3_stop_btn], queue=False, show_progress=False) \
+                            .then(sam3_prompt_generate_wrapper, inputs=[sam3_original_video_path, sam3_input_video, sam3_trim_payload, sam3_prompt_text, sam3_mask_video, sam3_score_threshold_detection, sam3_new_det_thresh, sam3_fill_hole_area, sam3_recondition_every_nth_frame, sam3_postprocess_strength, sam3_invert_mask], outputs=[sam3_mask_video], show_progress=True) \
+                            .then(sam3_generation_finish_updates, outputs=[sam3_generate_btn, sam3_stop_btn], queue=False, show_progress=False)
+                        sam3_stop_btn.click(sam3_video_mask.stop_webui_sam3_generation, outputs=[sam3_generate_btn, sam3_stop_btn], queue=False, show_progress=False)
+                        with gr.Row(elem_id="scene_duration_row"):
+                            scene_var_number = gr.Slider(label='Duration(s)', minimum=0, maximum=60, step=1, value=0, visible=True, elem_id="scene_var_number", elem_classes=['simpai-mounted-hidden'])
+
+                        with gr.Row(elem_id="scene_image_number_row"):
+                            scene_image_number = gr.Slider(label='Image Number', minimum=1, maximum=5, step=1, value=1, elem_id="scene_image_number")
+
+                        # Compatibility slot for legacy scene outputs; the brush UI is handled by the custom sketch bridge.
+                        scene_mask_color_state = gr.State("#70FF81")
+
+                        initial_use_model_filter = ads.get_user_default("use_model_filter_checkbox", {}, True)
+                        model_filter_state = gr.State(initial_use_model_filter)
+                        model_filter_sync_lock = gr.State(False)
+
+                        with gr.Row(elem_id="scene_seed_row"):
+                            scene_seed_random = gr.Checkbox(label='Random', value=True)
+                            scene_image_seed = gr.Textbox(label='Seed', value=0, max_lines=1, visible=False)
+                        gr.HTML(value="", elem_id="scene_panel_bottom_fill")
+                with gr.Accordion("🔧 Advanced Parameters", open=False, visible=True, elem_id="scene_advanced_parameters_accordion"):
+                    with gr.Column(elem_id="scene_advanced_values_grid", scale=1, min_width=0):
+                        scene_var_number2 = gr.Slider(label='Int Value 2', minimum=0, maximum=60, step=1, value=1, visible=True, elem_id="scene_var_number2", elem_classes=['simpai-mounted-hidden'])
+                        scene_var_number3 = gr.Slider(label='Float Value 1', minimum=0.0, maximum=1.0, step=0.05, value=0.0, visible=True, elem_id="scene_var_number3", elem_classes=['simpai-mounted-hidden'])
+                        scene_var_number4 = gr.Slider(label='Float Value 2', minimum=0.0, maximum=1.0, step=0.05, value=0.0, visible=True, elem_id="scene_var_number4", elem_classes=['simpai-mounted-hidden'])
+                        scene_var_number5 = gr.Slider(label='Float Value 3', minimum=0.0, maximum=1.0, step=0.05, value=0.0, visible=True, elem_id="scene_var_number5", elem_classes=['simpai-mounted-hidden'])
+                        scene_var_number6 = gr.Slider(label='Float Value 4', minimum=0.0, maximum=1.0, step=0.05, value=0.0, visible=True, elem_id="scene_var_number6", elem_classes=['simpai-mounted-hidden'])
+                        scene_steps = gr.Slider(label='Scene Steps', minimum=1, maximum=30, step=1, value=20, visible=True, elem_id="scene_steps", elem_classes=['simpai-mounted-hidden'])
+                        scene_var_number7 = gr.Slider(label='Int Value 3', minimum=0, maximum=60, step=1, value=0, visible=True, scale=1, elem_id="scene_var_number7", elem_classes=['simpai-mounted-hidden'])
+                        scene_var_number8 = gr.Slider(label='Int Value 4', minimum=0, maximum=60, step=1, value=0, visible=True, scale=1, elem_id="scene_var_number8", elem_classes=['simpai-mounted-hidden'])
+                        scene_var_number9 = gr.Slider(label='Int Value 5', minimum=0, maximum=60, step=1, value=0, visible=True, scale=1, elem_id="scene_var_number9", elem_classes=['simpai-mounted-hidden'])
+                        scene_var_number10 = gr.Slider(label='Int Value 6', minimum=0, maximum=60, step=1, value=0, visible=True, scale=1, elem_id="scene_var_number10", elem_classes=['simpai-mounted-hidden'])
+                    with gr.Column(elem_id="scene_advanced_switch_grid", scale=1, min_width=0):
+                        scene_switch_option1 = gr.Checkbox(label='Switch Option 1', value=False, visible=True, elem_id="scene_switch_option1", elem_classes=['simpai-mounted-hidden'])
+                        scene_switch_option2 = gr.Checkbox(label='Switch Option 2', value=False, visible=True, elem_id="scene_switch_option2", elem_classes=['simpai-mounted-hidden'])
+                        scene_switch_option3 = gr.Checkbox(label='Switch Option 3', value=False, visible=True, elem_id="scene_switch_option3", elem_classes=['simpai-mounted-hidden'])
+                        scene_switch_option4 = gr.Checkbox(label='Switch Option 4', value=False, visible=True, elem_id="scene_switch_option4", elem_classes=['simpai-mounted-hidden'])
+                with floating_shell(visible=False, elem_id="identity_dialog", elem_classes=["identity_note"], modal=False) as identity_dialog:
+                    with gr.Tabs(elem_id="identity_dialog_content", elem_classes=["identity_note"]):
+                        with gr.Tab(label='IdentityCard') as bind_id_tab:
+                            with gr.Row(elem_classes=["identity-summary-row"]):
+                                with gr.Column(scale=5, min_width=250, elem_classes=["identity-summary-main"]):
+                                    current_id_info = gr.Markdown(elem_classes='note_info')
+                                with gr.Column(scale=1, min_width=50, elem_classes=["identity-summary-side"]):
+                                    current_upstream_status = gr.Markdown(elem_classes='note_info')
+                                    identity_export_btn = gr.Button(value='Export identity', size='sm', min_width=35, elem_classes='identity_export', visible=False)
+                            identity_note_info = gr.Markdown(elem_classes=['note_info', 'identity_flow_note'], value=simpleai.identity_note)
+                            with gr.Row(visible=True, elem_id="identity_input_row", elem_classes=["identity-bind-grid"]) as input_identity:
+                                with gr.Column(scale=4, min_width=126, elem_classes=["identity-bind-card", "identity-bind-card-qr"]):
+                                    input_qr_title = gr.Markdown(elem_classes='input_note_info', value='<b>Upload QrCode to bind</b>')
+                                    identity_qr = gr.Image(label='Identity QrCode', sources=['upload'], type='numpy', height=126, width=126, elem_id="identity_qr", elem_classes='identity_qr', buttons=["download", "fullscreen"])
+                                with gr.Column(scale=4, min_width=150, elem_classes=["identity-bind-card", "identity-bind-card-manual"]):
+                                    input_id_title = gr.Markdown(elem_classes='input_note_info', value='<b>Input identity to bind</b>')
+                                    identity_nick_input = gr.Textbox(show_label=False, max_lines=1, container=False, placeholder="Type nickname here.", min_width=50, elem_classes='identity_input2')
+                                    with gr.Row(visible=False, elem_id="identity_legacy_contact_row"):
+                                        with gr.Column(scale=2, min_width=20):
+                                            identity_areacode = gr.Dropdown(choices=modules.flags.areacode, value='86-CN-中国', container=False, min_width=20, elem_id='areacode',elem_classes='identity_input3')
+                                        with gr.Column(scale=3, min_width=30):
+                                            identity_tele_input = gr.Textbox(show_label=False, max_lines=1, container=False, placeholder="Type telephone here.", min_width=30, elem_classes='identity_input2')
+                                    identity_bind_button = gr.Button(value='Bind identity', min_width=40, visible=True, elem_id="identity_bind_button")
+                            with gr.Row(visible=False, elem_id="identity_id_display_row", elem_classes=["identity-action-row"]) as input_id_display:
+                                input_id_info = gr.Markdown(elem_id="identity_input_id_info", elem_classes='input_id_info', value='input identity', visible=True)
+                                identity_change_button = gr.Button(value='Change identity', min_width=40, visible=True, elem_id="identity_change_button")
+                            with gr.Row(visible=False, elem_id="identity_vcode_row", elem_classes=["identity-action-row"]) as identity_vcode_row:
+                                identity_vcode_input = gr.Textbox(show_label=False, max_lines=1, container=False, visible=True, placeholder="Type Verification here.", min_width=70, elem_id="identity_vcode_input", elem_classes='identity_input')
+                                identity_verify_button = gr.Button(value='Verify identity', elem_classes='identity_button', visible=True, elem_id="identity_verify_button")
+                            with gr.Row(visible=False, elem_id="identity_phrase_row", elem_classes=["identity-action-row"]) as identity_phrase_row:
+                                identity_phrase_input = gr.Textbox(show_label=False, type='password', visible=True, container=False, placeholder="Type ID phrases here.", min_width=150, elem_id="identity_phrase_input", elem_classes='identity_input')
+                                identity_phrases_set_button = gr.Button(value='Setting ID phrases', elem_classes='identity_button', visible=True, elem_id="identity_phrases_set_button")
+                                identity_phrases_confirm_button = gr.Button(value='Confirm ID phrases', elem_classes='identity_button', visible=True, elem_id="identity_phrases_confirm_button")
+                                identity_confirm_button = gr.Button(value='Confirm identity', elem_classes='identity_button', visible=True, elem_id="identity_confirm_button")
+                                identity_unbind_button = gr.Button(value='Unbind identity', min_width=35, elem_classes='identity_button', visible=True, elem_id="identity_unbind_button")
+                            identity_stage_state = gr.Textbox(value="input", visible="hidden", elem_id="identity_stage_state", elem_classes=["sai-gradio-hidden-bridge"])
+                
+                    identity_input = [identity_nick_input, identity_areacode, identity_tele_input, identity_qr]
+                    identity_input_info = [input_id_info, state_topbar]
+                    identity_ctrls = [identity_note_info, input_identity, input_id_display, identity_vcode_input, identity_verify_button, identity_phrase_input, identity_phrases_set_button, identity_phrases_confirm_button, identity_confirm_button, identity_unbind_button]
+                    identity_flow_rows = [identity_vcode_row, identity_phrase_row]
+
+                    def _identity_stage_from_base(base):
+                        def is_visible(index):
+                            return len(base) > index and isinstance(base[index], dict) and base[index].get("visible") is True
+                        if is_visible(3) or is_visible(4):
+                            return "vcode"
+                        if is_visible(5):
+                            if is_visible(8):
+                                return "confirm"
+                            if is_visible(9):
+                                return "unbind"
+                            if is_visible(7):
+                                return "phrase_confirm"
+                            if is_visible(6):
+                                return "phrase_set"
+                            return "phrase"
+                        return "input" if is_visible(1) else "summary"
+
+                    def _identity_flow_row_updates(result):
+                        base = list(result)
+                        stage = _identity_stage_from_base(base)
+                        vcode_visible = any(isinstance(item, dict) and item.get("visible") is True for item in base[3:5])
+                        phrase_visible = any(isinstance(item, dict) and item.get("visible") is True for item in base[5:10])
+                        util.log_ui_trace(
+                            logger,
+                            "[UI-TRACE] identity.webui_flow_rows | stage=%s, base_len=%s, vcode_visible=%s, phrase_visible=%s, "
+                            "ctrl3=%s, ctrl4=%s, ctrl5=%s, ctrl8=%s, tail_len=%s",
+                            stage,
+                            len(base),
+                            vcode_visible,
+                            phrase_visible,
+                            base[3] if len(base) > 3 else None,
+                            base[4] if len(base) > 4 else None,
+                            base[5] if len(base) > 5 else None,
+                            base[8] if len(base) > 8 else None,
+                            max(0, len(base) - 10),
+                        )
+                        return [stage, gr_update(visible=vcode_visible), gr_update(visible=phrase_visible)] + base[:10] + base[10:]
+
+                    def change_identity_flow():
+                        base = list(simpleai.change_identity())
+                        util.log_ui_trace(logger, "[UI-TRACE] identity.change_flow | stage=input, base_len=%s", len(base))
+                        return ["input"] + base[:10] + base[10:]
+
+                    def bind_identity_flow(nick, areacode, tele):
+                        return _identity_flow_row_updates(simpleai.bind_identity(nick, areacode, tele))
+
+                    def verify_identity_flow(input_id_info, state, vcode):
+                        return _identity_flow_row_updates(simpleai.verify_identity(input_id_info, state, vcode))
+
+                    def set_phrases_flow(input_id_info, state, phrase, steps):
+                        return _identity_flow_row_updates(simpleai.set_phrases(input_id_info, state, phrase, steps))
+
+                    def trigger_input_identity_flow(img):
+                        return _identity_flow_row_updates(simpleai.trigger_input_identity(img))
+
+                    identity_bind_button.click(bind_identity_flow, inputs=[identity_nick_input, identity_areacode, identity_tele_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [input_id_info], show_progress=False)
+                    identity_change_button.click(change_identity_flow,  outputs=[identity_stage_state] + identity_ctrls + identity_input, show_progress=False)
+                    identity_verify_button.click(verify_identity_flow, inputs=identity_input_info + [identity_vcode_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls, show_progress=False)
+                    identity_phrases_set_button.click(lambda a, b, c: set_phrases_flow(a,b,c,'set'), inputs=identity_input_info + [identity_phrase_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [current_id_info], show_progress=False)
+                    identity_qr.upload(trigger_input_identity_flow, inputs=identity_qr, outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [input_id_info], show_progress=False, queue=False)
+                
+                nav_bars = topbar_layout.nav_bars
+                bind_topbar_store_events(
+                    layout_refs=topbar_layout,
+                    topbar_module=topbar,
+                    state_topbar=state_topbar,
+                    system_params=system_params,
+                    identity_dialog=identity_dialog,
+                    current_id_info=current_id_info,
+                    current_upstream_status=current_upstream_status,
+                    identity_export_btn=identity_export_btn,
+                    identity_ctrls=identity_ctrls,
+                    identity_input=identity_input,
+                )
+                
+            def render_selected_styles_html(selected_styles):
+                selected_styles = selected_styles or []
+                chips = []
+                for style_name in selected_styles:
+                    style_data = modules.sdxl_styles.get_style_config(style_name)
+                    style_data_json = json.dumps(style_data, ensure_ascii=False).replace('"', '&quot;')
+                    safe_style_name = html.escape(style_name, quote=True)
+                    chips.append(
+                        f'<button type="button" class="selected-style-chip style-tooltip-target" '
+                        f'data-style-name="{safe_style_name}" data-style-data="{style_data_json}">{safe_style_name}</button>'
+                    )
+
+                if len(chips) == 0:
+                    return '<div class="selected-style-summary is-empty"></div>'
+
+                return f'<div class="selected-style-summary">{"".join(chips)}</div>'
+
+            with gr.Group():
+                with gr.Row(elem_id="prompt_action_row"):
+                    with gr.Column(scale=12, elem_id="prompt_text_column"):
+                        with gr.Group(elem_classes="prompt-container"):
+                            prompt = gr.Textbox(
+                                show_label=False, placeholder="Type prompt here or paste parameters.",
+                                elem_id="positive_prompt", elem_classes=['danbooru-autocomplete-input'], container=False, autofocus=False, lines=4
+                            )
+                            clear_prompt_btn = gr.Button(value="x", elem_classes=["clear-prompt-btn"], visible=True)
+                            tag_helper_btn = gr.HTML(
+                                '<span class="tag-helper-inline"><i class="fa-solid fa-tags"></i><span>Tags</span></span>',
+                                elem_classes=["tagHelper"],
+                                elem_id="tag_helper_btn"
+                            )
+                            selected_styles_preview = gr.HTML(
+                                value=render_selected_styles_html(copy.deepcopy(modules.config.default_styles)),
+                                elem_id="selected_styles_preview",
+                                elem_classes=["selected-styles-preview"]
+                            )
+
+                        clear_prompt_btn.click(fn=lambda: "", outputs=prompt, queue=False, show_progress=False)
+                        default_prompt = modules.config.default_prompt
+                        if isinstance(default_prompt, str) and default_prompt != '':
+                            shared.gradio_root.load(lambda: default_prompt, outputs=prompt)
+
+                    with gr.Column(scale=2, min_width=124, elem_id="prompt_aux_column") as prompt_internal_panel:
+                        random_button = gr.Button(value="RandomPrompt", elem_id="random_prompt_button", elem_classes='type_row_half', size="sm", min_width = 124)
+                        super_prompter = gr.Button(value="SuperPrompt", interactive=False, elem_id="super_prompter_button", elem_classes='type_row_half', size="sm", min_width = 124)
+                    with gr.Column(scale=2, min_width=112, elem_id="prompt_submit_column"):
+                        generate_button = gr.Button(value="Generate", elem_classes='type_row', elem_id='generate_button', visible=True, min_width = 112)
+                        load_parameter_button = gr.Button(value="Load Parameters", elem_classes='type_row', elem_id='load_parameter_button', visible=False, min_width = 112)
+                        skip_button = gr.Button(value="Skip", elem_classes='type_row_half', elem_id='skip_button', visible=False, min_width = 112)
+                        stop_button = gr.Button(value="Stop", elem_classes='type_row_half', elem_id='stop_button', visible=False, min_width = 112)
+
+                        def stop_clicked(currentTask):
+                            currentTask.last_stop = 'stop'
+                            if (currentTask.processing):
+                                worker.worker.interrupt_processing()
+                            return currentTask
+
+                        def skip_clicked(currentTask):
+                            currentTask.last_stop = 'skip'
+                            if (currentTask.processing):
+                                worker.worker.interrupt_processing()
+                            return currentTask
+
+                        stop_button.click(stop_clicked, inputs=currentTask, outputs=currentTask, queue=False, show_progress=False, js='cancelGenerateForever')
+                        skip_button.click(skip_clicked, inputs=currentTask, outputs=currentTask, queue=False, show_progress=False)
+
+                with gr.Accordion(label='Parallel Translation', visible=True, open=False, elem_id='translation_preview_accordion', elem_classes='translation_preview_accordion') as translation_preview:
+                    translated_prompt = gr.HTML(value="", elem_classes='translation-preview')
+                    translation_preview_open = gr.Checkbox(value=False, elem_id="translation_preview_open", visible="hidden", container=False, elem_classes=["sai-gradio-hidden-bridge"])
+                    def translate_prompt(text):
+                        from modules.util import is_chinese
+                        try:
+                            if not text.strip():
+                                return ""
+                            translation_method = ads.get_admin_default('translation_methods')
+                            is_generating = check_generating_state()
+                            if not is_generating and translation_method == 'Big Model' and VLM.get_enable():
+                                if is_chinese(text):
+                                    return vlm.translate(text)
+                                else:
+                                    return vlm.translate_cn(text)
+                            if is_generating :
+                                logger.info("Translation disable VLM while generating.")
+                            return translator.toggle(text, translation_method)
+                        except Exception as e:
+                            return f"Translation error：{str(e)}"
+
+                    def handle_translation_preview_open(current_prompt, is_open):
+                        if is_open:
+                            return translate_prompt(current_prompt)
+                        return skip_component_update()
+                    trigger_translation_btn = gr.Button("Trigger translation preview", visible="hidden", elem_id="trigger_translation_btn", elem_classes=["sai-gradio-hidden-bridge"])
+                    trigger_translation_btn.click(fn=handle_translation_preview_open, inputs=[prompt, translation_preview_open], outputs=[translated_prompt], queue=False, show_progress=False)
+
+                state_prompt_history = gr.State([])
+                with gr.Accordion(label='Prompt History', visible=True, open=True, elem_id='prompt_history', elem_classes=['simpai-mounted-hidden']) as prompt_history:
+                    history_prompts = gr.Dataset(components=[prompt],label='Click to reuse:',samples=[[p] for p in state_prompt_history.value[-5:]],type='index')
+                history_prompts.click(lambda x, y: y[x] if 0 <= x < len(y) else "",
+                                      inputs=[history_prompts, state_prompt_history],
+                                      outputs=prompt,show_progress=False,queue=False)
+
+                with gr.Accordion(label='Wildcards & Batch Prompts', visible=True, open=True, elem_id='prompt_wildcards', elem_classes=['simpai-mounted-hidden']) as prompt_wildcards:
+                    with gr.Accordion(label="🎯 Wildcards Helper", visible=True, open=False):
+                        wildcard_names = [x[0] for x in wildcards.get_wildcards_samples(trans=False)]
+                        with gr.Row():
+                            with gr.Column(scale=1, min_width=220):
+                                wc_target = gr.Dropdown(label="Target",value="Array (batch)",choices=["Array (batch)", "Single in prompt"])
+                            with gr.Column(scale=1, min_width=220):
+                                wc_method = gr.Dropdown(label="Method",value="Random Select",choices=["Random Select", "In order"], elem_id="wc_method")
+                            with gr.Column(scale=1, min_width=220):
+                                wc_seed_mode = gr.Dropdown(label="Seed mode",value="Fixed seed",choices=["Fixed seed", "Random seed"])
+                        with gr.Row():
+                            with gr.Column(scale=1, min_width=220):
+                                wc_name = gr.Dropdown(label="Wildcard",value=wildcard_names[0] if len(wildcard_names) > 0 else None,choices=wildcard_names, elem_id="wc_name")
+                            with gr.Column(scale=1, min_width=220):
+                                wc_count = gr.Number(label="Count", value=1, precision=0, minimum=1, step=1)
+                            with gr.Column(scale=1, min_width=220):
+                                wc_start = gr.Number(label="Start index", value=1, precision=0, minimum=1, step=1, visible=True, elem_id="wc_start", elem_classes=["simpai-mounted-hidden"])
+                                wc_group_size = gr.Number(label="Group size", value=1, precision=0, minimum=1, step=1, visible=True, elem_id="wc_group_size")
+                        wc_preview = gr.HTML(value="")
+                        with gr.Row():
+                            with gr.Column(scale=5, min_width=220):
+                                wc_insert_btn = gr.Button(value="Append to prompt")
+                            with gr.Column(scale=5, min_width=220):
+                                wc_manage_personal_btn = gr.Button(value="Wildcards Editor")
+
+                        wc_target.change(wildcards.update_wildcards_helper_controls, inputs=[wc_target, wc_method, wc_seed_mode, wc_name, wc_count, wc_start, wc_group_size], outputs=[wc_start, wc_group_size], show_progress=False, queue=False)
+                        wc_method.change(wildcards.update_wildcards_helper_controls, inputs=[wc_target, wc_method, wc_seed_mode, wc_name, wc_count, wc_start, wc_group_size], outputs=[wc_start, wc_group_size], show_progress=False, queue=False)
+
+                        for c in [wc_target, wc_method, wc_seed_mode, wc_name, wc_count, wc_start, wc_group_size]:
+                            c.change(wildcards.update_wildcards_helper_preview, inputs=[wc_target, wc_method, wc_seed_mode, wc_name, wc_count, wc_start, wc_group_size], outputs=[wc_preview], show_progress=False, queue=False)
+
+                        wc_insert_btn.click(
+                            wildcards.append_wildcards_helper_tag_to_prompt,
+                            inputs=[prompt, wc_target, wc_method, wc_seed_mode, wc_name, wc_count, wc_start, wc_group_size],
+                            outputs=[prompt],
+                            show_progress=False,
+                            queue=False
+                        )
+                    wildcards_list = gr.Dataset(components=[prompt], type='index', label='Wildcards examples: [__color__:L3:4] = 3 items in order starting from the 4th. [__color__:3] = 3 random candidates (3 images). __color__ = 1 random per image.', samples=wildcards.get_wildcards_samples(), visible=True, samples_per_page=28, elem_id='wildcards_list')
+                    with gr.Accordion(label='Words/phrases of wildcard', visible=True, open=False, elem_id='words_in_wildcard') as words_in_wildcard:
+                        wildcard_tag_name_selection = gr.Dataset(components=[prompt], label='Words:', samples=wildcards.get_words_of_wildcard_samples(), visible=True, samples_per_page=30, type='index', elem_id='wildcard_tag_name_selection')
+                    wildcards_list.click(wildcards.add_wildcards_and_array_to_prompt, inputs=[wildcards_list, prompt, state_topbar], outputs=[prompt, wildcard_tag_name_selection, words_in_wildcard], show_progress=False, queue=False)
+                    wildcard_tag_name_selection.click(wildcards.add_word_to_prompt, inputs=[wildcards_list, wildcard_tag_name_selection, prompt, state_topbar], outputs=prompt, show_progress=False, queue=False)
+                    wildcards_array = [prompt_wildcards, words_in_wildcard, wildcards_list, wildcard_tag_name_selection, wc_name]
+
+                    def wildcards_array_show(state_params):
+                        user_did = state_params["user"].get_did() if isinstance(state_params, dict) and "user" in state_params and state_params["user"] is not None else None
+                        wildcard_in = state_params.get("wildcard_in_wildcards", "root") if isinstance(state_params, dict) else "root"
+                        lang = state_params.get("__lang", args_manager.args.language) if isinstance(state_params, dict) else args_manager.args.language
+                        names = [x[0] for x in wildcards.get_wildcards_samples(trans=False, user_did=user_did)]
+                        name_value = names[0] if len(names) > 0 else ""
+                        return (
+                            [skip_component_update(), skip_component_update()]
+                            + [
+                                dataset_update(samples=wildcards.get_wildcards_samples(user_did=user_did, lang=lang)),
+                                dataset_update(samples=wildcards.get_words_of_wildcard_samples(wildcard_in, user_did=user_did, lang=lang)),
+                                dropdown_update(choices=names, value=name_value),
+                            ]
+                        )
+
+                    def wildcards_array_hidden():
+                        return (
+                            [skip_component_update(), skip_component_update()]
+                            + [
+                                dataset_update(samples=[]),
+                                dataset_update(samples=[]),
+                                skip_component_update(),
+                            ]
+                        )
+
+                    wildcards_array_hold = [skip_component_update() for _ in range(5)]
+
+                    user_personal_wildcards_modal = floating_shell(visible=False, elem_id="user_personal_wildcards_modal", elem_classes=["user-wildcards-modal"])
+                    with user_personal_wildcards_modal:
+                        user_personal_wildcards_modal_content = floating_card(elem_id="user_personal_wildcards_modal_content", scale=1, min_width=800)
+                        with user_personal_wildcards_modal_content:
+                            user_personal_wildcards_title = gr.Markdown("### Personal Wildcards", elem_id="user_personal_wildcards_modal_handle")
+                            user_personal_wildcards_status = gr.Markdown("")
+                            with gr.Row():
+                                user_personal_wildcards_select = gr.Dropdown(label="File", choices=[], value=None, scale=5)
+                                user_personal_wildcards_refresh_btn = gr.Button(value="🔄 Refresh", size="sm", min_width=60, scale=1)
+                                user_personal_wildcards_close_btn = gr.Button(value="❌ Close", size="sm", min_width=60, scale=1)
+                            with gr.Row():
+                                user_personal_wildcards_name = gr.Textbox(label="Name", placeholder="e.g. my_style (saved as .txt)", lines=1)
+                            with gr.Row():
+                                user_personal_wildcards_content = gr.Textbox(label="Content (one per line)", lines=12, elem_id="user_personal_wildcards_content", elem_classes=["line-overlay-textbox"])
+                            with gr.Row():
+                                user_personal_wildcards_save_btn = gr.Button(value="💾 Save", interactive=False)
+                                user_personal_wildcards_delete_btn = gr.Button(value="🗑️ Delete", variant="secondary", interactive=False)
+                            with gr.Accordion(label="📦 Upload .txt", open=False):
+                                user_personal_wildcards_upload_file = gr.File(label="Choose a .txt file", file_types=[".txt"], type="filepath")
+                                user_personal_wildcards_upload_name = gr.Textbox(label="Save as (optional)", placeholder="Leave blank to use original filename", lines=1)
+                                user_personal_wildcards_upload_btn = gr.Button(value="Upload/Overwrite")
+
+                    wc_manage_personal_btn_outputs = [user_personal_wildcards_modal, user_personal_wildcards_select, user_personal_wildcards_name, user_personal_wildcards_content, user_personal_wildcards_status, user_personal_wildcards_save_btn, user_personal_wildcards_delete_btn]
+                    def _deny_personal_wildcards_open(msg=None):
+                        if msg:
+                            try:
+                                gr.Info(msg)
+                            except Exception:
+                                pass
+                        return (gr_update(visible=False),) + tuple(skip_component_update() for _ in range(6))
+
+                    def _open_personal_wildcards_guard(state_params):
+                        try:
+                            user = state_params.get("user", None) if isinstance(state_params, dict) else None
+                            user_did = user.get_did() if user is not None and hasattr(user, "get_did") else None
+                            if not user_has_full_local_access(user_did):
+                                lang = state_params.get("__lang", "cn") if isinstance(state_params, dict) else "cn"
+                                msg = "Please verify identity first." if not is_local_mode() else "Local mode personal wildcards are unavailable."
+                                return _deny_personal_wildcards_open(msg)
+                        except Exception:
+                            return _deny_personal_wildcards_open()
+                        return wildcards.personal_wildcards_open(state_params)
+
+                    wc_manage_personal_btn.click(fn=_open_personal_wildcards_guard, inputs=[state_topbar], outputs=wc_manage_personal_btn_outputs, show_progress=False, queue=True)
+                    user_personal_wildcards_close_btn.click(fn=wildcards.personal_wildcards_close, outputs=[user_personal_wildcards_modal], show_progress=False, queue=False)
+                    user_personal_wildcards_refresh_btn.click(fn=wildcards.personal_wildcards_refresh, inputs=[state_topbar, user_personal_wildcards_select], outputs=[user_personal_wildcards_select, user_personal_wildcards_name, user_personal_wildcards_content, user_personal_wildcards_status, user_personal_wildcards_save_btn, user_personal_wildcards_delete_btn], show_progress=False, queue=False)
+                    user_personal_wildcards_select.change(fn=wildcards.personal_wildcards_load, inputs=[state_topbar, user_personal_wildcards_select], outputs=[user_personal_wildcards_name, user_personal_wildcards_content, user_personal_wildcards_status, user_personal_wildcards_save_btn, user_personal_wildcards_delete_btn], show_progress=False, queue=False)
+                    user_personal_wildcards_name.change(fn=wildcards.personal_wildcards_update_actions, inputs=[user_personal_wildcards_name], outputs=[user_personal_wildcards_save_btn, user_personal_wildcards_delete_btn], show_progress=False, queue=False)
+                    user_personal_wildcards_save_btn.click(fn=wildcards.personal_wildcards_save, inputs=[state_topbar, user_personal_wildcards_name, user_personal_wildcards_content], outputs=[user_personal_wildcards_status, user_personal_wildcards_select, user_personal_wildcards_name, user_personal_wildcards_content, user_personal_wildcards_save_btn, user_personal_wildcards_delete_btn, wildcards_list, wc_name, wildcard_tag_name_selection], show_progress=False, queue=False)
+                    user_personal_wildcards_delete_btn.click(fn=wildcards.personal_wildcards_delete, inputs=[state_topbar, user_personal_wildcards_name], outputs=[user_personal_wildcards_status, user_personal_wildcards_select, user_personal_wildcards_name, user_personal_wildcards_content, user_personal_wildcards_save_btn, user_personal_wildcards_delete_btn, wildcards_list, wc_name, wildcard_tag_name_selection], show_progress=False, queue=False)
+                    user_personal_wildcards_upload_btn.click(fn=wildcards.personal_wildcards_upload, inputs=[state_topbar, user_personal_wildcards_upload_file, user_personal_wildcards_upload_name], outputs=[user_personal_wildcards_select, user_personal_wildcards_name, user_personal_wildcards_content, user_personal_wildcards_status, user_personal_wildcards_save_btn, user_personal_wildcards_delete_btn, wildcards_list, wc_name, wildcard_tag_name_selection], show_progress=False, queue=False)
+            
+            with gr.Row(elem_classes='advanced_check_row'):
+                input_image_checkbox = gr.Checkbox(label='Input Image', value=modules.config.default_image_prompt_checkbox, container=False, elem_classes=['min_check', 'topbar_toggle_check'], elem_id='input_image_checkbox')
+                prompt_panel_checkbox = gr.Checkbox(label='Prompt Panel', value=False, container=False, elem_classes=['min_check', 'topbar_toggle_check'], elem_id='prompt_panel_checkbox')
+                qwen_tts_checkbox = gr.Checkbox(label='TTS Audio', value=False, container=False, elem_classes=['min_check', 'topbar_toggle_check'], elem_id='qwen_tts_checkbox')
+                advanced_checkbox = gr.Checkbox(label='Advanced+', value=modules.config.default_advanced_checkbox, container=False, elem_classes=['min_check', 'topbar_toggle_check'], elem_id='advanced_checkbox')
+                ui_ready_state = gr.State(False)
+            
+            engine_class_display = gr.HTML(visible=True, value="Z-image", elem_classes=["engineClass"], elem_id='engine_class')
+            with gr.Row(visible=True, elem_id="tts_panel", elem_classes=['simpai-mounted-hidden']) as tts_panel:
+                with gr.Column():
+                    qwen_send_target_options = {
+                        "Voice Clone / Reference Audio": "qwen_clone_ref_audio",
+                        "Dialogue / Role 1 Reference Audio": "qwen_role_1_audio",
+                        "Dialogue / Role 2 Reference Audio": "qwen_role_2_audio",
+                        "Dialogue / Role 3 Reference Audio": "qwen_role_3_audio",
+                        "Dialogue / Role 4 Reference Audio": "qwen_role_4_audio",
+                        "Scene / Audio (Upload)": "scene_audio",
+                    }
+                    qwen_send_target_choices = list(qwen_send_target_options.keys())
+                    with gr.Tabs(elem_id="setting_inner_tabs"):
+                        with gr.Tab("Voice Design"):
+                            qwen_design_text = gr.Textbox(label="Text to Speech", lines=3, placeholder="Enter text here...[pause=800ms] or [pause=0.8s] can add pause between sentences.", elem_id="qwen_design_text")
+                            qwen_tts_style_presets = {
+                                "Catgirl (Neko)": "Cute catgirl voice: high-pitched, bright and sweet, youthful and playful. Add occasional short interjections like 'nya', 'meow', 'na', 'ne', 'ya' (not every sentence). Expressive with subtle emotional shifts: shy -> softer, breathy, slightly shaky; tsundere -> quick pitch rise and a small 'hmph'; teary -> light sob or choked tone. Optionally add close-mic ASMR details (soft breathing, whispery delivery) while keeping articulation clear.",
+                                "Warm Female": "Female, mid-20s, warm and friendly, medium pace, clear articulation, slight smile in voice, natural breath and gentle intonation.",
+                                "News Anchor": "Male, 30s, calm professional news anchor, steady rhythm, neutral emotion, crisp consonants, confident delivery, minimal pitch fluctuation.",
+                                "Energetic Teen": "Young energetic teen, bright tone, fast pace, playful rising intonation, light laughter between phrases, vivid emphasis on keywords.",
+                                "Elderly Hoarse": "Elderly male, ~70, slightly hoarse and breathy, slow pace, reflective mood, soft volume, longer pauses, subtle trembling on sustained vowels.",
+                                "Audiobook Narrator": "Audiobook narrator, 40s, cinematic and immersive, controlled dynamics, clear phrasing, dramatic pauses, rich low-mid register, smooth resonance.",
+                            }
+                            def _qwen_get_user_did_from_state(state_params):
+                                try:
+                                    if isinstance(state_params, dict):
+                                        user = state_params.get("user", None)
+                                        if user is not None and hasattr(user, "get_did"):
+                                            return user.get_did()
+                                except Exception:
+                                    pass
+                                try:
+                                    return shared.token.get_guest_did()
+                                except Exception:
+                                    return None
+
+                            def _qwen_safe_preset_name(name):
+                                s = "" if name is None else str(name).strip()
+                                s = re.sub(r"[\\/:*?\"<>|\r\n\t]", "_", s)
+                                s = s.strip(" .")
+                                return s[:80]
+
+                            def _qwen_character_presets_dir(user_did):
+                                try:
+                                    base = shared.token.get_path_in_user_dir(user_did or shared.token.get_guest_did(), "presets")
+                                    path = os.path.join(base, "characters")
+                                    os.makedirs(path, exist_ok=True)
+                                    return path
+                                except Exception:
+                                    return None
+
+                            def _qwen_load_user_character_presets(user_did):
+                                presets = {}
+                                preset_dir = _qwen_character_presets_dir(user_did)
+                                if not preset_dir or not os.path.isdir(preset_dir):
+                                    return presets
+                                try:
+                                    for file_name in os.listdir(preset_dir):
+                                        if not file_name.lower().endswith(".json"):
+                                            continue
+                                        full_path = os.path.join(preset_dir, file_name)
+                                        if not os.path.isfile(full_path):
+                                            continue
+                                        try:
+                                            with open(full_path, "r", encoding="utf-8") as f:
+                                                payload = json.load(f)
+                                        except Exception:
+                                            continue
+                                        key = os.path.splitext(file_name)[0]
+                                        text = ""
+                                        if isinstance(payload, dict):
+                                            key = payload.get("name", key)
+                                            text = payload.get("instruction", "")
+                                        elif isinstance(payload, str):
+                                            text = payload
+                                        key = "" if key is None else str(key).strip()
+                                        text = "" if text is None else str(text).strip()
+                                        if key and text:
+                                            presets[key] = text
+                                except Exception:
+                                    pass
+                                return presets
+
+                            def _qwen_get_style_preset_choices(state_params):
+                                base_keys = list(qwen_tts_style_presets.keys())
+                                user_did = _qwen_get_user_did_from_state(state_params)
+                                user_presets = _qwen_load_user_character_presets(user_did)
+                                extra = [k for k in sorted(user_presets.keys()) if k not in base_keys]
+                                return base_keys + extra
+
+                            def _qwen_refresh_style_preset_dropdowns(state_params, design_value=None, custom_value=None):
+                                choices = _qwen_get_style_preset_choices(state_params)
+                                dv = None if design_value not in choices else design_value
+                                cv = None if custom_value not in choices else custom_value
+                                return dropdown_update(choices=choices, value=dv), dropdown_update(choices=choices, value=cv)
+                            with gr.Row():
+                                with gr.Column(scale=4):
+                                    qwen_design_instruct = gr.Textbox(label="Style Instruction", lines=4, placeholder="e.g. A cheerful young woman...", elem_id="qwen_design_instruct")
+                                with gr.Column(scale=1):
+                                    qwen_design_expand_btn = gr.Button(value="Style Expand", elem_classes=["type_row_half", "qwen_tts_stack_item"], size="sm", min_width=70, visible=VLM.get_enable())
+                                    qwen_design_style_preset_choices = gr.Dropdown(label="Character Presets", choices=_qwen_get_style_preset_choices(None), value=None, show_label=True, elem_classes="qwen_tts_stack_item")
+                            with gr.Row():
+                                with gr.Column(scale=4):
+                                    qwen_design_style_preset_name = gr.Textbox(label="Character Name", lines=1, placeholder="Character Name for Your Role/Style", elem_id="qwen_design_style_preset_name")
+                                with gr.Column(scale=1, elem_classes="qwen_tts_preset_stack"):
+                                    qwen_design_style_preset_save_btn = gr.Button(value="Save Character", elem_classes=["type_row_half", "qwen_tts_stack_item"], size="sm", min_width=70)
+                                    qwen_design_style_preset_delete_btn = gr.Button(value="Delete Character", elem_classes=["type_row_half", "qwen_tts_stack_item"], size="sm", min_width=70)
+                            with gr.Row():
+                                qwen_design_lock_timbre = gr.Checkbox(label="Lock Timbre (clone from first segment)", value=True)
+                                qwen_design_clone_batch_size = gr.Slider(label="Batch size", minimum=1, maximum=16, step=1, value=16)
+                            with gr.Row():
+                                qwen_design_btn = gr.Button("Generate Audio", elem_classes="type_row_half")
+                                qwen_design_stop_btn = gr.Button("Stop", elem_classes="type_row_half", min_width=70, visible=False)
+                            with gr.Row():
+                                with gr.Column(scale=5):
+                                    qwen_design_output = gr.Audio(label="Output Audio", interactive=False)
+                                with gr.Column(scale=2):
+                                    qwen_design_send_target = gr.Dropdown(label="Send To", choices=qwen_send_target_choices, value=None)
+                                    qwen_design_send_btn = gr.Button("Send", size="sm")
+                            qwen_design_info = gr.Markdown(value="")
+                        
+                        with gr.Tab("Voice Clone"):
+                            qwen_clone_ref_audio = gr.Audio(label="Reference Audio", sources=["upload"], type="numpy")
+                            qwen_clone_ref_text = gr.Textbox(label="Reference Audio Text", lines=3, placeholder="Recommended: the spoken content in reference audio", elem_id="qwen_clone_ref_text")
+                            qwen_clone_target_text = gr.Textbox(label="Target Text to Speech", lines=3, placeholder="Enter text here...[pause=800ms] or [pause=0.8s] can add pause between sentences.", elem_id="qwen_clone_target_text")
+                            qwen_clone_batch_size = gr.Slider(label="Batch size", minimum=1, maximum=16, step=1, value=16)
+                            with gr.Row():
+                                qwen_clone_btn = gr.Button("Clone & Generate", elem_classes="type_row_half")
+                                qwen_clone_stop_btn = gr.Button("Stop", elem_classes="type_row_half", min_width=70, visible=False)
+                            with gr.Row():
+                                with gr.Column(scale=5):
+                                    qwen_clone_output = gr.Audio(label="Output Audio", interactive=False)
+                                with gr.Column(scale=2):
+                                    qwen_clone_send_target = gr.Dropdown(label="Send To", choices=qwen_send_target_choices, value=None)
+                                    qwen_clone_send_btn = gr.Button("Send", size="sm")
+                            qwen_clone_info = gr.Markdown(value="")
+
+                        with gr.Tab("Custom Voice"):
+                            qwen_custom_text = gr.Textbox(label="Text to Speech", lines=5, placeholder="Enter text here...[pause=800ms] or [pause=0.8s] can add pause between sentences.", elem_id="qwen_custom_text")
+                            _qwen_speaker_notes = {"Serena": ("苏瑶", "中文", "其实我真的有发现，我是一个特别善于观察别人情绪的人。"), "Uncle_fu": ("福伯", "中文", "叶师傅，切他的中路"), "Vivian": ("十三", "中文", "这事情看上去很复杂，其实一点都不简单。"), "Aiden": ("艾登", "英文", "Then by the end of the movie, I got a little bit teary."), "Ryan": ("甜茶", "英文", "Then by the end of the movie, I got a little bit teary."), "Ono_anna": ("小野杏", "日语", "やばい、明日のプレゼン資料まだ完成してない… 助けて！"), "Sohee": ("素熙", "韩语", "야, 오늘 점심에 뭐 먹을지 생각해 봤어? 근처에 새로 생긴 분식집 어때?"), "Dylan": ("晓东", "中文方言-北京话", "我们就在山上啊，就是其实也没什么，就是在土坡上跑来跑去。"), "Eric": ("程川", "中文方言-四川话", "你龟儿太过分了，把我的东西都搞坏了，还晓不晓得认错。")}
+                            _qwen_speaker_display_to_key = {"艾登 Aiden": "Aiden", "晓东 Dylan": "Dylan", "程川 Eric": "Eric", "小野杏 Ono Anna": "Ono_anna", "甜茶 Ryan": "Ryan", "苏瑶 Serena": "Serena", "素熙 Sohee": "Sohee", "福伯 Uncle Fu": "Uncle_fu", "十三 Vivian": "Vivian"}
+                            _qwen_default_speaker_display = "甜茶 Ryan"
+
+                            def _qwen_speaker_key(speaker_value):
+                                v = speaker_value[1] if isinstance(speaker_value, (list, tuple)) and len(speaker_value) >= 2 else speaker_value
+                                s = "" if v is None else str(v).strip()
+                                s = _qwen_speaker_display_to_key.get(s, s)
+                                if s.startswith("(") and s.endswith(")"):
+                                    try:
+                                        import ast
+                                        p = ast.literal_eval(s)
+                                        if isinstance(p, (list, tuple)) and len(p) >= 2:
+                                            s = "" if p[1] is None else str(p[1]).strip()
+                                    except Exception:
+                                        pass
+                                s = _qwen_speaker_display_to_key.get(s, s)
+                                if s not in _qwen_speaker_notes and " " in s:
+                                    c = s.split()[-1].strip()
+                                    if c in _qwen_speaker_notes:
+                                        s = c
+                                return s
+
+                            def _format_qwen_speaker_note(speaker_value: str):
+                                speaker_key = _qwen_speaker_key(speaker_value)
+                                note = _qwen_speaker_notes.get(speaker_key, None)
+                                if not note:
+                                    return '<div class="qwen-speaker-note qwen-speaker-note-empty">Select a speaker to preview the voice note.</div>'
+                                alias, lang, text = note
+                                title = html.escape(f"{alias} {speaker_key}".strip())
+                                lang = html.escape(str(lang or ""))
+                                text = html.escape(str(text or ""))
+                                return (
+                                    '<div class="qwen-speaker-note">'
+                                    f'<div class="qwen-speaker-note-row"><span>Voice</span><b>{title}</b></div>'
+                                    f'<div class="qwen-speaker-note-row"><span>Language</span><b>{lang}</b></div>'
+                                    f'<div class="qwen-speaker-note-sample"><span>Sample</span><p>{text}</p></div>'
+                                    '</div>'
+                                )
+
+                            with gr.Row():
+                                with gr.Column(scale=3):
+                                    qwen_custom_speaker = gr.Dropdown(label="Speaker", choices=list(_qwen_speaker_display_to_key.keys()), value=_qwen_default_speaker_display)
+                                with gr.Column(scale=3):
+                                    qwen_custom_speaker_note = gr.HTML(value=_format_qwen_speaker_note(_qwen_speaker_display_to_key[_qwen_default_speaker_display]), elem_classes=["qwen_speaker_note"])
+                            with gr.Row():
+                                with gr.Column(scale=4):
+                                    qwen_custom_instruct = gr.Textbox(label="Style Instruction (Optional)", lines=4)
+                                with gr.Column(scale=1):
+                                    qwen_custom_expand_btn = gr.Button(value="Style Expand", elem_classes=["type_row_half", "qwen_tts_stack_item"], size="sm", min_width=70, visible=VLM.get_enable())
+                                    qwen_custom_style_preset_choices = gr.Dropdown(label="Character Presets", choices=_qwen_get_style_preset_choices(None), value=None, show_label=True, elem_classes="qwen_tts_stack_item")
+                            qwen_custom_batch_size = gr.Slider(label="Batch size", minimum=1, maximum=16, step=1, value=16)
+                            with gr.Row():
+                                with gr.Column(scale=4):
+                                    qwen_custom_style_preset_name = gr.Textbox(label="Character Name", lines=1, placeholder="Character Name for Your Role/Style", elem_classes="qwen_tts_stack_item", elem_id="qwen_custom_style_preset_name")
+                                with gr.Column(scale=1, elem_classes="qwen_tts_preset_stack"):   
+                                    qwen_custom_style_preset_save_btn = gr.Button(value="Save Character", elem_classes=["type_row_half", "qwen_tts_stack_item"], size="sm", min_width=70)
+                                    qwen_custom_style_preset_delete_btn = gr.Button(value="Delete Character", elem_classes=["type_row_half", "qwen_tts_stack_item"], size="sm", min_width=70)
+                            with gr.Row():
+                                qwen_custom_btn = gr.Button("Generate Audio", elem_classes="type_row_half")
+                                qwen_custom_stop_btn = gr.Button("Stop", elem_classes="type_row_half", min_width=70, visible=False)
+                            with gr.Row():
+                                with gr.Column(scale=5):
+                                    qwen_custom_output = gr.Audio(label="Output Audio", interactive=False)
+                                with gr.Column(scale=2):
+                                    qwen_custom_send_target = gr.Dropdown(label="Send To", choices=qwen_send_target_choices, value=None)
+                                    qwen_custom_send_btn = gr.Button("Send", size="sm")
+                            qwen_custom_info = gr.Markdown(value="")
+
+                        with gr.Tab("Dialogue"):
+                            qwen_dialogue_script = gr.Textbox(label="Script", lines=8, placeholder="Format: Character Name: Text (one sentence per line) \n\nCharacter 1: Hello, what shall we talk about today? \nCharacter 2: I'd like to learn about Qwen3-TTS voice cloning. \nCharacter 3: Let me summarize the key points of parameter settings. \nNarrator: They started a relaxed conversation.", elem_id="qwen_dialogue_script")
+                            def _qwen_dialogue_role(role_label, default_name):
+                                with gr.Column():
+                                    name = gr.Textbox(label=f"{role_label} Name", value=default_name)
+                                    audio = gr.Audio(label=f"{role_label} Reference Audio", sources=["upload"], type="numpy")
+                                    ref_text = gr.Textbox(label=f"{role_label} Reference Text", lines=2)
+                                return name, audio, ref_text
+                            with gr.Row():
+                                qwen_role_1_name, qwen_role_1_audio, qwen_role_1_ref_text = _qwen_dialogue_role("Role 1", "角色1")
+                                qwen_role_2_name, qwen_role_2_audio, qwen_role_2_ref_text = _qwen_dialogue_role("Role 2", "角色2")
+                            with gr.Row():
+                                qwen_role_3_name, qwen_role_3_audio, qwen_role_3_ref_text = _qwen_dialogue_role("Role 3", "角色3")
+                                qwen_role_4_name, qwen_role_4_audio, qwen_role_4_ref_text = _qwen_dialogue_role("Role 4", "旁白")
+                            with gr.Row():
+                                qwen_dialogue_btn = gr.Button("Generate Dialogue Audio", elem_classes="type_row_half")
+                                qwen_dialogue_stop_btn = gr.Button("Stop", elem_classes="type_row_half", min_width=70, visible=False)
+                            with gr.Row():
+                                with gr.Column(scale=5):
+                                    qwen_dialogue_output = gr.Audio(label="Output Audio", interactive=False)
+                                with gr.Column(scale=2):
+                                    qwen_dialogue_send_target = gr.Dropdown(label="Send To", choices=qwen_send_target_choices, value=None)
+                                    qwen_dialogue_send_btn = gr.Button("Send", size="sm")
+                            qwen_dialogue_info = gr.Markdown(value="")
+                        
+                        with gr.Tab("Settings"):
+                            with gr.Row():
+                                with gr.Column(scale=1):
+                                    qwen_tts_model_size = gr.Radio(["0.6B", "1.7B"], label="Model Size", value="1.7B")
+                                with gr.Column(scale=1):
+                                    qwen_tts_precision = gr.Radio(["bf16", "fp32"], label="Precision", value="bf16")
+                            with gr.Row():
+                                with gr.Column(scale=1):
+                                    qwen_tts_device = gr.Dropdown(label="Device", choices=["auto", "cuda", "mps", "cpu"], value="auto")
+                                with gr.Column(scale=1):
+                                    qwen_tts_language = gr.Dropdown(label="Language", choices=["Auto", "Chinese", "English", "Japanese", "Korean"], value="Auto")
+                            with gr.Row():
+                                with gr.Column(scale=1):
+                                    qwen_tts_attention = gr.Dropdown(label="Attention", choices=["auto", "sage_attn", "flash_attn", "sdpa", "eager"], value="auto")
+                                with gr.Column(scale=1):
+                                    with gr.Row():
+                                        qwen_tts_seed_random = gr.Checkbox(label="Random", value=True)
+                                        qwen_tts_seed = gr.Number(label="Seed", value=0, precision=0)
+                            with gr.Row():
+                                with gr.Column(scale=1):
+                                    qwen_tts_max_new_tokens = gr.Slider(label="Max new tokens", minimum=512, maximum=16384, step=256, value=4096)
+                                with gr.Column(scale=1):
+                                    qwen_tts_temperature = gr.Slider(label="Temperature", minimum=0.1, maximum=2.0, step=0.1, value=1.0)
+                            with gr.Row():
+                                with gr.Column(scale=1):
+                                    qwen_tts_split_max_chars = gr.Slider(label="Split max chars", minimum=20, maximum=600, step=10, value=200)
+                                with gr.Column(scale=1):
+                                    qwen_tts_split_hard_max_chars = gr.Slider(label="Split hard max chars", minimum=20, maximum=800, step=10, value=260)
+                            with gr.Row():
+                                with gr.Column(scale=1):
+                                    qwen_tts_top_p = gr.Slider(label="Top-p", minimum=0.0, maximum=1.0, step=0.05, value=0.8)
+                                with gr.Column(scale=1):
+                                    qwen_tts_top_k = gr.Slider(label="Top-k", minimum=0, maximum=100, step=1, value=20)
+                            with gr.Row():
+                                with gr.Column(scale=1):
+                                    qwen_tts_repetition_penalty = gr.Slider(label="Repetition penalty", minimum=1.0, maximum=2.0, step=0.05, value=1.05)
+                                with gr.Column(scale=1):
+                                    qwen_tts_unload = gr.Checkbox(label="Unload model after generate", value=True)
+                            with gr.Accordion("Dialogue Pause Settings", open=False):
+                                with gr.Row():
+                                    with gr.Column(scale=1):
+                                        qwen_pause_linebreak = gr.Slider(label="Linebreak pause", minimum=0.0, maximum=5.0, step=0.1, value=0.5)
+                                    with gr.Column(scale=1):
+                                        qwen_period_pause = gr.Slider(label="Period pause (.)", minimum=0.0, maximum=5.0, step=0.1, value=0.4)
+                                with gr.Row():
+                                    with gr.Column(scale=1):
+                                        qwen_comma_pause = gr.Slider(label="Comma pause (,)", minimum=0.0, maximum=5.0, step=0.1, value=0.2)
+                                    with gr.Column(scale=1):
+                                        qwen_question_pause = gr.Slider(label="Question pause (?)", minimum=0.0, maximum=5.0, step=0.1, value=0.6)
+                                with gr.Row():
+                                    with gr.Column(scale=1):
+                                        qwen_hyphen_pause = gr.Slider(label="Hyphen pause (-)", minimum=0.0, maximum=5.0, step=0.1, value=0.3)
+                                    with gr.Column(scale=1):
+                                        qwen_dialogue_merge = gr.Checkbox(label="Merge outputs", value=True)
+                                with gr.Row():
+                                    with gr.Column(scale=1):
+                                        qwen_dialogue_batch = gr.Slider(label="Batch size", minimum=1, maximum=32, step=1, value=4)
+                                    with gr.Column(scale=1):
+                                        qwen_dialogue_max_tokens = gr.Slider(label="Max new tokens per line", minimum=512, maximum=8192, step=256, value=4096)
+                    gr.HTML(
+                        value='项目来源：<a href="https://www.modelscope.cn/collections/Qwen/Qwen3-TTS" target="_blank" rel="noopener noreferrer">https://www.modelscope.cn/collections/Qwen/Qwen3-TTS</a>',
+                        elem_id="qwen_tts_source_badge",
+                    )
+
+                    _qwen_pending_send_audio_bindings = []
+                    _qwen_send_audio_binder = None
+
+                    try:
+                        from enhanced import webui_qwen_tts
+
+                        def _get_user_did_from_state(state_params): return _qwen_get_user_did_from_state(state_params)
+
+                        def _resolve_tts_seed(seed_value, seed_random_value):
+                            try:
+                                seed_int = int(seed_value)
+                            except Exception:
+                                seed_int = 0
+                            if seed_random_value:
+                                return random.randint(0, 2147483647)
+                            return seed_int
+
+                        def _is_blank(value):
+                            if value is None:
+                                return True
+                            try:
+                                return str(value).strip() == ""
+                            except Exception:
+                                return True
+
+                        def _qwen_tts_set_interrupt(value: bool):
+                            try:
+                                model_management.interrupt_current_processing(bool(value))
+                            except Exception:
+                                pass
+                            try:
+                                from comfy import model_management as comfy_model_management
+                                comfy_model_management.interrupt_current_processing(bool(value))
+                            except Exception:
+                                pass
+
+                        qwen_tts_force_unload = {"flag": False}
+
+                        def _qwen_tts_begin():
+                            _qwen_tts_set_interrupt(False)
+                            qwen_tts_force_unload["flag"] = False
+                            return gr_update(visible=False), gr_update(visible=True), "Generating..."
+
+                        def _qwen_tts_end():
+                            _qwen_tts_set_interrupt(False)
+                            return gr_update(visible=True), gr_update(visible=False)
+
+                        def _qwen_tts_stop():
+                            _qwen_tts_set_interrupt(True)
+                            qwen_tts_force_unload["flag"] = True
+                            return "Stopping..."
+
+                        def _qwen_is_interrupt_exception(e: Exception) -> bool:
+                            if type(e).__name__ == "InterruptProcessingException":
+                                return True
+                            try:
+                                if isinstance(e, model_management.InterruptProcessingException):
+                                    return True
+                            except Exception:
+                                pass
+                            try:
+                                from comfy import model_management as comfy_model_management
+                                if isinstance(e, comfy_model_management.InterruptProcessingException):
+                                    return True
+                            except Exception:
+                                pass
+                            return False
+
+                        qwen_tts_seed_random.change(fn=lambda is_random: gr_update(interactive=not bool(is_random)), inputs=[qwen_tts_seed_random], outputs=[qwen_tts_seed], queue=False, show_progress=False)
+
+                        qwen_custom_speaker.change(fn=_format_qwen_speaker_note, inputs=[qwen_custom_speaker], outputs=[qwen_custom_speaker_note], queue=False, show_progress=False)
+
+                        qwen_send_target_key_to_index = {
+                            "qwen_clone_ref_audio": 0,
+                            "qwen_role_1_audio": 1,
+                            "qwen_role_2_audio": 2,
+                            "qwen_role_3_audio": 3,
+                            "qwen_role_4_audio": 4,
+                            "scene_audio": 5,
+                        }
+                        qwen_send_numpy_target_keys = {
+                            "qwen_clone_ref_audio",
+                            "qwen_role_1_audio",
+                            "qwen_role_2_audio",
+                            "qwen_role_3_audio",
+                            "qwen_role_4_audio",
+                        }
+
+                        def _qwen_read_wav_file(audio_path: str):
+                            p = "" if audio_path is None else str(audio_path).strip()
+                            if not p:
+                                return None
+                            if not os.path.isfile(p):
+                                return None
+                            try:
+                                with wave.open(p, "rb") as wf:
+                                    sr = int(wf.getframerate())
+                                    channels = int(wf.getnchannels())
+                                    sample_width = int(wf.getsampwidth())
+                                    frames = wf.readframes(int(wf.getnframes()))
+                                if sample_width == 2:
+                                    data = np.frombuffer(frames, dtype=np.int16)
+                                elif sample_width == 4:
+                                    data32 = np.frombuffer(frames, dtype=np.int32)
+                                    data = (data32 / 65536.0).astype(np.int16)
+                                else:
+                                    return None
+                                if channels > 1:
+                                    data = data.reshape(-1, channels)
+                                return sr, data
+                            except Exception:
+                                return None
+
+                        def _qwen_write_wav_temp(sr: int, wav):
+                            try:
+                                sample_rate = int(sr)
+                            except Exception:
+                                return None
+                            try:
+                                audio = wav
+                                if hasattr(audio, "cpu"):
+                                    audio = audio.cpu().numpy()
+                                audio = np.asarray(audio)
+                                audio = np.squeeze(audio)
+                                if audio.ndim == 2 and audio.shape[0] <= 8 and audio.shape[1] > 8:
+                                    audio = audio.T
+                                if audio.ndim == 1:
+                                    audio = audio[:, None]
+                                if audio.dtype != np.int16:
+                                    audio_f = audio.astype(np.float32, copy=False)
+                                    audio_f = np.clip(audio_f, -1.0, 1.0)
+                                    audio = (audio_f * 32767.0).astype(np.int16)
+                                audio = np.ascontiguousarray(audio)
+                                channels = int(audio.shape[1])
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+                                    out_path = os.path.abspath(tmp.name)
+                                with wave.open(out_path, "wb") as wf:
+                                    wf.setnchannels(channels)
+                                    wf.setsampwidth(2)
+                                    wf.setframerate(sample_rate)
+                                    wf.writeframes(audio.tobytes())
+                                return out_path
+                            except Exception:
+                                return None
+
+                        def _qwen_audio_to_numpy(audio):
+                            if audio is None:
+                                return None
+                            if isinstance(audio, dict) and "waveform" in audio and "sample_rate" in audio:
+                                sr = audio.get("sample_rate", None)
+                                wav = audio.get("waveform", None)
+                                if sr is None or wav is None:
+                                    return None
+                                if hasattr(wav, "cpu"):
+                                    wav = wav.cpu().numpy()
+                                wav = np.asarray(wav)
+                                wav = np.squeeze(wav)
+                                if wav.dtype == np.float32:
+                                    wav = np.clip(wav, -1.0, 1.0)
+                                    wav = (wav * 32767.0).astype(np.int16)
+                                return int(sr), wav
+                            if isinstance(audio, (tuple, list)) and len(audio) == 2:
+                                sr, wav = audio
+                                if sr is None or wav is None:
+                                    return None
+                                if hasattr(wav, "cpu"):
+                                    wav = wav.cpu().numpy()
+                                return int(sr), np.asarray(wav)
+                            if isinstance(audio, str):
+                                return _qwen_read_wav_file(audio)
+                            return None
+
+                        def _qwen_audio_to_filepath(audio):
+                            if audio is None:
+                                return None
+                            if isinstance(audio, str):
+                                p = "" if audio is None else str(audio).strip()
+                                return p if p else None
+                            as_numpy = _qwen_audio_to_numpy(audio)
+                            if as_numpy is None:
+                                return None
+                            sr, wav = as_numpy
+                            return _qwen_write_wav_temp(sr, wav)
+
+                        def _qwen_send_audio_to_target(output_audio, target_label):
+                            outputs = [skip_component_update() for _ in range(7)]
+                            if _is_blank(target_label):
+                                gr.Warning("Please select an Audio target to overwrite.")
+                                return outputs
+                            target_key = qwen_send_target_options.get(str(target_label).strip(), None)
+                            if not target_key:
+                                gr.Warning("Unknown target Audio component.")
+                                return outputs
+                            if output_audio is None:
+                                gr.Warning("There is no output audio available to send.")
+                                return outputs
+                            if target_key in qwen_send_numpy_target_keys:
+                                value = _qwen_audio_to_numpy(output_audio)
+                            else:
+                                value = _qwen_audio_to_filepath(output_audio)
+                            if value is None:
+                                gr.Warning("Audio format conversion failed. Unable to overwrite the target.")
+                                return outputs
+                            idx = qwen_send_target_key_to_index.get(target_key, None)
+                            if idx is None:
+                                gr.Warning("Target Audio component index is invalid.")
+                                return outputs
+                            outputs[idx] = value
+                            if target_key == "scene_audio":
+                                outputs[-1] = value
+                            return outputs
+
+                        def _qwen_switch_ltx23_audio_theme_after_send(state, theme, audio_backup, target_label):
+                            target_key = qwen_send_target_options.get(str(target_label or "").strip(), None)
+                            if target_key != "scene_audio":
+                                return state, gr_update()
+                            target_theme = modules.meta_parser.resolve_ltx23_audio_theme_for_audio(state, theme, audio_backup)
+                            if not target_theme:
+                                return state, gr_update()
+                            state["switch_scene_theme"] = True
+                            state["scene_theme"] = target_theme
+                            return state, gr_update(value=target_theme)
+
+                        def _bind_qwen_send_audio(button, output_audio, target_dropdown):
+                            event = button.click(fn=_qwen_send_audio_to_target, inputs=[output_audio, target_dropdown], outputs=qwen_send_outputs, queue=False, show_progress=False)
+                            event = event.then(
+                                _qwen_switch_ltx23_audio_theme_after_send,
+                                inputs=[state_topbar, scene_theme, scene_audio_backup, target_dropdown],
+                                outputs=[state_topbar, scene_theme],
+                                queue=False,
+                                show_progress=False,
+                            )
+                            event = event.then(
+                                switch_scene_theme_safe,
+                                inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme],
+                                outputs=[camera_control_accordion, anglelight_control_accordion, style_transfer_accordion, sam3_video_mask_accordion, pose_studio, gaussian_studio, scene_resolution_override_accordion, scene_use_resolution_override_checkbox, scene_resolution_override] + scene_params[1:],
+                                queue=False,
+                                show_progress=False,
+                            )
+                            event.then(
+                                switch_scene_theme_ready_to_gen,
+                                inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio],
+                                outputs=[prompt, generate_button],
+                                queue=False,
+                                show_progress=False,
+                            )
+                            return event
+
+                        def _apply_style_presets(selected_preset, state_params):
+                            if _is_blank(selected_preset):
+                                return ""
+                            k = str(selected_preset).strip()
+                            v = qwen_tts_style_presets.get(k, None)
+                            if v is not None:
+                                return str(v).strip()
+                            user_did = _get_user_did_from_state(state_params)
+                            user_presets = _qwen_load_user_character_presets(user_did)
+                            return str(user_presets.get(k, "")).strip()
+
+                        qwen_design_style_preset_choices.change(fn=_apply_style_presets, inputs=[qwen_design_style_preset_choices, state_topbar], outputs=[qwen_design_instruct], queue=False, show_progress=False)
+                        qwen_custom_style_preset_choices.change(fn=_apply_style_presets, inputs=[qwen_custom_style_preset_choices, state_topbar], outputs=[qwen_custom_instruct], queue=False, show_progress=False)
+
+                        def _save_user_character_preset(preset_name, style_text, state_params, design_value, custom_value, target):
+                            user_did = _get_user_did_from_state(state_params)
+                            name = _qwen_safe_preset_name(preset_name)
+                            text = "" if style_text is None else str(style_text).strip()
+                            if not name:
+                                return _qwen_refresh_style_preset_dropdowns(state_params, design_value, custom_value) + (gr_update(value=preset_name), "Preset Name cannot be empty")
+                            if not text:
+                                return _qwen_refresh_style_preset_dropdowns(state_params, design_value, custom_value) + (gr_update(value=preset_name), "Style Instruction cannot be empty")
+                            preset_dir = _qwen_character_presets_dir(user_did)
+                            if not preset_dir:
+                                return _qwen_refresh_style_preset_dropdowns(state_params, design_value, custom_value) + (gr_update(value=preset_name), "Save failed: unable to locate user directory")
+                            file_path = os.path.join(preset_dir, f"{name}.json")
+                            payload = {"name": name, "instruction": text, "updated_at": int(time.time())}
+                            try:
+                                with open(file_path, "w", encoding="utf-8") as f:
+                                    json.dump(payload, f, ensure_ascii=False, indent=2)
+                            except Exception as e:
+                                return _qwen_refresh_style_preset_dropdowns(state_params, design_value, custom_value) + (gr_update(value=preset_name), f"Save failed: {type(e).__name__}: {e}")
+                            dv = name if str(target) == "design" else design_value
+                            cv = name if str(target) == "custom" else custom_value
+                            return _qwen_refresh_style_preset_dropdowns(state_params, dv, cv) + (gr_update(value=""), f"Saved to users/{user_did}/presets/characters/{name}.json")
+
+                        def _delete_user_character_preset(preset_name, state_params, design_value, custom_value, target):
+                            user_did = _get_user_did_from_state(state_params)
+                            selected = design_value if str(target) == "design" else custom_value
+                            name = _qwen_safe_preset_name(preset_name)
+                            if not name:
+                                name = _qwen_safe_preset_name(selected)
+                            if not name:
+                                return _qwen_refresh_style_preset_dropdowns(state_params, design_value, custom_value) + (gr_update(value=preset_name), "Preset Name cannot be empty")
+                            if name in qwen_tts_style_presets:
+                                return _qwen_refresh_style_preset_dropdowns(state_params, design_value, custom_value) + (gr_update(value=preset_name), "Cannot delete built-in Preset")
+                            preset_dir = _qwen_character_presets_dir(user_did)
+                            if not preset_dir:
+                                return _qwen_refresh_style_preset_dropdowns(state_params, design_value, custom_value) + (gr_update(value=preset_name), "Delete failed: unable to locate user directory")
+                            file_path = os.path.join(preset_dir, f"{name}.json")
+                            if not os.path.isfile(file_path):
+                                return _qwen_refresh_style_preset_dropdowns(state_params, design_value, custom_value) + (gr_update(value=preset_name), f"Preset not found: {name}")
+                            try:
+                                os.remove(file_path)
+                            except Exception as e:
+                                return _qwen_refresh_style_preset_dropdowns(state_params, design_value, custom_value) + (gr_update(value=preset_name), f"Delete failed: {type(e).__name__}: {e}")
+                            dv = None if str(target) == "design" and str(design_value).strip() == name else design_value
+                            cv = None if str(target) == "custom" and str(custom_value).strip() == name else custom_value
+                            return _qwen_refresh_style_preset_dropdowns(state_params, dv, cv) + (gr_update(value=""), f"Deleted users/{user_did}/presets/characters/{name}.json")
+
+                        qwen_design_style_preset_save_btn.click(fn=lambda a, b, c, d, e: _save_user_character_preset(a, b, c, d, e, "design"), inputs=[qwen_design_style_preset_name, qwen_design_instruct, state_topbar, qwen_design_style_preset_choices, qwen_custom_style_preset_choices], outputs=[qwen_design_style_preset_choices, qwen_custom_style_preset_choices, qwen_design_style_preset_name, qwen_design_info], queue=False, show_progress=False)
+                        qwen_custom_style_preset_save_btn.click(fn=lambda a, b, c, d, e: _save_user_character_preset(a, b, c, d, e, "custom"), inputs=[qwen_custom_style_preset_name, qwen_custom_instruct, state_topbar, qwen_design_style_preset_choices, qwen_custom_style_preset_choices], outputs=[qwen_design_style_preset_choices, qwen_custom_style_preset_choices, qwen_custom_style_preset_name, qwen_custom_info], queue=False, show_progress=False)
+                        qwen_design_style_preset_delete_btn.click(fn=lambda a, b, c, d: _delete_user_character_preset(a, b, c, d, "design"), inputs=[qwen_design_style_preset_name, state_topbar, qwen_design_style_preset_choices, qwen_custom_style_preset_choices], outputs=[qwen_design_style_preset_choices, qwen_custom_style_preset_choices, qwen_design_style_preset_name, qwen_design_info], queue=False, show_progress=False)
+                        qwen_custom_style_preset_delete_btn.click(fn=lambda a, b, c, d: _delete_user_character_preset(a, b, c, d, "custom"), inputs=[qwen_custom_style_preset_name, state_topbar, qwen_design_style_preset_choices, qwen_custom_style_preset_choices], outputs=[qwen_design_style_preset_choices, qwen_custom_style_preset_choices, qwen_custom_style_preset_name, qwen_custom_info], queue=False, show_progress=False)
+
+                        def _expand_tts_style_instruction(style_text, state_params):
+                            if _is_blank(style_text):
+                                return style_text, "Please enter Style Instruction before expanding it"
+                            if not VLM.get_enable():
+                                return style_text, "Please enable VLM in Identity -> Local System first"
+                            if not vlm.model_exists():
+                                return style_text, "VLM model is not ready. Please download/configure it first"
+                            try:
+                                with worker.external_exclusive_task():
+                                    expanded = vlm.expand_tts_style_instruction(style_text)
+                                expanded = str(expanded).strip() if expanded is not None else ""
+                                if not expanded:
+                                    return style_text, "Style expansion returned no valid content"
+                                return expanded, ""
+                            except Exception as e:
+                                return style_text, f"Style expansion failed: {type(e).__name__}: {e}"
+
+                        qwen_design_expand_btn.click(fn=_expand_tts_style_instruction, inputs=[qwen_design_instruct, state_topbar], outputs=[qwen_design_instruct, qwen_design_info], queue=False, show_progress=True)
+                        qwen_custom_expand_btn.click(fn=_expand_tts_style_instruction, inputs=[qwen_custom_instruct, state_topbar], outputs=[qwen_custom_instruct, qwen_custom_info], queue=False, show_progress=True)
+
+                        def _qwen_after_unload(unload):
+                            if not bool(unload):
+                                return
+                            try:
+                                webui_qwen_tts.unload_qwen_tts_models()
+                            except Exception:
+                                pass
+                            try:
+                                unload_models_clicked(False)
+                            except Exception:
+                                pass
+
+                        def _qwen_tts_cleanup(unload):
+                            should_unload = bool(unload) or bool(qwen_tts_force_unload.get("flag"))
+                            qwen_tts_force_unload["flag"] = False
+                            if not should_unload:
+                                return
+                            _qwen_after_unload(True)
+
+                        def _qwen_call_progress(handler_fn, seed_random, seed, unload, state_params, **kwargs):
+                            import queue as _queue
+                            import threading as _threading
+                            import time as _time
+
+                            try:
+                                seed_int = int(seed)
+                            except Exception:
+                                seed_int = 0
+
+                            used_seed = None
+                            try:
+                                used_seed = _resolve_tts_seed(seed, seed_random)
+                            except Exception:
+                                used_seed = seed_int
+
+                            q: _queue.Queue = _queue.Queue()
+                            done = {"flag": False}
+                            out = {"audio_path": None, "error": None}
+
+                            def progress_callback(pct, msg=""):
+                                try:
+                                    p = int(pct)
+                                except Exception:
+                                    p = 0
+                                if p < 0:
+                                    p = 0
+                                if p > 100:
+                                    p = 100
+                                try:
+                                    q.put((p, str(msg or "").strip()), block=False)
+                                except Exception:
+                                    pass
+
+                            def runner():
+                                try:
+                                    audio_path = webui_qwen_tts.enqueue_task(
+                                        handler_fn,
+                                        user_did=_get_user_did_from_state(state_params),
+                                        seed=int(used_seed),
+                                        progress_callback=progress_callback,
+                                        **kwargs,
+                                    )
+                                    out["audio_path"] = audio_path
+                                except Exception as e:
+                                    out["error"] = e
+                                finally:
+                                    done["flag"] = True
+                                    try:
+                                        q.put(None, block=False)
+                                    except Exception:
+                                        pass
+
+                            _threading.Thread(target=runner, daemon=True).start()
+
+                            last_pct = 0.0
+                            last_msg = "Generating..."
+                            last_tick = _time.time()
+                            last_pct_is_synthetic = False
+
+                            def _fmt_pct(p):
+                                try:
+                                    pv = float(p)
+                                except Exception:
+                                    pv = 0.0
+                                if pv >= 95.0:
+                                    return f"{pv:.1f}%"
+                                return f"{int(pv)}%"
+
+                            yield skip_component_update(), used_seed, f"{last_msg} {_fmt_pct(last_pct)}"
+
+                            while True:
+                                if done["flag"]:
+                                    break
+                                try:
+                                    item = q.get(timeout=0.25)
+                                except _queue.Empty:
+                                    item = None
+                                if item is None:
+                                    now = _time.time()
+                                    if last_pct < 95.0:
+                                        interval_s = 3.0
+                                        step = 1.0
+                                        cap = 95.0
+                                    else:
+                                        interval_s = 1.0
+                                        step = 0.1
+                                        cap = 99.9
+                                    if now - last_tick >= interval_s and last_pct < cap:
+                                        last_tick = now
+                                        last_pct = min(cap, last_pct + step)
+                                        last_pct_is_synthetic = True
+                                        yield skip_component_update(), used_seed, f"{last_msg} {_fmt_pct(last_pct)}"
+                                    continue
+                                pct, msg = item
+                                if msg:
+                                    last_msg = msg
+                                if last_pct_is_synthetic:
+                                    last_pct = float(pct)
+                                else:
+                                    if pct < last_pct:
+                                        pct = last_pct
+                                    last_pct = float(pct)
+                                last_pct_is_synthetic = False
+                                last_tick = _time.time()
+                                yield skip_component_update(), used_seed, f"{last_msg} {_fmt_pct(last_pct)}"
+                                _time.sleep(0.01)
+
+                            err = out.get("error")
+                            if err is None:
+                                yield out.get("audio_path"), used_seed, skip_component_update()
+                                return
+
+                            interrupted = _qwen_is_interrupt_exception(err)
+                            if interrupted:
+                                yield gr_update(value=None), seed_int, "Interrupted"
+                                return
+                            yield gr_update(value=None), seed_int, f"Generation failed: {type(err).__name__}: {err}"
+                            return
+
+                        def qwen_voice_design_fn(text, instruct, model_choice, precision, device, language, seed_random, seed, max_new_tokens, split_max_chars, split_hard_max_chars, top_p, top_k, temperature, repetition_penalty, attention, unload, lock_timbre, clone_batch_size, state_params):
+                            try:
+                                seed_int = int(seed)
+                            except Exception:
+                                seed_int = 0
+                            if _is_blank(text):
+                                yield gr_update(value=None), seed_int, "Please enter \"Text to Speech\" before generating"
+                                return
+                            yield from _qwen_call_progress(webui_qwen_tts.qwen_tts_handler.voice_design, seed_random, seed, unload, state_params, text=text, instruct=instruct, model_choice=model_choice, device=device, precision=precision, language=language, max_new_tokens=int(max_new_tokens), max_chars=int(split_max_chars), hard_max_chars=int(split_hard_max_chars), top_p=float(top_p), top_k=int(top_k), temperature=float(temperature), repetition_penalty=float(repetition_penalty), attention=attention, unload_model_after_generate=bool(unload), lock_timbre_with_first_segment=bool(lock_timbre), clone_batch_size=int(clone_batch_size))
+
+                        qwen_design_btn.click(fn=_qwen_tts_begin, inputs=[], outputs=[qwen_design_btn, qwen_design_stop_btn, qwen_design_info], queue=False, show_progress=False).then(fn=qwen_voice_design_fn, inputs=[qwen_design_text, qwen_design_instruct, qwen_tts_model_size, qwen_tts_precision, qwen_tts_device, qwen_tts_language, qwen_tts_seed_random, qwen_tts_seed, qwen_tts_max_new_tokens, qwen_tts_split_max_chars, qwen_tts_split_hard_max_chars, qwen_tts_top_p, qwen_tts_top_k, qwen_tts_temperature, qwen_tts_repetition_penalty, qwen_tts_attention, qwen_tts_unload, qwen_design_lock_timbre, qwen_design_clone_batch_size, state_topbar], outputs=[qwen_design_output, qwen_tts_seed, qwen_design_info], queue=True, show_progress=False).then(fn=_qwen_tts_end, inputs=[], outputs=[qwen_design_btn, qwen_design_stop_btn], queue=False, show_progress=False).then(fn=_qwen_tts_cleanup, inputs=[qwen_tts_unload], queue=False, show_progress=False)
+                        qwen_design_stop_btn.click(fn=_qwen_tts_stop, inputs=[], outputs=[qwen_design_info], queue=False, show_progress=False)
+
+                        def qwen_voice_clone_fn(ref_audio, ref_text, target_text, model_choice, precision, device, language, seed_random, seed, max_new_tokens, split_max_chars, split_hard_max_chars, top_p, top_k, temperature, repetition_penalty, attention, unload, batch_size, state_params):
+                            try:
+                                seed_int = int(seed)
+                            except Exception:
+                                seed_int = 0
+                            if ref_audio is None:
+                                yield gr_update(value=None), seed_int, "Please upload \"Reference Audio\" first"
+                                return
+                            if _is_blank(target_text):
+                                yield gr_update(value=None), seed_int, "Please enter \"Target Text to Speech\" before generating"
+                                return
+                            yield from _qwen_call_progress(webui_qwen_tts.qwen_tts_handler.voice_clone, seed_random, seed, unload, state_params, ref_audio=ref_audio, ref_text=ref_text, target_text=target_text, model_choice=model_choice, device=device, precision=precision, language=language, max_new_tokens=int(max_new_tokens), max_chars=int(split_max_chars), hard_max_chars=int(split_hard_max_chars), top_p=float(top_p), top_k=int(top_k), temperature=float(temperature), repetition_penalty=float(repetition_penalty), x_vector_only=False, attention=attention, unload_model_after_generate=bool(unload), batch_size=int(batch_size))
+
+                        qwen_clone_btn.click(fn=_qwen_tts_begin, inputs=[], outputs=[qwen_clone_btn, qwen_clone_stop_btn, qwen_clone_info], queue=False, show_progress=False).then(fn=qwen_voice_clone_fn, inputs=[qwen_clone_ref_audio, qwen_clone_ref_text, qwen_clone_target_text, qwen_tts_model_size, qwen_tts_precision, qwen_tts_device, qwen_tts_language, qwen_tts_seed_random, qwen_tts_seed, qwen_tts_max_new_tokens, qwen_tts_split_max_chars, qwen_tts_split_hard_max_chars, qwen_tts_top_p, qwen_tts_top_k, qwen_tts_temperature, qwen_tts_repetition_penalty, qwen_tts_attention, qwen_tts_unload, qwen_clone_batch_size, state_topbar], outputs=[qwen_clone_output, qwen_tts_seed, qwen_clone_info], queue=True, show_progress=False).then(fn=_qwen_tts_end, inputs=[], outputs=[qwen_clone_btn, qwen_clone_stop_btn], queue=False, show_progress=False).then(fn=_qwen_tts_cleanup, inputs=[qwen_tts_unload], queue=False, show_progress=False)
+                        qwen_clone_stop_btn.click(fn=_qwen_tts_stop, inputs=[], outputs=[qwen_clone_info], queue=False, show_progress=False)
+
+                        def qwen_custom_voice_fn(text, speaker, instruct, model_choice, precision, device, language, seed_random, seed, max_new_tokens, split_max_chars, split_hard_max_chars, top_p, top_k, temperature, repetition_penalty, attention, unload, batch_size, state_params):
+                            try:
+                                seed_int = int(seed)
+                            except Exception:
+                                seed_int = 0
+                            if _is_blank(text):
+                                yield gr_update(value=None), seed_int, "Please enter \"Text to Speech\" before generating"
+                                return
+                            speaker_key = "" if speaker is None else str(speaker).strip()
+                            if _is_blank(speaker_key):
+                                yield gr_update(value=None), seed_int, "Please select \"Speaker\" before generating"
+                                return
+                            if speaker_key in _qwen_speaker_display_to_key:
+                                speaker_key = _qwen_speaker_display_to_key[speaker_key]
+                            yield from _qwen_call_progress(webui_qwen_tts.qwen_tts_handler.custom_voice, seed_random, seed, unload, state_params, text=text, speaker=speaker_key, instruct=instruct, model_choice=model_choice, device=device, precision=precision, language=language, max_new_tokens=int(max_new_tokens), max_chars=int(split_max_chars), hard_max_chars=int(split_hard_max_chars), top_p=float(top_p), top_k=int(top_k), temperature=float(temperature), repetition_penalty=float(repetition_penalty), attention=attention, unload_model_after_generate=bool(unload), custom_model_path="", custom_speaker_name="", batch_size=int(batch_size))
+
+                        qwen_custom_btn.click(fn=_qwen_tts_begin, inputs=[], outputs=[qwen_custom_btn, qwen_custom_stop_btn, qwen_custom_info], queue=False, show_progress=False).then(fn=qwen_custom_voice_fn, inputs=[qwen_custom_text, qwen_custom_speaker, qwen_custom_instruct, qwen_tts_model_size, qwen_tts_precision, qwen_tts_device, qwen_tts_language, qwen_tts_seed_random, qwen_tts_seed, qwen_tts_max_new_tokens, qwen_tts_split_max_chars, qwen_tts_split_hard_max_chars, qwen_tts_top_p, qwen_tts_top_k, qwen_tts_temperature, qwen_tts_repetition_penalty, qwen_tts_attention, qwen_tts_unload, qwen_custom_batch_size, state_topbar], outputs=[qwen_custom_output, qwen_tts_seed, qwen_custom_info], queue=True, show_progress=False).then(fn=_qwen_tts_end, inputs=[], outputs=[qwen_custom_btn, qwen_custom_stop_btn], queue=False, show_progress=False).then(fn=_qwen_tts_cleanup, inputs=[qwen_tts_unload], queue=False, show_progress=False)
+                        qwen_custom_stop_btn.click(fn=_qwen_tts_stop, inputs=[], outputs=[qwen_custom_info], queue=False, show_progress=False)
+
+                        def qwen_dialogue_fn(script, r1n, r1a, r1t, r2n, r2a, r2t, r3n, r3a, r3t, r4n, r4a, r4t, model_choice, precision, device, language, seed_random, seed, top_p, top_k, temperature, repetition_penalty, attention, unload, pause_linebreak, period_pause, comma_pause, question_pause, hyphen_pause, merge_outputs, batch_size, max_tokens_per_line, state_params):
+                            try:
+                                seed_int = int(seed)
+                            except Exception:
+                                seed_int = 0
+                            if _is_blank(script):
+                                yield gr_update(value=None), seed_int, "Please fill in \"Script\" first (see placeholder for format)"
+                                return
+                            yield from _qwen_call_progress(webui_qwen_tts.qwen_tts_handler.dialogue, seed_random, seed, unload, state_params, script=script, role_1_name=r1n, role_1_audio=r1a, role_1_ref_text=r1t, role_2_name=r2n, role_2_audio=r2a, role_2_ref_text=r2t, role_3_name=r3n, role_3_audio=r3a, role_3_ref_text=r3t, role_4_name=r4n, role_4_audio=r4a, role_4_ref_text=r4t, model_choice=model_choice, device=device, precision=precision, language=language, pause_linebreak=float(pause_linebreak), period_pause=float(period_pause), comma_pause=float(comma_pause), question_pause=float(question_pause), hyphen_pause=float(hyphen_pause), merge_outputs=bool(merge_outputs), batch_size=int(batch_size), max_new_tokens_per_line=int(max_tokens_per_line), top_p=float(top_p), top_k=int(top_k), temperature=float(temperature), repetition_penalty=float(repetition_penalty), attention=attention, unload_model_after_generate=bool(unload))
+
+                        qwen_dialogue_btn.click(fn=_qwen_tts_begin, inputs=[], outputs=[qwen_dialogue_btn, qwen_dialogue_stop_btn, qwen_dialogue_info], queue=False, show_progress=False).then(fn=qwen_dialogue_fn, inputs=[qwen_dialogue_script, qwen_role_1_name, qwen_role_1_audio, qwen_role_1_ref_text, qwen_role_2_name, qwen_role_2_audio, qwen_role_2_ref_text, qwen_role_3_name, qwen_role_3_audio, qwen_role_3_ref_text, qwen_role_4_name, qwen_role_4_audio, qwen_role_4_ref_text, qwen_tts_model_size, qwen_tts_precision, qwen_tts_device, qwen_tts_language, qwen_tts_seed_random, qwen_tts_seed, qwen_tts_top_p, qwen_tts_top_k, qwen_tts_temperature, qwen_tts_repetition_penalty, qwen_tts_attention, qwen_tts_unload, qwen_pause_linebreak, qwen_period_pause, qwen_comma_pause, qwen_question_pause, qwen_hyphen_pause, qwen_dialogue_merge, qwen_dialogue_batch, qwen_dialogue_max_tokens, state_topbar], outputs=[qwen_dialogue_output, qwen_tts_seed, qwen_dialogue_info], queue=True, show_progress=False).then(fn=_qwen_tts_end, inputs=[], outputs=[qwen_dialogue_btn, qwen_dialogue_stop_btn], queue=False, show_progress=False).then(fn=_qwen_tts_cleanup, inputs=[qwen_tts_unload], queue=False, show_progress=False)
+                        qwen_dialogue_stop_btn.click(fn=_qwen_tts_stop, inputs=[], outputs=[qwen_dialogue_info], queue=False, show_progress=False)
+
+                        qwen_send_outputs = [qwen_clone_ref_audio, qwen_role_1_audio, qwen_role_2_audio, qwen_role_3_audio, qwen_role_4_audio, scene_audio, scene_audio_backup]
+                        _qwen_send_audio_binder = _bind_qwen_send_audio
+                        _qwen_pending_send_audio_bindings = [
+                            (qwen_design_send_btn, qwen_design_output, qwen_design_send_target),
+                            (qwen_clone_send_btn, qwen_clone_output, qwen_clone_send_target),
+                            (qwen_custom_send_btn, qwen_custom_output, qwen_custom_send_target),
+                            (qwen_dialogue_send_btn, qwen_dialogue_output, qwen_dialogue_send_target),
+                        ]
+
+                    except ImportError:
+                        print("Warning: webui_qwen_tts module not found. TTS features disabled.")
+            with gr.Row(
+                visible=True,
+                elem_id="image_input_panel",
+                elem_classes=[] if modules.config.default_image_prompt_checkbox else ['simpai-mounted-hidden'],
+            ) as image_input_panel:
+                with gr.Tabs(selected=modules.config.default_selected_image_input_tab_id, elem_id='image_input_tabs'):
+                    with gr.Tab(label='Image Prompt', id='ip_tab', elem_id='ip_tab') as ip_tab:
+                        with gr.Row():
+                            ip_advanced = gr.Checkbox(label='Advanced Control', value=modules.config.default_image_prompt_advanced_checkbox, container=False, scale=5, visible=False)
+                            ip_auto_detect = gr.Checkbox(label='✨ Auto Detect Control Image Type', value=True, container=False, scale=5, elem_id='ip_auto_detect')
+                            preview_preprocessing = gr.Button(value='💥Preview Preprocessor', scale=1)
+                        with gr.Row(elem_id='ip_image_grid'):
+                            ip_images = []
+                            ip_types = []
+                            ip_stops = []
+                            ip_weights = []
+                            ip_ctrls = []
+                            ip_ad_cols = []
+                            ip_detect_style_nodes = []
+                            ip_image_elem_ids = []
+
+                            def _ip_make_auto_detect_fn(elem_id: str):
+                                def _fn(image_np, selected_type, enabled):
+                                    if image_np is None:
+                                        return '', skip_component_update(), skip_component_update(), skip_component_update()
+                                    type_for_highlight = selected_type
+                                    type_update = skip_component_update()
+                                    stop_update = skip_component_update()
+                                    weight_update = skip_component_update()
+
+                                    try:
+                                        from extras.control_hint import (
+                                            control_hint_auto_skip_for_selected_type,
+                                            control_hint_highlight_style,
+                                            detect_control_hint_type_and_default_params,
+                                        )
+                                    except Exception:
+                                        control_hint_auto_skip_for_selected_type = None
+                                        control_hint_highlight_style = None
+                                        detect_control_hint_type_and_default_params = None
+
+                                    if enabled and detect_control_hint_type_and_default_params is not None:
+                                        try:
+                                            detected, stop, weight = detect_control_hint_type_and_default_params(image_np)
+                                        except Exception:
+                                            detected, stop, weight = None, None, None
+                                        if detected is not None and stop is not None and weight is not None:
+                                            type_for_highlight = detected
+                                            type_update = detected
+                                            stop_update = float(stop)
+                                            weight_update = float(weight)
+
+                                    auto_skip = False
+                                    if (
+                                        control_hint_auto_skip_for_selected_type is not None
+                                        and type_for_highlight is not None
+                                    ):
+                                        try:
+                                            auto_skip, _ = control_hint_auto_skip_for_selected_type(image_np, type_for_highlight)
+                                        except Exception:
+                                            auto_skip = False
+
+                                    style = ''
+                                    if auto_skip and control_hint_highlight_style is not None:
+                                        style = control_hint_highlight_style(elem_id)
+
+                                    return style, type_update, stop_update, weight_update
+                                return _fn
+
+                            def _ip_make_highlight_fn(elem_id: str):
+                                def _fn(image_np, selected_type):
+                                    if image_np is None or selected_type is None:
+                                        return ''
+                                    try:
+                                        from extras.control_hint import control_hint_auto_skip_for_selected_type, control_hint_highlight_style
+                                        auto_skip, _ = control_hint_auto_skip_for_selected_type(image_np, selected_type)
+                                    except Exception:
+                                        auto_skip = False
+                                        control_hint_highlight_style = None
+                                    if auto_skip and control_hint_highlight_style is not None:
+                                        return control_hint_highlight_style(elem_id)
+                                    return ''
+                                return _fn
+
+                            def _ip_auto_detect_all(*args):
+                                enabled = args[-1]
+                                n = (len(args) - 1) // 2
+                                images = args[:n]
+                                types_in = args[n:2 * n]
+                                styles = []
+                                type_updates = []
+                                stop_updates = []
+                                weight_updates = []
+
+                                try:
+                                    from extras.control_hint import (
+                                        control_hint_auto_skip_for_selected_type,
+                                        control_hint_highlight_style,
+                                        detect_control_hint_type_and_default_params,
+                                    )
+                                except Exception:
+                                    control_hint_auto_skip_for_selected_type = None
+                                    control_hint_highlight_style = None
+                                    detect_control_hint_type_and_default_params = None
+
+                                for idx, (image_np, selected_type) in enumerate(zip(images, types_in)):
+                                    elem_id = ip_image_elem_ids[idx] if idx < len(ip_image_elem_ids) else None
+                                    type_for_highlight = selected_type
+                                    type_update = skip_component_update()
+                                    stop_update = skip_component_update()
+                                    weight_update = skip_component_update()
+
+                                    if enabled and image_np is not None and detect_control_hint_type_and_default_params is not None:
+                                        try:
+                                            detected, stop, weight = detect_control_hint_type_and_default_params(image_np)
+                                        except Exception:
+                                            detected, stop, weight = None, None, None
+                                        if detected is not None and stop is not None and weight is not None:
+                                            type_for_highlight = detected
+                                            type_update = detected
+                                            stop_update = float(stop)
+                                            weight_update = float(weight)
+
+                                    auto_skip = False
+                                    if (
+                                        image_np is not None
+                                        and control_hint_auto_skip_for_selected_type is not None
+                                        and type_for_highlight is not None
+                                    ):
+                                        try:
+                                            auto_skip, _ = control_hint_auto_skip_for_selected_type(image_np, type_for_highlight)
+                                        except Exception:
+                                            auto_skip = False
+
+                                    style = ''
+                                    if auto_skip and control_hint_highlight_style is not None and elem_id is not None:
+                                        style = control_hint_highlight_style(elem_id)
+
+                                    styles.append(style)
+                                    type_updates.append(type_update)
+                                    stop_updates.append(stop_update)
+                                    weight_updates.append(weight_update)
+
+                                return styles + type_updates + stop_updates + weight_updates
+
+                            for image_count in range(modules.config.default_controlnet_image_count):
+                                image_count += 1
+                                with gr.Column(elem_classes=['ip_image_cell'], min_width=0):
+                                    ip_image_elem_id = f'ip_image_{image_count}'
+                                    ip_image_elem_ids.append(ip_image_elem_id)
+                                    ip_image = gr.Image(label='Image', sources=['upload'], type='numpy', image_mode='RGBA', show_label=False, height=300, value=modules.config.default_ip_images[image_count], elem_id=ip_image_elem_id, buttons=["download", "fullscreen"])
+                                    ip_detect_style = gr.HTML(value='', elem_classes=['ip_detect_style'])
+                                    ip_detect_style_nodes.append(ip_detect_style)
+                                    ip_images.append(ip_image)
+                                    ip_ctrls.append(ip_image)
+                                    with gr.Column(visible=modules.config.default_image_prompt_advanced_checkbox) as ad_col:
+                                        with gr.Row():
+                                            ip_stop = gr.Slider(label='Stop At', minimum=0.0, maximum=1.0, step=0.05, value=modules.config.default_ip_stop_ats[image_count])
+                                            ip_stops.append(ip_stop)
+                                            ip_ctrls.append(ip_stop)
+                                            ip_weight = gr.Slider(label='Weight', minimum=0.0, maximum=2.0, step=0.05, value=modules.config.default_ip_weights[image_count])
+                                            ip_weights.append(ip_weight)
+                                            ip_ctrls.append(ip_weight)
+                                            filtered_ip_list = [flags.cn_canny, flags.cn_cpds, flags.cn_pose]
+                                            default_ip_type = modules.config.default_ip_types[image_count]
+                                            if default_ip_type not in filtered_ip_list:
+                                                default_ip_type = filtered_ip_list[0]
+                                        ip_type = gr.Radio(label='Type', choices=filtered_ip_list, value=default_ip_type, container=False)
+                                        ip_types.append(ip_type)
+                                        ip_ctrls.append(ip_type)
+                                    ip_type.change(lambda x: flags.default_parameters[x] if x in filtered_ip_list else flags.default_parameters[filtered_ip_list[0]],
+                                                 inputs=[ip_type], outputs=[ip_stop, ip_weight], queue=False, show_progress=False) \
+                                           .then(fn=_ip_make_highlight_fn(ip_image_elem_id), inputs=[ip_image, ip_type], outputs=[ip_detect_style], queue=False, show_progress=False)
+                                    ip_ad_cols.append(ad_col)
+
+                                    ip_image.change(
+                                        fn=_ip_make_auto_detect_fn(ip_image_elem_id),
+                                        inputs=[ip_image, ip_type, ip_auto_detect],
+                                        outputs=[ip_detect_style, ip_type, ip_stop, ip_weight],
+                                        queue=False,
+                                        show_progress=False
+                                    )
+
+                            ip_auto_detect.change(
+                                fn=_ip_auto_detect_all,
+                                inputs=ip_images + ip_types + [ip_auto_detect],
+                                outputs=ip_detect_style_nodes + ip_types + ip_stops + ip_weights,
+                                queue=False,
+                                show_progress=False
+                            )
+
+                        def ip_advance_checked(x):
+                            filtered_ip_list = [flags.cn_canny, flags.cn_cpds, flags.cn_pose]
+                            default_ip = filtered_ip_list[0]
+
+                            return [gr_update(visible=x)] * len(ip_ad_cols) + \
+                                [default_ip] * len(ip_types) + \
+                                [flags.default_parameters[default_ip][0]] * len(ip_stops) + \
+                                [flags.default_parameters[default_ip][1]] * len(ip_weights)
+
+                        ip_advanced.change(ip_advance_checked, inputs=ip_advanced,
+                                           outputs=ip_ad_cols + ip_types + ip_stops + ip_weights,
+                                           queue=False, show_progress=False)
+
+                    def _uov_denoise_slider_value(value, default=0.0):
+                        try:
+                            number = float(value)
+                        except (TypeError, ValueError):
+                            number = float(default)
+                        if number < 0:
+                            number = float(default)
+                        return max(0.0, min(1.0, number))
+
+                    with gr.Tab(label='Upscale or Variation', id='uov_tab', elem_id='uov_tab') as uov_tab:
+                        with gr.Row():
+                            with gr.Column():
+                                uov_input_image = gr.Image(label='Image', sources=['upload'], type='numpy', image_mode='RGBA', height=300, show_label=False, elem_id='uov_input_image', buttons=["download", "fullscreen"])
+                                with gr.Row():
+                                    describe_uov_button = gr.Button(value='Describe Image', variant='secondary', size='sm', visible=False)
+                            with gr.Column():
+                                with gr.Group():
+                                    mixing_image_prompt_and_vary_upscale = gr.Checkbox(label='Mixing Image Prompt and Vary/Upscale', value=False)
+                                    uov_method = gr.Radio(label='Upscale or Variation:', choices=flags.uov_list, value=modules.config.default_uov_method)
+                                    with gr.Row():
+                                        uov_image_size = gr.Textbox(label='OriginalSize | FinalSize', lines=1, max_lines=1, interactive=False, elem_classes=['uov_image_size', 'simpleai-status-textbox'])
+                                        overwrite_upscale_strength = gr.Slider(label='Forced Overwrite of Denoising Strength of "Upscale"',
+                                                               visible=False, minimum=0, maximum=1.0, step=0.05,
+                                                               value=_uov_denoise_slider_value(modules.config.default_overwrite_upscale, 0.2))
+                                        _default_uov_method_text = str(modules.config.default_uov_method or "")
+                                        _default_uov_vary_strength = 0.85 if ("Strong" in _default_uov_method_text or "Hires.fix" in _default_uov_method_text) else 0.5 if "Vary" in _default_uov_method_text else 0.0
+                                        overwrite_vary_strength = gr.Slider(label='Forced Overwrite of Denoising Strength of "Vary"',
+                                                            visible=False, minimum=0, maximum=1.0, step=0.05, value=_uov_denoise_slider_value(_default_uov_vary_strength))
+
+                                    with gr.Row(visible=False) as uov_hires_fix:
+                                        hires_fix_stop = gr.Slider(label='Stop At', minimum=0.0, maximum=1.0, step=0.05, value=0.8, min_width=20)
+                                        hires_fix_weight = gr.Slider(label='Weight', minimum=0.0, maximum=2.0, step=0.05, value=0.5, min_width=20)
+                                        hires_fix_blurred = gr.Slider(label='Blurred', minimum=0.0, maximum=1.0, step=0.05, value=0.0, min_width=20)
+                                with gr.Accordion("Batch", open=False) as uov_batch_accordion:
+                                    uov_batch_folder = gr.Textbox(label="Folder(Local Path)", placeholder="e.g. D:\\images\\inputs")
+                                    uov_batch_files = gr.File(label="Upload images", file_count="multiple", file_types=[".png", ".jpg", ".jpeg", ".webp", ".bmp"], type="filepath")
+                                    uov_batch_status = gr.Textbox(label="Batch status", value="", lines=1, max_lines=1, interactive=False, elem_id="uov_batch_status", elem_classes=["simpleai-status-textbox"])
+                                    uov_batch_id = gr.State("")
+                                    with gr.Row():
+                                        uov_batch_start = gr.Button(value="Batch Start", size="sm", elem_classes=["simpleai-batch-start-button"])
+                                        uov_batch_stop = gr.Button(value="Batch Stop", size="sm", elem_classes=["simpleai-batch-stop-button"])
+                        uov_input_image.upload(topbar.update_upscale_size_of_image, inputs=[uov_input_image, uov_method], outputs=uov_image_size, show_progress=False, queue=False)
+                        uov_method.change(topbar.update_size_and_hires_fix, inputs=[uov_input_image, uov_method, params_backend, hires_fix_stop, hires_fix_weight, hires_fix_blurred], outputs=[uov_image_size, uov_hires_fix, overwrite_vary_strength, overwrite_upscale_strength], show_progress=False, queue=False)
+                        hires_fix_stop.change(lambda x,y,z: sync_backend_params('hires_fix_s',x,y,z), inputs=[hires_fix_stop, params_backend, state_topbar])
+                        hires_fix_weight.change(lambda x,y,z: sync_backend_params('hires_fix_w',x,y,z), inputs=[hires_fix_weight, params_backend, state_topbar])
+                        hires_fix_blurred.change(lambda x,y,z: sync_backend_params('hires_fix_blurred',x,y,z), inputs=[hires_fix_blurred, params_backend, state_topbar])
+                    
+                    with gr.Tab(label='Inpaint or Outpaint', id='inpaint_tab', elem_id='inpaint_tab') as inpaint_tab:
+                        with gr.Row():
+                            mixing_image_prompt_and_inpaint = gr.Checkbox(label='Mixing Image Prompt and Inpaint', value=False, container=False)
+                            inpaint_advanced_masking_checkbox = gr.Checkbox(label='Enable Advanced Masking Features', value=modules.config.default_inpaint_advanced_masking_checkbox, container=False, elem_id='inpaint_advanced_masking_checkbox')
+                            invert_mask_checkbox = gr.Checkbox(label='Invert Mask When Generating', value=modules.config.default_invert_mask_checkbox, container=False)
+                        with gr.Row():
+                            with gr.Column():
+                                default_inpaint_mode = _normalize_inpaint_mode(modules.config.default_inpaint_method)
+                                inpaint_input_image = create_sketch_image(label='Image', type='numpy', image_mode='RGBA', height=480, width=720, brush_color="#FFFFFF", elem_id='inpaint_canvas', show_label=False)
+                                with gr.Row():
+                                    describe_inpaint_button = gr.Button(value='Describe Image', variant='secondary', size='sm', visible=False)
+                                inpaint_mode = gr.Dropdown(choices=modules.flags.inpaint_options, value=default_inpaint_mode, label='Method', elem_id='inpaint_mode')
+                                inpaint_additional_prompt = gr.Textbox(placeholder="Describe what you want to inpaint.", elem_id='inpaint_additional_prompt', elem_classes=['danbooru-autocomplete-input', 'simpai-mounted-hidden'], label='Inpaint Additional Prompt', visible=True)
+                                outpaint_selections = gr.CheckboxGroup(choices=['Left', 'Right', 'Top', 'Bottom'], value=[], label='Outpaint Direction', elem_id='outpaint_selections', visible=True)
+                                example_inpaint_prompts = gr.Dataset(samples=modules.config.example_inpaint_prompts,
+                                                                     label='Additional Prompt Quick List',
+                                                                     components=[inpaint_additional_prompt],
+                                                                     elem_id='example_inpaint_prompts',
+                                                                     visible=True,
+                                                                     elem_classes=['simpai-mounted-hidden'])
+                                example_inpaint_prompts.click(lambda x: x[0], inputs=example_inpaint_prompts, outputs=inpaint_additional_prompt, show_progress=False, queue=False)
+                            with gr.Column(visible=True, elem_id='inpaint_mask_generation_col', elem_classes=['simpai-mounted-hidden']) as inpaint_mask_generation_col:
+                                inpaint_mask_image = create_sketch_image(label='Mask Upload', show_label=True, type='numpy', height=480, width=720, brush_color="#FFFFFF", elem_id='inpaint_mask_canvas')
+                                inpaint_mask_model = gr.Dropdown(label='Mask generation model',
+                                                                 choices=flags.inpaint_mask_models,
+                                                                 value=modules.config.default_inpaint_mask_model,
+                                                                 elem_id='inpaint_mask_model')
+                                inpaint_mask_cloth_category = gr.Dropdown(label='Cloth category',
+                                                             choices=flags.inpaint_mask_cloth_category,
+                                                             value=modules.config.default_inpaint_mask_cloth_category,
+                                                             visible=True,
+                                                             elem_id='inpaint_mask_cloth_category',
+                                                             elem_classes=['simpai-mounted-hidden'])
+                                inpaint_mask_dino_prompt_text = gr.Textbox(label='Detection prompt', value='', visible=True, info='Use singular whenever possible', placeholder='Describe what you want to detect.', elem_id='inpaint_mask_dino_prompt_text', elem_classes=['danbooru-autocomplete-input', 'simpai-mounted-hidden'])
+                                example_inpaint_mask_dino_prompt_text = gr.Dataset(
+                                    samples=modules.config.example_enhance_detection_prompts,
+                                    label='Detection Prompt Quick List',
+                                    components=[inpaint_mask_dino_prompt_text],
+                                    visible=True,
+                                    elem_id='example_inpaint_mask_dino_prompt_text',
+                                    elem_classes=['simpai-mounted-hidden'])
+                                example_inpaint_mask_dino_prompt_text.click(lambda x: x[0],
+                                                                            inputs=example_inpaint_mask_dino_prompt_text,
+                                                                            outputs=inpaint_mask_dino_prompt_text,
+                                                                            show_progress=False, queue=False)
+
+                                with gr.Accordion("Advanced options", visible=True, open=False, elem_id='inpaint_mask_advanced_options', elem_classes=['simpai-mounted-hidden']) as inpaint_mask_advanced_options:
+                                    inpaint_mask_sam_model = gr.Dropdown(label='SAM model', choices=flags.inpaint_mask_sam_model, value=modules.config.default_inpaint_mask_sam_model)
+                                    inpaint_mask_box_threshold = gr.Slider(label="Box Threshold", minimum=0.0, maximum=1.0, value=0.3, step=0.05)
+                                    inpaint_mask_text_threshold = gr.Slider(label="Text Threshold", minimum=0.0, maximum=1.0, value=0.25, step=0.05)
+                                    inpaint_mask_sam_max_detections = gr.Slider(label="Maximum number of detections", info="Set to 0 to detect all", minimum=0, maximum=10, value=modules.config.default_sam_max_detections, step=1, interactive=True)
+                                generate_mask_button = gr.Button(value='Generate mask from image')
+                        with gr.Row():
+                            inpaint_strength = gr.Slider(label='Inpaint Denoising Strength',
+                                                     minimum=0.0, maximum=1.0, step=0.01, value=1.0,
+                                                     info='Same as the denoising strength in A1111 inpaint. '
+                                                          'Only used in inpaint, not used in outpaint. '
+                                                          '(Outpaint always use 1.0)')
+                            inpaint_respective_field = gr.Slider(label='Inpaint Respective Field',
+                                                             minimum=0.0, maximum=1.0, step=0.01, value=0.618,
+                                                             info='The area to inpaint. '
+                                                                  'Value 0 is same as "Only Masked" in A1111. '
+                                                                  'Value 1 is same as "Whole Image" in A1111. '
+                                                                  'Only used in inpaint, not used in outpaint. '
+                                                                  '(Outpaint always use 1.0)')
+                        
+                        def generate_mask(image, mask_model, cloth_category, dino_prompt_text, sam_model, box_threshold, text_threshold, sam_max_detections, dino_erode_or_dilate, dino_debug):
+                            from extras.inpaint_mask import generate_mask_from_image
+
+                            extras = {}
+                            sam_options = None
+                            if mask_model == 'u2net_cloth_seg':
+                                extras['cloth_category'] = cloth_category
+                            elif mask_model == 'sam':
+                                sam_options = SAMOptions(
+                                    dino_prompt=translator.convert(dino_prompt_text, ads.get_admin_default('translation_methods')),
+                                    dino_box_threshold=box_threshold,
+                                    dino_text_threshold=text_threshold,
+                                    dino_erode_or_dilate=dino_erode_or_dilate,
+                                    dino_debug=dino_debug,
+                                    max_detections=sam_max_detections,
+                                    model_type=sam_model
+                                )
+
+                            mask, _, _, _ = generate_mask_from_image(image, mask_model, extras, sam_options)
+
+                            return mask
+
+
+                        inpaint_mask_model.change(lambda x: [skip_component_update()] * 3 +
+                                                                    [dataset_update(samples=modules.config.example_enhance_detection_prompts)],
+                                                          inputs=inpaint_mask_model,
+                                                          outputs=[inpaint_mask_cloth_category,
+                                                                   inpaint_mask_dino_prompt_text,
+                                                                   inpaint_mask_advanced_options,
+                                                                   example_inpaint_mask_dino_prompt_text],
+                                                          queue=False, show_progress=False) \
+                                                          .then(lambda x: None, inputs=[inpaint_mask_model], js='(x)=>{try{if(window.syncInpaintMaskControlsVisibility) window.syncInpaintMaskControlsVisibility(x);}catch(e){console.warn("[UI-TRACE] inpaint_mask_model_mounted_visibility_sync_failed", e);}}', show_progress=False, queue=False)
+                    with gr.Tab(label='Enhance+', id='enhance_tab') as enhance_tab:
+                        with gr.Row():
+                            with gr.Column():
+                                enhance_checkbox = gr.Checkbox(label='Enhance', value=modules.config.default_enhance_checkbox, container=False)
+                                enhance_input_image = gr.Image(label='Use with Enhance, skips image generation', sources=['upload'], type='numpy', image_mode='RGBA', elem_id='enhance_input_image', buttons=["download", "fullscreen"])
+                                with gr.Row():
+                                    describe_enhance_button = gr.Button(value='Describe Image', variant='secondary', size='sm', visible=False)
+                                with gr.Group():
+                                    with gr.Row():
+                                        enhance_enabled_1 = gr.Checkbox(label='Enable Region#1', value=False, elem_classes='min_check')
+                                        enhance_enabled_2 = gr.Checkbox(label='Enable Region#2', value=False, elem_classes='min_check')
+                                        enhance_enabled_3 = gr.Checkbox(label='Enable Region#3', value=False, elem_classes='min_check')
+                            with gr.Column():
+                                with gr.Row(visible=True) as enhance_input_panel:
+                                    with gr.Tabs():
+                                        with gr.Tab(label='Upscale  or  Variation'):
+                                            with gr.Row():
+                                                with gr.Column():
+                                                    enhance_uov_method = gr.Radio(label='Upscale or Variation:', choices=flags.uov_list,
+                                                                        value=modules.config.default_enhance_uov_method)
+                                                    enhance_uov_strength = gr.Slider(label='Denoising Strength of enhance',
+                                                                        visible=False, minimum=0, maximum=1.0, step=0.01, value=0)
+                                                    enhance_uov_processing_order = gr.Radio(label='Order of Processing',
+                                                                        info='Use before to enhance small details and after to enhance large areas.',
+                                                                        choices=flags.enhancement_uov_processing_order,
+                                                                        value=modules.config.default_enhance_uov_processing_order)
+                                                    enhance_uov_prompt_type = gr.Radio(label='Prompt.',
+                                                                   info='Choose which prompt to use for Upscale or Variation.',
+                                                                   choices=flags.enhancement_uov_prompt_types,
+                                                                   value=modules.config.default_enhance_uov_prompt_type,
+                                                                   visible=modules.config.default_enhance_uov_processing_order == flags.enhancement_uov_after)
+                                                    
+                                                    enhance_uov_method.change(lambda x: gr_update(visible=x.lower() != 'disabled', value=flags.enhance_uov_strengths[x]), inputs=enhance_uov_method, outputs=enhance_uov_strength, queue=False, show_progress=False)
+                                                    enhance_uov_processing_order.change(lambda x: gr_update(visible=x == flags.enhancement_uov_after),
+                                                                    inputs=enhance_uov_processing_order,
+                                                                    outputs=enhance_uov_prompt_type,
+                                                                    queue=False, show_progress=False)
+
+                                        enhance_ctrls = []
+                                        enhance_inpaint_mode_ctrls = []
+                                        enhance_inpaint_engine_ctrls = []
+                                        enhance_inpaint_update_ctrls = []
+                                        default_enhance_mask_model = modules.config.default_enhance_inpaint_mask_model
+                                        def mounted_hidden_unless(condition, *classes):
+                                            result = list(classes)
+                                            if not condition:
+                                                result.append('simpai-mounted-hidden')
+                                            return result
+                                        for index in range(modules.config.default_enhance_tabs):
+                                            with gr.Tab(label=f'Region#{index + 1}') as enhance_tab_item:
+                                                enhance_enabled = [enhance_enabled_1, enhance_enabled_2, enhance_enabled_3][index]
+                                                enhance_mask_dino_prompt_text = gr.Textbox(label='Detection prompt',
+                                                                       info='Use singular whenever possible',
+                                                                       placeholder='Describe what you want to detect.',
+                                                                       interactive=True,
+                                                                       value = 'face' if index==0 else 'hand' if index==1 else 'eye' if index==2 else '',
+                                                                       elem_id=f'enhance_mask_dino_prompt_text_{index + 1}',
+                                                                       elem_classes=mounted_hidden_unless(default_enhance_mask_model == 'sam', 'danbooru-autocomplete-input'),
+                                                                       visible=True)
+                                                example_enhance_mask_dino_prompt_text = gr.Dataset(
+                                                    samples=modules.config.example_enhance_detection_prompts,
+                                                    label='Detection Prompt Quick List',
+                                                    components=[enhance_mask_dino_prompt_text],
+                                                    visible=True,
+                                                    elem_id=f'example_enhance_mask_dino_prompt_text_{index + 1}',
+                                                    elem_classes=mounted_hidden_unless(default_enhance_mask_model == 'sam'))
+                                                example_enhance_mask_dino_prompt_text.click(lambda x: x[0],
+                                                                        inputs=example_enhance_mask_dino_prompt_text,
+                                                                        outputs=enhance_mask_dino_prompt_text,
+                                                                        show_progress=False, queue=False)
+
+                                                enhance_prompt = gr.Textbox(label="Enhancement positive prompt",
+                                                        placeholder="Uses original prompt instead if empty.",
+                                                        elem_id='enhance_prompt',
+                                                        elem_classes=['danbooru-autocomplete-input'])
+                                                enhance_negative_prompt = gr.Textbox(label="Enhancement negative prompt",
+                                                                 placeholder="Uses original negative prompt instead if empty.",
+                                                                 elem_id='enhance_negative_prompt',
+                                                                 elem_classes=['danbooru-autocomplete-input'])
+
+                                                with gr.Accordion("Detection", open=False):
+                                                    enhance_mask_model = gr.Dropdown(label='Mask generation model',
+                                                                 choices=flags.inpaint_mask_models,
+                                                                 value=modules.config.default_enhance_inpaint_mask_model,
+                                                                 elem_id=f'enhance_mask_model_{index + 1}')
+                                                    enhance_mask_cloth_category = gr.Dropdown(label='Cloth category',
+                                                                          choices=flags.inpaint_mask_cloth_category,
+                                                                          value=modules.config.default_inpaint_mask_cloth_category,
+                                                                          visible=True,
+                                                                          interactive=True,
+                                                                          elem_id=f'enhance_mask_cloth_category_{index + 1}',
+                                                                          elem_classes=mounted_hidden_unless(default_enhance_mask_model == 'u2net_cloth_seg'))
+
+                                                    with gr.Accordion("SAM Options",
+                                                                    visible=True,
+                                                                    open=False,
+                                                                    elem_id=f'enhance_mask_sam_options_{index + 1}',
+                                                                    elem_classes=mounted_hidden_unless(default_enhance_mask_model == 'sam')) as sam_options:
+                                                        enhance_mask_sam_model = gr.Dropdown(label='SAM model',
+                                                                         choices=flags.inpaint_mask_sam_model,
+                                                                         value=modules.config.default_inpaint_mask_sam_model,
+                                                                         interactive=True)
+                                                        enhance_mask_box_threshold = gr.Slider(label="Box Threshold", minimum=0.0,
+                                                                           maximum=1.0, value=0.3, step=0.05,
+                                                                           interactive=True)
+                                                        enhance_mask_text_threshold = gr.Slider(label="Text Threshold", minimum=0.0,
+                                                                            maximum=1.0, value=0.25, step=0.05,
+                                                                            interactive=True)
+                                                        enhance_mask_sam_max_detections = gr.Slider(label="Maximum number of detections",
+                                                                                info="Set to 0 to detect all",
+                                                                                minimum=0, maximum=10,
+                                                                                value=modules.config.default_sam_max_detections,
+                                                                                step=1, interactive=True)
+
+                                                with gr.Accordion("Inpaint", visible=True, open=False):
+                                                    enhance_inpaint_mode = gr.Dropdown(choices=[modules.flags.inpaint_option_detail],
+                                                                   value=modules.flags.inpaint_option_detail,
+                                                                   label='Method', interactive=False)
+                                                    enhance_inpaint_disable_initial_latent = gr.Checkbox(
+                                                        label='Disable initial latent in inpaint', value=False)
+                                                    _enhance_inpaint_engine_choices, _enhance_inpaint_engine_value = _initial_inpaint_engine_choices_and_value()
+                                                    enhance_inpaint_engine = gr.Dropdown(label='Inpaint Engine',
+                                                                     value=_enhance_inpaint_engine_value,
+                                                                     choices=_enhance_inpaint_engine_choices,
+                                                                     info='Version of Fooocus inpaint model. If set, use performance Quality or Speed (no performance LoRAs) for best results.')
+                                                    enhance_inpaint_strength = gr.Slider(label='Inpaint Denoising Strength',
+                                                                     minimum=0.0, maximum=1.0, step=0.01,
+                                                                     value=1.0,
+                                                                     info='Same as the denoising strength in A1111 inpaint. '
+                                                                          'Only used in inpaint, not used in outpaint. '
+                                                                          '(Outpaint always use 1.0)')
+                                                    enhance_inpaint_respective_field = gr.Slider(label='Inpaint Respective Field',
+                                                                             minimum=0.0, maximum=1.0, step=0.01,
+                                                                             value=0.618,
+                                                                             info='The area to inpaint. '
+                                                                                  'Value 0 is same as "Only Masked" in A1111. '
+                                                                                  'Value 1 is same as "Whole Image" in A1111. '
+                                                                                  'Only used in inpaint, not used in outpaint. '
+                                                                                  '(Outpaint always use 1.0)')
+                                                    enhance_inpaint_erode_or_dilate = gr.Slider(label='Mask Erode or Dilate',
+                                                                            minimum=-64, maximum=64, step=1, value=0,
+                                                                            info='Positive value will make white area in the mask larger, '
+                                                                                 'negative value will make white area smaller. '
+                                                                                 '(default is 0, always processed before any mask invert)')
+                                                    enhance_mask_invert = gr.Checkbox(label='Invert Mask', value=False)
+
+                                            enhance_ctrls += [
+                                                enhance_enabled,
+                                                enhance_mask_dino_prompt_text,
+                                                enhance_prompt,
+                                                enhance_negative_prompt,
+                                                enhance_mask_model,
+                                                enhance_mask_cloth_category,
+                                                enhance_mask_sam_model,
+                                                enhance_mask_text_threshold,
+                                                enhance_mask_box_threshold,
+                                                enhance_mask_sam_max_detections,
+                                                enhance_inpaint_disable_initial_latent,
+                                                enhance_inpaint_engine,
+                                                enhance_inpaint_strength,
+                                                enhance_inpaint_respective_field,
+                                                enhance_inpaint_erode_or_dilate,
+                                                enhance_mask_invert
+                                            ]
+
+                                            enhance_inpaint_mode_ctrls += [enhance_inpaint_mode]
+                                            enhance_inpaint_engine_ctrls += [enhance_inpaint_engine]
+
+                                            enhance_inpaint_update_ctrls += [[
+                                                enhance_inpaint_mode, enhance_inpaint_disable_initial_latent, enhance_inpaint_engine,
+                                                enhance_inpaint_strength, enhance_inpaint_respective_field
+                                            ]]
+
+                                            enhance_inpaint_mode.change(enhance_inpaint_mode_change, inputs=[enhance_inpaint_mode, inpaint_engine_state, state_topbar], outputs=[
+                                                enhance_inpaint_disable_initial_latent, enhance_inpaint_engine,
+                                                enhance_inpaint_strength, enhance_inpaint_respective_field
+                                            ], show_progress=False, queue=False)
+
+                                            enhance_mask_model.change(
+                                                lambda x: [skip_component_update()] * 3 +
+                                                        [dataset_update(samples=modules.config.example_enhance_detection_prompts)],
+                                                inputs=enhance_mask_model,
+                                                outputs=[enhance_mask_cloth_category, enhance_mask_dino_prompt_text, sam_options,
+                                                        example_enhance_mask_dino_prompt_text],
+                                                queue=False, show_progress=False) \
+                                                .then(lambda: None, js='()=>{try{if(window.syncEnhanceMaskControlsVisibility) window.syncEnhanceMaskControlsVisibility();}catch(e){console.warn("[UI-TRACE] enhance_mask_mounted_visibility_sync_failed", e);}}', show_progress=False, queue=False)
+                                with gr.Accordion("Batch", open=False) as enhance_batch_accordion:
+                                    enhance_batch_folder = gr.Textbox(label="Folder(Local Path)", placeholder="e.g. D:\\images\\inputs")
+                                    enhance_batch_files = gr.File(label="Upload images", file_count="multiple", file_types=[".png", ".jpg", ".jpeg", ".webp", ".bmp"], type="filepath")
+                                    enhance_batch_status = gr.Textbox(label="Batch status", value="", lines=1, max_lines=1, interactive=False, elem_id="enhance_batch_status", elem_classes=["simpleai-status-textbox"])
+                                    enhance_batch_id = gr.State("")
+                                    with gr.Row():
+                                        enhance_batch_start = gr.Button(value="Batch Start", size="sm", elem_classes=["simpleai-batch-start-button"])
+                                        enhance_batch_stop = gr.Button(value="Batch Stop", size="sm", elem_classes=["simpleai-batch-stop-button"])
+            switch_js = "(x) => {if(x){viewer_to_bottom(100);viewer_to_bottom(500);}else{viewer_to_top();} return x;}"
+            switch_js_two = "(x,y) => {if(x){viewer_to_bottom(100);viewer_to_bottom(500);}else{if(!y){viewer_to_top();}} return [x,y];}"
+            sync_image_tts_js = """(ttsChecked, imageChecked) => {
+                const showTts = !!ttsChecked;
+                try {
+                    if (window.syncTopbarMountedPanelVisibility) {
+                        window.syncTopbarMountedPanelVisibility("qwen_tts_toggle");
+                        setTimeout(() => window.syncTopbarMountedPanelVisibility("qwen_tts_toggle+120ms"), 120);
+                    }
+                } catch (e) {
+                    console.warn("[UI-TRACE] qwen_tts_panel_sync_failed", e);
+                }
+                if (showTts) { viewer_to_bottom(100); viewer_to_bottom(500); }
+                return [ttsChecked, imageChecked];
+            }"""
+            down_js = "() => {viewer_to_bottom();}"
+
+            ip_advanced.change(lambda: None, queue=False, show_progress=False, js=down_js)
+
+            current_tab = gr.Textbox(value=modules.config.default_selected_image_input_tab_id.split('_')[0], visible=False)
+            history_link = gr.HTML()
+
+        with gr.Column(
+            scale=1,
+            visible=True,
+            elem_id="advanced_column",
+            elem_classes=["scrollable-box-hidden"] + ([] if modules.config.default_advanced_checkbox else ["simpai-mounted-hidden"]),
+        ) as advanced_column:
+            models_tab_active_state = gr.State(False)
+            with gr.Tabs(elem_id="advanced_tabs"):
+                with gr.Tab(label='Setting', elem_id="scrollable-box") as setting_tab:
+                    with gr.Accordion("Preset Introduction", open=False, visible=False, elem_id="preset_instruction_accordion") as preset_instruction:
+                        gr.HTML(value=topbar.preset_instruction(), elem_id="preset_instruction_html")
+                    with gr.Row(elem_id="parameter_profile_row", elem_classes=["parameter-profile-row"]):
+                        parameter_profile_select = gr.Dropdown(
+                            label="Parameter Profile",
+                            choices=[],
+                            value=None,
+                            allow_custom_value=True,
+                            show_label=False,
+                            container=False,
+                            elem_id="parameter_profile_select",
+                            elem_classes=["parameter-profile-select"],
+                            scale=6,
+                        )
+                        parameter_profile_save = gr.Button(
+                            value="Save",
+                            size="sm",
+                            elem_id="parameter_profile_save",
+                            elem_classes=["parameter-profile-save"],
+                            scale=1,
+                            min_width=58,
+                        )
+                        parameter_profile_delete = gr.Button(
+                            value="Delete",
+                            size="sm",
+                            elem_id="parameter_profile_delete",
+                            elem_classes=["parameter-profile-delete"],
+                            scale=1,
+                            min_width=58,
+                        )
+                    resolution_control = create_main_resolution_control()
+                    aspect_ratios_accordion = resolution_control.container
+                    aspect_ratios_selection = resolution_control.selection
+                    random_aspect_ratio_checkbox = resolution_control.random_checkbox
+                    use_resolution_override_checkbox = resolution_control.use_override_checkbox
+                    resolution_original_input_checkbox = resolution_control.original_input_checkbox
+                    resolution_multiplier = resolution_control.multiplier
+                    resolution_edit_mode = resolution_control.edit_mode
+                    aspect_ratios_selections = []
+                    with gr.Tabs(selected="general", elem_id="general_setting_tabs"):
+                        with gr.Tab(label="General", id="general") as setting_general_tab:
+                            performance_selection = gr.Radio(label='Performance', container=False, 
+                                                         choices=flags.Performance.list(),
+                                                         value=modules.config.default_performance, visible=True,
+                                                         elem_id='performance_selection',
+                                                         elem_classes=['performance_selection'])
+                            with gr.Group():
+                                image_number = gr.Slider(label='Image Number', minimum=1, maximum=modules.config.default_max_image_number, step=1, value=modules.config.default_image_number, elem_id="image_number")
+
+                                def select_random_aspect_ratio(use_random, cached_ratio, current_selection=None):
+                                    if not use_random:
+                                        return [skip_component_update(), skip_component_update(), skip_component_update(), None]
+
+                                    template = 'SDXL'
+                                    current_selection = str(current_selection or "")
+                                    if "," in current_selection:
+                                        candidate_template = current_selection.rsplit(",", 1)[1].strip()
+                                        if candidate_template in flags.available_aspect_ratios_list:
+                                            template = candidate_template
+
+                                    selected_ratio = None
+                                    if cached_ratio is not None and str(cached_ratio).strip():
+                                        selected_ratio = str(cached_ratio)
+                                    else:
+                                        choices = flags.available_aspect_ratios_list.get(template, flags.available_aspect_ratios_list['SDXL'])
+                                        if choices:
+                                            selected_ratio = f"{random.choice(choices)},{template}"
+
+                                    if selected_ratio:
+                                        try:
+                                            raw = str(selected_ratio).split(',', 1)[0]
+                                            m2 = re.search(r'(\d+)\D+(\d+)', raw.replace('×', 'x'))
+                                            if m2:
+                                                width = int(m2.group(1))
+                                                height = int(m2.group(2))
+                                                return [width, height, selected_ratio, selected_ratio]
+                                        except Exception:
+                                            pass
+
+                                    return [skip_component_update(), skip_component_update(), skip_component_update(), None]
+                                with gr.Row():
+                                    quick_enhance = gr.Checkbox(label='Quick Enhance', value=False)
+                                quick_enhance_uov_strength = gr.Slider(label='Denoising Strength of enhance',
+                                                 visible=False, minimum=0, maximum=1.0, step=0.01, value=0.2)
+                                output_format = gr.Radio(label='Output Format',
+                                                 choices=flags.OutputFormat.list(),
+                                                 value=modules.config.default_output_format)
+
+                                negative_prompt = gr.Textbox(label='Negative Prompt', show_label=True, placeholder="Type prompt here.", lines=2,
+                                                     elem_id='negative_prompt', elem_classes=['danbooru-autocomplete-input'], value=modules.config.default_prompt_negative, visible=False)
+                                seed_random = gr.Checkbox(label='Random', value=True)
+                                image_seed = gr.Textbox(label='Seed', value=0, max_lines=1, visible=False) # workaround for https://github.com/gradio-app/gradio/issues/5354
+
+                            def reversed_checked(r):
+                                return gr_update(visible=not r)
+
+                            seed_random.change(reversed_checked, inputs=[seed_random], outputs=[image_seed], queue=False, show_progress=False)
+                            scene_seed_random.change(lambda x: [gr_update(value=x), gr_update(visible=not x), gr_update(visible=not x)], inputs=scene_seed_random, outputs=[seed_random, image_seed, scene_image_seed], queue=False, show_progress=False)
+                            seed_random.change(lambda x: [gr_update(value=x), gr_update(visible=not x), gr_update(visible=not x)], inputs=seed_random, outputs=[scene_seed_random, scene_image_seed, image_seed], queue=False, show_progress=False)
+                            scene_image_seed.change(lambda x: gr_update(value=x), inputs=scene_image_seed, outputs=image_seed, queue=False, show_progress=False)
+                            image_seed.change(lambda x: gr_update(value=x), inputs=image_seed, outputs=scene_image_seed, queue=False, show_progress=False)
+                            quick_enhance.change(fn=lambda x: [x, 'Upscale (1.5x)' if x else 'Disabled', gr_update(visible=x, value=0.2)],
+                                                inputs=quick_enhance,outputs=[enhance_checkbox, enhance_uov_method, quick_enhance_uov_strength], queue=False, show_progress=False)
+                            quick_enhance_uov_strength.change(fn=lambda x: x,inputs=quick_enhance_uov_strength,outputs=enhance_uov_strength, queue=False, show_progress=False)
+
+                        with gr.Tab(label="Advanced", id="advanced", render_children=True) as setting_advanced_tab:
+                            with gr.Group():
+                                with gr.Row():
+                                    guidance_scale = gr.Slider(label='Guidance Scale', minimum=0.01, maximum=100.0, step=0.01,
+                                                        value=modules.config.default_cfg_scale,
+                                                        info='Higher value means style is cleaner, vivider, and more artistic.',
+                                                        elem_id="guidance_scale")
+                                with gr.Row():
+                                    overwrite_step = gr.Slider(label='Forced Overwrite of Sampling Step',
+                                                               minimum=-1, maximum=200, step=1,
+                                                               value=modules.config.default_overwrite_step,
+                                                               info='Set as -1 to disable. For developer debugging.',
+                                                               elem_id="overwrite_step")
+                                with gr.Row():
+                                    sampler_name = gr.Dropdown(label='Sampler', choices=flags.comfy_sampler_list,
+                                                           value=modules.config.default_sampler)
+                                    scheduler_name = gr.Dropdown(label='Scheduler', choices=flags.comfy_scheduler_list,
+                                                             value=modules.config.default_scheduler)
+                                clip_skip = gr.Slider(label='CLIP Skip', minimum=1, maximum=flags.clip_skip_max, step=1,
+                                                     value=modules.config.default_clip_skip)
+                            sdxl_adv_checkbox = gr.Checkbox(label='SDXL advanced setting', value=False,  container=False)
+                            with gr.Group(visible=False) as sdxl_adv_pannel: 
+                                with gr.Row():
+                                    sharpness = gr.Slider(label='Image Sharpness', minimum=0.0, maximum=30.0, step=0.01,
+                                              value=modules.config.default_sample_sharpness)
+                                    adaptive_cfg = gr.Slider(label='CFG Mimicking from TSNR', minimum=1.0, maximum=30.0, step=0.01,
+                                                         value=modules.config.default_cfg_tsnr)
+                                with gr.Row():
+                                    refiner_swap_method = gr.Dropdown(label='Refiner swap method', value=flags.refiner_swap_method,
+                                                                  choices=['joint', 'separate', 'vae'])
+                                    overwrite_switch = gr.Slider(label='Forced Overwrite of Refiner Switch Step',
+                                                             minimum=-1, maximum=200, step=1,
+                                                             value=modules.config.default_overwrite_switch)
+                                with gr.Row():
+                                    adm_scaler_positive = gr.Slider(label='Positive ADM Guidance Scaler', minimum=0.1, maximum=3.0, step=0.01, value=1.5)
+                                    adm_scaler_negative = gr.Slider(label='Negative ADM Guidance Scaler', minimum=0.1, maximum=3.0, step=0.01, value=0.8)
+                                    adm_scaler_end = gr.Slider(label='ADM Guidance End At Step', minimum=0.0, maximum=1.0, step=0.01, value=0.3)
+                                with gr.Accordion(label='FreeU (Fooocus only)', open=False):
+                                    freeu_enabled = gr.Checkbox(label='Enabled', value=False)
+                                    freeu_b1 = gr.Slider(label='B1', minimum=0, maximum=2, step=0.01, value=1.01)
+                                    freeu_b2 = gr.Slider(label='B2', minimum=0, maximum=2, step=0.01, value=1.02)
+                                    freeu_s1 = gr.Slider(label='S1', minimum=0, maximum=4, step=0.01, value=0.99)
+                                    freeu_s2 = gr.Slider(label='S2', minimum=0, maximum=4, step=0.01, value=0.95)
+                                    freeu_ctrls = [freeu_enabled, freeu_b1, freeu_b2, freeu_s1, freeu_s2]
+                            def toggle_checked(r):
+                                return gr_update(visible=r)
+
+                            sdxl_adv_checkbox.change(toggle_checked, inputs=[sdxl_adv_checkbox], outputs=[sdxl_adv_pannel], queue=False, show_progress=False)
+
+                        with gr.Tab(label='Control', id="control") as setting_control_tab:
+                            debugging_cn_preprocessor = gr.Checkbox(label='Debug Preprocessors', value=False,
+                                                                        info='See the results from preprocessors.')
+                            skipping_cn_preprocessor = gr.Checkbox(label='Skip Preprocessors', value=False,
+                                                                       info='Do not preprocess images. (Inputs are already canny/depth/cropped-face/etc.)')
+                            controlnet_softness = gr.Slider(label='Softness of ControlNet', minimum=0.0, maximum=1.0,
+                                                                step=0.01, value=0.25,
+                                                                info='Similar to the Control Mode in A1111 (use 0.0 to disable). ')
+                            canny_low_threshold = gr.Slider(label='Canny Low Threshold', minimum=1, maximum=255,
+                                                                    step=1, value=64)
+                            canny_high_threshold = gr.Slider(label='Canny High Threshold', minimum=1, maximum=255,
+                                                                     step=1, value=128)
+                        with gr.Tab(label='Inpaint', id="inpaint") as setting_inpaint_tab:
+                            with gr.Group():
+                                _inpaint_engine_choices, _inpaint_engine_value = _initial_inpaint_engine_choices_and_value()
+                                inpaint_engine = gr.Dropdown(label='Inpaint Engine',
+                                            value=_inpaint_engine_value,
+                                            choices=_inpaint_engine_choices)
+                                with gr.Row():
+                                    debugging_inpaint_preprocessor = gr.Checkbox(label='Debug Inpaint Preprocessing', value=False)
+                                    inpaint_disable_initial_latent = gr.Checkbox(label='Disable initial latent in inpaint', value=False)    
+                                with gr.Row():
+                                    debugging_enhance_masks_checkbox = gr.Checkbox(label='Debug Enhance Masks', value=False)
+                                    debugging_dino = gr.Checkbox(label='Debug GroundingDINO', value=False)
+                                inpaint_erode_or_dilate = gr.Slider(label='Mask Erode or Dilate',
+                                                                    minimum=-64, maximum=64, step=1, value=0,
+                                                                    info='Positive value will make white area in the mask larger, '
+                                                                         'negative value will make white area smaller. '
+                                                                         '(default is 0, always processed before any mask invert)')
+                                dino_erode_or_dilate = gr.Slider(label='GroundingDINO Box Erode or Dilate',
+                                                                 minimum=-64, maximum=64, step=1, value=0,
+                                                                 info='Positive value will make white area in the mask larger, '
+                                                                      'negative value will make white area smaller. '
+                                                                      '(default is 0, processed before SAM)')
+
+                            inpaint_ctrls = [debugging_inpaint_preprocessor, inpaint_disable_initial_latent, inpaint_engine,
+                                                 inpaint_strength, inpaint_respective_field,
+                                                 inpaint_advanced_masking_checkbox, invert_mask_checkbox, inpaint_erode_or_dilate]
+
+                            inpaint_advanced_masking_checkbox.change(lambda x: [skip_component_update()] * 2,
+                                                                         inputs=inpaint_advanced_masking_checkbox,
+                                                                         outputs=[inpaint_mask_image, inpaint_mask_generation_col],
+                                                                         queue=False, show_progress=False) \
+                                                                         .then(lambda: None, js='()=>{try{if(window.syncInpaintMaskControlsVisibility) window.syncInpaintMaskControlsVisibility();}catch(e){console.warn("[UI-TRACE] inpaint_mask_mounted_visibility_sync_failed", e);}}', show_progress=False, queue=False)
+
+                    with gr.Tabs():
+                        with gr.Tab(label='Describe Image', id='describe_tab', visible=True) as image_describe:
+                            with gr.Group():
+                                with gr.Column():
+                                    describe_input_image = gr.Image(label='Image to be described', sources=['upload'], type='numpy', show_label=True, elem_id='describe_input_image', buttons=["download", "fullscreen"])
+                                with gr.Column():
+                                    with gr.Group(elem_id='describe_prompt_box'):
+                                        describe_prompt = gr.Textbox(value='', show_label=False, container=False, lines=1, max_lines=1, visible='hidden', elem_id='describe_prompt', elem_classes=['sai-gradio-hidden-bridge', 'describe-prompt-hidden-bridge'])
+                                        describe_vlm_chat_button = gr.HTML(
+                                            value='<button type="button" class="describe-vlm-chat-entry describe-vlm-chat-entry-wide" aria-label="VLM/LLM AI chat"><span class="describe-vlm-chat-entry-icon"><i class="fa-solid fa-message"></i></span><span class="describe-vlm-chat-entry-copy"><strong>VLM/LLM AI chat</strong><span>VLM/LLM mode enabled. Start chatting with the model.</span></span><i class="fa-solid fa-arrow-right describe-vlm-chat-entry-arrow"></i></button>',
+                                            elem_id='describe_vlm_chat_button',
+                                            elem_classes=['describe-vlm-chat-entry-card'],
+                                        )
+                                    with gr.Row(elem_id='describe_output_options_row'):
+                                        describe_output_tags = gr.Checkbox(label='Output with tags', value=False, visible=True, min_width=50, elem_id='describe_output_tags')
+                                        describe_output_chinese = gr.Checkbox(label='Output in Chinese', value=False, visible=True, min_width=50, elem_id='describe_output_chinese')
+                                        describe_output_artist = gr.Checkbox(label='Artist', value=False, visible=True, min_width=50, elem_id='describe_output_artist')
+                                    describe_image_size = gr.Button(value='Original Size / Recommended Size', elem_id='describe_image_size', visible=False)
+                                    with gr.Row():
+                                        describe_btn = gr.Button(value='⚡ Execute Instruction')
+                                        unload_btn = gr.Button(value='🗑️Unload Models', min_width=150)
+                                    with gr.Row(visible=True, elem_id='describe_vlm_model_bar') as vlm_describe_col:
+                                        describe_vlm_model = gr.Dropdown(
+                                            choices=_vlm_model_choices(),
+                                            value=_vlm_model_choice_label(VLM.current_version),
+                                            show_label=False,
+                                            container=False,
+                                            interactive=True,
+                                            elem_id='describe_vlm_model_dropdown',
+                                            elem_classes=['describe-vlm-model-select'],
+                                            min_width=140,
+                                        )
+                                        vlm_status_info = gr.HTML(value=_vlm_model_status_html(VLM.current_version), visible=False, elem_id='describe_vlm_model_status')
+                                    with gr.Group(visible=_initial_main_vlm_version == VLM.CUSTOM_VERSION, elem_id='describe_vlm_custom_panel') as describe_vlm_custom_panel:
+                                        describe_vlm_custom_help = gr.HTML(
+                                            value=_main_vlm_custom_help_html(_initial_main_vlm_lang_state),
+                                            elem_id='describe_vlm_custom_help',
+                                        )
+                                        with gr.Row():
+                                            describe_vlm_custom_api_name = gr.Textbox(
+                                                label=_initial_main_vlm_texts["api_name_label"],
+                                                value=_initial_main_vlm_custom_settings["api_name"],
+                                                lines=1,
+                                                max_lines=1,
+                                                placeholder=_initial_main_vlm_texts["api_name_placeholder"],
+                                                elem_id='describe_vlm_custom_api_name',
+                                            )
+                                            describe_vlm_custom_provider = gr.Dropdown(
+                                                label=_initial_main_vlm_texts["provider_label"],
+                                                choices=_main_vlm_provider_choices(_initial_main_vlm_lang_state),
+                                                value=_initial_main_vlm_custom_settings["provider"],
+                                                interactive=True,
+                                                elem_id='describe_vlm_custom_provider',
+                                            )
+                                            describe_vlm_custom_api_format = gr.Dropdown(
+                                                label=_initial_main_vlm_texts["api_format_label"],
+                                                choices=['openai_compatible'],
+                                                value=_initial_main_vlm_custom_settings["api_format"],
+                                                interactive=True,
+                                                visible=False,
+                                                elem_id='describe_vlm_custom_api_format',
+                                            )
+                                        describe_vlm_custom_base_url = gr.Textbox(
+                                            label=_initial_main_vlm_texts["base_url_label"],
+                                            value=_initial_main_vlm_custom_settings["base_url"],
+                                            lines=1,
+                                            max_lines=1,
+                                            placeholder=_initial_main_vlm_texts["base_url_placeholder"],
+                                            elem_id='describe_vlm_custom_base_url',
+                                        )
+                                        with gr.Row():
+                                            describe_vlm_custom_model = gr.Dropdown(
+                                                label=_initial_main_vlm_texts["model_label"],
+                                                choices=[_initial_main_vlm_custom_settings["model"]] if _initial_main_vlm_custom_settings["model"] else [],
+                                                value=_initial_main_vlm_custom_settings["model"] or None,
+                                                allow_custom_value=True,
+                                                interactive=True,
+                                                elem_id='describe_vlm_custom_model',
+                                            )
+                                            describe_vlm_custom_api_key = gr.Textbox(
+                                                label=_initial_main_vlm_texts["api_key_label"],
+                                                value=_initial_main_vlm_custom_settings["api_key"],
+                                                lines=1,
+                                                max_lines=1,
+                                                type='password',
+                                                placeholder=_initial_main_vlm_texts["api_key_placeholder"],
+                                                elem_id='describe_vlm_custom_api_key',
+                                            )
+                                        with gr.Row(elem_id='describe_vlm_custom_action_row'):
+                                            describe_vlm_custom_supports_images = gr.Checkbox(
+                                                label=_initial_main_vlm_texts["support_image_label"],
+                                                value=_initial_main_vlm_custom_settings["supports_images"],
+                                                elem_id='describe_vlm_custom_supports_images',
+                                            )
+                                            describe_vlm_custom_fetch_models = gr.Button(value=_initial_main_vlm_texts["fetch_models"], size='sm', min_width=120, elem_id='describe_vlm_custom_fetch_models')
+                                            describe_vlm_custom_test = gr.Button(value=_initial_main_vlm_texts["test_api"], size='sm', min_width=120, elem_id='describe_vlm_custom_test')
+                                        describe_vlm_custom_message = gr.HTML(value='', elem_id='describe_vlm_custom_message')
+                                    describe_vlm_chat_prompt_bridge = gr.Textbox(value='', visible='hidden', elem_id='describe_vlm_chat_prompt_bridge', elem_classes=['sai-gradio-hidden-bridge'])
+                                    describe_vlm_chat_apply_prompt_btn = gr.Button('Apply Describe VLM chat prompt', visible='hidden', elem_id='describe_vlm_chat_apply_prompt_btn', elem_classes=['sai-gradio-hidden-bridge'])
+
+                                    def trigger_show_image_properties(image):
+                                        image_size = modules.util.get_image_size_info(image, modules.flags.available_aspect_ratios[0])
+                                        return gr_update(value=image_size, visible=True)
+
+                                    def apply_recommended_size(button_text):
+                                        try:
+                                            if ' / ' in button_text:
+                                                parts = button_text.split(' / ')
+                                                if len(parts) > 1:
+                                                    recommended_part = parts[1].strip()
+                                                else:
+                                                    recommended_part = button_text
+                                            else:
+                                                recommended_part = button_text
+
+                                            if 'x' in recommended_part:
+                                                size_part = recommended_part.split('|')[0].strip()
+                                                width_str, height_str = size_part.split('x')[:2]
+                                                width = int(''.join(filter(str.isdigit, width_str)))
+                                                height = int(''.join(filter(str.isdigit, height_str)))
+                                                return [width, height]
+                                            else:
+                                                return [skip_component_update(), skip_component_update()]
+                                        except Exception:
+                                            return [skip_component_update(), skip_component_update()]
+
+                                    describe_input_image.upload(trigger_show_image_properties, inputs=describe_input_image, outputs=describe_image_size, show_progress=False, queue=False)
+                                    describe_image_size.click(apply_recommended_size, inputs=describe_image_size, outputs=[overwrite_width, overwrite_height], show_progress=False, queue=False)
+
+                        with gr.Tab(label='Metadata', id='metadata_tab', visible=True) as metadata_tab:
+                            with gr.Column():
+                                metadata_input_image = gr.Image(label='Drag any image generated by Fooocus here', sources=['upload'], type='pil', elem_id='metadata_input_image', buttons=["download", "fullscreen"])
+                                with gr.Accordion("Preview Metadata", open=True, visible=True) as metadata_preview:
+                                    metadata_json = gr.JSON(label='Metadata')
+                                metadata_import_button = gr.Button(value='Apply Metadata', interactive=False)
+
+                            def trigger_metadata_preview(file):
+                                parameters, metadata_scheme = modules.meta_parser.read_info_from_image(file)
+
+                                results = {}
+                                if parameters is not None:
+                                    results['parameters'] = parameters
+
+                                if isinstance(metadata_scheme, flags.MetadataScheme):
+                                    results['metadata_scheme'] = metadata_scheme.value
+
+                                return [results, gr_update(interactive=parameters is not None)]
+
+                            metadata_input_image.upload(trigger_metadata_preview, inputs=metadata_input_image,
+                                                    outputs=[metadata_json, metadata_import_button], queue=False, show_progress=True)
+                        import enhanced.image_encrypt_tab as image_encrypt_tab
+                        image_encrypt_tab.add_image_encrypt_tab(progress_window, progress_gallery, gallery, progress_video, comparison_box, compare_btn, comparison_state, state_topbar, state_is_generating, image_toolbox, gallery_index, output_format)
+                        # custom plugin "OneButtonPrompt"
+                        with gr.Tab(label="OneButtonPrompt"):
+                            import custom.OneButtonPrompt.ui_onebutton as ui_onebutton
+                            run_event = gr.Number(visible=False, value=0)
+                            ui_onebutton.ui_onebutton(prompt, run_event, random_button)
+                            super_prompter_prompt = gr.Textbox(label='Prompt prefix', value='Expand the following prompt to add more detail:', lines=1)
+                    
+                with gr.Tab(label='Styles', elem_classes=['style_selections_tab']) as styles_tab:
+                    style_sorter.try_load_sorted_styles(
+                        style_names=legal_style_names,
+                        default_selected=modules.config.default_styles)
+                    with gr.Row():
+                        with gr.Column(scale=5):
+                            style_search_bar = gr.Textbox(show_label=False, container=False,
+                                                        placeholder="\U0001F50E Type here to search styles ...",
+                                                        value="",
+                                                        label='Search Styles',
+                                                        scale=5)
+
+                    style_selections = gr.CheckboxGroup(show_label=False, container=False, visible=True,
+                                                        choices=copy.deepcopy(style_sorter.all_styles),
+                                                        value=copy.deepcopy(modules.config.default_styles),
+                                                        label='Selected Styles',
+                                                        elem_classes=['style_selections', 'legacy_style_selections_state'])
+                    gradio_receiver_style_selections = gr.Textbox(elem_id='gradio_receiver_style_selections', visible=False)
+
+                    def generate_style_grid_html():
+                        import json
+                        html = ""
+                        for style in legal_style_names:
+                            style_data = modules.sdxl_styles.get_style_config(style)
+                            is_primary = style in modules.config.default_styles
+                            variant_class = "primary" if is_primary else "secondary"
+                            style_data_json = json.dumps(style_data).replace('"', '&quot;')
+                            html += f"""
+                            <div class="style_item style-tooltip-target" data-style-data="{style_data_json}">
+                                <button class="style-button {variant_class}" data-style-name="{style}">{style}</button>
+                            </div>
+                            """
+                        return html
+
+                    with gr.Column(visible=True, elem_id="style_visual_layout_container", elem_classes=["scrollable-box"]) as visual_layout_container:
+                        style_grid_html = gr.HTML(value=generate_style_grid_html(), elem_classes=["style_grid"], elem_id="style_grid")
+
+                    has_loaded = gr.State(value=0)
+
+                    style_selections.change(fn=None,
+                                            inputs=style_selections,
+                                            outputs=None,
+                                            js='() => { refresh_style_layout(); }')
+                    style_selections.change(render_selected_styles_html,
+                                            inputs=style_selections,
+                                            outputs=selected_styles_preview,
+                                            show_progress=False,
+                                            queue=False)
+
+                with gr.Tab(label='Models', elem_id="scrollable-box") as models_tab:
+                    gallery_visible = gr.State(value=False)
+                    current_previews = gr.State(value=[])
+                    current_filtered_previews = gr.State(value=[])
+                    active_target = gr.State(value="base")
+                    lora_gallery_visible = [gr.State(value=False) for _ in range(len(modules.config.default_loras))]
+                    lora_current_previews = [gr.State(value=[]) for _ in range(len(modules.config.default_loras))]
+                    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+                    def load_config_paths():
+                        config_path = os.path.normpath(os.path.join(script_dir, "..", "..", "users", "config.txt"))
+                        default_paths = { "path_checkpoints": [], "path_loras": [] }
+                        try:
+                            with open(config_path, 'r', encoding='utf-8') as f:
+                                config = json.load(f)
+                            if isinstance(config, list) and len(config) > 0:
+                                config = config[0]
+                            config["path_checkpoints"] = [
+                                os.path.normpath(os.path.join(script_dir, p)) if not os.path.isabs(p) else p
+                                for p in config.get("path_checkpoints", default_paths["path_checkpoints"])]
+                            config["path_loras"] = [
+                                os.path.normpath(os.path.join(script_dir, p)) if not os.path.isabs(p) else p
+                                for p in config.get("path_loras", default_paths["path_loras"])]
+                            return config
+                        except Exception as e:
+                            print(f"Error loading config: {e}, using default paths")
+                            return default_paths
+
+                    def get_no_image_path():
+                        return os.path.normpath(os.path.join(script_dir, "presets", "samples", "noimage.jpg"))
+
+                    def find_preview_image_path(model_full_path):
+                        no_image_path = get_no_image_path()
+                        if not model_full_path:
+                            return no_image_path
+
+                        root = os.path.dirname(model_full_path)
+                        model_file = os.path.basename(model_full_path)
+                        base_name = os.path.splitext(model_file)[0]
+
+                        for ext in ['.webp', '.png', '.jpg', '.jpeg']:
+                            possible_path = os.path.normpath(os.path.join(root, f"{base_name}{ext}"))
+                            if os.path.exists(possible_path):
+                                return possible_path
+
+                        parent_dir = os.path.dirname(root)
+                        for ext in ['.webp', '.png', '.jpg', '.jpeg']:
+                            possible_path = os.path.normpath(os.path.join(parent_dir, f"{base_name}{ext}"))
+                            if os.path.exists(possible_path):
+                                return possible_path
+
+                        return no_image_path
+
+                    def resolve_model_file_path(model_name, catalogs):
+                        model_key = str(model_name).replace("\\", "/").lstrip("/")
+                        for catalog in catalogs:
+                            try:
+                                resolved = modules.config.modelsinfo.get_model_filepath(catalog, model_key)
+                            except Exception:
+                                resolved = ""
+                            if resolved:
+                                return os.path.normpath(resolved)
+                        return None
+
+                    def build_model_previews(model_names, catalogs, prepend_choices=None):
+                        previews = []
+                        no_image_path = get_no_image_path()
+                        for choice in prepend_choices or []:
+                            display_name = str(choice).replace('/', '\\')
+                            previews.append((no_image_path, display_name, display_name))
+
+                        for model_name in model_names:
+                            display_name = str(model_name).replace('/', '\\')
+                            model_full_path = resolve_model_file_path(model_name, catalogs)
+                            image_path = find_preview_image_path(model_full_path)
+                            previews.append((image_path, display_name, display_name))
+
+                        return previews
+
+                    def get_lora_previews():
+                        config = load_config_paths()
+                        allowed_loras = {
+                            os.path.normpath(path).lower().replace('/', '\\')
+                            for path in modules.config.lora_filenames
+                        }
+                        previews = []
+                        for lora_dir in config.get("path_loras", []):
+                            if not os.path.exists(lora_dir):
+                                continue
+                            for root, dirs, files in os.walk(lora_dir):
+                                lora_files = [f for f in files if f.lower().endswith(('.safetensors', '.ckpt', '.pt', '.gguf'))]
+                                for lora_file in lora_files:
+                                    full_path = os.path.normpath(os.path.join(root, lora_file))
+                                    relative_lora_path = os.path.relpath(full_path, lora_dir).replace('/', '\\').lower()
+                                    filename_only = lora_file.lower()
+                                    if filename_only not in allowed_loras and relative_lora_path not in allowed_loras:
+                                        continue
+                                    relative_path = os.path.relpath(root, lora_dir).replace('/', '\\')
+                                    base_name = os.path.splitext(lora_file)[0]
+                                    lora_full_path = os.path.normpath(os.path.join(root, lora_file))
+                                    image_path = None
+                                    for ext in ['.webp', '.png', '.jpg', '.jpeg']:
+                                        possible_path = os.path.normpath(os.path.join(root, f"{base_name}{ext}"))
+                                        if os.path.exists(possible_path):
+                                            image_path = possible_path
+                                            break
+                                    if not image_path and relative_path != ".":
+                                        parent_dir = os.path.dirname(root)
+                                        for ext in ['.webp', '.png', '.jpg', '.jpeg']:
+                                            possible_path = os.path.normpath(os.path.join(parent_dir, f"{base_name}{ext}"))
+                                            if os.path.exists(possible_path):
+                                                image_path = possible_path
+                                                break
+                                    image_path = image_path or get_no_image_path()
+                                    display_name = os.path.join(relative_path, lora_file) if relative_path != "." else lora_file
+                                    display_name = str(display_name).replace('/', '\\')
+                                    previews.append((image_path, display_name, display_name))
+                        return previews
+
+                    def get_browser_previews(target_type):
+                        if target_type == "base":
+                            return build_model_previews(modules.config.model_filenames, ("checkpoints", "diffusion_models"))
+                        if target_type == "refiner":
+                            return build_model_previews(modules.config.model_filenames, ("checkpoints", "diffusion_models"), prepend_choices=["None"])
+                        if target_type == "clip":
+                            return build_model_previews(modules.config.clip_filenames, ("clip", "text_encoders"), prepend_choices=[modules.flags.default_clip])
+                        if target_type == "vae":
+                            return build_model_previews(modules.config.vae_filenames, ("vae",), prepend_choices=[modules.flags.default_vae])
+                        if target_type == "upscale":
+                            return build_model_previews(getattr(modules.config, 'upscale_model_filenames', []), ("upscale_models",), prepend_choices=["default"])
+                        if isinstance(target_type, str) and target_type.startswith("lora:"):
+                            return [(get_no_image_path(), "None", "None")] + get_lora_previews()
+                        return []
+
+                    def get_browser_title(target_type):
+                        browser_titles = {
+                            "base": "### Base Model Browser",
+                            "refiner": "### Refiner Model Browser",
+                            "clip": "### CLIP / Text Encoder Browser",
+                            "vae": "### VAE Browser",
+                            "upscale": "### Upscale Model Browser",
+                        }
+                        if target_type in browser_titles:
+                            return browser_titles[target_type]
+                        if isinstance(target_type, str) and target_type.startswith("lora:"):
+                            try:
+                                lora_index = int(target_type.split(":", 1)[1]) + 1
+                            except Exception:
+                                lora_index = "?"
+                            return f"### LoRA {lora_index} Browser"
+                        return "### Model Browser"
+
+                    def get_browser_folder_name(display_name):
+                                           normalized = str(display_name or "").replace('/', '\\').strip('\\')
+                                           folder = os.path.dirname(normalized).strip('\\')
+                                           return folder if folder else "Root"
+
+                    def get_browser_folder_choices(previews):
+                                           folders = []
+                                           seen = set()
+                                           for preview in previews or []:
+                                               folder_name = get_browser_folder_name(preview[1] if len(preview) > 1 else "")
+                                               if folder_name not in seen:
+                                                   seen.add(folder_name)
+                                                   folders.append(folder_name)
+                                           root_first = [f for f in folders if f == "Root"]
+                                           nested = sorted([f for f in folders if f != "Root"], key=lambda item: item.lower())
+                                           return ["All folders"] + root_first + nested
+
+                    def filter_browser_previews(previews, search_text="", folder_name="All folders"):
+                                           query = str(search_text or "").strip().lower()
+                                           folder_value = str(folder_name or "All folders").strip() or "All folders"
+                                           filtered = []
+                                           for preview in previews or []:
+                                               display_name = str(preview[1] if len(preview) > 1 else "")
+                                               current_folder = get_browser_folder_name(display_name)
+                                               if folder_value != "All folders" and current_folder != folder_value:
+                                                   continue
+                                               haystack = f"{display_name} {current_folder}".lower()
+                                               if query and query not in haystack:
+                                                   continue
+                                               filtered.append(preview)
+                                           return filtered
+
+                    def format_browser_status(filtered_previews, all_previews, selected_name=None):
+                                           filtered_count = len(filtered_previews or [])
+                                           total_count = len(all_previews or [])
+                                           if selected_name:
+                                               return f"Selected: `{selected_name}`  \nShowing **{filtered_count}** / **{total_count}** items"
+                                           return f"Showing **{filtered_count}** / **{total_count}** items"
+
+                    def open_model_browser(target_type, state_params, use_model_filter):
+                                           refresh_files_clicked(state_params, use_model_filter, False)
+                                           previews = get_browser_previews(target_type)
+                                           filtered_previews = filter_browser_previews(previews)
+                                           folder_choices = get_browser_folder_choices(previews)
+                                           return [
+                                               gr.update(visible=True),
+                                               gr.update(value=get_browser_title(target_type)),
+                                               gr_update(value=""),
+                                               dropdown_update(choices=folder_choices, value="All folders"),
+                                               gr_update(value=format_browser_status(filtered_previews, previews)),
+                                               gr_update(value=[(p[0], p[1]) for p in filtered_previews], visible=True, selected_index=None),
+                                               True,
+                                               previews,
+                                               filtered_previews,
+                                               target_type,
+                                           ]
+
+                    def close_model_browser():
+                                           return [
+                                               gr.update(visible=False),
+                                               False,
+                                           ]
+
+                    def update_model_browser_gallery(previews, search_text, folder_name):
+                                           filtered_previews = filter_browser_previews(previews, search_text, folder_name)
+                                           return [
+                                               gr_update(value=format_browser_status(filtered_previews, previews)),
+                                               gr_update(value=[(p[0], p[1]) for p in filtered_previews], visible=True, selected_index=None),
+                                               filtered_previews,
+                                           ]
+
+                    def refresh_model_browser_after_file_refresh(current_visible, target_type, search_text, folder_name):
+                                           if not current_visible:
+                                               return [skip_component_update() for _ in range(5)]
+
+                                           previews = get_browser_previews(target_type)
+                                           folder_choices = get_browser_folder_choices(previews)
+                                           normalized_folder = folder_name if folder_name in folder_choices else "All folders"
+                                           filtered_previews = filter_browser_previews(previews, search_text, normalized_folder)
+                                           return [
+                                               dropdown_update(choices=folder_choices, value=normalized_folder),
+                                               gr_update(value=format_browser_status(filtered_previews, previews)),
+                                               gr_update(value=[(p[0], p[1]) for p in filtered_previews], visible=True, selected_index=None),
+                                               previews,
+                                               filtered_previews,
+                                           ]
+
+                    def on_model_browser_select(evt: gr.SelectData, filtered_previews, all_previews, target_type):
+                                          output_updates = [skip_component_update() for _ in range(5 + len(lora_models))]
+                                          status_update = skip_component_update()
+                                          if filtered_previews and evt.index < len(filtered_previews):
+                                              selected_path = str(filtered_previews[evt.index][2]).replace('/', '\\')
+                                              if target_type == "base":
+                                                  output_updates[0] = gr_update(value=selected_path)
+                                              elif target_type == "refiner":
+                                                  output_updates[1] = gr_update(value=selected_path)
+                                              elif target_type == "clip":
+                                                  output_updates[2] = gr_update(value=selected_path)
+                                              elif target_type == "vae":
+                                                  output_updates[3] = gr_update(value=selected_path)
+                                              elif target_type == "upscale":
+                                                  output_updates[4] = gr_update(value=selected_path)
+                                              elif isinstance(target_type, str) and target_type.startswith("lora:"):
+                                                  try:
+                                                      lora_index = int(target_type.split(":", 1)[1])
+                                                  except Exception:
+                                                      lora_index = -1
+                                                  if 0 <= lora_index < len(lora_models):
+                                                      output_updates[5 + lora_index] = gr_update(value=selected_path)
+                                              status_update = gr_update(value=format_browser_status(filtered_previews, all_previews, selected_path))
+                                          return output_updates + [status_update]
+
+                    def _model_dropdown_choices_with_current(choices, *values):
+                        result = []
+                        for value in values:
+                            if value is None:
+                                continue
+                            value = str(value).replace('\\', os.sep).replace('/', os.sep)
+                            if value and value not in result:
+                                result.append(value)
+                        for choice in choices or []:
+                            if choice not in result:
+                                result.append(choice)
+                        return result
+
+                    base_model_choices = _model_dropdown_choices_with_current(
+                        modules.config.model_filenames,
+                        modules.config.default_base_model_name,
+                    )
+                    refiner_model_choices = _model_dropdown_choices_with_current(
+                        ['None'] + modules.config.get_base_model_list('Fooocus', None),
+                        modules.config.default_refiner_model_name,
+                    )
+                    clip_model_choices = _model_dropdown_choices_with_current(
+                        [modules.flags.default_clip] + modules.config.clip_filenames,
+                        modules.config.default_clip_model,
+                    )
+                    vae_model_choices = _model_dropdown_choices_with_current(
+                        [modules.flags.default_vae] + modules.config.vae_filenames,
+                        modules.config.default_vae,
+                    )
+                    upscale_model_choices = _model_dropdown_choices_with_current(
+                        ['default'] + getattr(modules.config, 'upscale_model_filenames', []),
+                        modules.config.default_upscale_model,
+                    )
+
+                    with gr.Group():
+                        models_js_panel = gr.HTML(
+                            value=_render_models_js_panel(get_initial_model_params_state()),
+                            elem_id="models_js_panel",
+                            elem_classes=["simpai-models-js-panel-host"],
+                        )
+                        models_js_payload = gr.Textbox(
+                            value="",
+                            elem_id="models_js_payload",
+                            elem_classes=["browser-trigger-proxy"],
+                        )
+                        models_js_apply_trigger = gr.Button(
+                            value="models-js-apply",
+                            elem_id="models_js_apply_trigger",
+                            elem_classes=["browser-trigger-proxy"],
+                        )
+                        base_model = gr.Textbox(
+                            label='Base Model (or HighNoise)',
+                            value=modules.config.default_base_model_name,
+                            visible=False,
+                            elem_id="model_bridge_base",
+                        )
+                        clip_model = gr.Textbox(
+                            label='CLIP / Text Encoder',
+                            value=modules.config.default_clip_model,
+                            visible=False,
+                            elem_id="model_bridge_clip",
+                        )
+                        upscale_model = gr.Textbox(
+                            label='Upscale Model',
+                            value=modules.config.default_upscale_model,
+                            visible=False,
+                            elem_id="model_bridge_upscale",
+                        )
+                        refiner_model = gr.Textbox(
+                            label='Refiner (or LowNoise)',
+                            value=modules.config.default_refiner_model_name,
+                            visible=False,
+                            elem_id="model_bridge_refiner",
+                        )
+                        vae_name = gr.Textbox(
+                            label='VAE',
+                            value=modules.config.default_vae,
+                            visible=False,
+                            elem_id="model_bridge_vae",
+                        )
+                        model_browser_trigger_base = gr.Button("base-browser", elem_id="model_browser_trigger_base", elem_classes=["browser-trigger-proxy"])
+                        model_browser_trigger_refiner = gr.Button("refiner-browser", elem_id="model_browser_trigger_refiner", elem_classes=["browser-trigger-proxy"])
+                        model_browser_trigger_clip = gr.Button("clip-browser", elem_id="model_browser_trigger_clip", elem_classes=["browser-trigger-proxy"])
+                        model_browser_trigger_vae = gr.Button("vae-browser", elem_id="model_browser_trigger_vae", elem_classes=["browser-trigger-proxy"])
+                        model_browser_trigger_upscale = gr.Button("upscale-browser", elem_id="model_browser_trigger_upscale", elem_classes=["browser-trigger-proxy"])
+                        model_browser_modal = floating_shell(visible=False, elem_id="model_browser_modal", elem_classes=["model-browser-modal"])
+                        with model_browser_modal:
+                            model_browser_content = floating_card(elem_id="model_browser_modal_content", elem_classes=["model-browser-card"], min_width=640)
+                            with model_browser_content:
+                                with gr.Row(elem_id="model_browser_modal_header"):
+                                    model_browser_title = gr.Markdown("### Model Browser", elem_id="model_browser_modal_handle")
+                                    model_browser_close_btn = gr.Button(value="x", size="sm", min_width=40, elem_id="model_browser_modal_close_btn")
+                                with gr.Row(elem_id="model_browser_toolbar"):
+                                    model_browser_search = gr.Textbox(label="Search", value="", placeholder="Search name or folder", elem_id="model_browser_search", scale=3)
+                                    model_browser_folder = gr.Dropdown(label="Folder", choices=["All folders"], value="All folders", elem_id="model_browser_folder", scale=2)
+                                model_browser_status = gr.Markdown("Showing **0** / **0** items", elem_id="model_browser_status")
+                                model_browser_gallery = gr.Gallery(
+                                    label="Model Previews",
+                                    show_label=False,
+                                    columns=4,
+                                    rows=2,
+                                    height=420,
+                                    visible=True,
+                                    allow_preview=False,
+                                    preview=False,
+                                    selected_index=None,
+                                    buttons=[],
+                                    fit_columns=False,
+                                    object_fit="contain",
+                                    elem_classes="model-gallery",
+                                    elem_id="model_browser_gallery",
+                                )
+                        model_browser_trigger_base.click(fn=lambda tt, sp, umf: open_model_browser(tt, sp, umf),
+                                                         inputs=[gr.State("base"), state_topbar, model_filter_state],
+                                                         outputs=[model_browser_modal, model_browser_title, model_browser_search, model_browser_folder, model_browser_status, model_browser_gallery, gallery_visible, current_previews, current_filtered_previews, active_target],
+                                                         show_progress=False, queue=False) \
+                                                         .then(fn=None, js='''() => { try { if (window.reopenModelBrowserPopup) window.reopenModelBrowserPopup(); } catch (e) { console.warn('model_browser.reopen_failed', e); } }''')
+                        model_browser_trigger_refiner.click(fn=lambda tt, sp, umf: open_model_browser(tt, sp, umf),
+                                                            inputs=[gr.State("refiner"), state_topbar, model_filter_state],
+                                                            outputs=[model_browser_modal, model_browser_title, model_browser_search, model_browser_folder, model_browser_status, model_browser_gallery, gallery_visible, current_previews, current_filtered_previews, active_target],
+                                                            show_progress=False, queue=False) \
+                                                            .then(fn=None, js='''() => { try { if (window.reopenModelBrowserPopup) window.reopenModelBrowserPopup(); } catch (e) { console.warn('model_browser.reopen_failed', e); } }''')
+                        model_browser_trigger_clip.click(fn=lambda tt, sp, umf: open_model_browser(tt, sp, umf),
+                                                         inputs=[gr.State("clip"), state_topbar, model_filter_state],
+                                                         outputs=[model_browser_modal, model_browser_title, model_browser_search, model_browser_folder, model_browser_status, model_browser_gallery, gallery_visible, current_previews, current_filtered_previews, active_target],
+                                                         show_progress=False, queue=False) \
+                                                         .then(fn=None, js='''() => { try { if (window.reopenModelBrowserPopup) window.reopenModelBrowserPopup(); } catch (e) { console.warn('model_browser.reopen_failed', e); } }''')
+                        model_browser_trigger_vae.click(fn=lambda tt, sp, umf: open_model_browser(tt, sp, umf),
+                                                        inputs=[gr.State("vae"), state_topbar, model_filter_state],
+                                                        outputs=[model_browser_modal, model_browser_title, model_browser_search, model_browser_folder, model_browser_status, model_browser_gallery, gallery_visible, current_previews, current_filtered_previews, active_target],
+                                                        show_progress=False, queue=False) \
+                                                        .then(fn=None, js='''() => { try { if (window.reopenModelBrowserPopup) window.reopenModelBrowserPopup(); } catch (e) { console.warn('model_browser.reopen_failed', e); } }''')
+                        model_browser_trigger_upscale.click(fn=lambda tt, sp, umf: open_model_browser(tt, sp, umf),
+                                                            inputs=[gr.State("upscale"), state_topbar, model_filter_state],
+                                                            outputs=[model_browser_modal, model_browser_title, model_browser_search, model_browser_folder, model_browser_status, model_browser_gallery, gallery_visible, current_previews, current_filtered_previews, active_target],
+                                                            show_progress=False, queue=False) \
+                                                            .then(fn=None, js='''() => { try { if (window.reopenModelBrowserPopup) window.reopenModelBrowserPopup(); } catch (e) { console.warn('model_browser.reopen_failed', e); } }''')
+                        model_browser_close_btn.click(fn=close_model_browser,
+                                                      outputs=[model_browser_modal, gallery_visible],
+                                                      show_progress=False, queue=False)
+                        model_browser_search.change(fn=update_model_browser_gallery,
+                                                    inputs=[current_previews, model_browser_search, model_browser_folder],
+                                                    outputs=[model_browser_status, model_browser_gallery, current_filtered_previews],
+                                                    show_progress=False, queue=False)
+                        model_browser_folder.change(fn=update_model_browser_gallery,
+                                                    inputs=[current_previews, model_browser_search, model_browser_folder],
+                                                    outputs=[model_browser_status, model_browser_gallery, current_filtered_previews],
+                                                    show_progress=False, queue=False)
+                        refiner_switch = gr.Slider(label='Refiner Switch At', minimum=0.1, maximum=1.0, step=0.0001,
+                                                   info='Value for switching two models.',
+                                                   value=modules.config.default_refiner_switch,
+                                                   visible=False,
+                                                   elem_id="refiner_switch",
+                                                   elem_classes=["browser-trigger-proxy"])
+
+                        refiner_model.change(
+                            fn=None,
+                            inputs=[refiner_model],
+                            outputs=None,
+                            show_progress=False,
+                            queue=False,
+                            js="""(refinerValue)=>{try{const params=window.simpleaiTopbarSystemParams||{};const backend=String(params.__backend_engine||params.task_class_name||params.engine||'');const visible=backend==='Fooocus'&&String(refinerValue||'None')!=='None';document.documentElement.classList.toggle('simpai-hide-refiner-switch',!visible);if(typeof setPresetModelDropdownVisible==='function')setPresetModelDropdownVisible('refiner_switch',visible);}catch(e){console.warn('[UI-TRACE] refiner_switch_visibility_js_failed',e);}return [];}""",
+                        )
+                    with gr.Group(elem_classes=["models_panel_footer_shell"]) as lora_group:
+                        lora_ctrls = []
+                        lora_enableds = []
+                        lora_galleries = []
+                        lora_preview_btns = []
+                        lora_models = []
+                        lora_weights = []
+                        with gr.Row(elem_classes=["models_panel_footer_row"]):
+                            lora_auto_send_trigger_words = gr.Checkbox(label='Auto Send Trigger Words', value=ads.get_user_default("lora_auto_send_trigger_words", {}, False), elem_id='lora_auto_send_trigger_words', elem_classes='lora_auto_send_trigger_words')
+                            use_model_filter_checkbox = gr.Checkbox(label='Use Model Filters', value=initial_use_model_filter, elem_classes='use_model_filter_checkbox')
+                            refresh_files = gr.Button(value='\U0001f504 Refresh All Files', variant='secondary', elem_classes=['refresh_button', 'models_refresh_button'])
+
+                        lora_section_split = modules.config.default_max_lora_number // 2
+                        for i, (enabled, filename, weight) in enumerate(modules.config.default_loras):
+                            if i == lora_section_split:
+                                gr.HTML('<div style="height:1px;margin:6px 0;background:rgba(255,255,255,0.25);"></div>', visible=False)
+                            default_section_label = "HighNoise" if i < lora_section_split else "LowNoise"
+                            with gr.Row():
+                                lora_enabled = gr.Checkbox(label='Enable', value=enabled,
+                                                           elem_classes=['lora_enable', 'min_check'], scale=1, min_width=40, visible=False)
+                                lora_enableds.append(lora_enabled)
+                                lora_preview_btn = gr.Button(f"🖼️", variant="secondary",
+                                                             elem_id=f"lora_preview_btn_{i}", elem_classes=["browser-trigger-proxy"])
+                                lora_preview_btns.append(lora_preview_btn)
+                                lora_model = gr.Textbox(label=f'LoRA {i + 1} / {default_section_label}',
+                                                        value=filename, visible=False,
+                                                        elem_classes='lora_model', scale=5, elem_id=f"lora_bridge_{i}")
+                                lora_weight = gr.Slider(label='Weight', minimum=modules.config.default_loras_min_weight,
+                                                        maximum=modules.config.default_loras_max_weight, step=0.05, value=weight,
+                                                        elem_classes='lora_weight', scale=5, interactive=enabled, visible=False)
+                                lora_ctrls += [lora_enabled, lora_model, lora_weight]
+                                lora_models.append(lora_model)
+                                lora_weights.append(lora_weight)
+                            with gr.Row():
+                                lora_gallery = gr.Gallery(label=f"LoRA {i + 1} Previews", columns=4, rows=2, height="auto", visible=False, elem_classes="lora-gallery")
+                                lora_galleries.append(lora_gallery)
+                        for i in range(len(lora_models)):
+                            lora_enableds[i].change(
+                                fn=lambda is_enabled: [gr_update(interactive=is_enabled), gr_update(interactive=is_enabled)],
+                                inputs=[lora_enableds[i]],
+                                outputs=[lora_models[i], lora_weights[i]],
+                                queue=False, show_progress=False
+                            )
+                            lora_models[i].change(
+                                fn=None,
+                                inputs=[lora_models[i], lora_auto_send_trigger_words],
+                                outputs=None,
+                                queue=False, show_progress=False,
+                                js="(modelName, autoSend)=>{try{if(window.simpleaiAutoSendLoraTriggerWords){window.simpleaiAutoSendLoraTriggerWords(modelName, autoSend);}}catch(e){console.warn('lora.auto_trigger_send_failed', e);}}"
+                            )
+                        lora_auto_send_trigger_words.change(
+                            lambda x, y: ads.set_user_default_value("lora_auto_send_trigger_words", x, y),
+                            inputs=[lora_auto_send_trigger_words, state_topbar],
+                            outputs=None,
+                            queue=False,
+                            show_progress=False,
+                        )
+
+                        for i in range(len(modules.config.default_loras)):
+                            lora_preview_btns[i].click(fn=lambda tt, sp, umf: open_model_browser(tt, sp, umf),
+                                                       inputs=[gr.State(f"lora:{i}"), state_topbar, model_filter_state],
+                                                       outputs=[model_browser_modal, model_browser_title, model_browser_search, model_browser_folder, model_browser_status, model_browser_gallery, gallery_visible, current_previews, current_filtered_previews, active_target],
+                                                       show_progress=False, queue=False) \
+                                                       .then(fn=None, js='''() => { try { if (window.reopenModelBrowserPopup) window.reopenModelBrowserPopup(); } catch (e) { console.warn('model_browser.reopen_failed', e); } }''')
+                        def _sync_model_params_state_from_ui(current_state, models_tab_active, current_base_model, current_refiner_model, current_refiner_switch, current_clip_model, current_vae_name, current_upscale_model, *lora_values):
+                            fallback = current_state if isinstance(current_state, dict) and current_state.get("__model_params_state") else get_initial_model_params_state()
+                            if not models_tab_active:
+                                return fallback
+                            fallback_loras = _normalize_lora_triplets(fallback.get("loras"))
+                            loras = []
+                            for lora_index in range(modules.config.default_max_lora_number):
+                                offset = lora_index * 3
+                                fallback_lora = fallback_loras[lora_index] if lora_index < len(fallback_loras) else [False, "None", 1.0]
+                                enabled = lora_values[offset] if offset < len(lora_values) else fallback_lora[0]
+                                model_name = lora_values[offset + 1] if offset + 1 < len(lora_values) else fallback_lora[1]
+                                weight = lora_values[offset + 2] if offset + 2 < len(lora_values) else fallback_lora[2]
+                                loras.append([enabled, model_name, weight])
+                            return _model_params_state_payload(
+                                current_base_model or fallback.get("base_model"),
+                                current_refiner_model or fallback.get("refiner_model"),
+                                current_refiner_switch if current_refiner_switch is not None else fallback.get("refiner_switch"),
+                                current_clip_model or fallback.get("clip_model"),
+                                current_vae_name or fallback.get("vae_name"),
+                                current_upscale_model or fallback.get("upscale_model"),
+                                loras,
+                            )
+
+                        def _models_panel_update_from_state(current_model_params_state):
+                            return gr_update(value=_render_models_js_panel(current_model_params_state))
+
+                        model_state_ui_inputs = [model_params_state, models_tab_active_state, base_model, refiner_model, refiner_switch, clip_model, vae_name, upscale_model] + lora_ctrls
+                        model_browser_select_evt = model_browser_gallery.select(on_model_browser_select,
+                                                     inputs=[current_filtered_previews, current_previews, active_target],
+                                                     outputs=[base_model, refiner_model, clip_model, vae_name, upscale_model] + lora_models + [model_browser_status],
+                                                     show_progress=False, queue=False)
+                        model_browser_select_evt.then(
+                            _sync_model_params_state_from_ui,
+                            inputs=model_state_ui_inputs,
+                            outputs=model_params_state,
+                            show_progress=False,
+                            queue=False,
+                        ).then(
+                            _models_panel_update_from_state,
+                            inputs=model_params_state,
+                            outputs=models_js_panel,
+                            show_progress=False,
+                            queue=False,
+                        )
+                    models_nav_rehydrate_trigger = gr.Button(
+                        value="models-nav-rehydrate",
+                        elem_id="models_nav_rehydrate_trigger",
+                        elem_classes=["browser-trigger-proxy"],
+                    )
+
+                    scene_generation_model_ctrls = []
+                    refresh_files_output = [base_model, refiner_model, clip_model, vae_name, upscale_model]
+                    refresh_files_targets = refresh_files_output + lora_ctrls
+                    model_bridge_rehydrate_targets = [base_model, refiner_model, refiner_switch, clip_model, vae_name, upscale_model] + lora_ctrls
+                    refresh_files_browser_targets = [model_browser_folder, model_browser_status, model_browser_gallery, current_previews, current_filtered_previews]
+
+                    def _model_bridge_updates_from_model_state(current_model_params_state, include_refiner_switch=False):
+                        model_state = current_model_params_state if isinstance(current_model_params_state, dict) and current_model_params_state.get("__model_params_state") else get_initial_model_params_state()
+                        values = [
+                            model_state.get("base_model"),
+                            model_state.get("refiner_model"),
+                        ]
+                        if include_refiner_switch:
+                            values.append(model_state.get("refiner_switch"))
+                        values += [
+                            model_state.get("clip_model"),
+                            model_state.get("vae_name"),
+                            model_state.get("upscale_model"),
+                        ]
+                        for enabled, model_name, weight in _normalize_lora_triplets(model_state.get("loras")):
+                            values += [enabled, model_name, weight]
+                        return [gr_update(value=value) for value in values]
+
+                    def _model_bridge_refresh_updates_from_state_params(state_params, current_model_params_state=None):
+                        model_state = _model_params_state_from_state_params(state_params, current_model_params_state)
+                        return _model_bridge_updates_from_model_state(model_state, include_refiner_switch=False)
+
+                    def _refresh_files_clicked_with_info(state_params, use_model_filter):
+                        return refresh_files_clicked(state_params, use_model_filter, True)
+
+                    def _refresh_files_clicked_without_info(state_params, use_model_filter):
+                        return refresh_files_clicked(state_params, use_model_filter, False)
+
+                    def _rehydrate_models_tab_from_state(state_params, current_model_params_state, use_model_filter):
+                        refresh_files_clicked(state_params, use_model_filter, False)
+                        model_state = current_model_params_state if isinstance(current_model_params_state, dict) and current_model_params_state.get("__model_params_state") else _model_params_state_from_state_params(state_params)
+                        return (
+                            _model_bridge_updates_from_model_state(model_state, include_refiner_switch=True)
+                            + [gr_update(value=_render_models_js_panel(model_state))]
+                        )
+
+                    def _refresh_files_and_browser(state_params, use_model_filter, current_model_params_state, browser_visible, target_type, search_text, folder_name):
+                        refresh_files_clicked(state_params, use_model_filter, True)
+                        return _model_bridge_refresh_updates_from_state_params(state_params, current_model_params_state) + \
+                               refresh_model_browser_after_file_refresh(browser_visible, target_type, search_text, folder_name)
+
+                    def _refresh_files_clicked_for_model_bridge(state_params, use_model_filter=True, show_info=True, defer_choices=False):
+                        refresh_files_clicked(state_params, use_model_filter, show_info, defer_choices)
+                        return _model_bridge_refresh_updates_from_state_params(state_params)
+
+                    def _apply_models_js_payload(current_model_params_state, payload, backend_params, state_params):
+                        fallback = current_model_params_state if isinstance(current_model_params_state, dict) and current_model_params_state.get("__model_params_state") else get_initial_model_params_state()
+                        try:
+                            data = json.loads(payload or "{}")
+                        except Exception:
+                            data = {}
+                        if not isinstance(data, dict):
+                            data = {}
+
+                        def pick(key):
+                            value = data.get(key)
+                            return value if value not in (None, "") else fallback.get(key)
+
+                        loras = _normalize_lora_triplets(fallback.get("loras"))
+                        incoming_loras = data.get("loras")
+                        if isinstance(incoming_loras, list):
+                            for index in range(min(len(loras), len(incoming_loras))):
+                                item = incoming_loras[index]
+                                if not isinstance(item, (list, tuple, dict)):
+                                    continue
+                                current = loras[index]
+                                if isinstance(item, dict):
+                                    enabled = item.get("enabled", current[0])
+                                    model_name = item.get("model", current[1])
+                                    weight = item.get("weight", current[2])
+                                else:
+                                    enabled = item[0] if len(item) > 0 else current[0]
+                                    model_name = item[1] if len(item) > 1 else current[1]
+                                    weight = item[2] if len(item) > 2 else current[2]
+                                try:
+                                    weight = float(weight)
+                                except Exception:
+                                    weight = current[2]
+                                loras[index] = [bool(enabled), str(model_name or "None"), weight]
+
+                        model_state = _model_params_state_payload(
+                            pick("base_model"),
+                            pick("refiner_model"),
+                            pick("refiner_switch"),
+                            pick("clip_model"),
+                            pick("vae_name"),
+                            pick("upscale_model"),
+                            loras,
+                        )
+
+                        backend_params = dict(backend_params or {})
+                        clip_value = model_state.get("clip_model")
+                        if clip_value and clip_value not in (modules.flags.default_clip, modules.flags.default_vae, "auto"):
+                            backend_params["clip_model"] = clip_value
+                        else:
+                            backend_params.pop("clip_model", None)
+                        upscale_value = str(model_state.get("upscale_model") or "default").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+                        backend_params["upscale_model"] = upscale_value or "default"
+                        if isinstance(state_params, dict):
+                            state_params["clip_model"] = clip_value
+                            state_params["upscale_model"] = backend_params["upscale_model"]
+
+                        return (
+                            [model_state, backend_params]
+                            + _model_bridge_updates_from_model_state(model_state, include_refiner_switch=True)
+                        )
+
+                    refresh_files.click(
+                        _refresh_files_and_browser,
+                        [state_topbar, model_filter_state, model_params_state, gallery_visible, active_target, model_browser_search, model_browser_folder],
+                        refresh_files_targets + refresh_files_browser_targets,
+                        queue=True,
+                        show_progress=False
+                    )
+                    models_tab.select(
+                        _rehydrate_models_tab_from_state,
+                        [state_topbar, model_params_state, model_filter_state],
+                        model_bridge_rehydrate_targets + [models_js_panel],
+                        queue=True,
+                        show_progress=False,
+                    )
+                    models_nav_rehydrate_trigger.click(
+                        _rehydrate_models_tab_from_state,
+                        [state_topbar, model_params_state, model_filter_state],
+                        model_bridge_rehydrate_targets + [models_js_panel],
+                        queue=True,
+                        show_progress=False,
+                    )
+                    models_js_apply_trigger.click(
+                        _apply_models_js_payload,
+                        [model_params_state, models_js_payload, params_backend, state_topbar],
+                        [model_params_state, params_backend] + model_bridge_rehydrate_targets,
+                        queue=False,
+                        show_progress=False,
+                    )
+
+                    def _on_model_filter_toggle_from_main(state_params, use_model_filter, sync_lock, current_state, current_model_params_state, browser_visible, target_type, search_text, folder_name):
+                        if sync_lock:
+                            return [current_state, False] + [skip_component_update()] * (len(refresh_files_targets) + len(refresh_files_browser_targets))
+                        ads.set_user_default_value("use_model_filter_checkbox", use_model_filter, state_params)
+                        refresh_files_clicked(state_params, use_model_filter, True)
+                        return [use_model_filter, False] + \
+                               _model_bridge_refresh_updates_from_state_params(state_params, current_model_params_state) + \
+                               refresh_model_browser_after_file_refresh(browser_visible, target_type, search_text, folder_name)
+
+                    use_model_filter_checkbox.change(
+                        fn=_on_model_filter_toggle_from_main,
+                        inputs=[state_topbar, use_model_filter_checkbox, model_filter_sync_lock, model_filter_state, model_params_state, gallery_visible, active_target, model_browser_search, model_browser_folder],
+                        outputs=[model_filter_state, model_filter_sync_lock] + refresh_files_targets + refresh_files_browser_targets,
+                        queue=True,
+                        show_progress=False,
+                    )
+
+                with gr.Tab(label='Identity', elem_id="scrollable-box") as identity_tab:
+                    binding_id_button = gr.Button(value='IdentityCenter', visible=True, elem_id="identity_center")
+                    identity_introduce = gr.HTML(visible=True, value=topbar.build_identity_introduce_html({}), elem_classes=["identityIntroduce"], elem_id='identity_introduce')
+                    with gr.Column() as configure_panel:
+                        with gr.Tabs():
+                            with gr.Tab(label='Application') as user_panel:
+                                with gr.Row():
+                                    language_ui = gr.Radio(label='Language of UI', choices=['En', '中文'], value=modules.flags.language_radio(args_manager.args.language), interactive=(args_manager.args.language in ['default', 'cn', 'en']), container=False)
+                                    background_theme = gr.Radio(label='Theme of background', choices=['light', 'dark'], value=args_manager.args.theme, interactive=True, container=False)
+                                with gr.Group():
+                                    mobile_link = gr.HTML(elem_classes=["htmlcontent"], value=f'{get_local_url}/<div>Mobile phone access address within the LAN. If you want WAN access, consulting QQ group: 1005085136.</div>')
+                                    prompt_preset_button = gr.Button(value='Save the current parameters as a preset package')
+                                    backfill_prompt = gr.Checkbox(label='Backfill prompt while switching images', value=modules.config.default_backfill_prompt)
+                                    style_preview_checkbox = gr.Checkbox(label="Enable visual style preview", value=True, visible=False)
+                                    disable_preview = gr.Checkbox(label='Disable Preview', value=modules.config.default_black_out_nsfw,
+                                                              interactive=not modules.config.default_black_out_nsfw)
+                                    disable_intermediate_results = gr.Checkbox(label='Disable Intermediate Results',
+                                                              value=flags.Performance.has_restricted_features(modules.config.default_performance))
+                                    disable_seed_increment = gr.Checkbox(label='Disable seed increment', value=False)
+                                    save_final_enhanced_image_only = gr.Checkbox(label='Save only final enhanced image', visible=not args_manager.args.disable_image_log,
+                                                                                 value=modules.config.default_save_only_final_enhanced_image)
+                                    read_wildcards_in_order = gr.Checkbox(label="Read wildcards in order", value=False, visible=False)
+                                    no_welcome_checkbox = gr.Checkbox(label="Hide welcome picture", value=False)
+                                    missing_model_filter_checkbox = gr.Checkbox(label="Missing model filter", value=False, info="Filtering presets with missing models")
+                                    gallery_frost_enabled = gr.Checkbox(label="Blur gallery media by default", value=True, elem_id="gallery_frost_enabled_checkbox", info="Blur gallery thumbnails until clicked. Applies to Infinite Canvas media browsers too.")
+                                    no_model_modal_checkbox = gr.Checkbox(label="Disable model download notification", value=False)
+
+                                with gr.Group():
+                                    image_tools_checkbox = gr.Checkbox(label='Enable ParamsTools', value=True, info='Management of published image sets, located in the middle toolbox on the right side of the image set.', elem_id='image_tools_checkbox')
+                                    generate_image_grid = gr.Checkbox(label='Generate Image Grid for Each Batch',
+                                                                info='(Experimental) This may cause performance problems on some computers and certain internet conditions.', value=False)
+                                    black_out_nsfw = gr.Checkbox(label='Black Out NSFW', value=modules.config.default_black_out_nsfw,
+                                                             interactive=not modules.config.default_black_out_nsfw,
+                                                             info='Use black image if NSFW is detected.')
+
+                                    black_out_nsfw.change(lambda x: gr_update(value=x, interactive=not x),
+                                                      inputs=black_out_nsfw, outputs=disable_preview, queue=False,
+                                                      show_progress=False)
+                                    save_metadata_to_images = gr.Checkbox(label='Save Metadata to Images', value=modules.config.default_save_metadata_to_images,
+                                                                          info='Adds parameters to generated images allowing manual regeneration.')
+                                    metadata_scheme = gr.Radio(label='Metadata Scheme', choices=flags.metadata_scheme, value=modules.config.default_metadata_scheme,
+                                                               info='Image Prompt parameters are not included. Use png and a1111 for compatibility with Civitai.',
+                                                               visible=modules.config.default_save_metadata_to_images)
+                                    save_metadata_to_images.change(toggle_checked, inputs=[save_metadata_to_images], outputs=[metadata_scheme], queue=False, show_progress=False)
+                            style_search_bar.change(fn=None,
+                                                inputs=None,
+                                                outputs=None,
+                                                js='()=>{refresh_style_layout();}')
+
+                            gradio_receiver_style_selections.input(fn=None,
+                                                               inputs=None,
+                                                               outputs=None,
+                                                               js='()=>{schedule_style_layout_refresh("receiver_input");}')
+                            no_welcome_checkbox.change(
+                                lambda x,y: ads.set_admin_default_value("no_welcome_checkbox", x, y),
+                                inputs=[no_welcome_checkbox, state_topbar],
+                                outputs=None,
+                                queue=False
+                            ).then(
+                                lambda x: gr_update(value=None) if x else skip_component_update(),
+                                inputs=[no_welcome_checkbox],
+                                outputs=progress_window
+                            )
+                            missing_model_filter_checkbox.change(
+                                lambda x,y: ads.set_admin_default_value("missing_model_filter_checkbox", x, y),
+                                inputs=[missing_model_filter_checkbox, state_topbar],
+                                outputs=None,
+                                queue=False
+                            )
+                            no_model_modal_checkbox.change(
+                                lambda x, y: ads.set_user_default_value("no_model_modal_checkbox", x, y),
+                                inputs=[no_model_modal_checkbox, state_topbar],
+                                outputs=None,
+                                queue=False
+                            )
+
+                            with gr.Tab(label='Local System', visible=False) as local_system_tab:
+                                with gr.Column() as admin_panel:
+                                    with gr.Group():
+                                        with gr.Row(visible=True if not args_manager.args.disable_backend else False):
+                                            admin_link = gr.HTML(elem_classes=["htmlcontent"])
+                                            admin_mgr_link = gr.HTML(value='')
+                                        with gr.Group():
+                                            with gr.Row(visible=True if not args_manager.args.disable_backend else False):
+                                                admin_sync_button = gr.Button(value='Sync presets nav to guest', size="sm", min_width=70)
+                                            with gr.Row(visible=True if not args_manager.args.disable_backend else False):
+                                                comfyd_active_checkbox = gr.Checkbox(label='Enable Comfyd always active', value=ads.get_admin_default('comfyd_active_checkbox') and not args_manager.args.disable_comfyd and not args_manager.args.disable_backend, info='Enabling will improve execution speed.')
+                                                fast_comfyd_checkbox = gr.Checkbox(label='Enable optimizations for Comfyd', value=ads.get_admin_default('fast_comfyd_checkbox'), info='Effective for some Nvidia cards.')
+                                                cache_clear_on_finish_checkbox = gr.Checkbox(label='Clear caches on finish', value=ads.get_admin_default('cache_clear_on_finish_checkbox'), info='Restart Comfyd. Clear execution caches and unload models after each task.')
+                                            with gr.Row():
+                                                vlm_checkbox = gr.Checkbox(label='Enable VLM', value=True, info='Enable it for describe, translate and expand.', elem_id='vlm_checkbox', visible=False)
+                                                advanced_logs = gr.Checkbox(label='Enable advanced logs', value=ads.get_admin_default('advanced_logs'), info='Enabling with more infomation in logs.', visible=False)
+                                                with gr.Column():
+                                                    vlm_version = gr.Dropdown(label='VLM Version', choices=list(VLM.VERSIONS.keys()) + [VLM.CUSTOM_VERSION], value=_initial_main_vlm_version, info='Select the VLM model version to use')
+                                            with gr.Column(visible=True if not args_manager.args.disable_backend else False):
+                                                reserved_vram = gr.Slider(label='Reserved VRAM(GB)', minimum=0, maximum=24, step=0.1, value=ads.get_admin_default('reserved_vram'), info='Reserve VRAM to prevent OOM or Slow inference.')
+                                                cache_ram_enable = gr.Checkbox(label='Enable Cache RAM', value=ads.get_admin_default('cache_ram_enable'), info='When disabled, always use Classic cache mode.')
+                                                cache_ram = gr.Slider(label='Cache RAM(GB)', minimum=0, maximum=96, step=0.1, value=ads.get_admin_default('cache_ram'), interactive=ads.get_admin_default('cache_ram_enable'), info='[BETA]Set RAM cache threshold. 0: Classic; >0: RAM Pressure mode (auto-purge when available RAM is low).')
+                                                wavespeed_strength = gr.Slider(label='wavespeed_strength', minimum=0, maximum=1, step=0.01, value=ads.get_admin_default('wavespeed_strength'), info='Wavespeed optimization strength to improve inference speed on some presets.')
+                                            with gr.Row(visible=True if not args_manager.args.disable_backend else False):
+                                                translation_methods = gr.Radio(label='Translation methods', choices=modules.flags.translation_methods, value=ads.get_admin_default('translation_methods'))
+                                            with gr.Row():
+                                                with gr.Column():
+                                                    restore_all_defaults_btn = gr.Button(value='Restore all defaults', size="sm", min_width=70)
+                                                    restore_defaults_panel = floating_panel(visible=False, elem_id="restore_defaults_panel", elem_classes=["restore-defaults-panel"])
+                                                    with restore_defaults_panel:
+                                                        with floating_card(elem_id="restore_defaults_panel_content", elem_classes=["restore-defaults-card"], min_width=320):
+                                                            restore_defaults_title = gr.Markdown("Confirm restore all defaults?", elem_id="restore_defaults_panel_handle")
+                                                            restore_defaults_desc = gr.Markdown("This will clear all saved local settings for the current user. This cannot be undone.")
+                                                            with gr.Row():
+                                                                restore_defaults_confirm_btn = gr.Button("Confirm Restore")
+                                                                restore_defaults_cancel_btn = gr.Button("Cancel")
+
+                                    with gr.Row(visible=False):
+                                        with gr.Group():
+                                            web_in_did_title = gr.Markdown(value="Accessed Users:", elem_classes=["p2p_title"])
+                                            with gr.Row():
+                                                web_in_did_input = gr.Textbox(max_lines=1, container=False, placeholder="Type did here.", min_width=60, elem_classes='web_input1')
+                                                web_in_did_add_btn = gr.Button(value="Add", size="sm", min_width=30)
+                                                web_in_did_del_btn = gr.Button(value="Del", size="sm", min_width=30)
+                                            web_in_did_switch_btn = gr.Button(value="Switch", size="sm", min_width=30)
+                                            web_in_did_list = gr.Markdown(elem_classes=["htmlcontent"])
+
+                            with gr.Tab(label='Users', visible=False) as user_access_tab:
+                                with gr.Column(elem_classes=["admin-access-panel"]):
+                                    admin_access_initial = _admin_access_initial_snapshot()
+                                    admin_access_initial_did = admin_access_initial["selected"]
+                                    with gr.Row(elem_classes=["admin-access-toolbar"]):
+                                        guest_can_generate_checkbox = gr.Checkbox(
+                                            label="Guest can generate",
+                                            value=admin_access_initial["guest_can_generate"],
+                                            interactive=False,
+                                        )
+                                        guest_can_download_models_checkbox = gr.Checkbox(
+                                            label="Guest can download models",
+                                            value=admin_access_initial["guest_can_download_models"],
+                                            interactive=False,
+                                        )
+                                        admin_access_guest_save_btn = gr.Button(value="Save guest permission", size="sm", min_width=70, interactive=False)
+                                    admin_access_user_select = gr.Dropdown(
+                                        label="User",
+                                        choices=admin_access_initial["choices"],
+                                        value=admin_access_initial_did,
+                                        interactive=False,
+                                    )
+                                    with gr.Row(elem_classes=["admin-access-toolbar"]):
+                                        admin_access_user_can_generate = gr.Checkbox(
+                                            label="Selected user can generate",
+                                            value=admin_access_initial["selected_can_generate"],
+                                            interactive=False,
+                                        )
+                                        admin_access_user_can_download_models = gr.Checkbox(
+                                            label="Selected user can download models",
+                                            value=admin_access_initial["selected_can_download_models"],
+                                            interactive=False,
+                                        )
+                                    with gr.Row(elem_classes=["admin-access-actions"]):
+                                        admin_access_approve_btn = gr.Button(value="Approve", size="sm", min_width=70, interactive=False)
+                                        admin_access_reject_btn = gr.Button(value="Reject", size="sm", min_width=70, interactive=False)
+                                        admin_access_save_btn = gr.Button(value="Save permission", size="sm", min_width=70, interactive=False)
+                                    admin_access_message = gr.HTML(value=_admin_access_message_html(), elem_classes=["admin-access-message-wrap"])
+                                    admin_access_list = gr.HTML(value=_admin_access_markdown(), elem_classes=["admin-access-list-wrap"])
+                                    admin_access_refresh_btn = gr.Button(value="Refresh applications", size="lg", min_width=70, elem_classes=["admin-access-refresh-wide"])
+                                    admin_access_outputs = [
+                                        admin_access_list,
+                                        admin_access_user_select,
+                                        admin_access_user_can_generate,
+                                        admin_access_user_can_download_models,
+                                        guest_can_generate_checkbox,
+                                        guest_can_download_models_checkbox,
+                                        admin_access_message,
+                                        admin_access_approve_btn,
+                                        admin_access_reject_btn,
+                                        admin_access_save_btn,
+                                        admin_access_guest_save_btn,
+                                    ]
+
+                with gr.Tab(label='Contact', elem_id="scrollable-box") as contact_tab:
+                    with gr.Row():
+                        simpleai_contact = gr.HTML(visible=True, value=simpleai.self_contact, elem_classes=["identityIntroduce"], elem_id='identity_introduce')
+                    with gr.Row():
+                        gr.Markdown(value=f'<b>System Version</b>({version.get_simpai_short_ver()})<br>OS: {shared.sysinfo["os_name"]}, {shared.sysinfo["cpu_arch"]}, {shared.sysinfo["cuda"]}, Torch{shared.sysinfo["torch_version"]}, XF{shared.sysinfo["xformers_version"]}<br>Ver: {version.branch} {version.simpai_ver} / Comfyd {comfy_version.version}<br>PyHash: {shared.sysinfo["pyhash"]}, UIHash: {shared.sysinfo["uihash"]}')
+
+
+                def _mark_models_tab_inactive(was_models_active):
+                    return False
+
+                for _tab in [setting_tab, styles_tab, identity_tab, contact_tab]:
+                    _tab.select(
+                        _mark_models_tab_inactive,
+                        inputs=[models_tab_active_state],
+                        outputs=[models_tab_active_state],
+                        queue=False,
+                        show_progress=False,
+                    )
+                models_tab.select(
+                    lambda: True,
+                    outputs=models_tab_active_state,
+                    queue=False,
+                    show_progress=False,
+                )
+
+                def sync_state_params(key, value, state):
+                    state.update({key: value})
+                    ads.set_user_default_value(key, value, state)
+
+                def sync_backend_params(key, v, params, state):
+                    params.update({key:v})
+                    logger.debug(f'sync_backend_params: {key}:{v}')
+                    if not key.startswith("hires_fix"):
+                        ads.set_user_default_value(key, v, state) 
+                    return params
+
+                def sync_clip_model(value, params, state):
+                    params = dict(params or {})
+                    if value and value not in (modules.flags.default_clip, modules.flags.default_vae, 'auto'):
+                        params.update({"clip_model": value})
+                    else:
+                        params.pop("clip_model", None)
+                    if isinstance(state, dict):
+                        state["clip_model"] = value
+                    return params
+
+                clip_model_user_event = getattr(clip_model, "input", clip_model.change)
+                clip_model_user_event(sync_clip_model, inputs=[clip_model, params_backend, state_topbar], outputs=params_backend, queue=False, show_progress=False)
+
+                def sync_upscale_model(value, params, state):
+                    params = dict(params or {})
+                    value = str(value or '').replace('\\', os.sep).replace('/', os.sep).lstrip(os.sep)
+                    if value:
+                        params.update({"upscale_model": value})
+                    else:
+                        params.update({"upscale_model": "default"})
+                        value = "default"
+                    if isinstance(state, dict):
+                        state["upscale_model"] = value
+                    return params
+
+                upscale_model_user_event = getattr(upscale_model, "input", upscale_model.change)
+                upscale_model_user_event(sync_upscale_model, inputs=[upscale_model, params_backend, state_topbar], outputs=params_backend, queue=False, show_progress=False)
+
+                for model_state_control in [base_model, refiner_model, refiner_switch, clip_model, vae_name, upscale_model] + lora_ctrls:
+                    model_state_user_event = getattr(model_state_control, "input", model_state_control.change)
+                    model_state_user_event(
+                        _sync_model_params_state_from_ui,
+                        inputs=model_state_ui_inputs,
+                        outputs=model_params_state,
+                        queue=False,
+                        show_progress=False,
+                    )
+
+                def apply_preferred_output_format(state_params):
+                    return topbar.apply_preferred_output_format(state_params)
+
+                def _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images):
+                    provider_data = _main_vlm_provider_by_key(provider)
+                    return {
+                        "api_name": str(api_name or "Custom").strip() or "Custom",
+                        "provider": provider_data["key"],
+                        "api_format": str(api_format or provider_data.get("format") or "openai_compatible").strip() or "openai_compatible",
+                        "base_url": str(base_url or "").strip(),
+                        "model": str(model or "").strip(),
+                        "api_key": str(api_key or "").strip(),
+                        "supports_images": _as_bool(supports_images, True),
+                    }
+
+                def _persist_main_vlm_custom_settings(settings, state):
+                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_name"], settings["api_name"], state)
+                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["provider"], settings["provider"], state)
+                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_format"], settings["api_format"], state)
+                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["base_url"], settings["base_url"], state)
+                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["model"], settings["model"], state)
+                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_key"], settings["api_key"], state)
+                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["supports_images"], settings["supports_images"], state)
+
+                def _main_vlm_custom_hint(state=None):
+                    missing = VLM.get_custom_missing_settings()
+                    if not missing:
+                        return ""
+                    text = _main_vlm_text(
+                        state,
+                        "Fill API Base URL and Model. API Key can stay empty for Ollama/LM Studio.",
+                        "请填写接口地址和模型；Ollama/LM Studio 可不填 API Key。",
+                    )
+                    return _main_vlm_custom_message_html(
+                        text,
+                        "missing",
+                    )
+
+                def _describe_vlm_dropdown_update(version):
+                    return dropdown_update(choices=_vlm_model_choices(), value=_vlm_model_choice_label(version))
+
+                def load_main_vlm_user_settings(state):
+                    settings = _main_vlm_custom_settings_from_state(state)
+                    _apply_main_vlm_custom_settings(settings)
+                    version = _main_vlm_selected_version_from_state(state)
+                    vlm.set_version(version)
+                    model_choices = [settings["model"]] if settings["model"] else []
+                    texts = _main_vlm_ui_texts(state)
+                    return (
+                        _describe_vlm_dropdown_update(version),
+                        _vlm_model_status_html(version),
+                        gr_update(visible=version == VLM.CUSTOM_VERSION),
+                        gr_update(value=_main_vlm_custom_help_html(state)),
+                        gr_update(value=settings["api_name"], label=texts["api_name_label"], placeholder=texts["api_name_placeholder"]),
+                        dropdown_update(choices=_main_vlm_provider_choices(state), value=settings["provider"], label=texts["provider_label"]),
+                        dropdown_update(choices=["openai_compatible"], value=settings["api_format"], label=texts["api_format_label"], visible=False),
+                        gr_update(value=settings["base_url"], label=texts["base_url_label"], placeholder=texts["base_url_placeholder"]),
+                        dropdown_update(choices=model_choices, value=settings["model"] or None, allow_custom_value=True, label=texts["model_label"]),
+                        gr_update(value=settings["api_key"], label=texts["api_key_label"], placeholder=texts["api_key_placeholder"]),
+                        gr_update(value=settings["supports_images"], label=texts["support_image_label"]),
+                        gr_update(value=texts["fetch_models"]),
+                        gr_update(value=texts["test_api"]),
+                        _main_vlm_custom_hint(state) if version == VLM.CUSTOM_VERSION else "",
+                        gr_update(value=version),
+                    )
+
+                def set_describe_vlm_version(version, state, api_name, provider, api_format, base_url, model, api_key, supports_images):
+                    settings = _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images)
+                    _apply_main_vlm_custom_settings(settings)
+                    version = _vlm_resolve_version(version)
+                    vlm.set_version(version)
+                    _main_vlm_save_selected_version(version, state)
+                    if version == VLM.CUSTOM_VERSION:
+                        _persist_main_vlm_custom_settings(settings, state)
+                    return (
+                        _describe_vlm_dropdown_update(version),
+                        _vlm_model_status_html(version),
+                        gr_update(visible=version == VLM.CUSTOM_VERSION),
+                        _main_vlm_custom_hint(state) if version == VLM.CUSTOM_VERSION else "",
+                        gr_update(value=version),
+                    )
+
+                def set_admin_vlm_version(version, state):
+                    version = _vlm_resolve_version(version)
+                    vlm.set_version(version)
+                    _main_vlm_save_selected_version(version, state, persist_admin=True)
+                    return (
+                        _vlm_model_status_html(version),
+                        _describe_vlm_dropdown_update(version),
+                        gr_update(visible=version == VLM.CUSTOM_VERSION),
+                        _main_vlm_custom_hint(state) if version == VLM.CUSTOM_VERSION else "",
+                    )
+
+                def sync_main_vlm_custom_settings(api_name, provider, api_format, base_url, model, api_key, supports_images, version, state):
+                    settings = _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images)
+                    _apply_main_vlm_custom_settings(settings)
+                    _persist_main_vlm_custom_settings(settings, state)
+                    version = _vlm_resolve_version(version)
+                    if version == VLM.CUSTOM_VERSION:
+                        vlm.set_version(version)
+                        _main_vlm_save_selected_version(version, state)
+                    return _describe_vlm_dropdown_update(version), _vlm_model_status_html(version), _main_vlm_custom_hint(state) if version == VLM.CUSTOM_VERSION else ""
+
+                def sync_main_vlm_custom_provider(api_name, provider, api_format, base_url, model, api_key, supports_images, version, state):
+                    provider_data = _main_vlm_provider_by_key(provider)
+                    settings = _main_vlm_settings_from_inputs(api_name, provider, provider_data.get("format"), base_url, model, api_key, supports_images)
+                    if provider_data["key"] != "custom":
+                        settings["api_name"] = _main_vlm_provider_label(provider_data, state)
+                        settings["base_url"] = provider_data.get("base_url") or ""
+                        settings["supports_images"] = provider_data.get("supports_images", True) is not False
+                    _apply_main_vlm_custom_settings(settings)
+                    _persist_main_vlm_custom_settings(settings, state)
+                    version = _vlm_resolve_version(version)
+                    if version == VLM.CUSTOM_VERSION:
+                        vlm.set_version(version)
+                        _main_vlm_save_selected_version(version, state)
+                    return (
+                        gr_update(value=settings["api_name"]),
+                        dropdown_update(choices=["openai_compatible"], value=settings["api_format"], visible=False),
+                        gr_update(value=settings["base_url"]),
+                        gr_update(value=settings["supports_images"]),
+                        _describe_vlm_dropdown_update(version),
+                        _vlm_model_status_html(version),
+                        _main_vlm_custom_hint(state) if version == VLM.CUSTOM_VERSION else "",
+                    )
+
+                def fetch_main_vlm_custom_models(api_name, provider, api_format, base_url, model, api_key, supports_images, state):
+                    settings = _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images)
+                    _apply_main_vlm_custom_settings(settings)
+                    _persist_main_vlm_custom_settings(settings, state)
+                    vlm.set_version(VLM.CUSTOM_VERSION)
+                    _main_vlm_save_selected_version(VLM.CUSTOM_VERSION, state)
+                    result = VLM.list_custom_models(settings["base_url"], settings["api_key"])
+                    if not result.get("ok"):
+                        message = result.get("details") or result.get("error") or "unknown error"
+                        text = _main_vlm_text(state, f"Fetch models failed: {message}", f"拉取模型失败：{message}")
+                        return (
+                            dropdown_update(choices=[settings["model"]] if settings["model"] else [], value=settings["model"] or None, allow_custom_value=True),
+                            _describe_vlm_dropdown_update(VLM.CUSTOM_VERSION),
+                            _vlm_model_status_html(VLM.CUSTOM_VERSION),
+                            _main_vlm_custom_message_html(text, "missing"),
+                        )
+                    models = result.get("models") or []
+                    selected = settings["model"] or (models[0] if models else "")
+                    if selected and selected not in models:
+                        models = [selected] + models
+                    if selected != settings["model"]:
+                        settings["model"] = selected
+                        _apply_main_vlm_custom_settings(settings)
+                        _persist_main_vlm_custom_settings(settings, state)
+                    model_count = len(result.get('models') or [])
+                    message = _main_vlm_text(state, f"Fetched {model_count} model(s).", f"已拉取 {model_count} 个模型。")
+                    return (
+                        dropdown_update(choices=models, value=selected or None, allow_custom_value=True),
+                        _describe_vlm_dropdown_update(VLM.CUSTOM_VERSION),
+                        _vlm_model_status_html(VLM.CUSTOM_VERSION),
+                        _main_vlm_custom_message_html(message, "ready"),
+                    )
+
+                def test_main_vlm_custom_api(api_name, provider, api_format, base_url, model, api_key, supports_images, state):
+                    settings = _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images)
+                    _apply_main_vlm_custom_settings(settings)
+                    _persist_main_vlm_custom_settings(settings, state)
+                    vlm.set_version(VLM.CUSTOM_VERSION)
+                    _main_vlm_save_selected_version(VLM.CUSTOM_VERSION, state)
+                    missing = VLM.get_custom_missing_settings()
+                    if missing:
+                        text = _main_vlm_text(state, f"Custom API settings incomplete: {', '.join(missing)}", f"Custom API 设置不完整：{', '.join(missing)}")
+                        return (
+                            _describe_vlm_dropdown_update(VLM.CUSTOM_VERSION),
+                            _vlm_model_status_html(VLM.CUSTOM_VERSION),
+                            _main_vlm_custom_message_html(text, "missing"),
+                        )
+                    try:
+                        response = vlm.inference(
+                            None,
+                            "Reply with OK.",
+                            max_tokens=16,
+                            temperature=0,
+                            top_p=1,
+                            seed=-1,
+                            system_prompt="You are an API connectivity tester. Reply with OK only.",
+                        )
+                        text = str(response or "OK").strip()[:80]
+                        message = _main_vlm_text(state, f"Custom API test succeeded: {text}", f"Custom API 测试成功：{text}")
+                        return (
+                            _describe_vlm_dropdown_update(VLM.CUSTOM_VERSION),
+                            _vlm_model_status_html(VLM.CUSTOM_VERSION),
+                            _main_vlm_custom_message_html(message, "ready"),
+                        )
+                    except Exception as exc:
+                        message = _main_vlm_text(state, f"Custom API test failed: {exc}", f"Custom API 测试失败：{exc}")
+                        return (
+                            _describe_vlm_dropdown_update(VLM.CUSTOM_VERSION),
+                            _vlm_model_status_html(VLM.CUSTOM_VERSION),
+                            _main_vlm_custom_message_html(message, "missing"),
+                        )
+
+                translation_methods.change(lambda x,y: ads.set_admin_default_value('translation_methods',x,y), inputs=[translation_methods, state_topbar])
+                backfill_prompt.change(lambda x,y: ads.set_user_default_value("backfill_prompt",x,y), inputs=[backfill_prompt, state_topbar])
+                disable_preview.change(lambda x,y: ads.set_user_default_value("disable_preview", x, y), inputs=[disable_preview, state_topbar])
+                disable_intermediate_results.change(lambda x,y: ads.set_user_default_value("disable_intermediate_results", x, y), inputs=[disable_intermediate_results, state_topbar])
+                disable_seed_increment.change(lambda x,y: ads.set_user_default_value("disable_seed_increment", x, y), inputs=[disable_seed_increment, state_topbar])
+                save_final_enhanced_image_only.change(lambda x,y: ads.set_user_default_value("save_final_enhanced_image_only", x, y), inputs=[save_final_enhanced_image_only, state_topbar])
+                generate_image_grid.change(lambda x,y: ads.set_user_default_value("generate_image_grid", x, y), inputs=[generate_image_grid, state_topbar])
+                gallery_frost_enabled.change(
+                    lambda x,y: ads.set_user_default_value("gallery_frost_enabled", x, y),
+                    inputs=[gallery_frost_enabled, state_topbar],
+                    outputs=None,
+                    queue=False
+                ).then(
+                    lambda x: None,
+                    inputs=[gallery_frost_enabled],
+                    outputs=None,
+                    queue=False,
+                    show_progress=False,
+                    js='(enabled)=>{try{if(window.setSimpleAIGalleryFrostEnabled) window.setSimpleAIGalleryFrostEnabled(!!enabled,{reset:true,source:"setting-checkbox",persist:false});}catch(e){console.warn("[UI-TRACE] gallery_frost_setting_sync_failed", e);}}'
+                )
+                black_out_nsfw.change(lambda x,y: ads.set_user_default_value("black_out_nsfw", x, y), inputs=[black_out_nsfw, state_topbar])
+                save_metadata_to_images.change(lambda x,y: ads.set_user_default_value("save_metadata_to_images", x, y), inputs=[save_metadata_to_images, state_topbar])
+                metadata_scheme.change(lambda x,y: ads.set_user_default_value("metadata_scheme", x, y), inputs=[metadata_scheme, state_topbar])
+
+                fast_comfyd_checkbox.change(simpleai.start_fast_comfyd, inputs=[fast_comfyd_checkbox, state_topbar])
+                cache_clear_on_finish_checkbox.change(simpleai.set_cache_clear_on_finish, inputs=[cache_clear_on_finish_checkbox, state_topbar])
+                main_vlm_custom_inputs = [
+                    describe_vlm_custom_api_name,
+                    describe_vlm_custom_provider,
+                    describe_vlm_custom_api_format,
+                    describe_vlm_custom_base_url,
+                    describe_vlm_custom_model,
+                    describe_vlm_custom_api_key,
+                    describe_vlm_custom_supports_images,
+                ]
+                describe_vlm_model.change(
+                    set_describe_vlm_version,
+                    inputs=[describe_vlm_model, state_topbar] + main_vlm_custom_inputs,
+                    outputs=[describe_vlm_model, vlm_status_info, describe_vlm_custom_panel, describe_vlm_custom_message, vlm_version],
+                    queue=False,
+                    show_progress=False,
+                )
+                vlm_version.change(
+                    set_admin_vlm_version,
+                    inputs=[vlm_version, state_topbar],
+                    outputs=[vlm_status_info, describe_vlm_model, describe_vlm_custom_panel, describe_vlm_custom_message],
+                    queue=False,
+                    show_progress=False,
+                )
+                for custom_vlm_control in [
+                    describe_vlm_custom_api_name,
+                    describe_vlm_custom_api_format,
+                    describe_vlm_custom_base_url,
+                    describe_vlm_custom_model,
+                    describe_vlm_custom_api_key,
+                    describe_vlm_custom_supports_images,
+                ]:
+                    custom_vlm_control.change(
+                        sync_main_vlm_custom_settings,
+                        inputs=main_vlm_custom_inputs + [describe_vlm_model, state_topbar],
+                        outputs=[describe_vlm_model, vlm_status_info, describe_vlm_custom_message],
+                        queue=False,
+                        show_progress=False,
+                    )
+                describe_vlm_custom_provider.change(
+                    sync_main_vlm_custom_provider,
+                    inputs=main_vlm_custom_inputs + [describe_vlm_model, state_topbar],
+                    outputs=[
+                        describe_vlm_custom_api_name,
+                        describe_vlm_custom_api_format,
+                        describe_vlm_custom_base_url,
+                        describe_vlm_custom_supports_images,
+                        describe_vlm_model,
+                        vlm_status_info,
+                        describe_vlm_custom_message,
+                    ],
+                    queue=False,
+                    show_progress=False,
+                )
+                describe_vlm_custom_fetch_models.click(
+                    fetch_main_vlm_custom_models,
+                    inputs=main_vlm_custom_inputs + [state_topbar],
+                    outputs=[describe_vlm_custom_model, describe_vlm_model, vlm_status_info, describe_vlm_custom_message],
+                    queue=True,
+                    show_progress=True,
+                )
+                describe_vlm_custom_test.click(
+                    test_main_vlm_custom_api,
+                    inputs=main_vlm_custom_inputs + [state_topbar],
+                    outputs=[describe_vlm_model, vlm_status_info, describe_vlm_custom_message],
+                    queue=True,
+                    show_progress=True,
+                )
+                shared.gradio_root.load(
+                    load_main_vlm_user_settings,
+                    inputs=[state_topbar],
+                    outputs=[
+                        describe_vlm_model,
+                        vlm_status_info,
+                        describe_vlm_custom_panel,
+                        describe_vlm_custom_help,
+                        describe_vlm_custom_api_name,
+                        describe_vlm_custom_provider,
+                        describe_vlm_custom_api_format,
+                        describe_vlm_custom_base_url,
+                        describe_vlm_custom_model,
+                        describe_vlm_custom_api_key,
+                        describe_vlm_custom_supports_images,
+                        describe_vlm_custom_fetch_models,
+                        describe_vlm_custom_test,
+                        describe_vlm_custom_message,
+                        vlm_version,
+                    ],
+                    queue=False,
+                    show_progress=False,
+                )
+                reserved_vram.change(lambda x,y: ads.set_admin_default_value('reserved_vram',x,y), inputs=[reserved_vram, state_topbar])
+                cache_ram_enable.change(lambda x,y: [ads.set_admin_default_value('cache_ram_enable',x,y), gr_update(interactive=x)][-1], inputs=[cache_ram_enable, state_topbar], outputs=cache_ram)
+                cache_ram.change(lambda x,y: ads.set_admin_default_value('cache_ram',x,y), inputs=[cache_ram, state_topbar])
+                wavespeed_strength.change(lambda x,y: ads.set_admin_default_value('wavespeed_strength',x,y), inputs=[wavespeed_strength, state_topbar])
+                admin_sync_button.click(topbar.admin_sync_to_guest, inputs=[state_topbar], outputs=admin_sync_button, queue=False, show_progress=False)
+                shared.gradio_root.load(
+                    _admin_access_refresh,
+                    inputs=[admin_access_user_select, state_topbar],
+                    outputs=admin_access_outputs,
+                    queue=False,
+                    show_progress=False,
+                )
+                admin_access_refresh_btn.click(
+                    _admin_access_refresh_clicked,
+                    inputs=[admin_access_user_select, state_topbar],
+                    outputs=admin_access_outputs,
+                    queue=False,
+                    show_progress=False,
+                )
+                admin_access_user_select.change(
+                    _admin_access_select,
+                    inputs=[admin_access_user_select, state_topbar],
+                    outputs=[admin_access_user_can_generate, admin_access_user_can_download_models, admin_access_message],
+                    queue=False,
+                    show_progress=False,
+                )
+                admin_access_approve_btn.click(
+                    _admin_access_approve,
+                    inputs=[admin_access_user_select, admin_access_user_can_generate, admin_access_user_can_download_models, state_topbar],
+                    outputs=admin_access_outputs,
+                    queue=False,
+                    show_progress=False,
+                )
+                admin_access_reject_btn.click(
+                    _admin_access_reject,
+                    inputs=[admin_access_user_select, state_topbar],
+                    outputs=admin_access_outputs,
+                    queue=False,
+                    show_progress=False,
+                )
+                admin_access_save_btn.click(
+                    _admin_access_set_user_permissions,
+                    inputs=[admin_access_user_select, admin_access_user_can_generate, admin_access_user_can_download_models, state_topbar],
+                    outputs=admin_access_outputs,
+                    queue=False,
+                    show_progress=False,
+                )
+                admin_access_guest_save_btn.click(
+                    _admin_access_set_guest_permissions,
+                    inputs=[guest_can_generate_checkbox, guest_can_download_models_checkbox, admin_access_user_select, state_topbar],
+                    outputs=admin_access_outputs,
+                    queue=False,
+                    show_progress=False,
+                )
+
+                admin_ctrls = [comfyd_active_checkbox, fast_comfyd_checkbox, cache_clear_on_finish_checkbox, reserved_vram, cache_ram_enable, cache_ram, vlm_checkbox, vlm_version, advanced_logs, wavespeed_strength, translation_methods, no_welcome_checkbox, missing_model_filter_checkbox]
+                user_app_ctrls = [backfill_prompt, image_tools_checkbox, disable_preview, disable_intermediate_results, disable_seed_increment, save_final_enhanced_image_only, style_preview_checkbox, generate_image_grid, black_out_nsfw, save_metadata_to_images, metadata_scheme, gallery_frost_enabled, no_model_modal_checkbox, lora_auto_send_trigger_words, use_model_filter_checkbox, model_filter_state]
+
+                restore_all_defaults_btn.click(lambda: gr_update(visible=True), inputs=None, outputs=restore_defaults_panel, queue=False, show_progress=False)
+                restore_defaults_cancel_btn.click(lambda: gr_update(visible=False), inputs=None, outputs=restore_defaults_panel, queue=False, show_progress=False)
+                restore_defaults_confirm_btn.click(topbar.restore_all_defaults, inputs=[state_topbar], outputs=[restore_defaults_panel, progress_window, language_ui, background_theme, preset_instruction] + user_app_ctrls + admin_ctrls + [output_format], queue=False, show_progress=False) \
+                    .then(fn=lambda: None,inputs=None,outputs=None,queue=False,show_progress=False,
+                        js='()=>{try{refresh_style_localization();refresh_style_layout();}catch(e){} try{localizeWholePage();}catch(e){} try{setCookie("ailang","",-1);}catch(e){} try{const url=new URL(window.location.href); const theme=(typeof topbarLastTheme==="string" && topbarLastTheme)?topbarLastTheme:(url.searchParams.get("__theme")||"dark"); url.searchParams.delete("__lang"); url.searchParams.delete("__theme"); url.searchParams.delete("t"); const rest=url.searchParams.toString(); const t=`${Date.now()}.${Math.floor(Math.random()*10000)}`; const base=`${url.origin}${url.pathname}`; const parts=[`__theme=${encodeURIComponent(theme)}`, `t=${encodeURIComponent(t)}`]; if(rest) parts.push(rest); window.location.replace(`${base}?${parts.join("&")}`);}catch(e){}}'
+                    )
+
+
+            layout_image_tab = [performance_selection, style_selections, image_number, freeu_enabled, refiner_model, refiner_switch] + lora_ctrls
+            def toggle_image_tab(tab, styles):
+                result = []
+                if 'layer' in tab:
+                    result += [
+                        gr_update(choices=flags.Performance.list()[:2]),
+                        gr_update(value=[s for s in styles if s != fooocus_expansion and s != 'Fooocus Sharp']),
+                        skip_component_update(),
+                    ]
+                    result += [gr_update(value=False, interactive=False)]
+                    result += [gr_update(interactive=False)] * (len(layout_image_tab) - 4)
+                elif 'uov' in tab:
+                    result += [gr_update(choices=flags.Performance.list()), skip_component_update(), 1]
+                    result += [gr_update(interactive=True)] * (len(layout_image_tab) - 3)
+                else:
+                    result += [
+                        gr_update(choices=flags.Performance.list()),
+                        skip_component_update(),
+                        skip_component_update(),
+                    ]
+                    result += [gr_update(interactive=True)] * (len(layout_image_tab) - 3)
+                return result
+            
+            uov_tab.select(lambda: 'uov', outputs=current_tab, queue=False, js=down_js, show_progress=False).then(toggle_image_tab,inputs=[current_tab, style_selections], outputs=layout_image_tab, show_progress=False, queue=False)
+            inpaint_tab.select(lambda: 'inpaint', outputs=current_tab, queue=False, js=down_js, show_progress=False).then(toggle_image_tab,inputs=[current_tab, style_selections], outputs=layout_image_tab, show_progress=False, queue=False) \
+                .then(lambda: None, js='()=>{try{if(window.syncInpaintModePromptVisibility) window.syncInpaintModePromptVisibility();}catch(e){console.warn("[UI-TRACE] inpaint_tab_prompt_visibility_sync_failed", e);}}', show_progress=False, queue=False)
+            ip_tab.select(lambda: 'ip', outputs=current_tab, queue=False, js=down_js, show_progress=False).then(toggle_image_tab,inputs=[current_tab, style_selections], outputs=layout_image_tab, show_progress=False, queue=False)
+            enhance_tab.select(lambda: 'enhance', outputs=current_tab, queue=False, js=down_js, show_progress=False).then(toggle_image_tab,inputs=[current_tab, style_selections], outputs=layout_image_tab, show_progress=False, queue=False)
+
+            def _ui_debug_trace(event_name, **kwargs):
+                if not util.simpai_ui_trace_enabled():
+                    return
+                try:
+                    import time as _t
+                    ts = _t.strftime('%H:%M:%S')
+                    ms = int((_t.time() % 1) * 1000)
+                    detail = ", ".join([f"{k}={kwargs[k]!r}" for k in kwargs])
+                    print(f"[UI-TRACE {ts}.{ms:03d}] {event_name} | {detail}")
+                except Exception as _e:
+                    print(f"[UI-TRACE] log_failed: {_e}")
+
+            def toggle_image_input_panel(is_checked, is_tts_checked):
+                is_checked = bool(is_checked)
+                is_tts_checked = bool(is_tts_checked)
+                show_image_panel = is_checked
+                show_tts_panel = is_tts_checked
+                _ui_debug_trace(
+                    "toggle_image_input_panel",
+                    is_checked=is_checked,
+                    is_tts_checked=is_tts_checked,
+                    show_image_panel=show_image_panel,
+                    show_tts_panel=show_tts_panel,
+                )
+                result = [
+                    skip_component_update(),  # image_input_panel is mounted-hidden and frontend-owned
+                    skip_component_update(),  # engine_class marker visibility is frontend-owned
+                    gr_update(choices=flags.Performance.list()),
+                    skip_component_update(),
+                    skip_component_update(),
+                ] + [gr_update(interactive=True)] * (len(layout_image_tab) - 3)
+                result += [skip_component_update(), skip_component_update()]
+                return tuple(result)
+
+            input_panel_toggle_evt = input_image_checkbox.change(
+                toggle_image_input_panel,
+                inputs=[input_image_checkbox, qwen_tts_checkbox],
+                outputs=[image_input_panel, engine_class_display] + layout_image_tab + [tts_panel, qwen_tts_checkbox],
+                queue=False,
+                show_progress=False
+            )
+            input_panel_toggle_evt.then(
+                _qwen_refresh_style_preset_dropdowns,
+                inputs=[state_topbar, qwen_design_style_preset_choices, qwen_custom_style_preset_choices],
+                outputs=[qwen_design_style_preset_choices, qwen_custom_style_preset_choices],
+                queue=False,
+                show_progress=False
+            )
+
+            def toggle_tts_panel(tts_checked, image_panel_checked):
+                tts_checked = bool(tts_checked)
+                image_panel_checked = bool(image_panel_checked)
+                return tuple(skip_component_update() for _ in range(4))
+
+            qwen_tts_toggle_evt = qwen_tts_checkbox.change(
+                fn=toggle_tts_panel,
+                inputs=[qwen_tts_checkbox, input_image_checkbox],
+                outputs=[tts_panel, image_input_panel, engine_class_display, input_image_checkbox],
+                queue=False,
+                show_progress=False,
+                js=sync_image_tts_js
+            )
+            qwen_tts_toggle_evt.then(
+                _qwen_refresh_style_preset_dropdowns,
+                inputs=[state_topbar, qwen_design_style_preset_choices, qwen_custom_style_preset_choices],
+                outputs=[qwen_design_style_preset_choices, qwen_custom_style_preset_choices],
+                queue=False,
+                show_progress=False
+            )
+            prompt_panel_checkbox.change(lambda x: [gr_update(open=x if x else True), skip_component_update()],
+                                         inputs=prompt_panel_checkbox, outputs=[prompt_wildcards, prompt_history], queue=False, show_progress=False,
+                                         js=switch_js).then(
+                                         lambda x,y: wildcards_array_show(y) if x else wildcards_array_hidden(),
+                                         inputs=[prompt_panel_checkbox, state_topbar],
+                                         outputs=wildcards_array, queue=False, show_progress=False) \
+                                         .then(lambda: None, js='()=>{try{if(window.syncPromptPanelMountedVisibility) window.syncPromptPanelMountedVisibility();}catch(e){console.warn("[UI-TRACE] prompt_panel_mounted_visibility_sync_failed", e);}}', show_progress=False, queue=False)
+
+            def toggle_comfyd_checked(x, state):
+                ads.set_admin_default_value('comfyd_active_checkbox', x, state)
+                if not args_manager.args.disable_backend and not args_manager.args.disable_comfyd:
+                    comfyd.active(x)
+                return
+
+            def sync_image_tools_checkbox_setting(image_tools_enabled, state_params):
+                state_params = dict(state_params or {})
+                enabled = bool(image_tools_enabled)
+                state_params["__image_tools_enabled"] = enabled
+                ads.set_user_default_value("image_tools_checkbox", enabled, state_params)
+                if not enabled:
+                    gallery_util.clear_post_generation_compare_state(state_params)
+                toolbox_visible = bool(gallery_util._should_show_image_toolbox(enabled, state_params))
+                return gr_update(visible=toolbox_visible), compare_button_gr_update(visible=toolbox_visible, ready=False), state_params
+
+            image_tools_checkbox.change(sync_image_tools_checkbox_setting, inputs=[image_tools_checkbox,state_topbar], outputs=[image_toolbox, compare_btn, state_topbar], queue=False, show_progress=False) \
+                .then(lambda x: None, inputs=state_topbar, queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(typeof syncSimpleAIImageToolsEnabledClass==="function") syncSimpleAIImageToolsEnabledClass(!(state&&state.__image_tools_enabled===false)); if(state&&state.__post_generation_compare_cleared&&typeof clearSimpleAICompareReadyState==="function") clearSimpleAICompareReadyState("image_tools_checkbox"); if(typeof syncPostGenerationResultControls==="function") syncPostGenerationResultControls(state);}catch(e){console.warn("[UI-TRACE] image_tools_checkbox_sync_failed", e);}}')
+            comfyd_active_checkbox.change(toggle_comfyd_checked, inputs=[comfyd_active_checkbox, state_topbar], queue=False, show_progress=False)
+            
+            import enhanced.superprompter
+            super_prompter.click(
+                lambda x, y, z, c, i, i2, i3, i4, s, state_is_generating:
+                    (logger.info('Using superprompter'), enhanced.superprompter.answer(input_text=enhanced.translator.convert(f'{y}{x}', z)))[1] if check_generating_state(state_is_generating) else
+                    (logger.info('Using VLM'), vlm.extended_prompt(x, y, [extract_scene_image(c), extract_scene_image(i), extract_scene_image(i2), extract_scene_image(i3), extract_scene_image(i4)], s, z))[1],
+                inputs=[prompt, super_prompter_prompt, translation_methods, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, state_topbar, state_is_generating],
+                outputs=prompt,
+                queue=False,
+                show_progress=True
+            )
+            scene_params = [scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_mask_color_state, scene_video, scene_audio]
+            scene_preset_save_names = ["scene_theme", "scene_additional_prompt", "scene_additional_prompt_2", "scene_var_number", "scene_var_number2", "scene_var_number3", "scene_var_number4", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10", "scene_steps", "scene_switch_option1", "scene_switch_option2", "scene_switch_option3", "scene_switch_option4", "scene_aspect_ratio", "scene_image_number"]
+            scene_preset_save_ctrls = [scene_theme, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number]
+            if _qwen_send_audio_binder is not None:
+                for _qwen_send_button, _qwen_send_output_audio, _qwen_send_target_dropdown in _qwen_pending_send_audio_bindings:
+                    _qwen_send_audio_binder(_qwen_send_button, _qwen_send_output_audio, _qwen_send_target_dropdown)
+
+            language_ui.select(
+                lambda x, y: sync_state_params('__lang', modules.flags.language_radio_revert(x), y),
+                inputs=[language_ui, state_topbar]
+            ).then(
+                topbar.build_identity_introduce_html,
+                inputs=[state_topbar],
+                outputs=[identity_introduce],
+                queue=False,
+                show_progress=False
+            ).then(
+                _admin_access_refresh,
+                inputs=[admin_access_user_select, state_topbar],
+                outputs=admin_access_outputs,
+                queue=False,
+                show_progress=False
+            ).then(None, inputs=language_ui, js="(x) => set_language_by_ui(x)")
+            background_theme.select(lambda x,y: sync_state_params('__theme', x, y), inputs=[background_theme, state_topbar]).then(None, inputs=background_theme, js="(x) => set_theme_by_ui(x)")
+
+            gallery_index_change_evt = gallery_index.change(gallery_util.images_list_update, inputs=[gallery_index, image_tools_checkbox, state_topbar], outputs=[gallery, progress_video, index_radio, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, progress_gallery, progress_window, identity_dialog, params_note_info, params_note_close_button, params_note_input_name, params_note_delete_button, params_note_regen_button, params_note_preset_button, params_note_box], show_progress=False, js='(choice,tools,state)=>{try{const outputList=(state&&state.__output_list)||[]; const compareChoice=(state&&state.__post_generation_compare_choice)!=null?state.__post_generation_compare_choice:(Array.isArray(outputList)&&outputList.length?outputList[0]:null); const preserve=!!(state&&state.__post_generation_compare_ready&&state.__post_generation_compare_visible&&!state.__post_generation_compare_cleared&&String(compareChoice||"")===String(choice||"")); if(!preserve&&typeof clearSimpleAICompareReadyState==="function") clearSimpleAICompareReadyState("gallery_index.change");}catch(e){}}')
+            gallery_index_change_evt.then(gallery_util.images_list_fill_gallery, inputs=[gallery_index, state_topbar], outputs=[progress_gallery, progress_window], queue=False, show_progress=False) \
+                .then(lambda state: None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} syncPostGenerationResultControls(state); traceResultPanelStateSoon("gallery_index.change.after_fill");}catch(e){console.warn("[UI-TRACE] gallery_index_change.dom_trace_failed", e);}}')
+            gallery_images_btn.click(lambda request, tools, state: gallery_util.switch_gallery_engine_type("image", request, tools, state), inputs=[gallery_media_switch_request, image_tools_checkbox, state_topbar], outputs=[gallery_index, index_radio, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='(request,tools,state)=>{let marker=request||""; try{clearSimpleAICompareReadyState("gallery_media_switch.image"); marker=(typeof beginGalleryMediaSwitchRequest==="function")?beginGalleryMediaSwitchRequest("image",1500):`${Date.now()}:0:image`; if(typeof beginGalleryMediaSwitchRequest!=="function") syncGalleryMediaSwitch("image",1500);}catch(e){} return [marker,tools,state];}') \
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{if(typeof isGalleryMediaSwitchModeCurrent==="function"&&!isGalleryMediaSwitchModeCurrent("image")) return; syncGalleryMediaSwitch("image", 1200); try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(typeof syncPostGenerationResultControls==="function"){syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80); setTimeout(()=>syncPostGenerationResultControls(state),220);}}catch(e){} refresh_finished_images_catalog_label(x, "image", {refresh:false}); try{const nums=String((state&&state.__finished_nums_pages)||x||""); if(/^0(?:,|$)/.test(nums)&&typeof restoreWelcomePreviewForEmptyGalleryBrowser==="function") restoreWelcomePreviewForEmptyGalleryBrowser("gallery_media_switch.image.empty"); if(typeof scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery==="function") scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery("image", "gallery_media_switch.image");}catch(e){}}')
+            canvas_gallery_refresh_btn.click(gallery_util.canvas_refresh_after_run, inputs=[image_tools_checkbox, state_topbar], outputs=[gallery_index, index_radio, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='()=>{try{clearSimpleAICompareReadyState("canvas_gallery_refresh"); const mode=(typeof getFinishedGalleryBrowserMode==="function"?getFinishedGalleryBrowserMode():null)||((window.simpleaiTopbarSystemParams||{}).__gallery_engine_type)||((window.simpleaiTopbarSystemParams||{}).engine_type); if(mode) syncGalleryMediaSwitch(mode, 1500);}catch(e){}}') \
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{const mode=(state && (state.__gallery_engine_type || state.engine_type)) || (typeof getFinishedGalleryBrowserMode==="function"?getFinishedGalleryBrowserMode():null) || "image"; syncGalleryMediaSwitch(mode, 1200); refresh_finished_images_catalog_label(x, mode); try{traceResultPanelStateSoon("canvas_gallery_refresh.after");}catch(e){console.warn("[UI-TRACE] canvas_gallery_refresh.dom_trace_failed", e);}}')
+            gallery_videos_btn.click(lambda request, tools, state: gallery_util.switch_gallery_engine_type("video", request, tools, state), inputs=[gallery_media_switch_request, image_tools_checkbox, state_topbar], outputs=[gallery_index, index_radio, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='(request,tools,state)=>{let marker=request||""; try{clearSimpleAICompareReadyState("gallery_media_switch.video"); marker=(typeof beginGalleryMediaSwitchRequest==="function")?beginGalleryMediaSwitchRequest("video",1500):`${Date.now()}:0:video`; if(typeof beginGalleryMediaSwitchRequest!=="function") syncGalleryMediaSwitch("video",1500);}catch(e){} return [marker,tools,state];}') \
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{if(typeof isGalleryMediaSwitchModeCurrent==="function"&&!isGalleryMediaSwitchModeCurrent("video")) return; syncGalleryMediaSwitch("video", 1200); try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(typeof syncPostGenerationResultControls==="function"){syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80); setTimeout(()=>syncPostGenerationResultControls(state),220);}}catch(e){} refresh_finished_images_catalog_label(x, "video", {refresh:false}); try{const nums=String((state&&state.__finished_nums_pages)||x||""); if(/^0(?:,|$)/.test(nums)&&typeof restoreWelcomePreviewForEmptyGalleryBrowser==="function") restoreWelcomePreviewForEmptyGalleryBrowser("gallery_media_switch.video.empty"); if(typeof scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery==="function") scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery("video", "gallery_media_switch.video");}catch(e){}}')
+            gallery_browser_load_evt = gallery_browser_load_btn.click(gallery_util.load_main_gallery_browser_page, inputs=[gallery_browser_payload, image_tools_checkbox, state_topbar], outputs=[gallery_browser_state, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='()=>{try{clearSimpleAICompareReadyState("gallery_browser.load"); markFinishedGalleryBrowserLoading();}catch(e){}}')
+            gallery_browser_load_evt.then(lambda x: None, inputs=[gallery_browser_state], queue=False, show_progress=False, js='(x)=>{try{syncFinishedGalleryBrowserAfterLoad(x); traceResultPanelStateSoon("gallery_browser.load.after");}catch(e){console.warn("[UI-TRACE] gallery_browser_load.dom_trace_failed", e);}}')
+            gallery_browser_outputs = [gallery_browser_folder, gallery_browser_prev_folder_btn, gallery_browser_next_folder_btn, gallery_browser_status, gallery_browser_more_btn, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat]
+            gallery_browser_folder.change(gallery_util.load_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.change"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.folder.change");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder.dom_trace_failed", e);}}')
+            gallery_browser_prev_folder_btn.click(gallery_util.previous_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.prev"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.folder.prev");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_prev.dom_trace_failed", e);}}')
+            gallery_browser_next_folder_btn.click(gallery_util.next_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.next"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.folder.next");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_next.dom_trace_failed", e);}}')
+            gallery_browser_refresh_btn.click(gallery_util.refresh_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.refresh"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.refresh");}catch(e){console.warn("[UI-TRACE] gallery_browser_refresh.dom_trace_failed", e);}}')
+            gallery_browser_more_btn.click(gallery_util.load_more_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.more"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.more");}catch(e){console.warn("[UI-TRACE] gallery_browser_more.dom_trace_failed", e);}}')
+            gallery.select(gallery_util.select_gallery, inputs=[gallery_index, image_tools_checkbox, state_topbar, backfill_prompt], outputs=[prompt_info_box, prompt_info_close_btn, prompt_info_container, prompt, negative_prompt, params_note_info, params_note_close_button, params_note_input_name, params_note_delete_button, params_note_regen_button, params_note_preset_button, params_note_box, image_toolbox, state_topbar], show_progress=False) \
+                .then(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80);}catch(e){console.warn("[UI-TRACE] gallery_select_compare_sync_failed", e);}}')
+            gallery.preview_open(gallery_util.gallery_preview_open, inputs=[image_tools_checkbox, state_topbar], outputs=[image_toolbox, state_topbar], queue=False, show_progress=False)
+            gallery.preview_close(gallery_util.gallery_preview_close, inputs=state_topbar, outputs=[image_toolbox, state_topbar], queue=False, show_progress=False, js='()=>{try{clearSimpleAICompareReadyState("gallery.preview_close");}catch(e){}}')
+            progress_gallery.select(gallery_util.select_gallery_progress, inputs=[image_tools_checkbox, state_topbar, backfill_prompt], outputs=[prompt_info_box, prompt_info_close_btn, prompt_info_container, prompt, negative_prompt, params_note_info, params_note_close_button, params_note_input_name, params_note_delete_button, params_note_regen_button, params_note_preset_button, params_note_box, image_toolbox, state_topbar], show_progress=False) \
+                .then(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80);}catch(e){console.warn("[UI-TRACE] progress_gallery_select_compare_sync_failed", e);}}')
+            progress_gallery.preview_open(gallery_util.gallery_preview_open, inputs=[image_tools_checkbox, state_topbar], outputs=[image_toolbox, state_topbar], queue=False, show_progress=False)
+            progress_gallery.preview_close(gallery_util.gallery_preview_close, inputs=state_topbar, outputs=[image_toolbox, state_topbar], queue=False, show_progress=False, js='()=>{try{clearSimpleAICompareReadyState("progress_gallery.preview_close");}catch(e){}}')
+
+        load_data_named_outputs = [
+            ("progress_window", progress_window),
+            ("progress_gallery", progress_gallery),
+            ("progress_video", progress_video),
+            ("gallery", gallery),
+            ("gallery_index", gallery_index),
+            ("image_number", image_number),
+            ("prompt", prompt),
+            ("negative_prompt", negative_prompt),
+            ("style_selections", style_selections),
+            ("performance_selection", performance_selection),
+            ("overwrite_step", overwrite_step),
+            ("overwrite_switch", overwrite_switch),
+            ("aspect_ratios_selection", aspect_ratios_selection),
+            ("overwrite_width", overwrite_width),
+            ("overwrite_height", overwrite_height),
+            ("resolution_quantize_step", resolution_quantize_step),
+            ("resolution_multiplier", resolution_multiplier),
+            ("resolution_edit_mode", resolution_edit_mode),
+            ("guidance_scale", guidance_scale),
+            ("sharpness", sharpness),
+            ("adm_scaler_positive", adm_scaler_positive),
+            ("adm_scaler_negative", adm_scaler_negative),
+            ("adm_scaler_end", adm_scaler_end),
+            ("refiner_swap_method", refiner_swap_method),
+            ("adaptive_cfg", adaptive_cfg),
+            ("clip_skip", clip_skip),
+            ("base_model", base_model),
+            ("refiner_model", refiner_model),
+            ("refiner_switch", refiner_switch),
+            ("sampler_name", sampler_name),
+            ("scheduler_name", scheduler_name),
+            ("clip_model", clip_model),
+            ("vae_name", vae_name),
+            ("upscale_model", upscale_model),
+            ("seed_random", seed_random),
+            ("image_seed", image_seed),
+            ("inpaint_engine", inpaint_engine),
+            ("inpaint_engine_state", inpaint_engine_state),
+            ("inpaint_mode", inpaint_mode),
+        ]
+        load_data_named_outputs += [
+            (f"enhance_inpaint_mode_{index + 1}", control)
+            for index, control in enumerate(enhance_inpaint_mode_ctrls)
+        ]
+        load_data_named_outputs += [
+            ("freeu_enabled", freeu_enabled),
+            ("freeu_b1", freeu_b1),
+            ("freeu_b2", freeu_b2),
+            ("freeu_s1", freeu_s1),
+            ("freeu_s2", freeu_s2),
+        ]
+        load_data_named_outputs += [
+            (f"lora_{(index // 3) + 1}_{['enabled', 'model', 'weight'][index % 3]}", control)
+            for index, control in enumerate(lora_ctrls)
+        ]
+        load_data_named_outputs += [
+            ("enhance_checkbox", enhance_checkbox),
+            ("enhance_enabled_1", enhance_enabled_1),
+            ("enhance_enabled_2", enhance_enabled_2),
+            ("enhance_enabled_3", enhance_enabled_3),
+            ("enhance_uov_method", enhance_uov_method),
+            ("enhance_uov_strength", enhance_uov_strength),
+        ]
+        load_data_output_names = [name for name, _ in load_data_named_outputs]
+        load_data_outputs = [output for _, output in load_data_named_outputs]
+
+
+        def inpaint_engine_state_change(inpaint_engine_version, state, *args):
+            inpaint_engine_choices, inpaint_engine_version = _get_inpaint_engine_choices_and_value(state, inpaint_engine_version)
+
+            result = []
+            for inpaint_mode in args:
+                if inpaint_mode != modules.flags.inpaint_option_detail:
+                    result.append(dropdown_update(choices=inpaint_engine_choices, value=inpaint_engine_version))
+                else:
+                    detail_value = 'None' if 'None' in inpaint_engine_choices else (inpaint_engine_choices[0] if inpaint_engine_choices else 'None')
+                    result.append(dropdown_update(choices=inpaint_engine_choices, value=detail_value))
+
+            return result
+
+        def sync_inpaint_engine_dropdowns_before_generation(state, current_inpaint_engine_state, current_inpaint_mode, current_outpaint_selections, *enhance_modes):
+            main_updates = inpaint_mode_change(
+                current_inpaint_mode,
+                current_inpaint_engine_state,
+                current_outpaint_selections,
+                state,
+            )
+            main_engine_update = main_updates[4] if isinstance(main_updates, (list, tuple)) and len(main_updates) > 4 else skip_component_update()
+            enhance_updates = inpaint_engine_state_change(current_inpaint_engine_state, state, *enhance_modes)
+            return [main_engine_update] + list(enhance_updates)
+
+        performance_selection.change(lambda x: [gr_update(interactive=not flags.Performance.has_restricted_features(x))] * 11 +
+                                               [gr_update(visible=not flags.Performance.has_restricted_features(x))] * 1,
+                                     inputs=performance_selection,
+                                     outputs=[
+                                         guidance_scale, sharpness, adm_scaler_end, adm_scaler_positive,
+                                         adm_scaler_negative, refiner_switch, refiner_model, sampler_name,
+                                         scheduler_name, adaptive_cfg, refiner_swap_method, negative_prompt], queue=False, show_progress=False)
+
+        
+        aspect_ratios_selection.change(
+            lambda x: None,
+            inputs=aspect_ratios_selection,
+            queue=False,
+            show_progress=False,
+            js='(x)=>{refresh_aspect_ratios_label(x); if (typeof syncResolutionControlWidgets === "function") syncResolutionControlWidgets();}'
+        )
+
+        output_format.change(lambda x,y: ads.set_user_default_value("output_format", x, y), inputs=[output_format, state_topbar], queue=False)
+
+        def _performance_selection_visible_for_state(st, sys_params=None):
+            try:
+                if isinstance(sys_params, dict) and '__engine_disvisible' in sys_params:
+                    system_disvisible = sys_params.get('__engine_disvisible', [])
+                    if isinstance(system_disvisible, list):
+                        return 'performance_selection' not in system_disvisible
+                if not isinstance(st, dict):
+                    return True
+                preset_prepared = st.get('__preset_prepared', {})
+                if not isinstance(preset_prepared, dict):
+                    preset_prepared = {}
+                engine_data = preset_prepared.get('engine', {})
+                if not isinstance(engine_data, dict):
+                    engine_data = {}
+                engine_display = preset_prepared.get(
+                    'Backend Engine',
+                    preset_prepared.get(
+                        'backend_engine',
+                        flags.task_class_mapping.get(engine_data.get('backend_engine', 'Fooocus'), 'SDXL-Fooocus'),
+                    ),
+                )
+                template_engine = flags.get_taskclass_by_fullname(str(engine_display)) if engine_display else None
+                if not template_engine:
+                    template_engine = engine_data.get('backend_engine') or st.get('backend_engine') or st.get('engine') or 'Fooocus'
+                default_params = flags.get_engine_default_params(template_engine)
+                disvisible = engine_data.get('disvisible', default_params.get('disvisible', []))
+                if not isinstance(disvisible, list):
+                    disvisible = []
+                return 'performance_selection' not in disvisible
+            except Exception:
+                return True
+
+        def _toggle_advanced_column(checked, st, sys_params):
+            show_advanced = bool(checked)
+            show_performance = show_advanced and _performance_selection_visible_for_state(st, sys_params)
+            return skip_component_update(), gr_update(visible=show_performance)
+
+        advanced_checkbox.change(
+            _toggle_advanced_column,
+            inputs=[advanced_checkbox, state_topbar, system_params],
+            outputs=[advanced_column, performance_selection],
+            queue=False,
+            show_progress=False,
+        ) \
+            .then(
+                fn=lambda x: None,
+                inputs=system_params,
+                js='(x) => { try { if (window.syncTopbarMountedPanelVisibility) window.syncTopbarMountedPanelVisibility("advanced_checkbox"); } catch(e) {} try { if (window.syncPerformanceSelectionVisibility) window.syncPerformanceSelectionVisibility(x, "advanced_checkbox"); } catch(e) {} refresh_grid_delayed(); }',
+                queue=False,
+                show_progress=False,
+            )
+
+        outpaint_selections.change(
+            inpaint_outpaint_selections_change,
+            inputs=[inpaint_mode, outpaint_selections],
+            outputs=[inpaint_strength, inpaint_respective_field],
+            show_progress=False,
+            queue=False,
+        )
+        inpaint_mode.change(inpaint_mode_change, inputs=[inpaint_mode, inpaint_engine_state, outpaint_selections, state_topbar], outputs=[
+            inpaint_additional_prompt, outpaint_selections, example_inpaint_prompts,
+            inpaint_disable_initial_latent, inpaint_engine,
+            inpaint_strength, inpaint_respective_field
+        ], show_progress=False, queue=False).then(
+            fn=lambda x: None,
+            inputs=[inpaint_mode],
+            js='(x)=>{try{if(window.syncInpaintModePromptVisibility) window.syncInpaintModePromptVisibility(x);}catch(e){console.warn("[UI-TRACE] inpaint_mode_prompt_visibility_sync_failed", e);}}',
+            show_progress=False,
+            queue=False,
+        )
+
+        for mode, disable_initial_latent, engine, strength, respective_field in enhance_inpaint_update_ctrls:
+            shared.gradio_root.load(enhance_inpaint_mode_change, inputs=[mode, inpaint_engine_state, state_topbar], outputs=[
+                disable_initial_latent, engine, strength, respective_field
+            ], show_progress=False, queue=False)
+
+        generate_mask_button.click(fn=generate_mask,
+                                   inputs=[inpaint_input_image, inpaint_mask_model, inpaint_mask_cloth_category,
+                                           inpaint_mask_dino_prompt_text, inpaint_mask_sam_model,
+                                           inpaint_mask_box_threshold, inpaint_mask_text_threshold,
+                                           inpaint_mask_sam_max_detections, dino_erode_or_dilate, debugging_dino],
+                                   outputs=inpaint_mask_image, show_progress=True, queue=True)
+
+        ctrls = [currentTask, generate_image_grid]
+        ctrls += [
+            prompt, negative_prompt, style_selections,
+            performance_selection, aspect_ratios_selection, image_number, output_format, image_seed,
+            read_wildcards_in_order, sharpness, guidance_scale
+        ]
+
+        ctrls += [base_model, refiner_model, refiner_switch] + lora_ctrls
+        ctrls += [input_image_checkbox, current_tab]
+        ctrls += [uov_method, uov_input_image]
+        ctrls += [outpaint_selections, inpaint_input_image, inpaint_additional_prompt, inpaint_mask_image]
+        ctrls += [legacy_api_slot_25, legacy_api_slot_26, legacy_api_slot_27, legacy_api_slot_28]
+        ctrls += [disable_preview, disable_intermediate_results, disable_seed_increment, black_out_nsfw]
+        ctrls += [adm_scaler_positive, adm_scaler_negative, adm_scaler_end, adaptive_cfg, clip_skip]
+        ctrls += [sampler_name, scheduler_name, vae_name]
+        ctrls += [overwrite_step, overwrite_switch, overwrite_width, overwrite_height, overwrite_vary_strength]
+        ctrls += [overwrite_upscale_strength, mixing_image_prompt_and_vary_upscale, mixing_image_prompt_and_inpaint]
+        ctrls += [debugging_cn_preprocessor, skipping_cn_preprocessor, canny_low_threshold, canny_high_threshold]
+        ctrls += [refiner_swap_method, controlnet_softness]
+        ctrls += freeu_ctrls
+        ctrls += inpaint_ctrls
+        ctrls += [params_backend]
+        ctrls += [save_final_enhanced_image_only if not args_manager.args.disable_image_log else None]
+        ctrls += [save_metadata_to_images if not args_manager.args.disable_metadata else None]
+        ctrls += [metadata_scheme if not args_manager.args.disable_metadata else None]
+        ctrls += ip_ctrls
+        ctrls += [debugging_dino, dino_erode_or_dilate, debugging_enhance_masks_checkbox,
+                  enhance_input_image, enhance_checkbox, enhance_uov_method, enhance_uov_strength, enhance_uov_processing_order,
+                  enhance_uov_prompt_type]
+        ctrls += enhance_ctrls
+        # ctrls += [random_aspect_ratio_checkbox]
+
+        batch_stop_fn = functools.partial(batch_utils.stop_batch, worker=worker)
+        batch_run_uov_fn = functools.partial(
+            batch_utils.batch_run_uov,
+            get_task_with_resolution_multiplier=get_task_with_resolution_multiplier_and_model_state,
+            generate_clicked=generate_clicked,
+            worker=worker,
+            constants=constants,
+            html=modules.html,
+            get_welcome_image=get_welcome_image
+        )
+        batch_run_enhance_fn = functools.partial(
+            batch_utils.batch_run_enhance,
+            get_task_with_resolution_multiplier=get_task_with_resolution_multiplier_and_model_state,
+            generate_clicked=generate_clicked,
+            worker=worker,
+            constants=constants,
+            html=modules.html,
+            get_welcome_image=get_welcome_image
+        )
+        batch_run_scene_fn = functools.partial(
+            batch_utils.batch_run_scene,
+            get_task_with_resolution_multiplier=get_task_with_resolution_multiplier_and_model_state,
+            generate_clicked=generate_clicked,
+            worker=worker,
+            constants=constants,
+            html=modules.html,
+            get_welcome_image=get_welcome_image,
+            api_params=api_params,
+            topbar=topbar
+        )
+
+        batch_lock_controls = [random_button, super_prompter, background_theme, image_tools_checkbox] + nav_bars
+
+        uov_batch_stop.click(fn=batch_stop_fn, inputs=[uov_batch_id], outputs=[uov_batch_status], queue=False, show_progress=False)
+        uov_batch_evt = uov_batch_start.click(
+            fn=lambda: [gr_update(interactive=False)] * len(batch_lock_controls),
+            outputs=batch_lock_controls,
+            queue=False,
+            show_progress=False
+        ).then(
+            fn=sync_inpaint_engine_dropdowns_before_generation,
+            inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls],
+            outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls],
+            queue=False,
+            show_progress=False,
+        ).then(
+            fn=batch_run_uov_fn,
+            inputs=[uov_batch_folder, uov_batch_files, seed_random] + ctrls + [model_params_state, resolution_multiplier, resolution_quantize_step, state_topbar],
+            outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button, generate_button, state_is_generating, uov_batch_status, uov_batch_id],
+            show_progress=False
+        )
+
+        enhance_batch_stop.click(fn=batch_stop_fn, inputs=[enhance_batch_id], outputs=[enhance_batch_status], queue=False, show_progress=False)
+        enhance_batch_evt = enhance_batch_start.click(
+            fn=lambda: [gr_update(value=True)] + [gr_update(interactive=False)] * len(batch_lock_controls),
+            outputs=[enhance_checkbox] + batch_lock_controls,
+            queue=False,
+            show_progress=False
+        ).then(
+            fn=sync_inpaint_engine_dropdowns_before_generation,
+            inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls],
+            outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls],
+            queue=False,
+            show_progress=False,
+        ).then(
+            fn=batch_run_enhance_fn,
+            inputs=[enhance_batch_folder, enhance_batch_files, seed_random] + ctrls + [model_params_state, resolution_multiplier, resolution_quantize_step, state_topbar],
+            outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button, generate_button, state_is_generating, enhance_batch_status, enhance_batch_id],
+            show_progress=False
+        )
+
+        scene_batch_stop.click(fn=batch_stop_fn, inputs=[scene_batch_id], outputs=[scene_batch_status], queue=False, show_progress=False)
+        scene_batch_evt = scene_batch_start.click(
+            fn=lambda: [gr_update(interactive=False)] * len(batch_lock_controls),
+            outputs=batch_lock_controls,
+            queue=False,
+            show_progress=False
+        ).then(
+            fn=sync_inpaint_engine_dropdowns_before_generation,
+            inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls],
+            outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls],
+            queue=False,
+            show_progress=False,
+        ).then(
+            fn=batch_run_scene_fn,
+            inputs=[
+                scene_batch_folder, scene_batch_files, scene_batch_target, seed_random, image_seed, params_backend, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2,
+                scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6,
+                scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps,
+                scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio,
+                scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source,
+                sam3_input_video, sam3_original_video_path, sam3_mask_video,
+                overwrite_width, overwrite_height, resolution_edit_mode, resolution_original_input_checkbox
+            ] + scene_generation_model_ctrls + ctrls + [model_params_state, resolution_multiplier, resolution_quantize_step, state_topbar],
+            outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button, generate_button, state_is_generating, scene_batch_status, scene_batch_id],
+            show_progress=False
+        )
+
+        def trigger_metadata_import(file, state_is_generating, state_params):
+            parameters, metadata_scheme = modules.meta_parser.read_info_from_image(file)
+            if parameters is None:
+                logger.info('Could not find metadata in the image!')
+            result = toolbox.reset_params_by_image_meta_with_state(parameters, state_params, state_is_generating, inpaint_mode)
+            return _normalize_metadata_import_model_bridge_result(result, state_params)
+
+        def _prompt_history_has_unresolved_wildcard(value):
+            if not isinstance(value, str):
+                return False
+            wildcard_pattern = r'__[\w-]+__(?::[RLrl]?\d*(?::\d+)?)?'
+            active_array_pattern = r'\[[^\]]*(?:__[\w-]+__|[,;])[^\]]*\]'
+            return (
+                re.search(wildcard_pattern, value) is not None
+                or re.search(active_array_pattern, value) is not None
+            )
+
+        def update_prompt_history(task, existing_history, current_prompt, source='generation_done'):
+            MAX_HISTORY = 5
+            existing_history_raw = list(existing_history or [])
+            existing_history = []
+            for value in existing_history_raw:
+                value = value.strip() if isinstance(value, str) else ''
+                if value and not _prompt_history_has_unresolved_wildcard(value):
+                    existing_history.append(value)
+            pruned_unresolved = len(existing_history_raw) - len(existing_history)
+            try:
+                prompt_candidates = []
+                final_prompts = getattr(task, 'final_prompts', []) if task else []
+                if final_prompts:
+                    prompt_candidates.extend(final_prompts)
+                task_prompt = getattr(task, 'prompt', None) if task else None
+                used_fallback = not any(isinstance(p, str) and p.strip() for p in prompt_candidates)
+                if used_fallback:
+                    prompt_candidates.extend([task_prompt, current_prompt])
+
+                new_unique_prompts = []
+                skipped_unresolved = 0
+                for p in prompt_candidates:
+                    p = p.strip() if isinstance(p, str) else ''
+                    if not p:
+                        continue
+                    if _prompt_history_has_unresolved_wildcard(p):
+                        skipped_unresolved += 1
+                        continue
+                    if p not in new_unique_prompts:
+                        new_unique_prompts.append(p)
+                for p in new_unique_prompts:
+                    while p in existing_history:
+                        existing_history.remove(p)
+                updated_history = (existing_history + new_unique_prompts)[-MAX_HISTORY:]
+                util.log_ui_trace(
+                    logger,
+                    "[UI-TRACE] prompt_history.update | source=%r, task_id=%r, final_prompts=%s, used_fallback=%s, skipped_unresolved=%s, pruned_unresolved=%s, new=%s, before=%s, after=%s",
+                    source,
+                    getattr(task, 'task_id', None),
+                    len(final_prompts or []),
+                    used_fallback,
+                    skipped_unresolved,
+                    pruned_unresolved,
+                    len(new_unique_prompts),
+                    len(existing_history_raw),
+                    len(updated_history),
+                )
+                return updated_history, dataset_update(samples=[[v] for v in updated_history])
+            except Exception as e:
+                logger.warning(f"[PromptHistory] update failed: {type(e).__name__}: {e}")
+                return existing_history[-MAX_HISTORY:], skip_component_update()
+
+        image_input_panel_ctrls = [engine_class_display, uov_method, enhance_checkbox, enhance_input_image]
+        reset_preset_layout = [params_backend, advanced_checkbox, performance_selection, scheduler_name, sampler_name, input_image_checkbox, prompt_panel_checkbox, enhance_checkbox, base_model, refiner_model, overwrite_step, guidance_scale, negative_prompt, preset_instruction, identity_dialog] + image_input_panel_ctrls + lora_ctrls
+        reset_preset_func_names = ["output_format", "inpaint_advanced_masking_checkbox", "mixing_image_prompt_and_vary_upscale", "mixing_image_prompt_and_inpaint", "backfill_prompt", "translation_methods", "input_image_checkbox", "quick_enhance"]
+        reset_preset_func = [output_format, inpaint_advanced_masking_checkbox, mixing_image_prompt_and_vary_upscale, mixing_image_prompt_and_inpaint, backfill_prompt, translation_methods, input_image_checkbox, quick_enhance]
+        scene_frontend_ctrls = [prompt_internal_panel, random_button, super_prompter, disable_intermediate_results, image_tools_checkbox, scene_panel, scene_theme, camera_control_accordion, anglelight_control_accordion, style_transfer_accordion, sam3_video_mask_accordion, pose_studio, gaussian_studio, scene_resolution_override_accordion, scene_use_resolution_override_checkbox, scene_resolution_override] + scene_params[1:] + [sam3_input_video, sam3_original_video_path, sam3_mask_video, sam3_trim_payload] + [generate_button, load_parameter_button]
+        if util.simpai_ui_trace_enabled():
+            try:
+                logger.info(
+                    "[UI-TRACE] scene_frontend_ctrls.index | "
+                    f"camera=7, anglelight=8, style=9, sam3=10, pose_studio=11, gaussian_studio=12, scene_resolution_accordion=13, "
+                    f"scene_resolution_checkbox=14, scene_resolution_html=15, sam3_input=43, sam3_original=44, sam3_mask=45, sam3_trim=46, len={len(scene_frontend_ctrls)}"
+                )
+            except Exception:
+                pass
+
+        metadata_import_outputs = reset_preset_layout + reset_preset_func + scene_frontend_ctrls + load_data_outputs + [state_topbar]
+        metadata_import_button.click(trigger_metadata_import, inputs=[metadata_input_image, state_is_generating, state_topbar], outputs=metadata_import_outputs + [model_params_state], queue=False, show_progress=True) \
+            .then(lambda x: None, inputs=state_topbar, queue=False, show_progress=False, js='(state)=>{try{if(typeof scheduleSceneAndAdvancedSync==="function") scheduleSceneAndAdvancedSync("metadata_import", !!(state && state.scene_frontend));}catch(e){console.warn("[UI-TRACE] metadata_import_scene_sync_failed", e);}}') \
+            .then(toggle_image_input_panel, inputs=[input_image_checkbox, qwen_tts_checkbox], outputs=[image_input_panel, engine_class_display] + layout_image_tab + [tts_panel, qwen_tts_checkbox], queue=False, show_progress=False) \
+            .then(style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False)
+
+        model_check = [prompt, negative_prompt, base_model, refiner_model] + lora_ctrls
+
+        def _slider_image_path_log_value(path_value):
+            path_value = str(path_value)
+            stripped = path_value.strip()
+            if re.match(r"^data:image/", stripped, re.IGNORECASE):
+                return f"{stripped[:40]}... ({len(stripped)} chars)"
+            if stripped.startswith(("{", "[")):
+                return f"{stripped[:120]}... ({len(stripped)} chars)"
+            return path_value
+
+        def _normalize_pil_image_for_slider(pil_img):
+            if pil_img.mode == 'RGBA':
+                return Image.alpha_composite(Image.new("RGBA", pil_img.size, (255, 255, 255, 255)), pil_img).convert("RGB")
+            if pil_img.mode != 'RGB':
+                return pil_img.convert("RGB")
+            return pil_img
+
+        def _decode_data_url_image_for_slider(data_url):
+            match = re.match(r"^data:image/[^;,]+;base64,(.*)$", str(data_url or "").strip(), re.IGNORECASE | re.DOTALL)
+            if not match:
+                return None
+            try:
+                raw = base64.b64decode(match.group(1), validate=False)
+                with Image.open(io.BytesIO(raw)) as pil_img:
+                    return _normalize_pil_image_for_slider(pil_img.copy())
+            except Exception as e:
+                logger.warning(f"[Compare] failed to decode data URL for image slider: {e}")
+                return None
+
+        def _parse_slider_image_json_string(value):
+            stripped = str(value or "").strip()
+            if not stripped or stripped[0] not in ("{", "["):
+                return None
+            try:
+                return json.loads(stripped)
+            except Exception:
+                return None
+
+        def _normalize_slider_image_path(path_value):
+            if not isinstance(path_value, str):
+                return path_value
+            path_value = path_value.strip()
+            if not path_value:
+                return None
+            if re.match(r"^(https?://|data:image/)", path_value, re.IGNORECASE):
+                return path_value
+            if os.path.isfile(path_value):
+                return path_value
+            if os.path.isdir(path_value):
+                logger.warning(f"[Compare] ignoring directory path for image slider: {_slider_image_path_log_value(path_value)}")
+            else:
+                logger.warning(f"[Compare] ignoring non-file path for image slider: {_slider_image_path_log_value(path_value)}")
+            return None
+
+        def process_image_for_slider(img):
+            if img is None:
+                return None
+            if isinstance(img, dict):
+                for key in ('image', 'background', 'composite', 'path', 'name', 'data', 'url'):
+                    processed = process_image_for_slider(img.get(key))
+                    if processed is not None:
+                        return processed
+                return None
+            if isinstance(img, (list, tuple)):
+                for item in img:
+                    if isinstance(item, (list, tuple)) and len(item) > 0:
+                        item = item[0]
+                    processed = process_image_for_slider(item)
+                    if processed is not None:
+                        return processed
+                return None
+            for attr in ('path', 'name'):
+                if hasattr(img, attr):
+                    processed = process_image_for_slider(getattr(img, attr, None))
+                    if processed is not None:
+                        return processed
+            if isinstance(img, str):
+                img_text = img.strip()
+                parsed = _parse_slider_image_json_string(img_text)
+                if parsed is not None:
+                    processed = process_image_for_slider(parsed)
+                    if processed is not None:
+                        return processed
+                if re.match(r"^data:image/", img_text, re.IGNORECASE):
+                    processed = _decode_data_url_image_for_slider(img_text)
+                    if processed is not None:
+                        return processed
+                return _normalize_slider_image_path(img_text)
+            if isinstance(img, np.ndarray):
+                # Resize image if it's too large for preview
+                h, w = img.shape[:2]
+                max_side = 2048
+                if h > max_side or w > max_side:
+                    scale = max_side / max(h, w)
+                    new_h, new_w = int(h * scale), int(w * scale)
+                    pil_img = Image.fromarray(img).resize((new_w, new_h), Image.Resampling.LANCZOS)
+                else:
+                    pil_img = Image.fromarray(img)
+                
+                return _normalize_pil_image_for_slider(pil_img)
+            if isinstance(img, Image.Image):
+                return _normalize_pil_image_for_slider(img)
+            return None
+
+        def first_gallery_image_for_slider(gallery_value):
+            if not gallery_value:
+                return None
+            if isinstance(gallery_value, (dict, str, np.ndarray, Image.Image)):
+                return process_image_for_slider(gallery_value)
+            try:
+                if len(gallery_value) <= 0:
+                    return None
+            except Exception:
+                return process_image_for_slider(gallery_value)
+            first_item = gallery_value[0]
+            if isinstance(first_item, (list, tuple)) and len(first_item) > 0:
+                first_item = first_item[0]
+            return process_image_for_slider(first_item)
+
+        def describe_slider_image_source(value):
+            if value is None:
+                return {"type": "None"}
+            if isinstance(value, dict):
+                return {
+                    "type": "dict",
+                    "keys": sorted([str(k) for k in value.keys()])[:12],
+                }
+            if isinstance(value, np.ndarray):
+                return {
+                    "type": "ndarray",
+                    "shape": tuple(int(x) for x in value.shape[:3]),
+                }
+            if isinstance(value, Image.Image):
+                return {
+                    "type": "PIL",
+                    "size": value.size,
+                    "mode": value.mode,
+                }
+            if isinstance(value, str):
+                stripped = value.strip()
+                is_data_url = bool(re.match(r"^data:image/", stripped, re.IGNORECASE))
+                looks_json = stripped.startswith(("{", "["))
+                safe_for_stat = bool(stripped) and not is_data_url and not looks_json and len(stripped) < 1024
+                return {
+                    "type": "str",
+                    "empty": not bool(stripped),
+                    "is_data_url": is_data_url,
+                    "looks_json": looks_json,
+                    "is_file": os.path.isfile(value) if safe_for_stat else False,
+                    "is_dir": os.path.isdir(value) if safe_for_stat else False,
+                    "suffix": os.path.splitext(value)[1].lower()[:16] if safe_for_stat else "",
+                }
+            return {"type": type(value).__name__}
+
+        def scene_comparison_input_candidates(state_params, scene1, scene_canvas):
+            scene_hidden = set()
+            try:
+                scene_hidden = set((state_params.get("scene_frontend") or {}).get("disvisible") or [])
+            except Exception:
+                scene_hidden = set()
+            candidates = []
+            if "scene_canvas_image" not in scene_hidden:
+                candidates.append(("scene_canvas_image", scene_canvas))
+            candidates.append(("scene_input_image1", scene1))
+            return scene_hidden, candidates
+
+        def resolve_scene_comparison_input(state_params, scene1, scene_canvas):
+            scene_hidden, scene_candidates = scene_comparison_input_candidates(state_params, scene1, scene_canvas)
+            for label, img in scene_candidates:
+                processed = process_image_for_slider(img)
+                if processed is not None:
+                    return processed, label, scene_hidden, scene_candidates
+            return None, None, scene_hidden, scene_candidates
+
+        def resolve_comparison_input(cached_input, state_params, scene1=None, scene_canvas=None):
+            processed = process_image_for_slider(cached_input)
+            if processed is not None:
+                return processed
+            if isinstance(state_params, dict) and ("scene_frontend" in state_params):
+                processed, _, _, _ = resolve_scene_comparison_input(state_params, scene1, scene_canvas)
+                return processed
+            return None
+
+        def cache_input_image_func(state_params, enhance_enabled, tab, uov, inpaint, enhance, scene1, scene_canvas):
+            tab_str = tab if isinstance(tab, str) else None
+            is_scene = isinstance(state_params, dict) and ("scene_frontend" in state_params)
+            enhance_enabled_bool = bool(enhance_enabled)
+
+            if is_scene:
+                processed, label, scene_hidden, scene_candidates = resolve_scene_comparison_input(state_params, scene1, scene_canvas)
+                if processed is not None:
+                    util.log_ui_trace(
+                        logger,
+                        "[UI-TRACE] compare.cache_input | is_scene=%r, hidden=%r, selected=%r, source=%r, processed=%r",
+                        is_scene,
+                        sorted(scene_hidden),
+                        label,
+                        describe_slider_image_source(dict(scene_candidates).get(label)),
+                        describe_slider_image_source(processed),
+                    )
+                    return processed
+                util.log_ui_trace(
+                    logger,
+                    "[UI-TRACE] compare.cache_input.empty | is_scene=%r, hidden=%r, candidates=%r",
+                    is_scene,
+                    sorted(scene_hidden),
+                    [(label, describe_slider_image_source(value)) for label, value in scene_candidates],
+                )
+                return None
+            else:
+                if (not enhance_enabled_bool) and tab_str in ('enhance', 'enhance_tab'):
+                    return None
+
+                img = None
+                if tab_str in ('uov', 'uov_tab'):
+                    img = uov
+                elif tab_str in ('inpaint', 'inpaint_tab'):
+                    if isinstance(inpaint, dict):
+                        img = inpaint.get('image')
+                    else:
+                        img = inpaint
+                elif tab_str in ('enhance', 'enhance_tab'):
+                    img = enhance
+
+            processed = process_image_for_slider(img)
+            util.log_ui_trace(
+                logger,
+                "[UI-TRACE] compare.cache_input | is_scene=%r, tab=%r, source=%r, processed=%r",
+                is_scene,
+                tab_str,
+                describe_slider_image_source(img),
+                describe_slider_image_source(processed),
+            )
+            return processed
+
+        def toggle_comparison(is_comp, input_img, gallery_output, final_gallery, state_params, scene1, scene_canvas):
+            state_params = dict(state_params or {})
+
+            def mark_compare_state_ready(ready, cleared):
+                state_params["__post_generation_compare_ready"] = bool(ready)
+                state_params["__post_generation_compare_input_ok"] = bool(ready)
+                state_params["__post_generation_compare_visible"] = bool(ready)
+                state_params["__post_generation_compare_cleared"] = bool(cleared)
+                if cleared:
+                    state_params.pop("__post_generation_image_url", None)
+
+            if is_comp:
+                # Switch back to Gallery
+                return (
+                    False,
+                    gr_update(visible=False),
+                    gr_update(visible=True),
+                    gr_update(visible=False),
+                    gr_update(visible=False),
+                    gr_update(visible=False),
+                    compare_button_gr_update(ready=True),
+                    gr_update(visible=True),
+                    state_params,
+                )
+
+            compare_toolbox_disabled = state_params.get("__image_tools_enabled") is False
+            compare_state_invalid = bool(
+                compare_toolbox_disabled
+                or state_params.get("__post_generation_compare_cleared")
+                or state_params.get("gallery_state") == "main_browser"
+            )
+            if compare_state_invalid:
+                util.log_ui_trace(
+                    logger,
+                    "[UI-TRACE] compare.toggle_invalid_source | gallery_state=%r, cleared=%r, ready=%r, image_tools=%r",
+                    state_params.get("gallery_state"),
+                    state_params.get("__post_generation_compare_cleared"),
+                    state_params.get("__post_generation_compare_ready"),
+                    state_params.get("__image_tools_enabled"),
+                )
+                mark_compare_state_ready(False, True)
+                toolbox_update = gr_update(visible=False) if compare_toolbox_disabled else skip_component_update()
+                return (
+                    False,
+                    gr_update(visible=False),
+                    gr_update(visible=True),
+                    gr_update(visible=False),
+                    gr_update(visible=False),
+                    gr_update(visible=False),
+                    compare_button_gr_update(visible=not compare_toolbox_disabled, ready=False),
+                    toolbox_update,
+                    state_params,
+                )
+
+            input_img = resolve_comparison_input(input_img, state_params, scene1, scene_canvas)
+            if input_img is None:
+                util.log_ui_trace(logger, "[UI-TRACE] compare.toggle_missing_input")
+                mark_compare_state_ready(False, True)
+                return (
+                    False,
+                    gr_update(visible=False),
+                    gr_update(visible=True),
+                    gr_update(visible=False),
+                    gr_update(visible=False),
+                    gr_update(visible=False),
+                    compare_button_gr_update(ready=False),
+                    skip_component_update(),
+                    state_params,
+                )
+
+            output_img = None
+            
+            # Try to find output image from progress gallery first, then final gallery
+            for output in [gallery_output, final_gallery]:
+                output_img = first_gallery_image_for_slider(output)
+                if output_img is not None:
+                    break
+
+            if not output_img:
+                util.log_ui_trace(
+                    logger,
+                    "[UI-TRACE] compare.toggle_missing_output | progress=%r, final=%r",
+                    describe_slider_image_source(gallery_output),
+                    describe_slider_image_source(final_gallery),
+                )
+                mark_compare_state_ready(False, True)
+                return (
+                    False,
+                    gr_update(visible=False),
+                    gr_update(visible=True),
+                    gr_update(visible=False),
+                    gr_update(visible=False),
+                    gr_update(visible=False),
+                    compare_button_gr_update(ready=False),
+                    skip_component_update(),
+                    state_params,
+                )
+            mark_compare_state_ready(True, False)
+            return (
+                True,
+                gr_update(value=(input_img, output_img), visible=True),
+                gr_update(visible=False),
+                gr_update(visible=False),
+                gr_update(visible=False),
+                gr_update(visible=False),
+                compare_button_gr_update(value="×", ready=True),
+                gr_update(visible=True),
+                state_params,
+            )
+
+        def check_comparison_visibility(input_img, generation_task, gallery_output, video_output, state_topbar, image_tools_enabled, scene1, scene_canvas):
+            state_topbar = dict(state_topbar or {})
+            image_tools_enabled = bool(image_tools_enabled)
+            state_topbar["__image_tools_enabled"] = image_tools_enabled
+            engine_type = state_topbar.get('engine_type')
+            if not engine_type:
+                engine_type = state_topbar.get('default_engine', {}).get('engine_type')
+
+            def _has_component_output(value):
+                if value is None:
+                    return False
+                if isinstance(value, dict):
+                    return any(value.get(key) for key in ("name", "data", "value", "path"))
+                if isinstance(value, (list, tuple, set)):
+                    return len(value) > 0
+                return bool(value)
+
+            def _first_image_output(value):
+                if value is None:
+                    return None
+                if isinstance(value, dict):
+                    for key in ("name", "path", "value", "data"):
+                        candidate = _first_image_output(value.get(key))
+                        if candidate:
+                            return candidate
+                    return None
+                if isinstance(value, (list, tuple, set)):
+                    for item in value:
+                        candidate = _first_image_output(item)
+                        if candidate:
+                            return candidate
+                    return None
+                if isinstance(value, str):
+                    text = value.strip()
+                    if not text or text.lower().endswith(('.mp4', '.webm')):
+                        return None
+                    return text
+                return None
+
+            def _file_url_for_output(value):
+                candidate = _first_image_output(value)
+                if not candidate:
+                    return None
+                if candidate.startswith(("data:", "blob:")):
+                    return None
+                if candidate.startswith(("http://", "https://", "/file=", "/gradio_api/file=")):
+                    return candidate
+                try:
+                    from urllib.parse import quote
+                    path = os.path.abspath(candidate).replace(os.sep, '/')
+                    return f"/file={quote(path, safe=':/')}"
+                except Exception:
+                    return None
+
+            task_results = getattr(generation_task, 'results', None)
+            try:
+                task_has_output = bool(task_results and len(task_results) > 0)
+            except Exception:
+                task_has_output = bool(task_results)
+            gallery_has_output = _has_component_output(gallery_output)
+            video_has_output = _has_component_output(video_output)
+            output_list = state_topbar.get("__output_list") or []
+            task_content_type = getattr(generation_task, 'content_type', None)
+            catalog_has_video_output = False
+            has_output = task_has_output or gallery_has_output or video_has_output
+            is_video_context = bool(engine_type == 'video' or task_content_type == 'video' or video_has_output)
+            input_for_compare = resolve_comparison_input(input_img, state_topbar, scene1, scene_canvas)
+            compare_input_ok = input_for_compare is not None
+            state_topbar["__post_generation_has_output"] = bool(has_output)
+            state_topbar["__post_generation_gallery_output"] = bool(gallery_has_output)
+            state_topbar["__post_generation_video_output"] = bool(video_has_output)
+            state_topbar["__post_generation_compare_input_ok"] = bool(compare_input_ok)
+            preview_url = _file_url_for_output(task_results) or _file_url_for_output(gallery_output)
+            if preview_url and not video_has_output:
+                state_topbar["__post_generation_image_url"] = preview_url
+            else:
+                state_topbar.pop("__post_generation_image_url", None)
+            if not has_output:
+                state_topbar["gallery_preview_open"] = False
+                state_topbar["__post_generation_compare_visible"] = False
+                state_topbar["__post_generation_compare_ready"] = False
+                state_topbar["__post_generation_compare_cleared"] = True
+                return compare_button_gr_update(visible=False, ready=False), gr_update(visible=False), state_topbar
+
+            latest_choice = output_list[0] if output_list else None
+            state_topbar["gallery_preview_open"] = True
+            state_topbar["gallery_state"] = "finished_index"
+            if latest_choice is not None:
+                state_topbar["prompt_info"] = [latest_choice, 0]
+
+            toolbox_visible = bool(gallery_util._should_show_image_toolbox(image_tools_enabled, state_topbar))
+            comparable_output_visible = bool((not is_video_context) and has_output and (task_has_output or gallery_has_output))
+            compare_button_visible = bool(toolbox_visible)
+            compare_ready = bool(toolbox_visible and comparable_output_visible and compare_input_ok)
+            state_topbar["__post_generation_compare_visible"] = bool(compare_button_visible)
+            state_topbar["__post_generation_compare_ready"] = bool(compare_ready)
+            state_topbar["__post_generation_compare_cleared"] = not bool(comparable_output_visible)
+            if comparable_output_visible and latest_choice is not None:
+                state_topbar["__post_generation_compare_choice"] = latest_choice
+            else:
+                state_topbar.pop("__post_generation_compare_choice", None)
+            util.log_ui_trace(
+                logger,
+                "[UI-TRACE] post_generation_toolbox_sync | engine_type=%r, task_type=%r, video_context=%r, has_output=%r, task_output=%r, gallery_output=%r, video_output=%r, catalog_video=%r, toolbox=%r, choice=%r, image_tools=%r, image_url=%r, input=%r, input_ok=%r, compare_visible=%r, compare_ready=%r",
+                engine_type,
+                task_content_type,
+                is_video_context,
+                has_output,
+                task_has_output,
+                gallery_has_output,
+                video_has_output,
+                catalog_has_video_output,
+                toolbox_visible,
+                latest_choice,
+                image_tools_enabled,
+                bool(state_topbar.get("__post_generation_image_url")),
+                describe_slider_image_source(input_img),
+                compare_input_ok,
+                compare_button_visible,
+                compare_ready,
+            )
+            compare_update = compare_button_gr_update(visible=toolbox_visible, ready=compare_ready)
+            return compare_update, gr_update(visible=toolbox_visible), state_topbar
+
+        compare_btn.click(toggle_comparison, inputs=[comparison_state, cached_input_image, progress_gallery, gallery, state_topbar, scene_input_image1, scene_canvas_image], outputs=[comparison_state, comparison_box, progress_gallery, gallery, progress_window, progress_video, compare_btn, image_toolbox, state_topbar], show_progress=False) \
+            .then(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(state&&state.__post_generation_compare_cleared){if(typeof clearSimpleAICompareReadyState==="function") clearSimpleAICompareReadyState("comparison_click_cleared"); syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80); return;} if(typeof suppressFinishedGalleryWelcomeGuardForComparison==="function") suppressFinishedGalleryWelcomeGuardForComparison("comparison_click"); syncPostGenerationResultControls(state); setTimeout(()=>{if(typeof suppressFinishedGalleryWelcomeGuardForComparison==="function") suppressFinishedGalleryWelcomeGuardForComparison("comparison_click+60"); syncPostGenerationResultControls(state);},60); setTimeout(()=>syncPostGenerationResultControls(state),180); setTimeout(()=>syncPostGenerationResultControls(state),420);}catch(e){console.warn("[UI-TRACE] comparison_preview_sync_failed", e);}}')
+        protections = [random_button, super_prompter, background_theme, image_tools_checkbox] + nav_bars
+        from extras.media_normalize import stash_scene_media_before_generation as _stash_scene_media_before_generation
+        from extras.media_normalize import stash_scene_media_preview as _stash_scene_media_preview
+        from extras.media_normalize import restore_scene_media_after_generation as _restore_scene_media_after_generation
+        from extras.media_normalize import normalize_gradio_audio_value as _normalize_scene_audio_value
+
+        def _remember_scene_audio_for_generation(audio):
+            return _normalize_scene_audio_value(audio)
+
+        def _clear_scene_audio_for_generation():
+            return None
+
+        def show_generation_preview_surface(state_params):
+            return (
+                gr_update(visible=True),
+                gr_update(visible="hidden", value=None),
+                gr_update(visible=False),
+                gr_update(visible=False),
+                gr_update(visible=False),
+                compare_button_gr_update(ready=False),
+            )
+
+        def finalize_generation_gallery_surface(generation_task):
+            results = getattr(generation_task, "results", None)
+            try:
+                has_results = bool(results and len(results) > 0)
+            except Exception:
+                has_results = bool(results)
+            if not has_results:
+                return (
+                    skip_component_update(),
+                    skip_component_update(),
+                    skip_component_update(),
+                    skip_component_update(),
+                )
+            media_paths = list(results) if isinstance(results, (list, tuple)) else [results]
+            has_video_result = any(
+                isinstance(path, str) and path.lower().endswith(('.mp4', '.webm'))
+                for path in media_paths
+            )
+            try:
+                expected_result_count = int(getattr(generation_task, "image_number", 1) or 1)
+            except Exception:
+                expected_result_count = 1
+            preview_single_result = (not has_video_result) and expected_result_count <= 1 and len(media_paths) == 1
+            logger.info(
+                "[UI-TRACE] final_generation_gallery_surface.resend | count=%s, expected=%s, preview_single=%s, has_video=%s",
+                len(media_paths),
+                expected_result_count,
+                preview_single_result,
+                has_video_result,
+            )
+            return (
+                gr_update(visible=False),
+                gr_update(
+                    value=media_paths,
+                    visible=True,
+                    label="Finished Videos" if has_video_result else "Finished Images",
+                    allow_preview=True,
+                    preview=preview_single_result,
+                    selected_index=0 if preview_single_result else None,
+                    fit_columns=False,
+                ),
+                gr_update(value=None, visible=False),
+                gr_update(visible=False),
+            )
+
+        def generation_failure_cleanup(state_params):
+            try:
+                gr.Warning("Generation failed before results were returned. Check the console log for details.")
+            except Exception as e:
+                logger.info(f"[Generate] failure cleanup warning failed: {e}")
+
+            if isinstance(state_params, dict):
+                state_params["gallery_state"] = 'preview'
+                state_params["gallery_preview_open"] = False
+                state_params["__skip_gallery_browser_refresh_once"] = True
+
+            try:
+                preset_nums = len(topbar.get_preset_name_list(state_params["__session"], state_params["ua_hash"]).split(','))
+            except Exception:
+                preset_nums = 0
+            preset_nums = max(0, min(shared.BUTTON_NUM, preset_nums))
+
+            results = [
+                gr_update(visible=True, interactive=True),
+                gr_update(visible=False, interactive=False),
+                gr_update(visible=False, interactive=False),
+                False,
+                skip_component_update(),
+                skip_component_update(),
+            ]
+            results += [gr_update(interactive=True)] * (preset_nums + 5)
+            results += [skip_component_update() for _ in range(max(0, shared.BUTTON_NUM - preset_nums))]
+            results += [skip_component_update(), skip_component_update()]
+            return results
+
+        generation_failure_outputs = [generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link]
+
+        def bind_generation_failure_cleanup(event):
+            event.failure(
+                generation_failure_cleanup,
+                inputs=[state_topbar],
+                outputs=generation_failure_outputs,
+                show_progress=False,
+                queue=False,
+            )
+            return event
+
+        uov_batch_evt.then(topbar.process_after_generation, inputs=state_topbar, outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False) \
+            .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once)});}')
+        enhance_batch_evt.then(topbar.process_after_generation, inputs=state_topbar, outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False) \
+            .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once)});}')
+        scene_batch_evt.then(topbar.process_after_generation, inputs=state_topbar, outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False) \
+            .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once)});}')
+
+        generate_event = bind_generation_failure_cleanup(generate_button.click(_stash_scene_media_before_generation, inputs=[scene_video, scene_audio, scene_original_video_path, state_topbar, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder, generate_button, skip_button, stop_button, random_aspect_ratio_state], show_progress=False, js='()=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generate_start"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generate_start");}catch(e){console.warn("[UI-TRACE] preset_gallery.generate_clear_failed", e);}}'))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(cache_input_image_func, inputs=[state_topbar, enhance_checkbox, current_tab, uov_input_image, inpaint_input_image, enhance_input_image, scene_input_image1, scene_canvas_image], outputs=[cached_input_image], show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(show_generation_preview_surface, inputs=state_topbar, outputs=[progress_window, progress_gallery, progress_video, gallery, comparison_box, compare_btn], show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(
+            topbar.process_before_generation,
+            inputs=[
+                state_topbar, seed_random, image_seed, params_backend, scene_theme,
+                scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4,
+                scene_additional_prompt, scene_additional_prompt_2,
+                scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4,
+                scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8,
+                scene_var_number9, scene_var_number10, scene_steps,
+                scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4,
+                scene_aspect_ratio, scene_image_number,
+                scene_video_backup, scene_audio_backup, scene_original_video_backup, active_video_source,
+                sam3_input_video, sam3_original_video_path, sam3_mask_video,
+                overwrite_width, overwrite_height, resolution_multiplier, resolution_quantize_step,
+                resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload,
+            ],
+            outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating, index_radio, image_toolbox, prompt_info_box, image_seed, params_backend] + protections + [preset_store, identity_dialog],
+            show_progress=False,
+        ))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(_sync_model_params_state_from_ui, inputs=model_state_ui_inputs, outputs=model_params_state, show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.wait_for_vlm_completion, outputs=[], show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.avoid_empty_prompt_for_scene, inputs=[prompt, state_topbar, scene_canvas_image, scene_input_image1, scene_theme, scene_additional_prompt, scene_additional_prompt_2], outputs=prompt, show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(select_random_aspect_ratio, inputs=[random_aspect_ratio_checkbox, random_aspect_ratio_state, aspect_ratios_selection], outputs=[overwrite_width, overwrite_height, aspect_ratios_selection, random_aspect_ratio_state], show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(sync_inpaint_engine_dropdowns_before_generation, inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls], outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls], show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls + [model_params_state, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=generate_clicked, inputs=[currentTask, state_topbar], outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button], show_progress=False))
+        generate_event.success(fn=update_prompt_history, inputs=[currentTask, state_prompt_history, prompt], outputs=[state_prompt_history, history_prompts], show_progress=False)
+        generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.process_after_generation, inputs=[state_topbar, currentTask, progress_gallery, progress_video], outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(check_comparison_visibility, inputs=[cached_input_image, currentTask, progress_gallery, progress_video, state_topbar, image_tools_checkbox, scene_input_image1, scene_canvas_image], outputs=[compare_btn, image_toolbox, state_topbar], show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80);}catch(e){console.warn("[UI-TRACE] compare_ready_sync_failed", e);}}'))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(finalize_generation_gallery_surface, inputs=[currentTask], outputs=[progress_window, progress_gallery, progress_video, gallery], show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(_restore_scene_media_after_generation, inputs=[state_topbar, scene_video_backup, scene_audio_backup, scene_original_video_backup], outputs=[scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder], show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: false}); try{if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.label");}catch(e){}}'))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(typeof markPostGenerationResultSurfaceWindow==="function") markPostGenerationResultSurfaceWindow(state,"generation_done"); syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),120); setTimeout(()=>syncPostGenerationResultControls(state),420); setTimeout(()=>syncPostGenerationResultControls(state),1200); if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.sync");}catch(e){console.warn("[UI-TRACE] post_generation_result_controls_failed", e);}}'))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, queue=False, show_progress=False, js='playNotification'))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, queue=False, show_progress=False, js='refresh_grid_delayed'))
+
+        debug_true_state = gr.State(value=True)
+        ctrls_preview = [debug_true_state if c == debugging_cn_preprocessor else c for c in ctrls]
+
+        preview_event = bind_generation_failure_cleanup(preview_preprocessing.click(_stash_scene_media_preview, inputs=[scene_video, scene_audio, scene_original_video_path, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder], show_progress=False, js='()=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("preview_start"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("preview_start");}catch(e){console.warn("[UI-TRACE] preset_gallery.preview_clear_failed", e);}}'))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(lambda: (False, gr_update(visible=False), gr_update(visible=False), gr_update(visible=False), gr_update(value=None, visible=True), compare_button_gr_update(ready=False)), outputs=[comparison_state, comparison_box, progress_window, gallery, progress_gallery, compare_btn], show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(
+            topbar.process_before_generation,
+            inputs=[
+                state_topbar, seed_random, image_seed, params_backend, scene_theme,
+                scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4,
+                scene_additional_prompt, scene_additional_prompt_2,
+                scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4,
+                scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8,
+                scene_var_number9, scene_var_number10, scene_steps,
+                scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4,
+                scene_aspect_ratio, scene_image_number,
+                scene_video_backup, scene_audio_backup, scene_original_video_backup, active_video_source,
+                sam3_input_video, sam3_original_video_path, sam3_mask_video,
+                overwrite_width, overwrite_height, resolution_multiplier, resolution_quantize_step,
+                resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload,
+            ],
+            outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating, index_radio, image_toolbox, prompt_info_box, image_seed, params_backend] + protections + [preset_store, identity_dialog],
+            show_progress=False,
+        ))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(_sync_model_params_state_from_ui, inputs=model_state_ui_inputs, outputs=model_params_state, show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(sync_inpaint_engine_dropdowns_before_generation, inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls], outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls], show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls_preview + [model_params_state, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(fn=generate_clicked, inputs=[currentTask, state_topbar], outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button], show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(topbar.process_after_generation, inputs=[state_topbar, currentTask, progress_gallery, progress_video], outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(check_comparison_visibility, inputs=[cached_input_image, currentTask, progress_gallery, progress_video, state_topbar, image_tools_checkbox, scene_input_image1, scene_canvas_image], outputs=[compare_btn, image_toolbox, state_topbar], show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80);}catch(e){console.warn("[UI-TRACE] compare_ready_sync_failed", e);}}'))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(finalize_generation_gallery_surface, inputs=[currentTask], outputs=[progress_window, progress_gallery, progress_video, gallery], show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(_restore_scene_media_after_generation, inputs=[state_topbar, scene_video_backup, scene_audio_backup, scene_original_video_backup], outputs=[scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder], show_progress=False))
+        bind_generation_failure_cleanup(preview_event.success(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_preview"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_preview"); if(typeof markPostGenerationResultSurfaceWindow==="function") markPostGenerationResultSurfaceWindow(state,"generation_done_preview"); syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),120); setTimeout(()=>syncPostGenerationResultControls(state),420); setTimeout(()=>syncPostGenerationResultControls(state),1200); if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done_preview.sync");}catch(e){console.warn("[UI-TRACE] post_generation_result_controls_failed", e);}}'))
+
+        for notification_file in ['notification.ogg', 'notification.mp3']:
+            if os.path.exists(notification_file):
+                gr.Audio(interactive=False, value=notification_file, elem_id='audio_notification', visible=False)
+                break
+
+        def apply_describe_vlm_chat_prompt(payload_text, current_prompt):
+            updated = describe_vlm_chat.apply_prompt_action_payload(payload_text, current_prompt)
+            if updated == current_prompt:
+                return skip_component_update()
+            return updated
+
+        describe_vlm_chat_apply_prompt_btn.click(
+            apply_describe_vlm_chat_prompt,
+            inputs=[describe_vlm_chat_prompt_bridge, prompt],
+            outputs=prompt,
+            show_progress=False,
+            queue=False,
+        )
+
+        def _describe_clear_missing_model_outputs(state_params=None):
+            return [
+                gr_update(visible=False),
+                _missing_model_title_update(state_params),
+                gr_update(value=""),
+                gr_update(visible=False, value=""),
+                gr_update(visible=False),
+            ]
+
+        def _describe_requires_vlm(img, output_tags, output_chinese, output_artist):
+            return img is None or (not output_tags and not output_artist) or bool(output_chinese)
+
+        def _describe_vlm_missing_model_outputs(state_params, version, custom_settings=None):
+            version = _vlm_resolve_version(version)
+            request_payload = {"kind": "vlm", "version": version}
+            if version == VLM.CUSTOM_VERSION and isinstance(custom_settings, dict):
+                request_payload["custom_api"] = custom_settings
+
+            user_did = _get_state_user_did(state_params)
+            preset_name, missing_models, status = _get_missing_models_for_vlm_request(request_payload, user_did=user_did)
+            if status.get("ready"):
+                return None
+
+            if not missing_models:
+                message = status.get("message") or status.get("details") or status.get("error") or "VLM model is not ready."
+                gr.Warning(message)
+                return _describe_clear_missing_model_outputs(state_params)
+
+            version_name = str(status.get("version") or version or VLM.DEFAULT_VERSION)
+            _set_missing_model_active_context(
+                state_params,
+                {"kind": "vlm", "version": version_name, "custom_api": request_payload.get("custom_api") or {}},
+                user_did=user_did,
+            )
+            total_size = 0
+            for cata, path_file, human_size, url, size in missing_models:
+                try:
+                    total_size += int(size or 0)
+                except Exception:
+                    pass
+            progress_value = ""
+            progress_visible = False
+            if total_size > 0:
+                progress_value = _make_missing_model_progress_html(0, state_params)
+                progress_visible = True
+            payload_extra = {"kind": "vlm", "version": version_name}
+            html_value = _render_missing_model_list_html(preset_name, missing_models, state_params, payload_extra=payload_extra)
+            return [
+                gr_update(visible=True),
+                _missing_model_title_update(state_params),
+                gr_update(value=html_value),
+                gr_update(visible=progress_visible, value=progress_value),
+                gr_update(visible=True, value=_missing_model_text("download_all", state_params)),
+            ]
+
+        def trigger_describe(img, output_tags, output_chinese, output_artist, describe_prompt=""):
+            describe_images = []
+            try:
+                if img is not None and output_tags:
+                    from extras.wd14tagger import default_interrogator as default_interrogator_anime
+                    describe_images.append(default_interrogator_anime(img))
+
+                if img is not None and output_artist:
+                    artist_result = get_artist_tags_string(img, None)
+                    describe_images.append(artist_result)
+
+                if img is None or (not output_tags and not output_artist and len(describe_images) == 0):
+                    describe_images.append(vlm.interrogate(img, output_chinese, additional_prompt=describe_prompt))
+
+                if len(describe_images) == 0:
+                    describe_image = skip_component_update()
+                else:
+                    describe_image = ', '.join(describe_images)
+
+                    if (output_tags or output_artist) and output_chinese:
+                        describe_image = vlm.translate_cn(describe_image)
+            except RuntimeError as exc:
+                message = str(exc)
+                if "VLM model files are missing" not in message and "Custom VLM settings incomplete" not in message:
+                    raise
+                gr.Warning(message)
+                describe_image = message
+
+            return describe_image, skip_component_update()
+
+        def describe_with_generating_check(state_is_generating, img, output_tags, output_chinese, output_artist, describe_prompt, state_params, version, api_name, provider, api_format, base_url, model, api_key, supports_images):
+            is_worker_processing = modules.async_worker.worker_processing is not None
+            has_pending_tasks = modules.async_worker.pending_tasks > 0
+
+            if check_generating_state(state_is_generating, has_pending_tasks, is_worker_processing):
+                logger.info("Generation is in progress or pending, skipping image description")
+                return skip_component_update(), skip_component_update(), *_describe_clear_missing_model_outputs(state_params)
+
+            version = _vlm_resolve_version(version)
+            custom_settings = _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images)
+            _apply_main_vlm_custom_settings(custom_settings)
+            vlm.set_version(version)
+            if _describe_requires_vlm(img, output_tags, output_chinese, output_artist):
+                missing_model_outputs = _describe_vlm_missing_model_outputs(state_params, version, custom_settings)
+                if missing_model_outputs is not None:
+                    return skip_component_update(), skip_component_update(), *missing_model_outputs
+
+            describe_image, style_update = trigger_describe(img, output_tags, output_chinese, output_artist, describe_prompt)
+            return describe_image, style_update, *_describe_clear_missing_model_outputs(state_params)
+
+        describe_event = describe_btn.click(describe_with_generating_check,
+                           inputs=[state_is_generating, describe_input_image, describe_output_tags, describe_output_chinese, describe_output_artist, describe_prompt, state_topbar, describe_vlm_model] + main_vlm_custom_inputs,
+                           outputs=[prompt, style_selections, missing_model_modal, missing_model_title, missing_model_list, missing_model_total_progress, missing_model_btn],
+                           show_progress=True,
+                           queue=True)
+        describe_event = describe_event.then(
+            fn=lambda html: None,
+            inputs=[missing_model_list],
+            js="(html)=>{try{reopenMissingModelPopupIfNeeded(html);}catch(e){console.warn('[UI-TRACE] missing_model_modal.describe_reopen_failed', e);}}",
+            queue=False,
+            show_progress=False,
+        )
+        describe_event = describe_event.then(fn=style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False)
+        describe_event.then(lambda: None, js='()=>{refresh_style_localization();}')
+
+        def unload_models_clicked(state_is_generating):
+            is_worker_processing = modules.async_worker.worker_processing is not None
+            has_pending_tasks = modules.async_worker.pending_tasks > 0
+
+            if check_generating_state(state_is_generating, has_pending_tasks, is_worker_processing):
+                logger.info("Generation is in progress or pending, skipping model unload")
+                return
+
+            logger.info(
+                "[VLM KeepLoaded] explicit/global unload state_is_generating=%s pending_tasks=%s worker_processing=%s source=webui.unload_models_clicked",
+                state_is_generating,
+                has_pending_tasks,
+                is_worker_processing,
+            )
+            vlm.free_model()
+
+            try:
+                import extras.wd14tagger
+                extras.wd14tagger.free_model()
+            except Exception:
+                pass
+
+            try:
+                from enhanced.sam3_video_mask import unload_sam3_video_predictor
+                unload_sam3_video_predictor()
+            except Exception:
+                pass
+
+            try:
+                from enhanced import webui_qwen_tts
+                webui_qwen_tts.unload_qwen_tts_models()
+            except Exception:
+                pass
+
+            model_management.unload_all_models()
+            model_management.soft_empty_cache()
+            logger.info("Models unloaded manually.")
+            return
+
+        unload_btn.click(unload_models_clicked, inputs=[state_is_generating], show_progress=True)
+
+        def trigger_auto_describe_for_scene(state, canvas_image, img, scene_theme, additional_prompt, additional_prompt_2, state_is_generating):
+            if not isinstance(state, dict) or not isinstance(state.get("scene_frontend"), dict):
+                return skip_component_update(), skip_component_update(), skip_component_update()
+
+            is_worker_processing = worker.worker_processing is not None
+            has_pending_tasks = worker.pending_tasks > 0
+            is_generating = state_is_generating or is_worker_processing or has_pending_tasks
+
+            if is_generating:
+                logger.info(f"Generation is in progress or pending, skipping image description")
+                return skip_component_update(), skip_component_update(), skip_component_update()
+
+            is_canvas_image = 'scene_canvas_image' not in state["scene_frontend"].get('disvisible', [])
+            ready_to_gen = True 
+            canvas_img = extract_scene_image(canvas_image) if is_canvas_image else None
+            input_img = extract_scene_image(img)
+            use_img = canvas_img if canvas_img is not None else input_img
+            if use_img is None and is_canvas_image:
+                ready_to_gen = False
+            describe_prompt, img_is_ok = describe_prompt_for_scene(state, use_img, scene_theme, f'{additional_prompt}{additional_prompt_2}')
+            styles = set()
+            styles.update([])
+            prompt_update = describe_prompt if describe_prompt else skip_component_update()
+            return prompt_update, list(styles), gr_update(interactive=ready_to_gen and img_is_ok)
+
+        def scene_input_image1_clear(state, input_image1, video=None, audio=None):
+            if input_image1 is None and isinstance(state, dict) and 'scene_frontend' in state:
+                scene_input_image1_visible = 'scene_input_image1' not in state["scene_frontend"].get('disvisible', [])
+                scene_input_image2_visible = 'scene_input_image2' not in state["scene_frontend"].get('disvisible', [])
+                need_canvas_image = 'scene_canvas_image' not in state["scene_frontend"].get('disvisible', [])
+                should_disable_generate = scene_input_image1_visible and not (scene_input_image2_visible and need_canvas_image)
+
+                video_visible = 'scene_video' not in state["scene_frontend"].get('disvisible', [])
+                audio_visible = 'scene_audio' not in state["scene_frontend"].get('disvisible', [])
+                if (video_visible and video is not None) or (audio_visible and audio is not None):
+                     should_disable_generate = False
+
+                if should_disable_generate:
+                    return '', gr_update(interactive=True, visible=True), gr_update(visible=False)
+            return [skip_component_update()] * 3
+
+        def update_describe_output_tags(engine_class_display):
+            if engine_class_display in ['SDXL', 'SD15', 'Illustrious']:
+                return gr_update(value=True)
+            return gr_update(value=False)
+
+        def sync_scene_models_from_main(state, base_model_value=None, refiner_model_value=None):
+            # Scene model selectors were removed after merging Scene LoRA/model
+            # controls into the shared Models tab.
+            return []
+
+        scene_canvas_image.upload(fn=None, show_progress=False, queue=False, js='()=>{refresh_scene_localization(); if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_canvas", "upload"); else if (typeof syncResolutionControlWidgets === "function") syncResolutionControlWidgets();}')
+        scene_canvas_image.clear(lambda: None, queue=False, show_progress=False, js='()=>{if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_canvas", "clear"); else if (typeof syncResolutionControlWidgets === "function") syncResolutionControlWidgets();}')
+        scene_input_image1.upload(trigger_auto_describe_for_scene, inputs=[state_topbar, scene_canvas_image, scene_input_image1, scene_theme, scene_additional_prompt, scene_additional_prompt_2, state_is_generating], outputs=[prompt, style_selections, generate_button], show_progress=True, queue=False) \
+                        .then(lambda: None, js='()=>{refresh_scene_localization(); if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_input_image1", "upload"); else if (typeof syncResolutionControlWidgets === "function") syncResolutionControlWidgets();}')
+        #scene_input_image1.clear(lambda: ['', gr_update(interactive=False)], outputs=[prompt, generate_button], show_progress=False, queue=False)
+        scene_input_image1.clear(lambda: None, queue=False, show_progress=False, js='()=>{if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_input_image1", "clear"); else if (typeof syncResolutionControlWidgets === "function") syncResolutionControlWidgets();}')
+        scene_input_image1.change(scene_input_image1_clear, inputs=[state_topbar, scene_input_image1, scene_video, scene_audio], outputs=[prompt, generate_button, load_parameter_button], show_progress=False, queue=False) \
+                         .then(lambda: None, js='()=>{if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_input_image1", "change"); else if (typeof syncResolutionControlWidgets === "function") syncResolutionControlWidgets();}')
+        load_parameter_button.click(trigger_auto_describe_for_scene, inputs=[state_topbar, scene_canvas_image, scene_input_image1, scene_theme, scene_additional_prompt, scene_additional_prompt_2, state_is_generating], outputs=[prompt, style_selections, generate_button], show_progress=True, queue=False) \
+                        .then(lambda: None, js='()=>{refresh_scene_localization(); if (typeof syncResolutionControlWidgets === "function") syncResolutionControlWidgets();}')
+
+        scene_theme.select(switch_scene_theme_select, inputs=state_topbar, outputs=state_topbar, queue=False, show_progress=False) \
+                   .then(switch_scene_theme_safe, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme], outputs=[camera_control_accordion, anglelight_control_accordion, style_transfer_accordion, sam3_video_mask_accordion, pose_studio, gaussian_studio, scene_resolution_override_accordion, scene_use_resolution_override_checkbox, scene_resolution_override] + scene_params[1:], queue=False, show_progress=False) \
+                   .then(fn=lambda state, theme: None, inputs=[state_topbar, scene_theme], js="(state, theme)=>{try{if(window.SimpAIPoseStudioEditor?.closeScenePreset) window.SimpAIPoseStudioEditor.closeScenePreset(); if(window.SimpAIGaussianStudioEditor?.closeScenePreset) window.SimpAIGaussianStudioEditor.closeScenePreset(); if(typeof reconcileSceneAuxControls==='function') reconcileSceneAuxControls(state, theme); if(typeof syncResolutionControlWidgets==='function') syncResolutionControlWidgets();}catch(e){console.warn('[UI-TRACE] scene_aux_reconcile_failed', e);}}", queue=False, show_progress=False) \
+                   .then(lambda: None, js='()=>{try{if(window.syncGradio6MountedDynamicVisibility) window.syncGradio6MountedDynamicVisibility("scene_theme");}catch(e){console.warn("[UI-TRACE] scene_theme_mounted_visibility_sync_failed", e);}}', show_progress=False, queue=False) \
+                   .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=True) \
+                   .then(batch_utils.refresh_scene_batch_accordion, inputs=[state_topbar], outputs=[scene_batch_accordion], queue=False, show_progress=False) \
+                   .then(batch_utils.refresh_scene_batch_target, inputs=[state_topbar, scene_batch_target], outputs=[scene_batch_target], queue=False, show_progress=False)
+
+        def scene_aspect_ratio_changed(state):
+            task_method = ""
+            resolved_theme = None
+            if isinstance(state, dict):
+                scenes = state.get("scene_frontend", {})
+                if isinstance(scenes, dict):
+                    resolved_theme = state.get("scene_theme", None)
+                    themes = scenes.get("theme", [])
+                    if (not isinstance(resolved_theme, str) or not resolved_theme):
+                        if isinstance(themes, list) and len(themes) > 0 and isinstance(themes[0], str):
+                            resolved_theme = themes[0]
+                        elif isinstance(themes, str):
+                            resolved_theme = themes
+                    tm = scenes.get("task_method", "")
+                    if isinstance(tm, dict):
+                        if isinstance(resolved_theme, str) and resolved_theme in tm:
+                            tm = tm.get(resolved_theme, "")
+                        elif tm:
+                            tm = next(iter(tm.values()), "")
+                    elif isinstance(tm, list):
+                        tm = tm[0] if tm else ""
+                    task_method = str(tm or "")
+            util.log_ui_trace(logger, f"[UI-TRACE] scene_aspect_ratio_changed | scene_theme={resolved_theme!r}, task_method={task_method!r}")
+            if "t2v" in task_method.lower():
+                return [skip_component_update(), skip_component_update()]
+            return [gr_update(value=-1), gr_update(value=-1)]
+
+        scene_aspect_ratio_user_event = getattr(scene_aspect_ratio, "input", scene_aspect_ratio.change)
+        scene_aspect_ratio_user_event(scene_aspect_ratio_changed, inputs=[state_topbar], outputs=[overwrite_width, overwrite_height], queue=False, show_progress=False)
+
+        scene_video.upload(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False) \
+            .then(lambda: None, js='()=>{if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_video", "ready");}')
+        scene_video.clear(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False) \
+            .then(lambda: None, js='()=>{try{if(typeof _rc_setTextValue==="function") _rc_setTextValue("resolution_source_meta", "{}", true);}catch(e){} if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_video", "clear");}')
+        scene_audio.upload(_remember_scene_audio_for_generation, inputs=[scene_audio], outputs=[scene_audio_backup], queue=False, show_progress=False) \
+            .then(modules.meta_parser.switch_ltx23_audio_theme_when_audio_present, inputs=[state_topbar, scene_theme, scene_audio_backup], outputs=[state_topbar, scene_theme], queue=False, show_progress=False) \
+            .then(switch_scene_theme_safe, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme], outputs=[camera_control_accordion, anglelight_control_accordion, style_transfer_accordion, sam3_video_mask_accordion, pose_studio, gaussian_studio, scene_resolution_override_accordion, scene_use_resolution_override_checkbox, scene_resolution_override] + scene_params[1:], queue=False, show_progress=False) \
+            .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)
+        scene_audio.clear(_clear_scene_audio_for_generation, outputs=[scene_audio_backup], queue=False, show_progress=False) \
+            .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)
+
+        if args_manager.args.enable_auto_describe_image:
+            def trigger_auto_describe(img, current_prompt, output_tags, output_chinese, output_artist, state_params, version, api_name, provider, api_format, base_url, model, api_key, supports_images, state_is_generating=True):
+
+                if img is None:
+                    logger.info("Image is None, skipping image description")
+                    return skip_component_update(), skip_component_update(), *_describe_clear_missing_model_outputs(state_params)
+
+                if isinstance(img, dict):
+                    img = img['image']
+                version = _vlm_resolve_version(version)
+                custom_settings = _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images)
+                _apply_main_vlm_custom_settings(custom_settings)
+                vlm.set_version(version)
+                if _describe_requires_vlm(img, output_tags, output_chinese, output_artist):
+                    missing_model_outputs = _describe_vlm_missing_model_outputs(state_params, version, custom_settings)
+                    if missing_model_outputs is not None:
+                        return skip_component_update(), skip_component_update(), *missing_model_outputs
+
+                describe_image, style_update = trigger_describe(img, output_tags, output_chinese, output_artist)
+                return describe_image, style_update, *_describe_clear_missing_model_outputs(state_params)
+
+            def bind_auto_describe_button(button, image_component, trace_name):
+                auto_describe_event = button.click(
+                    trigger_auto_describe,
+                    inputs=[image_component, prompt, describe_output_tags, describe_output_chinese, describe_output_artist, state_topbar, describe_vlm_model] + main_vlm_custom_inputs,
+                    outputs=[prompt, style_selections, missing_model_modal, missing_model_title, missing_model_list, missing_model_total_progress, missing_model_btn],
+                    show_progress=True,
+                    queue=True,
+                )
+                auto_describe_event = auto_describe_event.then(
+                    fn=lambda html: None,
+                    inputs=[missing_model_list],
+                    js=f"(html)=>{{try{{reopenMissingModelPopupIfNeeded(html);}}catch(e){{console.warn('[UI-TRACE] missing_model_modal.{trace_name}_reopen_failed', e);}}}}",
+                    queue=False,
+                    show_progress=False,
+                )
+                auto_describe_event = auto_describe_event.then(fn=style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False)
+                auto_describe_event.then(lambda: None, js='()=>{refresh_style_localization();}')
+
+            uov_input_image.upload(lambda: None, outputs=[], show_progress=False, queue=False) \
+                .then(fn=style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False) \
+                .then(lambda: None, js='()=>{refresh_style_localization();}')
+
+            uov_input_image.change(lambda img: gr_update(visible=img is not None), inputs=uov_input_image, outputs=describe_uov_button, show_progress=False, queue=False)
+
+            bind_auto_describe_button(describe_uov_button, uov_input_image, "uov")
+
+            inpaint_input_image.upload(lambda: None, outputs=[], show_progress=False, queue=False) \
+                .then(fn=style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False) \
+                .then(lambda: None, js='()=>{refresh_style_localization();}') \
+                .then(lambda img: gr_update(visible=img is not None), inputs=inpaint_input_image, outputs=describe_inpaint_button, show_progress=False, queue=False)
+
+            bind_auto_describe_button(describe_inpaint_button, inpaint_input_image, "inpaint")
+
+            enhance_input_image.upload(lambda: gr_update(value=True), outputs=enhance_checkbox, queue=False, show_progress=False) \
+                .then(lambda: (skip_component_update(), skip_component_update()), inputs=[], outputs=[prompt, style_selections], show_progress=False, queue=False) \
+                .then(fn=style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False) \
+                .then(lambda: None, js='()=>{refresh_style_localization();}')
+            enhance_input_image.change(lambda img: gr_update(visible=img is not None), inputs=enhance_input_image, outputs=describe_enhance_button, show_progress=False, queue=False)
+
+            bind_auto_describe_button(describe_enhance_button, enhance_input_image, "enhance")
+
+    note_box_outputs = [params_note_info, params_note_close_button, params_note_input_name, params_note_delete_button, params_note_regen_button, params_note_preset_button, params_note_box, state_topbar]
+
+    prompt_delete_evt = prompt_delete_button.click(toolbox.toggle_note_box_delete, inputs=state_topbar, outputs=note_box_outputs, show_progress=False)
+    prompt_delete_evt.then(lambda: None, queue=False, show_progress=False, js='()=>{try{showToolboxNoteOverlayFromSource("delete");}catch(e){console.warn("[UI-TRACE] toolbox_note.delete_overlay_failed", e);}}')
+    params_note_delete_button.click(toolbox.delete_image, inputs=state_topbar, outputs=[gallery, progress_gallery, progress_window, gallery_index, params_note_delete_button, params_note_box, gallery_index_stat], show_progress=False) \
+            .then(toolbox.close_note_box, inputs=state_topbar, outputs=note_box_outputs, show_progress=False) \
+            .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type)); try{traceResultPanelStateSoon("delete_image.after_refresh");}catch(e){console.warn("[UI-TRACE] delete_image.dom_trace_failed", e);}}')
+
+    def regen_update_system_params(state_params):
+        is_scene = isinstance(state_params, dict) and "scene_frontend" in state_params
+        util.log_ui_trace(
+            logger,
+            "[UI-TRACE] regen.update_system_params | preset=%r, is_scene=%r, engine_type=%r",
+            state_params.get("__preset") if isinstance(state_params, dict) else None,
+            is_scene,
+            state_params.get("engine_type") if isinstance(state_params, dict) else None,
+        )
+        return topbar.update_topbar_js_params(state_params)[0]
+    
+    prompt_regen_evt = prompt_regen_button.click(toolbox.toggle_note_box_regen, inputs=model_check + [state_topbar], outputs=note_box_outputs, show_progress=False)
+    prompt_regen_evt.then(lambda: None, queue=False, show_progress=False, js='()=>{try{showToolboxNoteOverlayFromSource("regen");}catch(e){console.warn("[UI-TRACE] toolbox_note.regen_overlay_failed", e);}}')
+    prompt_preset_evt = prompt_preset_button.click(toolbox.toggle_note_box_preset_overlay, inputs=model_check + [state_topbar], outputs=note_box_outputs, show_progress=False)
+    prompt_preset_evt.then(lambda: None, queue=False, show_progress=False, js='()=>{try{showToolboxNoteOverlayFromSource("preset");}catch(e){console.warn("[UI-TRACE] toolbox_note.preset_overlay_failed", e);}}')
+    params_note_close_button.click(toolbox.close_note_box, inputs=state_topbar, outputs=note_box_outputs, show_progress=False)
+    params_note_preset_button.click(toolbox.save_preset, inputs=[params_note_input_name, params_backend, state_topbar, model_params_state] + reset_preset_func + load_data_outputs + scene_preset_save_ctrls, outputs=[params_note_input_name, params_note_preset_button, params_note_box, preset_store_list] + nav_bars + [system_params], show_progress=False) \
+        .then(toolbox.preset_store_unmount, inputs=state_topbar, outputs=preset_store_list, show_progress=False, queue=False) \
+        .then(toolbox.preset_store_mount, inputs=state_topbar, outputs=preset_store_list, show_progress=False, queue=False) \
+        .then(toolbox.close_note_box, inputs=state_topbar, outputs=note_box_outputs, show_progress=False) \
+        .then(fn=lambda x: None, inputs=system_params, js='(x)=>{refresh_topbar_status_js(x);}')
+
+    def _sanitize_ip_types(state_params, *values):
+        if isinstance(state_params, dict) and "scene_frontend" in state_params:
+            return [skip_component_update()] * len(ip_types)
+        engine = state_params.get('engine', 'Fooocus') if isinstance(state_params, dict) else 'Fooocus'
+        task_method = state_params.get('task_method', None) if isinstance(state_params, dict) else None
+        allowed = list(modules.flags.ip_list if engine in ['Fooocus', 'SDXL', 'Flux', 'Comfy', 'Wan', 'Qwen', 'Z-image'] else modules.flags.ip_list[:-1])
+        if engine in ['Wan', 'Qwen', 'Z-image'] or task_method == 'flux2_aio_cn':
+            allowed = allowed[1:3] + allowed[-1:]
+        if task_method in ['il_v_pre_aio', 'chenkin_noob_aio']:
+            allowed = allowed[:3] + allowed[-1:]
+        fallback = allowed[0] if len(allowed) > 0 else flags.cn_canny
+        sanitized = []
+        for index in range(len(ip_types)):
+            current = values[index] if index < len(values) else None
+            next_value = current if current in allowed else fallback
+            sanitized.append(dropdown_update(choices=allowed, value=next_value))
+        return sanitized
+
+    
+    after_identity = [gallery_index, index_radio, gallery_index_stat, preset_store, preset_store_list, history_link, identity_introduce, configure_panel, local_system_tab, user_access_tab, admin_panel, admin_link, system_params] + ip_types
+    bind_topbar_identity_events(
+        topbar_module=topbar,
+        simpleai_module=simpleai,
+        state_topbar=state_topbar,
+        system_params=system_params,
+        identity_export_btn=identity_export_btn,
+        identity_input_info=identity_input_info,
+        identity_phrase_input=identity_phrase_input,
+        identity_phrases_confirm_button=identity_phrases_confirm_button,
+        identity_confirm_button=identity_confirm_button,
+        identity_unbind_button=identity_unbind_button,
+        identity_ctrls=identity_ctrls,
+        identity_flow_rows=identity_flow_rows,
+        identity_stage_state=identity_stage_state,
+        identity_input=identity_input,
+        current_id_info=current_id_info,
+        current_upstream_status=current_upstream_status,
+        nav_bars=nav_bars,
+        after_identity=after_identity,
+        user_app_ctrls=user_app_ctrls,
+        sanitize_ip_types=_sanitize_ip_types,
+        ip_types=ip_types,
+        refresh_wildcards_components=wildcards.refresh_wildcards_components,
+        wildcards_outputs=[wildcards_list, wc_name, wildcard_tag_name_selection],
+        qwen_refresh_style_preset_dropdowns=_qwen_refresh_style_preset_dropdowns,
+        qwen_design_style_preset_choices=qwen_design_style_preset_choices,
+        qwen_custom_style_preset_choices=qwen_custom_style_preset_choices,
+        binding_id_button=binding_id_button,
+        identity_dialog=identity_dialog,
+        admin_access_refresh_fn=_admin_access_refresh,
+        admin_access_user_select=admin_access_user_select,
+        admin_access_outputs=admin_access_outputs,
+    )
+
+    reset_layout_ui_outputs = nav_bars + reset_preset_layout + reset_preset_func + scene_frontend_ctrls
+    model_bridge_ui_output_ids = {id(base_model), id(refiner_model)} | {id(control) for control in lora_ctrls}
+    model_bridge_text_output_ids = {id(base_model), id(refiner_model), id(clip_model), id(vae_name), id(upscale_model)} | {id(control) for control in lora_models}
+
+    def _sanitize_model_bridge_ui_outputs(updates):
+        sanitized = list(updates or [])
+        first_extra_output_index = len(reset_layout_ui_outputs)
+        for index, output in enumerate(reset_layout_ui_outputs[:len(sanitized)]):
+            if id(output) not in model_bridge_ui_output_ids:
+                continue
+            value = sanitized[index].get("value") if isinstance(sanitized[index], dict) else sanitized[index]
+            if value is None:
+                sanitized[index] = skip_component_update() if isinstance(sanitized[index], dict) else sanitized[index]
+            else:
+                sanitized[index] = gr_update(value=value)
+        return sanitized[:first_extra_output_index] + sanitized[first_extra_output_index:]
+
+    def reset_layout_ui_model_bridge_safe(*args, **kwargs):
+        result = topbar.reset_layout_ui(*args, **kwargs)
+        if not isinstance(result, (list, tuple)):
+            result = [result]
+        return _sanitize_model_bridge_ui_outputs(result)
+
+    def _sanitize_model_bridge_component_updates(updates, outputs):
+        sanitized = list(updates or [])
+        for index, output in enumerate(outputs[:len(sanitized)]):
+            if id(output) not in model_bridge_text_output_ids:
+                continue
+            value = _value_from_component_update(sanitized[index])
+            sanitized[index] = gr_update(value=value) if value is not None else skip_component_update()
+        return sanitized
+
+    lora_ctrl_ids = {id(control) for control in lora_ctrls}
+    reset_layout_ui_nav_omitted_output_indices = {
+        index
+        for index, output in enumerate(reset_layout_ui_outputs)
+        if id(output) in lora_ctrl_ids
+    }
+    reset_layout_ui_tail_payload = gr.State([])
+    reset_layout_value_tail_payload = gr.State([])
+    reset_layout_after_identity_payload = gr.State([])
+    # Fast preset nav owns these components in adjacent callbacks or in the
+    # reset-layout response that already targets the same controls.
+    reset_layout_fast_omitted_output_names = {
+        "progress_window",
+        "progress_gallery",
+        "gallery_index",
+        "style_selections",
+    }
+    reset_layout_fast_omitted_output_indices = {
+        index
+        for index, name in enumerate(load_data_output_names)
+        if name in reset_layout_fast_omitted_output_names
+    }
+    reset_layout_value_nav_omitted_output_names = reset_layout_fast_omitted_output_names
+    reset_layout_value_nav_omitted_output_indices = {
+        index
+        for index, name in enumerate(load_data_output_names)
+        if name in reset_layout_value_nav_omitted_output_names
+    }
+    reset_layout_fast_outputs = [
+        output
+        for index, output in enumerate(load_data_outputs)
+        if index not in reset_layout_fast_omitted_output_indices
+    ]
+    reset_layout_nav_outputs = [
+        output
+        for index, output in enumerate(load_data_outputs)
+        if index not in reset_layout_value_nav_omitted_output_indices
+    ]
+    reset_layout_fast_head_count = max(1, (len(reset_layout_fast_outputs) + 1) // 2)
+    reset_layout_fast_head_outputs = reset_layout_fast_outputs[:reset_layout_fast_head_count]
+    reset_layout_fast_tail_outputs = reset_layout_fast_outputs[reset_layout_fast_head_count:]
+    reset_layout_value_component_outputs = [scene_batch_accordion, scene_batch_target] + load_data_outputs + after_identity + \
+                                  [scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4] + [quick_enhance, gallery_visible, current_previews, current_filtered_previews, active_target, model_browser_modal, model_browser_search, model_browser_folder, model_browser_status, model_browser_gallery] + \
+                                  lora_galleries + lora_gallery_visible + lora_current_previews + lora_preview_btns
+    reset_layout_values_outputs = reset_layout_value_component_outputs + [model_params_state]
+    reset_layout_values_fast_outputs = reset_layout_fast_head_outputs + [reset_layout_value_tail_payload, reset_layout_after_identity_payload, model_params_state]
+    reset_layout_values_nav_outputs = reset_layout_nav_outputs + after_identity + [model_params_state]
+
+    def _value_from_update_for_model_state(update, fallback=None):
+        if isinstance(update, dict):
+            return update.get("value", fallback)
+        if update is None:
+            return fallback
+        return update
+
+    def _model_params_state_from_load_updates(load_updates, fallback_state=None, state_params=None):
+        fallback = fallback_state if isinstance(fallback_state, dict) and fallback_state.get("__model_params_state") else get_initial_model_params_state()
+        if isinstance(state_params, dict):
+            fallback = _model_params_state_from_state_params(state_params, fallback)
+        values_by_name = {}
+        value_present_by_name = {}
+        for index, output_name in enumerate(load_data_output_names):
+            raw_update = load_updates[index] if index < len(load_updates) else None
+            if isinstance(raw_update, dict):
+                value_present_by_name[output_name] = "value" in raw_update
+                values_by_name[output_name] = raw_update.get("value", None)
+            elif raw_update is None:
+                value_present_by_name[output_name] = False
+                values_by_name[output_name] = None
+            else:
+                value_present_by_name[output_name] = True
+                values_by_name[output_name] = raw_update
+
+        def pick(output_name, fallback_key):
+            if not value_present_by_name.get(output_name, False):
+                return fallback.get(fallback_key)
+            return values_by_name.get(output_name, None)
+
+        fallback_loras = _normalize_lora_triplets(fallback.get("loras"))
+        loras = []
+        for lora_index in range(modules.config.default_max_lora_number):
+            fallback_lora = fallback_loras[lora_index] if lora_index < len(fallback_loras) else [False, "None", 1.0]
+            prefix = f"lora_{lora_index + 1}_"
+            enabled_name = prefix + "enabled"
+            model_name_key = prefix + "model"
+            weight_name = prefix + "weight"
+            enabled_present = value_present_by_name.get(enabled_name, False)
+            model_present = value_present_by_name.get(model_name_key, False)
+            weight_present = value_present_by_name.get(weight_name, False)
+            enabled = values_by_name.get(enabled_name, fallback_lora[0]) if enabled_present else fallback_lora[0]
+            model_name = values_by_name.get(model_name_key, fallback_lora[1]) if model_present else fallback_lora[1]
+            weight = values_by_name.get(weight_name, fallback_lora[2]) if weight_present else fallback_lora[2]
+            if model_present and not enabled_present:
+                enabled = True
+            loras.append([enabled, model_name, weight])
+
+        return _model_params_state_payload(
+            pick("base_model", "base_model"),
+            pick("refiner_model", "refiner_model"),
+            pick("refiner_switch", "refiner_switch"),
+            pick("clip_model", "clip_model"),
+            pick("vae_name", "vae_name"),
+            pick("upscale_model", "upscale_model"),
+            loras,
+        )
+
+    def _normalize_reset_layout_values(result, trace_name="reset_layout_values_safe"):
+        expected = len(reset_layout_value_component_outputs)
+        if not isinstance(result, (list, tuple)):
+            result = [result]
+        result = list(result)
+        actual = len(result)
+        if actual != expected:
+            try:
+                util.log_ui_trace(logger, f"[UI-TRACE] {trace_name}.len_adjust | expected={expected}, actual={actual}")
+            except Exception:
+                pass
+        if actual > expected:
+            return result[:expected]
+        if actual < expected:
+            return result + [skip_component_update() for _ in range(expected - actual)]
+        return result
+
+    model_bridge_load_output_names = {"base_model", "refiner_model", "refiner_switch", "clip_model", "vae_name", "upscale_model"}
+
+    def _value_from_component_update(update):
+        if isinstance(update, dict):
+            return update.get("value", None)
+        return update
+
+    def _sanitize_model_bridge_load_updates(load_updates):
+        sanitized = list(load_updates or [])
+        for index, output_name in enumerate(load_data_output_names[:len(sanitized)]):
+            if not (output_name in model_bridge_load_output_names or output_name.startswith("lora_")):
+                continue
+            value = _value_from_component_update(sanitized[index])
+            if value is None:
+                sanitized[index] = skip_component_update() if isinstance(sanitized[index], dict) else sanitized[index]
+            else:
+                sanitized[index] = gr_update(value=value)
+        return sanitized
+
+    def reset_layout_values_safe(state_params, is_generating, inpaint_mode, use_resolution_override, scene_batch_target, *current_lora_values):
+        result = topbar.reset_layout_values(
+            state_params,
+            is_generating,
+            inpaint_mode,
+            use_resolution_override,
+            scene_batch_target,
+            fast_nav=True,
+            after_identity_count=len(after_identity),
+        )
+        result = _normalize_reset_layout_values(result)
+        start = 2
+        load_end = start + len(load_data_outputs)
+        load_updates = result[start:load_end]
+        model_state_update = _model_params_state_from_load_updates(load_updates, state_params=state_params)
+        result[start:load_end] = _sanitize_model_bridge_load_updates(load_updates)
+        return result + [model_state_update]
+
+    def reset_layout_values_fast_safe(state_params, is_generating, inpaint_mode, use_resolution_override, scene_batch_target, *current_lora_values):
+        result = _normalize_reset_layout_values(
+            topbar.reset_layout_values(
+                state_params,
+                is_generating,
+                inpaint_mode,
+                use_resolution_override,
+                scene_batch_target,
+                fast_nav=True,
+                after_identity_count=len(after_identity),
+            ),
+            trace_name="reset_layout_values_fast_safe",
+        )
+        start = 2
+        load_end = start + len(load_data_outputs)
+        load_updates = result[start:load_end]
+        sanitized_load_updates = _sanitize_model_bridge_load_updates(load_updates)
+        fast_updates = [
+            update
+            for index, update in enumerate(sanitized_load_updates)
+            if index not in reset_layout_fast_omitted_output_indices
+        ]
+        head_updates = fast_updates[:reset_layout_fast_head_count]
+        tail_payload = fast_updates[reset_layout_fast_head_count:]
+        after_identity_payload = result[load_end:load_end + len(after_identity)]
+        model_state_update = _model_params_state_from_load_updates(load_updates, state_params=state_params)
+        return head_updates + [tail_payload, after_identity_payload, model_state_update]
+
+    def reset_layout_values_nav_safe(state_params, is_generating, inpaint_mode, use_resolution_override, scene_batch_target, models_tab_active=False, current_model_params_state=None, *current_lora_values):
+        result = _normalize_reset_layout_values(
+            topbar.reset_layout_values(
+                state_params,
+                is_generating,
+                inpaint_mode,
+                use_resolution_override,
+                scene_batch_target,
+                fast_nav=True,
+                after_identity_count=len(after_identity),
+            ),
+            trace_name="reset_layout_values_nav_safe",
+        )
+        start = 2
+        load_end = start + len(load_data_outputs)
+        load_updates = result[start:load_end]
+        current_file_values = {}
+        lora_value_names = ["enabled", "model", "weight"]
+        current_lora_values_by_name = {}
+        if isinstance(current_model_params_state, dict) and current_model_params_state.get("__model_params_state"):
+            for output_name in ["refiner_switch", "clip_model", "vae_name", "upscale_model"]:
+                current_value = current_model_params_state.get(output_name)
+                if current_value is not None:
+                    current_file_values[output_name] = current_value
+            for lora_index, lora_triplet in enumerate(_normalize_lora_triplets(current_model_params_state.get("loras"))):
+                for value_index, value_name in enumerate(lora_value_names):
+                    if value_index < len(lora_triplet):
+                        current_lora_values_by_name[f"lora_{lora_index + 1}_{value_name}"] = lora_triplet[value_index]
+        else:
+            current_lora_offset = 0
+            if len(current_lora_values) >= len(lora_ctrls) + 3:
+                current_file_values = {
+                    "clip_model": current_lora_values[0],
+                    "vae_name": current_lora_values[1],
+                    "upscale_model": current_lora_values[2],
+                }
+                current_lora_offset = 3
+            current_lora_values_by_name = {
+                f"lora_{(index // 3) + 1}_{lora_value_names[index % 3]}": value
+                for index, value in enumerate(current_lora_values[current_lora_offset:current_lora_offset + len(lora_ctrls)])
+            }
+
+        def _same_nav_value(left, right):
+            try:
+                return abs(float(left) - float(right)) < 1e-9
+            except Exception:
+                return str(left) == str(right)
+
+        def _with_nav_minimal_choices(output_name, update):
+            if not models_tab_active and (output_name in model_bridge_load_output_names or output_name.startswith("lora_")):
+                return skip_component_update()
+            if output_name in model_bridge_load_output_names or output_name.startswith("lora_"):
+                value = _value_from_component_update(update)
+                return gr_update(value=value) if value is not None else skip_component_update()
+            value = _value_from_component_update(update)
+            if value is None:
+                return update
+            if output_name in current_file_values and _same_nav_value(value, current_file_values[output_name]):
+                return skip_component_update()
+            if output_name in current_lora_values_by_name and _same_nav_value(value, current_lora_values_by_name[output_name]):
+                return skip_component_update()
+            if output_name.startswith("lora_") and output_name.endswith("_model"):
+                choices = _minimal_dropdown_choices("None", value)
+            elif output_name == "clip_model":
+                choices = _minimal_dropdown_choices(flags.default_clip, value)
+            elif output_name == "vae_name":
+                choices = _minimal_dropdown_choices(flags.default_vae, value)
+            elif output_name == "upscale_model":
+                choices = _minimal_dropdown_choices("default", value)
+            else:
+                return update
+            if isinstance(update, dict):
+                update = dict(update)
+                update["choices"] = choices
+                return update
+            return dropdown_update(choices=choices, value=value)
+
+        fast_updates = [
+            _with_nav_minimal_choices(load_data_output_names[index], update)
+            for index, update in enumerate(load_updates)
+            if index not in reset_layout_value_nav_omitted_output_indices
+        ]
+        after_identity_updates = result[load_end:load_end + len(after_identity)]
+        model_state_update = _model_params_state_from_load_updates(load_updates, current_model_params_state, state_params=state_params)
+        return fast_updates + after_identity_updates + [model_state_update]
+
+    reset_image_params_outputs = reset_preset_layout + reset_preset_func + scene_frontend_ctrls + load_data_outputs + [state_topbar, params_note_regen_button, params_note_box]
+    parameter_profile_snapshot_names = ["params_backend", "state_topbar", "model_params_state"] + reset_preset_func_names + load_data_output_names + ["random_aspect_ratio", "use_resolution_override", "resolution_original_input"] + scene_preset_save_names
+    parameter_profile_snapshot_inputs = [params_backend, state_topbar, model_params_state] + reset_preset_func + load_data_outputs + [random_aspect_ratio_checkbox, use_resolution_override_checkbox, resolution_original_input_checkbox] + scene_preset_save_ctrls
+
+    def _normalize_reset_params_model_bridge_result(result, state_params):
+        if not isinstance(result, (list, tuple)):
+            result = [result]
+        result = list(result)
+        expected = len(reset_image_params_outputs)
+        if len(result) != expected:
+            try:
+                util.log_ui_trace(logger, f"[UI-TRACE] regen.reset_image_params.len_adjust | expected={expected}, actual={len(result)}")
+            except Exception:
+                pass
+            if len(result) > expected:
+                result = result[:expected]
+            else:
+                result += [skip_component_update() for _ in range(expected - len(result))]
+
+        layout_end = len(reset_preset_layout) + len(reset_preset_func) + len(scene_frontend_ctrls)
+        result[:layout_end] = _sanitize_model_bridge_component_updates(
+            result[:layout_end],
+            reset_preset_layout + reset_preset_func + scene_frontend_ctrls,
+        )
+        load_end = layout_end + len(load_data_outputs)
+        load_updates = result[layout_end:load_end]
+        model_state_update = _model_params_state_from_load_updates(load_updates, state_params=state_params)
+        result[layout_end:load_end] = _sanitize_model_bridge_load_updates(load_updates)
+        return result + [model_state_update]
+
+    def _normalize_metadata_import_model_bridge_result(result, state_params):
+        if not isinstance(result, (list, tuple)):
+            result = [result]
+        result = list(result)
+        expected = len(metadata_import_outputs)
+        if len(result) != expected:
+            try:
+                util.log_ui_trace(logger, f"[UI-TRACE] metadata_import.len_adjust | expected={expected}, actual={len(result)}")
+            except Exception:
+                pass
+            if len(result) > expected:
+                result = result[:expected]
+            else:
+                result += [skip_component_update() for _ in range(expected - len(result))]
+
+        layout_end = len(reset_preset_layout) + len(reset_preset_func) + len(scene_frontend_ctrls)
+        result[:layout_end] = _sanitize_model_bridge_component_updates(
+            result[:layout_end],
+            reset_preset_layout + reset_preset_func + scene_frontend_ctrls,
+        )
+        load_end = layout_end + len(load_data_outputs)
+        load_updates = result[layout_end:load_end]
+        model_state_update = _model_params_state_from_load_updates(load_updates, state_params=state_params)
+        result[layout_end:load_end] = _sanitize_model_bridge_load_updates(load_updates)
+        return result + [model_state_update]
+
+    def reset_image_params_model_bridge_safe(state_params, is_generating, inpaint_mode):
+        result = toolbox.reset_image_params(state_params, is_generating, inpaint_mode)
+        return _normalize_reset_params_model_bridge_result(result, state_params)
+
+    def save_parameter_profile(profile_name, *values):
+        payload = dict(zip(parameter_profile_snapshot_names, values))
+        return parameter_profiles.save_profile(profile_name, payload)
+
+    def load_parameter_profile_model_bridge_safe(profile_name, state_params, is_generating, inpaint_mode):
+        metadata, _ = parameter_profiles.load_profile_metadata(profile_name, state_params)
+        if metadata is None:
+            return [skip_component_update() for _ in range(len(reset_image_params_outputs) + 4)]
+        result = toolbox.reset_params_by_image_meta_with_state(metadata, state_params, is_generating, inpaint_mode)
+        return _normalize_reset_params_model_bridge_result(result, state_params) + parameter_profiles.resolution_extra_updates(metadata)
+
+    system_params.change(
+        parameter_profiles.refresh_dropdown,
+        inputs=[system_params, parameter_profile_select],
+        outputs=parameter_profile_select,
+        queue=False,
+        show_progress=False,
+    )
+    parameter_profile_save.click(
+        save_parameter_profile,
+        inputs=[parameter_profile_select] + parameter_profile_snapshot_inputs,
+        outputs=parameter_profile_select,
+        queue=False,
+        show_progress=False,
+    )
+    parameter_profile_delete.click(
+        parameter_profiles.delete_profile,
+        inputs=[parameter_profile_select, system_params],
+        outputs=parameter_profile_select,
+        queue=False,
+        show_progress=False,
+    )
+    parameter_profile_load_outputs = reset_image_params_outputs + [model_params_state, random_aspect_ratio_checkbox, use_resolution_override_checkbox, resolution_original_input_checkbox]
+    parameter_profile_load_evt = parameter_profile_select.change(
+        load_parameter_profile_model_bridge_safe,
+        inputs=[parameter_profile_select, state_topbar, state_is_generating, inpaint_mode],
+        outputs=parameter_profile_load_outputs,
+        queue=False,
+        show_progress=False,
+    )
+    parameter_profile_load_evt.then(regen_update_system_params, inputs=state_topbar, outputs=system_params, queue=False, show_progress=False) \
+            .then(lambda x: None, inputs=system_params, queue=False, show_progress=False, js='(params)=>{try{if(typeof refresh_topbar_status_js_for_preset_nav==="function") refresh_topbar_status_js_for_preset_nav(params); else refresh_topbar_status_js(params);}catch(e){console.warn("[UI-TRACE] parameter_profile_topbar_status_sync_failed", e);} try{if(typeof scheduleSceneAndAdvancedSync==="function") scheduleSceneAndAdvancedSync("parameter_profile_load", !!(params && params.__is_scene_frontend));}catch(e){console.warn("[UI-TRACE] parameter_profile_scene_sync_failed", e);} try{if(typeof syncResolutionControlWidgets==="function"){syncResolutionControlWidgets(); setTimeout(syncResolutionControlWidgets,80);}}catch(e){console.warn("[UI-TRACE] parameter_profile_resolution_sync_failed", e);}}') \
+            .then(toggle_image_input_panel, inputs=[input_image_checkbox, qwen_tts_checkbox], outputs=[image_input_panel, engine_class_display] + layout_image_tab + [tts_panel, qwen_tts_checkbox], queue=False, show_progress=False)
+
+    params_note_regen_button.click(reset_image_params_model_bridge_safe, inputs=[state_topbar, state_is_generating, inpaint_mode], outputs=reset_image_params_outputs + [model_params_state], show_progress=False) \
+            .then(regen_update_system_params, inputs=state_topbar, outputs=system_params, queue=False, show_progress=False) \
+            .then(lambda x: None, inputs=system_params, queue=False, show_progress=False, js='(params)=>{try{if(typeof refresh_topbar_status_js_for_preset_nav==="function") refresh_topbar_status_js_for_preset_nav(params); else refresh_topbar_status_js(params);}catch(e){console.warn("[UI-TRACE] regen_topbar_status_sync_failed", e);} try{if(typeof scheduleSceneAndAdvancedSync==="function") scheduleSceneAndAdvancedSync("regen_reset", !!(params && params.__is_scene_frontend));}catch(e){console.warn("[UI-TRACE] regen_scene_sync_failed", e);}}') \
+            .then(toggle_image_input_panel, inputs=[input_image_checkbox, qwen_tts_checkbox], outputs=[image_input_panel, engine_class_display] + layout_image_tab + [tts_panel, qwen_tts_checkbox], queue=False, show_progress=False) \
+            .then(toolbox.close_note_box, inputs=state_topbar, outputs=note_box_outputs, show_progress=False)
+
+    def reset_preset_styles_fast(state_params):
+        preset = state_params.get("__preset", None) if isinstance(state_params, dict) else None
+        preset_prepared = state_params.get("__preset_prepared", None) if isinstance(state_params, dict) else None
+        if preset_prepared is None:
+            try:
+                if not preset:
+                    preset = modules.config.preset
+                user = state_params.get("user", None) if isinstance(state_params, dict) else None
+                user_did = user.get_did() if user is not None and hasattr(user, "get_did") else None
+                config_preset = modules.config.try_get_preset_content(preset, user_did)
+                preset_prepared = modules.meta_parser.parse_meta_from_preset(config_preset)
+            except Exception as e:
+                util.log_ui_trace(logger, f"[UI-TRACE] reset_preset_styles_fast.failed | preset={preset!r}, err={type(e).__name__}: {e}")
+                return skip_component_update()
+
+        raw_styles = preset_prepared.get("styles", preset_prepared.get("Styles", [])) if isinstance(preset_prepared, dict) else []
+        styles = []
+        try:
+            if isinstance(raw_styles, str):
+                import ast
+                parsed = ast.literal_eval(raw_styles)
+                styles = list(parsed) if isinstance(parsed, (list, tuple)) else []
+            elif isinstance(raw_styles, (list, tuple)):
+                styles = list(raw_styles)
+        except Exception as e:
+            util.log_ui_trace(logger, f"[UI-TRACE] reset_preset_styles_fast.parse_failed | preset={preset!r}, raw={raw_styles!r}, err={type(e).__name__}: {e}")
+            styles = []
+
+        return gr_update(value=styles)
+
+    topbar.reset_layout_num = len(reset_layout_ui_outputs) - len(nav_bars)
+    topbar.reset_layout_ui_outputs_len = len(reset_layout_ui_outputs)
+    topbar.reset_layout_scene_offset = len(reset_preset_layout) + len(reset_preset_func)
+    topbar.reset_layout_scene_outputs_len = len(scene_frontend_ctrls)
+    reset_preset_inputs = [prompt, negative_prompt, state_topbar, state_is_generating, inpaint_mode, comfyd_active_checkbox]
+    # Gradio 6.x validates component values before callback preprocess.
+    # scene_theme/scene_aspect_ratio choices can change during preset switch and
+    # stale values may hard-fail with "value not in choices". Keep reset callback
+    # inputs stable and let it infer scene params from state/preset payload.
+    reset_values_inputs = [state_topbar, state_is_generating, inpaint_mode, use_resolution_override_checkbox, scene_batch_target]
+
+    def enforce_scene_panel_visibility(state):
+        # scene_panel is mounted-hidden and owned by the frontend visibility
+        # registry. Returning a Gradio visibility update here can briefly
+        # remount/reveal stale scene controls during Gradio 6 preset switches.
+        return gr_update()
+
+    def enforce_scene_setting_core_tabs_visibility(state):
+        if isinstance(state, dict) and state.get("scene_frontend"):
+            return [gr.skip()] * 4
+        return [gr.update(visible=True)] * 4
+
+    bind_topbar_navigation_events(
+        bar_buttons=bar_buttons,
+        topbar_module=topbar,
+        reset_preset_inputs=reset_preset_inputs,
+        reset_layout_ui_outputs=reset_layout_ui_outputs,
+        reset_layout_nav_outputs=nav_bars,
+        reset_layout_omitted_output_indices=reset_layout_ui_nav_omitted_output_indices,
+        # Apply scene control value/detail updates after the preset is marked
+        # ready. They are expensive to mount in Gradio 6 and do not need to
+        # block the first usable preset switch frame.
+        reset_layout_scene_outputs=scene_frontend_ctrls,
+        # The reset-layout head/tail split lowers max payload size, but in
+        # real preset switches the extra Gradio event dominates wall time.
+        reset_layout_deferred_ui_state=None,
+        state_topbar=state_topbar,
+        comparison_state=comparison_state,
+        comparison_box=comparison_box,
+        progress_gallery=progress_gallery,
+        compare_btn=compare_btn,
+        progress_window=progress_window,
+        refresh_files_clicked=_refresh_files_clicked_for_model_bridge,
+        model_filter_state=model_filter_state,
+        models_tab_active_state=models_tab_active_state,
+        model_params_state=model_params_state,
+        refresh_files_output=refresh_files_output,
+        lora_ctrls=lora_ctrls,
+        reset_values_inputs=reset_values_inputs,
+        # Gradio 6 preset navigation is dominated by round trips more than
+        # Python work here. Keep the fast reset values and after-identity
+        # updates in one response, while still omitting heavy browser/gallery
+        # outputs from preset navigation.
+        reset_layout_values_outputs=reset_layout_values_nav_outputs,
+        reset_layout_deferred_value_outputs=None,
+        reset_layout_deferred_value_state=None,
+        reset_layout_after_identity_outputs=None,
+        reset_layout_after_identity_state=None,
+        reset_layout_values_fn=reset_layout_values_nav_safe,
+        reset_preset_styles_fn=reset_preset_styles_fast,
+        style_selections=style_selections,
+        sanitize_ip_types=_sanitize_ip_types,
+        ip_types=ip_types,
+        sync_scene_models_from_main=sync_scene_models_from_main,
+        base_model=base_model,
+        refiner_model=refiner_model,
+        scene_generation_model_ctrls=scene_generation_model_ctrls,
+        scene_theme=scene_theme,
+        enforce_scene_panel_visibility=enforce_scene_panel_visibility,
+        scene_panel=scene_panel,
+        enforce_scene_setting_core_tabs_visibility=enforce_scene_setting_core_tabs_visibility,
+        setting_core_tabs=[setting_general_tab, setting_advanced_tab, setting_control_tab, setting_inpaint_tab],
+        advanced_checkbox=advanced_checkbox,
+        advanced_column=advanced_column,
+        system_params=system_params,
+        toggle_image_input_panel=toggle_image_input_panel,
+        input_image_checkbox=input_image_checkbox,
+        qwen_tts_checkbox=qwen_tts_checkbox,
+        image_input_panel=image_input_panel,
+        layout_image_tab=layout_image_tab,
+        update_describe_output_tags=update_describe_output_tags,
+        engine_class_display=engine_class_display,
+        tts_panel=tts_panel,
+        describe_output_tags=describe_output_tags,
+        inpaint_mode_change=inpaint_mode_change,
+        inpaint_mode=inpaint_mode,
+        inpaint_engine_state=inpaint_engine_state,
+        outpaint_selections=outpaint_selections,
+        inpaint_additional_prompt=inpaint_additional_prompt,
+        example_inpaint_prompts=example_inpaint_prompts,
+        inpaint_disable_initial_latent=inpaint_disable_initial_latent,
+        inpaint_engine=inpaint_engine,
+        inpaint_strength=inpaint_strength,
+        inpaint_respective_field=inpaint_respective_field,
+        inpaint_engine_state_change=inpaint_engine_state_change,
+        enhance_inpaint_mode_ctrls=enhance_inpaint_mode_ctrls,
+        enhance_inpaint_engine_ctrls=enhance_inpaint_engine_ctrls,
+        apply_preferred_output_format=apply_preferred_output_format,
+        output_format=output_format,
+        check_and_show_missing_models=check_and_show_missing_models,
+        missing_model_modal=missing_model_modal,
+        missing_model_list=missing_model_list,
+        missing_model_total_progress=missing_model_total_progress,
+        missing_model_btn=missing_model_btn,
+        comfyd_active_checkbox=comfyd_active_checkbox,
+    )
+    bind_topbar_load_chain(
+        root_blocks=shared.gradio_root,
+        topbar_module=topbar,
+        system_params=system_params,
+        state_topbar=state_topbar,
+        admin_ctrls=admin_ctrls,
+        progress_window=progress_window,
+        language_ui=language_ui,
+        background_theme=background_theme,
+        preset_instruction=preset_instruction,
+        user_app_ctrls=user_app_ctrls,
+        qwen_refresh_style_preset_dropdowns=_qwen_refresh_style_preset_dropdowns,
+        qwen_design_style_preset_choices=qwen_design_style_preset_choices,
+        qwen_custom_style_preset_choices=qwen_custom_style_preset_choices,
+        reset_preset_inputs=reset_preset_inputs,
+        reset_layout_ui_outputs=reset_layout_ui_outputs,
+        comparison_state=comparison_state,
+        comparison_box=comparison_box,
+        progress_gallery=progress_gallery,
+        compare_btn=compare_btn,
+        toggle_image_input_panel=toggle_image_input_panel,
+        input_image_checkbox=input_image_checkbox,
+        qwen_tts_checkbox=qwen_tts_checkbox,
+        image_input_panel=image_input_panel,
+        engine_class_display=engine_class_display,
+        layout_image_tab=layout_image_tab,
+        tts_panel=tts_panel,
+        ui_ready_state=ui_ready_state,
+        apply_preferred_output_format=apply_preferred_output_format,
+        output_format=output_format,
+        refresh_files_clicked=_refresh_files_clicked_for_model_bridge,
+        model_filter_state=model_filter_state,
+        refresh_files_output=refresh_files_output,
+        lora_ctrls=lora_ctrls,
+        preset_store_list=preset_store_list,
+        reset_values_inputs=reset_values_inputs,
+        reset_layout_values_outputs=reset_layout_values_outputs,
+        reset_layout_values_fn=reset_layout_values_safe,
+        reset_preset_styles_fn=reset_preset_styles_fast,
+        style_selections=style_selections,
+        sanitize_ip_types=_sanitize_ip_types,
+        ip_types=ip_types,
+        sync_scene_models_from_main=sync_scene_models_from_main,
+        base_model=base_model,
+        refiner_model=refiner_model,
+        scene_generation_model_ctrls=scene_generation_model_ctrls,
+        scene_theme=scene_theme,
+        enforce_scene_panel_visibility=enforce_scene_panel_visibility,
+        scene_panel=scene_panel,
+        enforce_scene_setting_core_tabs_visibility=enforce_scene_setting_core_tabs_visibility,
+        setting_core_tabs=[setting_general_tab, setting_advanced_tab, setting_control_tab, setting_inpaint_tab],
+        advanced_checkbox=advanced_checkbox,
+        advanced_column=advanced_column,
+        inpaint_mode_change=inpaint_mode_change,
+        inpaint_mode=inpaint_mode,
+        inpaint_engine_state=inpaint_engine_state,
+        outpaint_selections=outpaint_selections,
+        inpaint_additional_prompt=inpaint_additional_prompt,
+        example_inpaint_prompts=example_inpaint_prompts,
+        inpaint_disable_initial_latent=inpaint_disable_initial_latent,
+        inpaint_engine=inpaint_engine,
+        inpaint_strength=inpaint_strength,
+        inpaint_respective_field=inpaint_respective_field,
+        aspect_ratios_selections=aspect_ratios_selections,
+        aspect_ratios_selection=aspect_ratios_selection,
+        reset_layout_ui_fn=reset_layout_ui_model_bridge_safe,
+    )
+
+def dump_default_english_config():
+    from modules.localization import dump_english_config
+    blocks = getattr(shared.gradio_root, "blocks", {})
+    components = blocks.values() if isinstance(blocks, dict) else blocks
+    dump_english_config(list(components or []))
+
+#dump_default_english_config()
+import logging
+import httpx
+httpx_logger = logging.getLogger("httpx")
+httpx_logger.setLevel(logging.WARNING)
+
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+if ads.get_admin_default('comfyd_active_checkbox') and not args_manager.args.disable_comfyd and not args_manager.args.disable_backend:
+    comfyd.active(True)
+# Fix for global proxy issues causing "Expecting value: line 1 column 1"
+for key in ['NO_PROXY', 'no_proxy']:
+    current_val = os.environ.get(key, '')
+    if 'localhost' not in current_val:
+        os.environ[key] = f"localhost,127.0.0.1,0.0.0.0,{current_val}".strip(',')
+
+import socket
+import psutil
+
+current_listen = args_manager.args.listen
+if is_local_mode():
+    args_manager.args.listen = "127.0.0.1"
+    if not args_manager.args.port:
+        args_manager.args.port = 8186
+else:
+    is_listen_invalid = (
+        current_listen is None or
+        current_listen == "0.0.0.0" or
+        simpleai.is_fake_or_suspicious_ip(current_listen)
+    )
+
+    if is_listen_invalid:
+        try:
+            hostname = socket.gethostname()
+            local_ip = socket.gethostbyname(hostname)
+            if simpleai.is_fake_or_suspicious_ip(local_ip) or simpleai.is_fake_or_suspicious_ip(current_listen):
+                logging.warning(f"Detected Fake/Proxy IP configuration (Listen: {current_listen}, Resolved: {local_ip}).")
+                best_ip = simpleai.get_best_local_ip()
+                if best_ip != '127.0.0.1':
+                    logging.info(f"Forcing Gradio to bind to valid LAN IP: {best_ip}")
+                    args_manager.args.listen = best_ip
+                    
+                    # Re-check port availability because IP has changed
+                    if not simpleai.is_port_available(args_manager.args.port, best_ip):
+                        new_port = simpleai.find_available_port(args_manager.args.port, host=best_ip, suppress_logging=True)
+                        if new_port != args_manager.args.port:
+                            logging.info(f"Port {args_manager.args.port} is occupied on {best_ip}, automatically switched to: {new_port}")
+                            args_manager.args.port = new_port
+                else:
+                    logging.info(f"Could not find a better LAN IP, falling back to 0.0.0.0 to ensure accessibility.")
+                    args_manager.args.listen = "0.0.0.0"
+                    
+                    # Re-check for 0.0.0.0 as well
+                    if not simpleai.is_port_available(args_manager.args.port, "0.0.0.0"):
+                        new_port = simpleai.find_available_port(args_manager.args.port, host="0.0.0.0", suppress_logging=True)
+                        if new_port != args_manager.args.port:
+                            logging.info(f"Port {args_manager.args.port} is occupied on 0.0.0.0, automatically switched to: {new_port}")
+                            args_manager.args.port = new_port
+        except Exception as e:
+            if simpleai.is_fake_or_suspicious_ip(current_listen):
+                 args_manager.args.listen = "0.0.0.0"
+                 
+                 # Re-check for 0.0.0.0
+                 if not simpleai.is_port_available(args_manager.args.port, "0.0.0.0"):
+                     new_port = simpleai.find_available_port(args_manager.args.port, host="0.0.0.0", suppress_logging=True)
+                     if new_port != args_manager.args.port:
+                         logging.info(f"Port {args_manager.args.port} is occupied on 0.0.0.0, automatically switched to: {new_port}")
+                         args_manager.args.port = new_port
+            pass
+
+app, local_url, share_url = launch_root_app(
+    shared.gradio_root,
+    inbrowser=args_manager.args.in_browser,
+    server_name=args_manager.args.listen,
+    server_port=args_manager.args.port,
+    share=args_manager.args.share,
+    root_path=args_manager.args.webroot,
+    auth=check_auth if (args_manager.args.share or args_manager.args.listen) and auth_enabled else None,
+    allowed_paths=[
+        os.path.abspath("."),
+        os.path.abspath("./javascript"),
+        os.path.abspath("./css"),
+        os.path.abspath("./webfonts"),
+        os.path.abspath("./language"),
+        os.path.abspath("./sdxl_styles"),
+        os.path.abspath("./presets"),
+        modules.config.path_userhome,
+        modules.config.get_path_models_root(),
+        *modules.config.paths_checkpoints,
+        *modules.config.paths_loras,
+        *getattr(modules.config, "paths_upscale_models", [])
+    ],
+    blocked_paths=[constants.AUTH_FILENAME],
+    prevent_thread_lock=True
+)
+
+import threading
+import uuid
+from fastapi import Body, Request
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from starlette.concurrency import run_in_threadpool
+import enhanced.layerforge_matting as layerforge_matting
+import enhanced.layerforge_openpose as layerforge_openpose
+import enhanced.layerforge_sam3_image_mask as layerforge_sam3_image_mask
+import modules.canvas_workbench_runner as canvas_workbench_runner
+import modules.canvas_workbench_xyz as canvas_workbench_xyz
+import modules.canvas_workbench_models as canvas_workbench_models
+import modules.canvas_workbench_assets as canvas_workbench_assets
+import modules.canvas_workbench_qwen_tts as canvas_workbench_qwen_tts
+import modules.canvas_workbench_timeline as canvas_workbench_timeline
+import modules.model_browser_service as model_browser_service
+import ui.services.pose_studio as pose_studio_service
+import ui.services.gaussian_studio as gaussian_studio_service
+from modules.ui_gradio_extensions import ensure_tag_cart_custom_tags_path, webpath
+
+_matting_lock = threading.Lock()
+_openpose_lock = threading.Lock()
+_sam3_image_mask_lock = threading.Lock()
+_canvas_translate_lock = threading.Lock()
+_canvas_translate_jobs = {}
+
+def _canvas_workbench_standalone_system_params(request: Request):
+    query = request.query_params if request is not None else {}
+    try:
+        user_did = shared.token.get_guest_did() if shared.token is not None else ""
+    except Exception:
+        user_did = ""
+    if not user_did:
+        user_did = "local" if is_local_mode() else "guest"
+    theme = str(query.get("__theme") or args_manager.args.theme or "light").strip() or "light"
+    lang = str(query.get("__lang") or query.get("lang") or "cn").strip() or "cn"
+    access_mode = "local" if is_local_mode() else "multi"
+    return {
+        "access_mode": access_mode,
+        "user_role": "local" if access_mode == "local" else "multi",
+        "user_did": user_did,
+        "__user_did": user_did,
+        "__theme": theme,
+        "__lang": lang,
+    }
+
+
+def _canvas_workbench_model_meta_paths(catalog_name, fallback_paths=None):
+    raw_paths = []
+    try:
+        raw_paths = list((modules.config.model_cata_map or {}).get(catalog_name) or [])
+    except Exception:
+        raw_paths = []
+    if not raw_paths:
+        raw_paths = list(fallback_paths or [])
+    result = []
+    for path in raw_paths:
+        try:
+            if path and os.path.exists(path):
+                url = webpath(path)
+                if url not in result:
+                    result.append(url)
+        except Exception:
+            continue
+    return result
+
+
+def _canvas_workbench_standalone_html(request: Request):
+    params = _canvas_workbench_standalone_system_params(request)
+    theme = "dark" if str(params.get("__theme") or "").lower().find("dark") >= 0 else "light"
+    lang = "en" if str(params.get("__lang") or "").lower().startswith("en") else "cn"
+    system_params_json = json.dumps(params, ensure_ascii=False)
+
+    css_paths = [
+        webpath("css/style.css"),
+        webpath("css/fa_all.min_6.5.2.css"),
+        webpath("css/font_awesome_fix.css"),
+        webpath("css/tag_cart.css"),
+        webpath("css/infinite_canvas_workbench.css"),
+    ]
+    script_paths = [
+        webpath("javascript/simpleai_i18n.js"),
+        webpath("javascript/canvas_workbench/utils.js"),
+        webpath("javascript/canvas_workbench/api.js"),
+        webpath("javascript/model_browser.js"),
+        webpath("javascript/describe_vlm_chat.js"),
+        webpath("javascript/webui_danbooru_autocomplete.js"),
+        webpath("javascript/papaparse.min_5.4.1.js"),
+        webpath("javascript/sortable.min_1.15.2f.js"),
+        webpath("javascript/tag_cart.js"),
+        webpath("javascript/pose_studio_editor.js"),
+        webpath("javascript/gaussian_studio_editor.js"),
+        webpath("javascript/canvas_workbench/registry.js"),
+        webpath("javascript/canvas_workbench/vlm_chat.js"),
+        webpath("javascript/canvas_workbench/canvas_agent.js"),
+        webpath("javascript/canvas_workbench/project_store.js"),
+        webpath("javascript/canvas_workbench/viewport.js"),
+        webpath("javascript/canvas_workbench/scheduler.js"),
+        webpath("javascript/canvas_workbench/media_helpers.js"),
+        webpath("javascript/canvas_workbench/nodes/asset_node_common.js"),
+        webpath("javascript/canvas_workbench/asset_manager.js"),
+        webpath("javascript/canvas_workbench/node_browser.js"),
+        webpath("javascript/canvas_workbench/project_manager.js"),
+        webpath("javascript/canvas_workbench/group_list.js"),
+        webpath("javascript/canvas_workbench/mask_editor.js"),
+        webpath("javascript/canvas_workbench/media_viewers.js"),
+        webpath("javascript/canvas_workbench/run_history_panel.js"),
+        webpath("javascript/canvas_workbench/run_queue_panel.js"),
+        webpath("javascript/canvas_workbench/media_timeline.js"),
+        webpath("javascript/canvas_workbench/nodes/image_node.js"),
+        webpath("javascript/canvas_workbench/nodes/video_node.js"),
+        webpath("javascript/canvas_workbench/nodes/audio_node.js"),
+        webpath("javascript/canvas_workbench/nodes/compare_node.js"),
+        webpath("javascript/canvas_workbench/nodes/sam3_video_mask_node.js"),
+        webpath("javascript/canvas_workbench/nodes/pose_studio_node.js"),
+        webpath("javascript/canvas_workbench/nodes/gaussian_studio_node.js"),
+        webpath("javascript/canvas_workbench/nodes/qwen_tts_node.js"),
+        webpath("javascript/canvas_workbench/nodes/style_selector_node.js"),
+        webpath("javascript/canvas_workbench/sketch_adapter.js"),
+        webpath("javascript/infinite_canvas_workbench.js"),
+    ]
+    meta_values = {
+        "samples-path": webpath(os.path.abspath("./sdxl_styles/samples/fooocus_v2.jpg")),
+        "preset-samples-path": webpath(os.path.abspath("./presets/samples/default.jpg")),
+        "model-path": webpath(modules.config.get_path_models_root()),
+        "tag-cart-custom-tags-path": webpath(ensure_tag_cart_custom_tags_path()),
+        "checkpoints-paths": ",".join(_canvas_workbench_model_meta_paths("checkpoints", modules.config.paths_checkpoints)),
+        "loras-paths": ",".join(_canvas_workbench_model_meta_paths("loras", modules.config.paths_loras)),
+        "upscale_models-paths": ",".join(_canvas_workbench_model_meta_paths("upscale_models", getattr(modules.config, "paths_upscale_models", []))),
+    }
+
+    links = "\n".join(f'<link rel="stylesheet" property="stylesheet" href="{html.escape(path, quote=True)}">' for path in css_paths)
+    scripts = "\n".join(f'<script type="text/javascript" src="{html.escape(path, quote=True)}"></script>' for path in script_paths)
+    metas = "\n".join(f'<meta name="{html.escape(name, quote=True)}" content="{html.escape(value, quote=True)}">' for name, value in meta_values.items())
+    return f"""<!doctype html>
+<html lang="{html.escape(lang, quote=True)}" data-theme="{html.escape(theme, quote=True)}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SimpAI Infinite Canvas</title>
+{metas}
+{links}
+<style>
+html, body {{ width: 100%; height: 100%; margin: 0; overflow: hidden; background: {('#181818' if theme == 'dark' else '#f7f7f8')}; }}
+body.simpai-canvas-standalone-loading::before {{ content: "Loading Infinite Canvas"; position: fixed; inset: 0; display: grid; place-items: center; color: {('#e7e7e7' if theme == 'dark' else '#27272a')}; font: 14px/1.4 system-ui, sans-serif; }}
+</style>
+<script type="text/javascript">
+(function () {{
+    window.SimpAIInfiniteCanvasStandalone = true;
+    window.SimpAIInfiniteCanvasStandaloneCloseDisabled = true;
+    document.body && document.body.classList.add('simpai-canvas-standalone-loading');
+    var fallback = {system_params_json};
+    var stored = {{}};
+    try {{
+        stored = JSON.parse(localStorage.getItem('simpai.canvasWorkbench.systemParams') || '{{}}') || {{}};
+    }} catch (err) {{
+        stored = {{}};
+    }}
+    window.simpleaiTopbarSystemParams = Object.assign({{}}, fallback, stored, {{ __canvas_standalone: true }});
+    var standaloneActiveKey = 'simpai.canvasWorkbench.standaloneActive';
+    var standaloneTabId = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : String(Date.now()) + '-' + String(Math.random()).slice(2);
+    function writeStandaloneActive(active) {{
+        try {{
+            localStorage.setItem('simpai.canvasWorkbench.openMode', 'standalone');
+            localStorage.setItem(standaloneActiveKey, JSON.stringify({{
+                active: !!active,
+                source: 'standalone',
+                tab_id: standaloneTabId,
+                updated_at: Date.now()
+            }}));
+        }} catch (err) {{}}
+    }}
+    try {{
+        localStorage.setItem('simpai.canvasWorkbench.systemParams', JSON.stringify(window.simpleaiTopbarSystemParams || {{}}));
+    }} catch (err) {{}}
+    writeStandaloneActive(true);
+    window.setInterval(function () {{ writeStandaloneActive(true); }}, 3000);
+    window.addEventListener('pagehide', function () {{ writeStandaloneActive(false); }});
+    window.addEventListener('beforeunload', function () {{ writeStandaloneActive(false); }});
+}})();
+</script>
+{scripts}
+<script type="text/javascript">
+window.addEventListener('load', function () {{
+    function openCanvas() {{
+        var api = window.SimpAIInfiniteCanvasWorkbench;
+        if (api && typeof api.open === 'function') {{
+            api.open({{ source: 'standalone_page' }});
+            document.body.classList.remove('simpai-canvas-standalone-loading');
+            return;
+        }}
+        window.setTimeout(openCanvas, 50);
+    }}
+    openCanvas();
+}});
+</script>
+</head>
+<body class="simpai-canvas-standalone-loading"></body>
+</html>"""
+
+
+def _canvas_workbench_state_params(payload):
+    return canvas_workbench_project._state_params_for_payload(payload if isinstance(payload, dict) else {}, {})
+
+def _canvas_wildcards_user_did(payload=None):
+    payload = payload if isinstance(payload, dict) else {}
+    user_context = payload.get("user_context") if isinstance(payload.get("user_context"), dict) else {}
+    user_did = str(user_context.get("user_did") or payload.get("user_did") or "").strip()
+    if user_did:
+        return user_did
+    try:
+        token = getattr(shared, "token", None)
+        if token is not None and hasattr(token, "get_guest_did"):
+            return token.get_guest_did()
+    except Exception:
+        pass
+    return "guest" if is_local_mode() else None
+
+@app.get("/file={path:path}")
+async def legacy_file_redirect(path: str):
+    # Keep old WebUI and LayerForge asset URLs working on top of Gradio 6's
+    # /gradio_api/file= route while we gradually migrate frontend code.
+    return RedirectResponse(url=f"/gradio_api/file={path}", status_code=307)
+
+@app.get("/canvas-workbench/app")
+async def canvas_workbench_standalone_app(request: Request):
+    return HTMLResponse(
+        _canvas_workbench_standalone_html(request),
+        headers={
+            "Cache-Control": "no-store",
+        },
+    )
+
+@app.get("/model-browser/preview")
+async def model_browser_preview_endpoint(path: str = ""):
+    try:
+        if not model_browser_service.is_preview_path_allowed(path):
+            return JSONResponse({"ok": False, "error": "preview path is not allowed"}, status_code=403)
+        return FileResponse(path)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": "Model Browser Preview Error", "details": str(e)}, status_code=500)
+
+@app.post("/model-browser/query")
+async def model_browser_query_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: model_browser_service.query_models(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Model Browser Query Error", "details": str(e)}, status_code=500)
+
+@app.post("/model-browser/detail")
+async def model_browser_detail_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: model_browser_service.detail_model(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Model Browser Detail Error", "details": str(e)}, status_code=500)
+
+@app.post("/model-browser/update-trigger-words")
+async def model_browser_update_trigger_words_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: model_browser_service.update_trigger_words(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Model Browser Trigger Words Error", "details": str(e)}, status_code=500)
+
+@app.post("/model-browser/compute-hash")
+async def model_browser_compute_hash_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: model_browser_service.compute_hash(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Model Browser Hash Error", "details": str(e)}, status_code=500)
+
+@app.post("/model-browser/set-preview")
+async def model_browser_set_preview_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: model_browser_service.set_preview(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Model Browser Preview Save Error", "details": str(e)}, status_code=500)
+
+@app.post("/model-browser/fetch-metadata")
+async def model_browser_fetch_metadata_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: model_browser_service.fetch_metadata(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Model Browser Metadata Error", "details": str(e)}, status_code=500)
+
+@app.post("/model-browser/fetch-batch")
+async def model_browser_fetch_batch_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: model_browser_service.fetch_batch(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Model Browser Batch Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/status")
+async def pose_studio_status_endpoint(payload: dict = Body(default={})):
+    try:
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.resource_status(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Status Error", "details": str(e)}, status_code=500)
+
+@app.get("/pose-studio/vendor/{path:path}")
+async def pose_studio_vendor_asset_endpoint(path: str):
+    try:
+        result = await run_in_threadpool(lambda: pose_studio_service.vendor_asset({"path": path}))
+        if not result.get("ok"):
+            return JSONResponse(result, status_code=404 if result.get("error") == "vendor asset not found" else 400)
+        return FileResponse(result.get("path"), media_type=result.get("media_type") or None)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Vendor Asset Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/character/update-preview")
+async def pose_studio_character_update_preview_endpoint(payload: dict = Body(default={})):
+    try:
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.character_preview(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Character Preview Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/library/list")
+async def pose_studio_library_list_endpoint(payload: dict = Body(default={})):
+    try:
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.list_pose_library(payload, {}))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Library Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/library/get")
+async def pose_studio_library_get_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.get_pose(payload, {}))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Get Pose Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/library/save")
+async def pose_studio_library_save_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.save_pose(payload, {}))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Save Pose Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/library/delete")
+async def pose_studio_library_delete_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.delete_pose(payload, {}))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Delete Pose Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/library/rename")
+async def pose_studio_library_rename_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.rename_pose(payload, {}))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Rename Pose Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/import/status")
+async def pose_studio_import_status_endpoint(payload: dict = Body(default={})):
+    try:
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.import_status(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Import Status Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/import/reference-image")
+async def pose_studio_import_reference_image_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.import_reference_image(payload, {}))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Reference Import Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/render-overlay")
+async def pose_studio_render_overlay_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.render_overlay(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Render Overlay Error", "details": str(e)}, status_code=500)
+
+@app.post("/pose-studio/canvas/export")
+async def pose_studio_canvas_export_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: pose_studio_service.save_canvas_export(payload, {}))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Pose Studio Export Error", "details": str(e)}, status_code=500)
+
+@app.post("/gaussian-studio/status")
+async def gaussian_studio_status_endpoint(payload: dict = Body(default={})):
+    try:
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: gaussian_studio_service.resource_status(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Gaussian Studio Status Error", "details": str(e)}, status_code=500)
+
+@app.get("/gaussian-studio/vendor/{path:path}")
+async def gaussian_studio_vendor_asset_endpoint(path: str):
+    try:
+        result = await run_in_threadpool(lambda: gaussian_studio_service.vendor_asset({"path": path}))
+        if not result.get("ok"):
+            return JSONResponse(result, status_code=404 if result.get("error") == "vendor asset not found" else 400)
+        return FileResponse(
+            result.get("path"),
+            media_type=result.get("media_type") or None,
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Gaussian Studio Vendor Asset Error", "details": str(e)}, status_code=500)
+
+@app.post("/gaussian-studio/predict")
+async def gaussian_studio_predict_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: gaussian_studio_service.predict_from_reference(payload, {}))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Gaussian Studio Predict Error", "details": str(e)}, status_code=500)
+
+@app.post("/gaussian-studio/canvas/export")
+async def gaussian_studio_canvas_export_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: gaussian_studio_service.save_canvas_export(payload, {}))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Gaussian Studio Export Error", "details": str(e)}, status_code=500)
+
+@app.post("/model-browser/delete")
+async def model_browser_delete_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: model_browser_service.delete_model(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": "Model Browser Delete Error", "details": str(e)}, status_code=500)
+
+@app.post("/canvas-workbench/wildcards/catalog")
+async def canvas_workbench_wildcards_catalog(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        user_did = _canvas_wildcards_user_did(payload)
+        catalog = wildcards.wildcard_catalog_payload(
+            path=str(payload.get("path") or "root"),
+            trans=bool(payload.get("trans", False)),
+            user_did=user_did,
+            lang=payload.get("__lang") or payload.get("lang") or payload.get("language"),
+        )
+        if payload.get("wildcard"):
+            catalog["words"] = wildcards.get_words_of_wildcard_samples(
+                str(payload.get("wildcard")),
+                user_did=user_did,
+                lang=payload.get("__lang") or payload.get("lang") or payload.get("language"),
+            )
+        return JSONResponse({"ok": True, **catalog})
+    except Exception as e:
+        logger.exception("Canvas wildcards catalog failed")
+        return JSONResponse({"ok": False, "error": "Wildcards Catalog Error", "details": str(e)}, status_code=500)
+
+@app.post("/canvas-workbench/wildcards/helper-tag")
+async def canvas_workbench_wildcards_helper_tag(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        tag = wildcards.build_wildcards_helper_tag(
+            payload.get("target") or "Array (batch)",
+            payload.get("method") or "Random Select",
+            payload.get("seed_mode") or "Fixed seed",
+            payload.get("name") or "",
+            payload.get("count") or 1,
+            payload.get("start") or 1,
+            payload.get("group_size") or 1,
+        )
+        return JSONResponse({"ok": True, "tag": tag})
+    except Exception as e:
+        logger.exception("Canvas wildcards helper-tag failed")
+        return JSONResponse({"ok": False, "error": "Wildcards Helper Error", "details": str(e)}, status_code=500)
+
+@app.post("/canvas-workbench/wildcards/preview")
+async def canvas_workbench_wildcards_preview(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        user_did = _canvas_wildcards_user_did(payload)
+        result = wildcards.preview_wildcards(
+            payload.get("prompt") or "",
+            negative_prompt=payload.get("negative_prompt") or "",
+            seed=payload.get("seed", -1),
+            image_number=payload.get("image_number", 1),
+            user_did=user_did,
+            max_samples=payload.get("max_samples", 3),
+        )
+        return JSONResponse({"ok": True, **result})
+    except Exception as e:
+        logger.exception("Canvas wildcards preview failed")
+        return JSONResponse({"ok": False, "error": "Wildcards Preview Error", "details": str(e)}, status_code=500)
+
+@app.post("/canvas-workbench/wildcards/personal")
+async def canvas_workbench_wildcards_personal(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        user_did = _canvas_wildcards_user_did(payload)
+        action = str(payload.get("action") or "list").strip().lower()
+        if action == "load":
+            result = wildcards.personal_wildcards_json_load(payload.get("name") or "", user_did=user_did)
+        elif action == "save":
+            result = wildcards.personal_wildcards_json_save(payload.get("name") or "", payload.get("content") or "", user_did=user_did)
+        elif action == "delete":
+            result = wildcards.personal_wildcards_json_delete(payload.get("name") or "", user_did=user_did)
+        else:
+            result = wildcards.personal_wildcards_json_list(user_did=user_did)
+            result["ok"] = True
+        return JSONResponse(result)
+    except Exception as e:
+        logger.exception("Canvas personal wildcards failed")
+        return JSONResponse({"ok": False, "error": "Personal Wildcards Error", "details": str(e)}, status_code=500)
+
+@app.post("/canvas-agent/danbooru-tags/lookup")
+async def canvas_agent_danbooru_tags_lookup(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        query = str(payload.get("query") or payload.get("prompt") or "")[:4000]
+        model_hint = str(payload.get("model_hint") or "")[:1000]
+        preset_defaults = payload.get("preset_defaults") if isinstance(payload.get("preset_defaults"), dict) else {}
+        tag_source_mode = canvas_danbooru_service._canvas_danbooru_tag_source_mode(payload.get("tag_source") or payload.get("tag_source_mode"))
+        limit = max(1, min(int(payload.get("limit") or 24), 80))
+        character_resolution = canvas_danbooru_service._canvas_resolve_danbooru_characters(query, limit=12)
+        matches = canvas_danbooru_service._canvas_lookup_danbooru_tags(query, limit=limit, source_mode=tag_source_mode)
+        matches = canvas_danbooru_service._canvas_merge_character_candidates_into_matches(matches, character_resolution, limit=limit)
+        text = canvas_danbooru_service._canvas_danbooru_lookup_text(query, model_hint=model_hint, preset_defaults=preset_defaults, limit=limit, source_mode=tag_source_mode)
+        return JSONResponse({"ok": True, "matches": matches, "text": text, "tag_source": tag_source_mode, "character_resolution": character_resolution})
+    except Exception as e:
+        logger.exception("Danbooru tag lookup failed")
+        return JSONResponse({"ok": False, "error": "Danbooru Tag Lookup Error", "details": str(e)}, status_code=500)
+
+@app.post("/canvas-workbench/danbooru-autocomplete")
+async def canvas_workbench_danbooru_autocomplete(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        query = str(payload.get("query") or payload.get("term") or "")[:200]
+        tag_source_mode = canvas_danbooru_service._canvas_danbooru_tag_source_mode(payload.get("tag_source") or payload.get("tag_source_mode") or "all")
+        limit = max(1, min(int(payload.get("limit") or 32), 80))
+        items = canvas_danbooru_service._canvas_autocomplete_danbooru_tags(query, limit=limit, source_mode=tag_source_mode)
+        return JSONResponse({"ok": True, "items": items, "query": query, "tag_source": tag_source_mode})
+    except Exception as e:
+        logger.exception("Danbooru autocomplete failed")
+        return JSONResponse({"ok": False, "error": "Danbooru Autocomplete Error", "details": str(e)}, status_code=500)
+
+@app.post("/canvas-agent/danbooru-gallery/import-preview")
+async def canvas_agent_danbooru_gallery_import_preview(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        samples = payload.get("sample_queries") if isinstance(payload.get("sample_queries"), list) else None
+        limit = max(1, min(int(payload.get("limit") or payload.get("limit_conflicts") or 50), 200))
+        return JSONResponse(canvas_danbooru_service._canvas_gallery_import_preview(sample_queries=samples, limit_conflicts=limit))
+    except Exception as e:
+        logger.exception("Danbooru Gallery import preview failed")
+        return JSONResponse({"ok": False, "error": "Danbooru Gallery Import Preview Error", "details": str(e)}, status_code=500)
+
+@app.get("/canvas-workbench/danbooru-gallery/check")
+async def canvas_workbench_danbooru_gallery_check():
+    try:
+        result = await run_in_threadpool(canvas_workbench_danbooru_gallery.check_network)
+        return JSONResponse(result, status_code=200)
+    except Exception as e:
+        logger.exception("Danbooru Gallery check failed")
+        return JSONResponse({"ok": False, "error": "Danbooru Gallery Check Error", "details": str(e)}, status_code=500)
+
+@app.get("/danbooru_gallery/check_network")
+async def legacy_danbooru_gallery_check_network():
+    try:
+        result = await run_in_threadpool(canvas_workbench_danbooru_gallery.check_network)
+        return JSONResponse({
+            "success": bool(result.get("ok", True)),
+            "connected": bool(result.get("connected")),
+            "network_error": bool(result.get("network_error") or not result.get("connected")),
+        }, status_code=200)
+    except Exception as e:
+        logger.exception("Legacy Danbooru Gallery check failed")
+        return JSONResponse({"success": False, "error": str(e), "network_error": True}, status_code=500)
+
+@app.get("/canvas-workbench/danbooru-gallery/posts")
+async def canvas_workbench_danbooru_gallery_posts(request: Request):
+    try:
+        query = dict(request.query_params)
+        result = await run_in_threadpool(lambda: canvas_workbench_danbooru_gallery.list_posts(query))
+        status_code = 200 if result.get("ok") else int(result.get("http_status") or 502)
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        logger.exception("Danbooru Gallery posts failed")
+        return JSONResponse({"ok": False, "error": "Danbooru Gallery Posts Error", "details": str(e)}, status_code=500)
+
+@app.get("/danbooru_gallery/posts")
+async def legacy_danbooru_gallery_posts(request: Request):
+    try:
+        query = dict(request.query_params)
+        result = await run_in_threadpool(lambda: canvas_workbench_danbooru_gallery.list_posts(query))
+        return JSONResponse(result.get("posts") if result.get("ok") else [], status_code=200)
+    except Exception as e:
+        logger.exception("Legacy Danbooru Gallery posts failed")
+        return JSONResponse([], status_code=200)
+
+@app.get("/canvas-workbench/danbooru-gallery/image-proxy")
+@app.get("/danbooru_gallery/image_proxy")
+async def canvas_workbench_danbooru_gallery_image_proxy(request: Request):
+    try:
+        url = request.query_params.get("url", "")
+        result = await run_in_threadpool(lambda: canvas_workbench_danbooru_gallery.proxy_media(url))
+        if not result.get("ok"):
+            return PlainTextResponse(
+                result.get("details") or result.get("error") or "Danbooru media proxy failed",
+                status_code=int(result.get("http_status") or 502),
+            )
+        return Response(
+            content=result.get("content") or b"",
+            media_type=result.get("content_type") or "application/octet-stream",
+            headers={"Cache-Control": result.get("cache_control") or "public, max-age=86400"},
+        )
+    except Exception as e:
+        logger.exception("Danbooru Gallery image proxy failed")
+        return PlainTextResponse(str(e), status_code=500)
+
+@app.post("/canvas-agent/character-glossary")
+async def canvas_agent_character_glossary(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        action = str(payload.get("action") or "list").strip().lower()
+        if action in {"save", "upsert", "add"}:
+            entry = payload.get("entry") if isinstance(payload.get("entry"), dict) else payload
+            saved = canvas_danbooru_service._canvas_upsert_character_glossary_entry(entry)
+            return JSONResponse({"ok": True, "entry": saved, "rows": canvas_danbooru_service._canvas_read_character_glossary_dicts(), "path": canvas_danbooru_service._canvas_character_glossary_path()})
+        return JSONResponse({"ok": True, "rows": canvas_danbooru_service._canvas_read_character_glossary_dicts(), "path": canvas_danbooru_service._canvas_character_glossary_path()})
+    except Exception as e:
+        logger.exception("Character glossary operation failed")
+        return JSONResponse({"ok": False, "error": "Character Glossary Error", "details": str(e)}, status_code=500)
+
+@app.post("/canvas-agent/prompt-preflight")
+async def canvas_agent_prompt_preflight(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        return JSONResponse(canvas_danbooru_preflight.prompt_preflight_check(payload))
+    except Exception as e:
+        logger.exception("Prompt preflight failed")
+        return JSONResponse({"ok": False, "error": "Prompt Preflight Error", "details": str(e)}, status_code=500)
+
+@app.post("/canvas-agent/prompt-preflight/acceptance")
+async def canvas_agent_prompt_preflight_acceptance(payload: dict = Body(...)):
+    try:
+        cases = [
+            {
+                "id": "flux_chinese_block",
+                "prompt": "雨夜侦探海报，霓虹灯，电影感",
+                "target_key": "flux_t5_en",
+                "action": "text_to_image",
+                "expect": "block",
+            },
+            {
+                "id": "sdxl_chinese_block",
+                "prompt": "一个魔法少女站在夜空下，看着镜头",
+                "target_key": "sdxl_danbooru",
+                "action": "text_to_image",
+                "expect": "block",
+            },
+            {
+                "id": "sdxl_tags_pass",
+                "prompt": "1girl, magical_girl, looking_at_viewer",
+                "target_key": "sdxl_danbooru",
+                "action": "text_to_image",
+                "expect": "pass",
+            },
+            {
+                "id": "sdxl_ganyu_character_pass",
+                "prompt": "1girl, solo, ganyu_(genshin_impact), genshin_impact, horns, blue_hair, long_hair",
+                "user_prompt": "原神甘雨",
+                "target_key": "sdxl_danbooru",
+                "action": "text_to_image",
+                "expect": "pass",
+            },
+            {
+                "id": "sdxl_gallery_miku_character_pass",
+                "prompt": "1girl, solo, hatsune_miku, twintails, blue_hair, looking_at_viewer",
+                "user_prompt": "初音未来",
+                "target_key": "sdxl_danbooru",
+                "action": "text_to_image",
+                "expect": "pass",
+            },
+            {
+                "id": "sdxl_ganyu_missing_block",
+                "prompt": "1girl, solo, horns, blue_hair, long_hair",
+                "user_prompt": "原神甘雨",
+                "target_key": "sdxl_danbooru",
+                "action": "text_to_image",
+                "expect": "block",
+            },
+            {
+                "id": "sdxl_unknown_character_tag_block",
+                "prompt": "1girl, solo, alice_in_unknownland_(fake_series), looking_at_viewer",
+                "target_key": "sdxl_danbooru",
+                "action": "text_to_image",
+                "expect": "block",
+            },
+            {
+                "id": "sdxl_unwanted_halo_block",
+                "prompt": "1girl, solo, ganyu_(genshin_impact), genshin_impact, halo, horns, blue_hair",
+                "user_prompt": "原神甘雨",
+                "target_key": "sdxl_danbooru",
+                "action": "text_to_image",
+                "expect": "block",
+            },
+            {
+                "id": "wan_static_warning",
+                "prompt": "1girl, rain, street, night, cinematic lighting",
+                "target_key": "wan_video_cn",
+                "action": "text_to_video",
+                "expect": "warning",
+            },
+            {
+                "id": "qwen_logic_warning",
+                "prompt": "美丽，精致，高质量",
+                "target_key": "qwen_natural",
+                "action": "text_to_image",
+                "expect": "warning",
+            },
+        ]
+        if isinstance(payload, dict) and isinstance(payload.get("cases"), list):
+            cases = payload.get("cases")
+        results = []
+        for case in cases:
+            if not isinstance(case, dict):
+                continue
+            target_key = str(case.get("target_key") or "")
+            result = canvas_danbooru_preflight.prompt_preflight_check({
+                "prompt": case.get("prompt") or "",
+                "user_prompt": case.get("user_prompt") or "",
+                "action": case.get("action") or "",
+                "prompt_target": {"key": target_key, "label": target_key},
+                "preset_defaults": case.get("preset_defaults") if isinstance(case.get("preset_defaults"), dict) else {},
+            })
+            expected = str(case.get("expect") or "")
+            results.append({
+                "id": case.get("id") or "",
+                "input": case.get("prompt") or "",
+                "target": target_key,
+                "expected": expected,
+                "actual": result.get("state"),
+                "passed": not expected or expected == result.get("state"),
+                "checks": result.get("checks") or [],
+                "matches": result.get("matches") or [],
+                "unmatched_terms": result.get("unmatched_terms") or [],
+                "character_resolution": result.get("character_resolution") or {},
+                "unknown_character_tags": result.get("unknown_character_tags") or [],
+            })
+        passed = sum(1 for item in results if item.get("passed"))
+        markdown = ["# Prompt Preflight Acceptance", ""]
+        for item in results:
+            mark = "PASS" if item.get("passed") else "FAIL"
+            markdown.append(f"- {mark} `{item.get('id')}` expected `{item.get('expected')}`, got `{item.get('actual')}`")
+        return JSONResponse({
+            "ok": True,
+            "passed": passed,
+            "total": len(results),
+            "results": results,
+            "markdown": "\n".join(markdown),
+        })
+    except Exception as e:
+        logger.exception("Prompt preflight acceptance failed")
+        return JSONResponse({"ok": False, "error": "Prompt Preflight Acceptance Error", "details": str(e)}, status_code=500)
+
+@app.post("/canvas-workbench/project-save")
+async def canvas_workbench_project_save_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_project.save_project(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Project Save Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/project-load")
+async def canvas_workbench_project_load_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_project.load_project(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Project Load Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/project-list")
+async def canvas_workbench_project_list_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_project.list_projects(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Project List Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/project-delete")
+async def canvas_workbench_project_delete_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_project.delete_project(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Project Delete Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/project-clear")
+async def canvas_workbench_project_clear_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_project.clear_project(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Project Clear Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/template-save")
+async def canvas_workbench_template_save_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_project.save_template(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Template Save Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/template-list")
+async def canvas_workbench_template_list_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_project.list_templates(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Template List Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/template-load")
+async def canvas_workbench_template_load_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_project.load_template(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Template Load Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/template-delete")
+async def canvas_workbench_template_delete_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_project.delete_template(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Template Delete Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.get("/canvas-workbench/special-viewer/{viewer_kind}")
+async def canvas_workbench_special_viewer_endpoint(viewer_kind: str):
+    try:
+        kind = str(viewer_kind or "").strip().lower().replace("_", "-")
+        if kind in ("qwen-multiangle", "multiangle"):
+            html_text = qwen_multiangle.VIEWER_HTML
+        elif kind in ("flux-anglelight", "flux2-anglelight", "anglelight"):
+            html_text = flux_anglelight.VIEWER_HTML
+        else:
+            return PlainTextResponse("Unknown canvas workbench viewer.", status_code=404)
+        return HTMLResponse(
+            html_text,
+            headers={
+                "Cache-Control": "no-store",
+            },
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return PlainTextResponse(f"Canvas Workbench Viewer Error: {e}", status_code=500)
+
+@app.post("/canvas-workbench/dry-run")
+async def canvas_workbench_dry_run_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_runner.dry_run_node(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Dry-run Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/run-node")
+async def canvas_workbench_run_node_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_runner.run_node(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        status_code = 200 if result.get("ok") else 400
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Run Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/poll-run")
+async def canvas_workbench_poll_run_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_runner.poll_run(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        status_code = 200 if result.get("ok") else 404 if result.get("error") == "run not found" else 400
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Poll Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/control-run")
+async def canvas_workbench_control_run_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_runner.control_run(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        status_code = 200 if result.get("ok") else 404 if result.get("error") == "run not found" else 400
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Control Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/xyz/axis-options")
+async def canvas_workbench_xyz_axis_options_endpoint(payload: dict = Body(default=None)):
+    try:
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_xyz.axis_options(payload)
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench X/Y/Z Axis Options Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/xyz/preview")
+async def canvas_workbench_xyz_preview_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_xyz.preview_job(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        status_code = 200 if result.get("ok") else 400
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench X/Y/Z Preview Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/xyz/run")
+async def canvas_workbench_xyz_run_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_xyz.run_job(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        status_code = 200 if result.get("ok") else 400
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench X/Y/Z Run Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/xyz/poll")
+async def canvas_workbench_xyz_poll_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_xyz.poll_job(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        status_code = 200 if result.get("ok") else 404 if result.get("error") == "X/Y/Z job not found" else 400
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench X/Y/Z Poll Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/xyz/control")
+async def canvas_workbench_xyz_control_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_xyz.control_job(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        status_code = 200 if result.get("ok") else 404 if result.get("error") == "X/Y/Z job not found" else 400
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench X/Y/Z Control Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/xyz/render-grid")
+async def canvas_workbench_xyz_render_grid_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_xyz.render_grid(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        status_code = 200 if result.get("ok") else 400
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench X/Y/Z Render Grid Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/qwen-tts-run")
+async def canvas_workbench_qwen_tts_run_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_qwen_tts.run_qwen_tts(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Qwen TTS Run Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/qwen-tts-poll")
+async def canvas_workbench_qwen_tts_poll_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_qwen_tts.poll_qwen_tts(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        status_code = 200 if result.get("ok") else 404 if result.get("error") == "run not found" else 400
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Qwen TTS Poll Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/qwen-tts-control")
+async def canvas_workbench_qwen_tts_control_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_qwen_tts.control_qwen_tts(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        status_code = 200 if result.get("ok") else 404 if result.get("error") == "run not found" else 400
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Qwen TTS Control Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/qwen-tts-presets")
+async def canvas_workbench_qwen_tts_presets_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_qwen_tts.list_qwen_tts_presets(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Qwen TTS Presets Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/model-catalog")
+async def canvas_workbench_model_catalog_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_models.get_model_catalog_for_preset(payload)
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Model Catalog Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/preset-model-status")
+async def canvas_workbench_preset_model_status_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_models.get_preset_model_status(payload)
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Preset Model Status Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/preset-model-downloads")
+async def canvas_workbench_preset_model_downloads_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_models.queue_preset_model_downloads(payload)
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Preset Model Download Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+_canvas_vlm_model_status = canvas_vlm_runtime.canvas_vlm_model_status
+_canvas_queue_vlm_model_downloads = canvas_vlm_runtime.canvas_queue_vlm_model_downloads
+@app.post("/canvas-workbench/vlm-model-status")
+async def canvas_workbench_vlm_model_status_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        started = time.monotonic()
+        params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+        logger.info(
+            "Canvas VLM model status request received: node_id=%s, version=%s",
+            payload.get("node_id") or "",
+            params.get("version") or "",
+        )
+        result = await run_in_threadpool(lambda: _canvas_vlm_model_status(payload))
+        logger.info(
+            "Canvas VLM model status completed: elapsed=%.3fs, ready=%s, state=%s, missing=%s",
+            time.monotonic() - started,
+            result.get("ready"),
+            result.get("state"),
+            result.get("missing_count"),
+        )
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench VLM Model Status Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/vlm-model-downloads")
+async def canvas_workbench_vlm_model_downloads_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        result = await run_in_threadpool(lambda: _canvas_queue_vlm_model_downloads(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench VLM Model Download Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+_canvas_custom_llm_url = canvas_vlm_runtime.canvas_custom_llm_url
+_canvas_custom_llm_request_json = canvas_vlm_runtime.canvas_custom_llm_request_json
+_canvas_file_to_data_url = canvas_vlm_runtime.canvas_file_to_data_url
+_canvas_extract_openai_text = canvas_vlm_runtime.canvas_extract_openai_text
+_canvas_custom_llm_models = canvas_vlm_runtime.canvas_custom_llm_models
+
+VLM_AGENT_ACTIONS = canvas_vlm_agent.VLM_AGENT_ACTIONS
+_canvas_vlm_agent_mode = canvas_vlm_agent.vlm_agent_mode
+_canvas_vlm_text_budget = canvas_vlm_agent.vlm_text_budget
+_canvas_vlm_rolling_history = canvas_vlm_agent.vlm_rolling_history
+_canvas_build_vlm_agent_system_prompt = canvas_vlm_agent.build_vlm_agent_system_prompt
+_canvas_extract_vlm_agent_actions = canvas_vlm_agent.extract_vlm_agent_actions
+_canvas_repair_vlm_agent_actions = canvas_vlm_agent.repair_vlm_agent_actions
+_canvas_vlm_skills = canvas_vlm_agent.vlm_skills
+@app.post("/canvas-workbench/vlm-skills")
+async def canvas_workbench_vlm_skills_endpoint(payload: dict = Body(default={})):
+    try:
+        result = await run_in_threadpool(lambda: _canvas_vlm_skills(payload if isinstance(payload, dict) else {}))
+        return JSONResponse(result, status_code=200)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench VLM Skills Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/custom-llm-models")
+async def canvas_workbench_custom_llm_models_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        result = await run_in_threadpool(lambda: _canvas_custom_llm_models(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Custom LLM Models Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+_canvas_custom_llm_run = canvas_vlm_runtime.canvas_custom_llm_run
+
+@app.post("/canvas-workbench/list-assets")
+async def canvas_workbench_list_assets_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            state_params = _canvas_workbench_state_params(payload)
+            return canvas_workbench_assets.list_project_assets(payload.get("project_id") or "default", state_params, payload)
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Asset List Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/media-gallery")
+async def canvas_workbench_media_gallery_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_media_gallery.list_output_media(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Media Gallery Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/media-gallery/delete")
+async def canvas_workbench_media_gallery_delete_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_media_gallery.delete_output_media(payload, {})
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Media Gallery Delete Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/delete-assets")
+async def canvas_workbench_delete_assets_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            state_params = _canvas_workbench_state_params(payload)
+            return canvas_workbench_assets.delete_project_assets(
+                payload.get("project_id") or "default",
+                state_params,
+                payload.get("paths") or [],
+            )
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Asset Delete Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/materialize-asset")
+async def canvas_workbench_materialize_asset_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            state_params = _canvas_workbench_state_params(payload)
+            source = payload.get("asset_source") if isinstance(payload.get("asset_source"), dict) else {}
+            result = canvas_workbench_assets.materialize_node_asset(payload.get("project_id") or "default", state_params, source)
+            return result if isinstance(result, dict) else {"ok": False, "error": "invalid materialize result"}
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Asset Materialize Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/generate-mask")
+async def canvas_workbench_generate_mask_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            from PIL import Image as PILImage
+            from extras.inpaint_mask import generate_mask_from_image
+            from extras.inpaint_mask import SAMOptions as CanvasSAMOptions
+
+            state_params = _canvas_workbench_state_params(payload)
+            source = payload.get("asset_source") if isinstance(payload.get("asset_source"), dict) else {}
+            resolved = canvas_workbench_assets.materialize_node_asset(payload.get("project_id") or "default", state_params, source)
+            asset_ref = resolved.get("asset_ref") if isinstance(resolved, dict) else None
+            image_path = asset_ref.get("path") if isinstance(asset_ref, dict) else ""
+            if not image_path or not os.path.exists(image_path):
+                return {"ok": False, "error": resolved.get("error") if isinstance(resolved, dict) else "image not found"}
+
+            params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+            mask_model = str(params.get("mask_model") or modules.config.default_inpaint_mask_model or "u2net")
+            extras = {}
+            sam_options = None
+            if mask_model == "u2net_cloth_seg":
+                extras["cloth_category"] = str(params.get("cloth_category") or modules.config.default_inpaint_mask_cloth_category or "full")
+            elif mask_model == "sam":
+                dino_prompt = str(params.get("dino_prompt") or "")
+                try:
+                    dino_prompt = translator.convert(dino_prompt, ads.get_admin_default('translation_methods'))
+                except Exception:
+                    pass
+                sam_options = CanvasSAMOptions(
+                    dino_prompt=dino_prompt,
+                    dino_box_threshold=float(params.get("box_threshold", 0.3)),
+                    dino_text_threshold=float(params.get("text_threshold", 0.25)),
+                    dino_erode_or_dilate=int(params.get("dino_erode_or_dilate", 0) or 0),
+                    dino_debug=bool(params.get("debugging_dino", False)),
+                    max_detections=int(params.get("sam_max_detections", modules.config.default_sam_max_detections) or 0),
+                    model_type=str(params.get("sam_model") or modules.config.default_inpaint_mask_sam_model or "vit_b"),
+                )
+
+            with PILImage.open(image_path) as image:
+                np_image = np.array(image.convert("RGB"))
+            mask, dino_count, sam_count, sam_on_mask_count = generate_mask_from_image(np_image, mask_model, extras, sam_options)
+            if mask is None:
+                return {"ok": False, "error": "mask generation returned empty result"}
+            if mask.ndim == 2:
+                out_image = PILImage.fromarray(mask.astype(np.uint8), mode="L")
+            else:
+                out_image = PILImage.fromarray(mask.astype(np.uint8)).convert("L")
+            buffer = io.BytesIO()
+            out_image.save(buffer, format="PNG")
+            data_url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+            asset_ref = canvas_workbench_assets.save_data_url_asset(
+                data_url,
+                payload.get("project_id") or "default",
+                state_params,
+                node_id=str(payload.get("node_id") or ""),
+                role="mask",
+                metadata={
+                    "mime": "image/png",
+                    "width": out_image.width,
+                    "height": out_image.height,
+                    "mask_model": mask_model,
+                },
+            )
+            return {
+                "ok": True,
+                "asset_ref": asset_ref,
+                "mask": {
+                    "kind": "generated_mask",
+                    "asset_id": asset_ref.get("asset_id"),
+                    "name": asset_ref.get("name"),
+                    "mime": "image/png",
+                    "width": out_image.width,
+                    "height": out_image.height,
+                    "path": asset_ref.get("path"),
+                    "preview_url": asset_ref.get("preview_url"),
+                },
+                "stats": {
+                    "dino_detection_count": dino_count,
+                    "sam_detection_count": sam_count,
+                    "sam_detection_on_mask_count": sam_on_mask_count,
+                },
+                "params": params,
+                "source_asset_ref": resolved.get("asset_ref"),
+            }
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Mask Generation Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+def _canvas_workbench_source_with_media_edit(source, params):
+    if not isinstance(source, dict):
+        return {}
+    if not isinstance(params, dict):
+        params = {}
+    source_edit = params.get("source_edit") if isinstance(params.get("source_edit"), dict) else None
+    if not source_edit:
+        return source
+    try:
+        start = max(0.0, float(source_edit.get("trim_start") or 0.0))
+        end = float(source_edit.get("trim_end") or 0.0)
+    except Exception:
+        return source
+    if end <= start:
+        return source
+    next_source = dict(source)
+    asset = dict(next_source.get("asset") if isinstance(next_source.get("asset"), dict) else {})
+    edit = dict(asset.get("edit") if isinstance(asset.get("edit"), dict) else {})
+    edit.update(
+        {
+            "trim_start": round(start, 3),
+            "trim_end": round(end, 3),
+            "duration": round(end - start, 3),
+            "enabled": True,
+        }
+    )
+    asset["edit"] = edit
+    next_source["asset"] = asset
+    return next_source
+
+
+def _canvas_workbench_exact_sam3_source_asset(asset_ref, project_id, state_params, node_id):
+    if not isinstance(asset_ref, dict):
+        return asset_ref
+    edit = asset_ref.get("edit") if isinstance(asset_ref.get("edit"), dict) else None
+    if not edit:
+        return asset_ref
+    source_path = (
+        asset_ref.get("source_path")
+        or asset_ref.get("original_output_path")
+        or asset_ref.get("output_path")
+        or asset_ref.get("path")
+        or ""
+    )
+    if not source_path or not os.path.exists(str(source_path)):
+        return asset_ref
+    mime = asset_ref.get("mime") or mimetypes.guess_type(str(source_path))[0] or "video/mp4"
+    if not str(mime or "").startswith("video/"):
+        return asset_ref
+    try:
+        exact_path = canvas_workbench_assets._trim_media_file(
+            str(source_path),
+            str(mime),
+            edit,
+            project_id,
+            state_params,
+            node_id=node_id,
+            role="sam3_source",
+            force_reencode=True,
+        )
+        if not exact_path or not os.path.exists(exact_path):
+            return asset_ref
+        exact_ref = canvas_workbench_assets.register_existing_file_asset(
+            exact_path,
+            project_id,
+            state_params,
+            node_id=node_id,
+            role="sam3_source_video",
+            metadata={
+                "mime": mime,
+                "width": asset_ref.get("width"),
+                "height": asset_ref.get("height"),
+                "duration": edit.get("duration"),
+                "fps": asset_ref.get("fps"),
+                "frame_count": max(1, int(round(float(asset_ref.get("fps")) * float(edit.get("duration"))))) if asset_ref.get("fps") and edit.get("duration") else None,
+                "edit": edit,
+            },
+            copy_to_assets=False,
+        )
+        if not isinstance(exact_ref, dict):
+            return asset_ref
+        exact_ref["source_path"] = str(source_path)
+        exact_ref["edit"] = edit
+        exact_ref["exact_trim"] = True
+        return exact_ref
+    except Exception:
+        logger.exception("Canvas Workbench SAM3 exact source trim failed")
+        return asset_ref
+
+
+@app.post("/canvas-workbench/generate-sam3-video-mask")
+async def canvas_workbench_generate_sam3_video_mask_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            import modules.async_worker as worker
+
+            state_params = _canvas_workbench_state_params(payload)
+            source = payload.get("asset_source") if isinstance(payload.get("asset_source"), dict) else {}
+            params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+            source = _canvas_workbench_source_with_media_edit(source, params)
+            cancel_token = f"canvas:{payload.get('project_id') or 'default'}:{payload.get('node_id') or ''}"
+            sam3_video_mask.reset_sam3_cancel(cancel_token)
+            resolved = canvas_workbench_assets.materialize_node_asset(payload.get("project_id") or "default", state_params, source)
+            asset_ref = resolved.get("asset_ref") if isinstance(resolved, dict) else None
+            asset_ref = _canvas_workbench_exact_sam3_source_asset(asset_ref, payload.get("project_id") or "default", state_params, str(payload.get("node_id") or ""))
+            video_path = asset_ref.get("path") if isinstance(asset_ref, dict) else ""
+            if not video_path or not os.path.exists(video_path):
+                return {"ok": False, "error": resolved.get("error") if isinstance(resolved, dict) else "video not found"}
+
+            prompt_text = str(params.get("prompt") or "").strip()
+            editor_payload = str(params.get("editor_payload") or "").strip()
+            if not prompt_text and not editor_payload:
+                return {"ok": False, "error": "SAM3 video mask prompt/editor payload is empty"}
+
+            if prompt_text and not editor_payload:
+                try:
+                    prompt_text = sam3_video_mask.translate_prompt_slim(prompt_text)
+                except Exception:
+                    pass
+
+            opts = sam3_video_mask.mask_opts(
+                params.get("score_threshold_detection", 0.5),
+                params.get("new_det_thresh", 0.7),
+                params.get("fill_hole_area", 16),
+                params.get("recondition_every_nth_frame", 16),
+                params.get("postprocess_strength", 0),
+                params.get("invert_mask", False),
+            )
+            with worker.external_exclusive_task():
+                try:
+                    sam3_video_mask.cleanup_translator_and_vram()
+                    cancel_check = sam3_video_mask.make_sam3_cancel_check(cancel_token)
+                    if editor_payload:
+                        out_path = sam3_video_mask.run_sam3_video_mask(
+                            video_path=video_path,
+                            editor_payload_json=editor_payload,
+                            cancel_check=cancel_check,
+                            **opts,
+                        )
+                    else:
+                        out_path = sam3_video_mask.run_sam3_video_mask_by_prompt(
+                            video_path=video_path,
+                            prompt=prompt_text,
+                            cancel_check=cancel_check,
+                            **opts,
+                        )
+                except sam3_video_mask.Sam3Cancelled as e:
+                    return {"ok": False, "cancelled": True, "error": str(e)}
+                finally:
+                    sam3_video_mask.clear_sam3_cancel(cancel_token)
+            if not out_path or not os.path.exists(out_path):
+                return {"ok": False, "error": "SAM3 video mask returned no output"}
+
+            output_ref = canvas_workbench_assets.register_existing_file_asset(
+                out_path,
+                payload.get("project_id") or "default",
+                state_params,
+                node_id=str(payload.get("node_id") or ""),
+                role="sam3_mask_video",
+                metadata={"mime": "video/mp4", "source_video": video_path, "prompt": prompt_text, "mode": "points" if editor_payload else "prompt"},
+                copy_to_assets=False,
+            )
+            if isinstance(output_ref, dict) and isinstance(asset_ref, dict) and isinstance(asset_ref.get("edit"), dict):
+                output_ref["source_edit"] = asset_ref.get("edit")
+            return {
+                "ok": True,
+                "asset_ref": output_ref,
+                "mask_video": output_ref,
+                "params": params,
+                "source_asset_ref": asset_ref,
+            }
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench SAM3 Video Mask Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/cancel-sam3-video-mask")
+async def canvas_workbench_cancel_sam3_video_mask_endpoint(payload: dict = Body(...)):
+    project_id = "default"
+    node_id = ""
+    if isinstance(payload, dict):
+        project_id = str(payload.get("project_id") or "default")
+        node_id = str(payload.get("node_id") or "")
+    sam3_video_mask.request_sam3_cancel(f"canvas:{project_id}:{node_id}")
+    return JSONResponse({"ok": True, "cancelled": True})
+
+@app.post("/canvas-workbench/normalize-sam3-mask-video")
+async def canvas_workbench_normalize_sam3_mask_video_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            state_params = _canvas_workbench_state_params(payload)
+            project_id = payload.get("project_id") or "default"
+            mask_source = payload.get("mask_source") if isinstance(payload.get("mask_source"), dict) else {}
+            mask_resolved = canvas_workbench_assets.materialize_node_asset(project_id, state_params, mask_source)
+            mask_ref = mask_resolved.get("asset_ref") if isinstance(mask_resolved, dict) else None
+            mask_path = mask_ref.get("path") if isinstance(mask_ref, dict) else ""
+            if not mask_path or not os.path.exists(mask_path):
+                return {"ok": False, "error": mask_resolved.get("error") if isinstance(mask_resolved, dict) else "uploaded mask not found"}
+
+            source = payload.get("asset_source") if isinstance(payload.get("asset_source"), dict) else {}
+            params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+            source = _canvas_workbench_source_with_media_edit(source, params)
+            source_ref = None
+            source_path = ""
+            if source:
+                source_resolved = canvas_workbench_assets.materialize_node_asset(project_id, state_params, source)
+                source_ref = source_resolved.get("asset_ref") if isinstance(source_resolved, dict) else None
+                source_ref = _canvas_workbench_exact_sam3_source_asset(source_ref, project_id, state_params, str(payload.get("node_id") or ""))
+                source_path = source_ref.get("path") if isinstance(source_ref, dict) else ""
+
+            mask_mime = mask_ref.get("mime") or ""
+            if source_path and os.path.exists(source_path):
+                out_path = sam3_video_mask.normalize_mask_media_to_source_video(
+                    mask_path,
+                    mask_mime,
+                    source_path,
+                    sam3_video_mask.sam3_mask_output_dir("canvas_uploads"),
+                    node_id=str(payload.get("node_id") or ""),
+                )
+                output_ref = canvas_workbench_assets.register_existing_file_asset(
+                    out_path,
+                    project_id,
+                    state_params,
+                    node_id=str(payload.get("node_id") or ""),
+                    role="sam3_mask_video",
+                    metadata={"mime": "video/mp4", "source_video": source_path, "uploaded_mask": mask_path},
+                    copy_to_assets=False,
+                )
+                return {
+                    "ok": True,
+                    "asset_ref": output_ref,
+                    "mask_video": output_ref,
+                    "uploaded_mask_ref": mask_ref,
+                    "source_asset_ref": source_ref,
+                    "matched_to_source": True,
+                }
+
+            if str(mask_mime).startswith("video/"):
+                output_ref = canvas_workbench_assets.register_existing_file_asset(
+                    mask_path,
+                    project_id,
+                    state_params,
+                    node_id=str(payload.get("node_id") or ""),
+                    role="sam3_mask_video",
+                    metadata={"mime": mask_mime or "video/mp4", "uploaded_mask": mask_path},
+                    copy_to_assets=False,
+                )
+                return {
+                    "ok": True,
+                    "asset_ref": output_ref,
+                    "mask_video": output_ref,
+                    "uploaded_mask_ref": mask_ref,
+                    "source_asset_ref": None,
+                    "matched_to_source": False,
+                }
+            return {"ok": False, "error": "Connect a source video before uploading an image mask"}
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench SAM3 Mask Upload Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/render-timeline")
+async def canvas_workbench_render_timeline_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_timeline.render_timeline(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Timeline Render Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/render-timeline-frame")
+async def canvas_workbench_render_timeline_frame_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            return canvas_workbench_timeline.render_timeline_frame(payload, _canvas_workbench_state_params(payload))
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Timeline Frame Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/wd14-tag")
+async def canvas_workbench_wd14_tag_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        def safe_process():
+            from PIL import Image as PILImage
+            from extras.wd14tagger import default_interrogator
+
+            state_params = _canvas_workbench_state_params(payload)
+            source = payload.get("asset_source") if isinstance(payload.get("asset_source"), dict) else {}
+            resolved = canvas_workbench_assets.materialize_node_asset(payload.get("project_id") or "default", state_params, source)
+            asset_ref = resolved.get("asset_ref") if isinstance(resolved, dict) else None
+            image_path = asset_ref.get("path") if isinstance(asset_ref, dict) else ""
+            if not image_path or not os.path.exists(image_path):
+                return {"ok": False, "error": resolved.get("error") if isinstance(resolved, dict) else "image not found"}
+            params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+            with PILImage.open(image_path) as image:
+                text = default_interrogator(
+                    image.convert("RGB"),
+                    threshold=float(params.get("threshold", 0.35)),
+                    character_threshold=float(params.get("character_threshold", 0.85)),
+                    exclude_tags=str(params.get("exclude_tags", "")),
+                )
+            return {
+                "ok": True,
+                "text": text,
+                "asset_ref": asset_ref,
+                "params": {
+                    "threshold": float(params.get("threshold", 0.35)),
+                    "character_threshold": float(params.get("character_threshold", 0.85)),
+                    "exclude_tags": str(params.get("exclude_tags", "")),
+                },
+            }
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench WD14 Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/vlm-run")
+async def canvas_workbench_vlm_run_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        started = time.monotonic()
+        params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+        logger.info(
+            "Canvas VLM run request received: node_id=%s, conversation_id=%s, version=%s",
+            payload.get("node_id") or "",
+            payload.get("conversation_id") or "",
+            params.get("version") or "",
+        )
+        result = await run_in_threadpool(lambda: canvas_vlm_runtime.canvas_vlm_run(payload))
+        logger.info(
+            "Canvas VLM run endpoint completed: elapsed=%.3fs, ok=%s, actions=%s",
+            time.monotonic() - started,
+            result.get("ok"),
+            len(result.get("agent_actions") or []),
+        )
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        try:
+            traceback.print_exc()
+        except ValueError:
+            pass
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench VLM Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/vlm-cancel")
+async def canvas_workbench_vlm_cancel_endpoint(payload: dict = Body(default={})):
+    try:
+        payload = payload if isinstance(payload, dict) else {}
+        project_id = str(payload.get("project_id") or "").strip()
+        node_id = str(payload.get("node_id") or "").strip()
+        conversation_id = str(payload.get("conversation_id") or "").strip()
+        request_id = str(payload.get("request_id") or "").strip()
+        logger.info(
+            "Canvas VLM cancel requested: project_id=%s node_id=%s conversation_id=%s request_id=%s",
+            project_id,
+            node_id,
+            conversation_id,
+            request_id,
+        )
+        result = canvas_vlm_runtime.request_canvas_vlm_cancel(project_id, node_id, conversation_id, request_id)
+        return JSONResponse(result, status_code=200)
+    except Exception as e:
+        import traceback
+        try:
+            traceback.print_exc()
+        except ValueError:
+            pass
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench VLM Cancel Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/describe-image/vlm-chat-run")
+async def describe_image_vlm_chat_run_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+
+        started = time.monotonic()
+        logger.info(
+            "Describe Image VLM chat request received: conversation_id=%s, has_image=%s",
+            payload.get("conversation_id") or "",
+            bool(isinstance(payload.get("image"), dict) and payload.get("image", {}).get("data_url")),
+        )
+        result = await run_in_threadpool(lambda: describe_vlm_chat.run_describe_vlm_chat(payload))
+        logger.info(
+            "Describe Image VLM chat completed: elapsed=%.3fs, ok=%s, actions=%s",
+            time.monotonic() - started,
+            result.get("ok") if isinstance(result, dict) else False,
+            len((result or {}).get("limited_actions") or []) if isinstance(result, dict) else 0,
+        )
+        return JSONResponse(result, status_code=200 if isinstance(result, dict) and result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        try:
+            traceback.print_exc()
+        except ValueError:
+            pass
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Describe Image VLM/LLM AI Chat Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/describe-image/vlm-chat-cancel")
+async def describe_image_vlm_chat_cancel_endpoint(payload: dict = Body(default={})):
+    try:
+        payload = payload if isinstance(payload, dict) else {}
+        conversation_id = str(payload.get("conversation_id") or "").strip()
+        request_id = str(payload.get("request_id") or "").strip()
+        logger.info(
+            "Describe Image VLM chat cancel requested: conversation_id=%s request_id=%s",
+            conversation_id,
+            request_id,
+        )
+        result = describe_vlm_chat.request_describe_vlm_chat_cancel(conversation_id, request_id)
+        return JSONResponse(result, status_code=200)
+    except Exception as e:
+        import traceback
+        try:
+            traceback.print_exc()
+        except ValueError:
+            pass
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Describe Image VLM/LLM AI Chat Cancel Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/describe-image/vlm-chat-clear")
+async def describe_image_vlm_chat_clear_endpoint(payload: dict = Body(default={})):
+    try:
+        payload = payload if isinstance(payload, dict) else {}
+        conversation_id = str(payload.get("conversation_id") or "").strip()
+
+        def safe_process():
+            logger.info(
+                "Describe Image VLM chat clear requested: conversation_id=%s clear_context=%s",
+                conversation_id,
+                bool(payload.get("clear_context", True)),
+            )
+            if payload.get("clear_context", True):
+                vlm.clear_conversation(conversation_id or None)
+            return {"ok": True, "conversation_id": conversation_id, "message": "Describe Image VLM chat context cleared."}
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200)
+    except Exception as e:
+        import traceback
+        try:
+            traceback.print_exc()
+        except ValueError:
+            pass
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Describe Image VLM/LLM AI Chat Clear Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+@app.post("/canvas-workbench/vlm-unload")
+async def canvas_workbench_vlm_unload_endpoint(payload: dict = Body(...)):
+    try:
+        def safe_process():
+            logger.info(
+                "[VLM KeepLoaded] explicit VLM unload clear_context=%s source=webui.canvas_workbench_vlm_unload_endpoint",
+                bool(isinstance(payload, dict) and payload.get("clear_context", False)),
+            )
+            vlm.free_model()
+            if isinstance(payload, dict) and payload.get("clear_context", False):
+                vlm.clear_conversation()
+            return {"ok": True, "message": "VLM model unloaded."}
+
+        result = await run_in_threadpool(safe_process)
+        return JSONResponse(result, status_code=200)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench VLM Unload Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+def _canvas_translate_snapshot(job_id):
+    with _canvas_translate_lock:
+        job = _canvas_translate_jobs.get(job_id)
+        return dict(job) if isinstance(job, dict) else None
+
+def _canvas_translate_update(job_id, **updates):
+    with _canvas_translate_lock:
+        job = _canvas_translate_jobs.get(job_id)
+        if not isinstance(job, dict):
+            return
+        job.update(updates)
+
+def _canvas_translate_cleanup():
+    now = time.time()
+    with _canvas_translate_lock:
+        stale = [
+            job_id
+            for job_id, job in _canvas_translate_jobs.items()
+            if now - float(job.get("created_at", now)) > 1800
+        ]
+        for job_id in stale:
+            _canvas_translate_jobs.pop(job_id, None)
+
+def _canvas_translate_text(text, method, direction):
+    selected_method = method if method in modules.flags.translation_methods else ads.get_admin_default('translation_methods')
+    if selected_method not in modules.flags.translation_methods:
+        selected_method = modules.config.default_translation_methods
+    direction = str(direction or "to_en")
+    if direction == "to_cn":
+        return translator.convert(text, selected_method, "cn"), selected_method
+    if direction == "toggle":
+        return translator.toggle(text, selected_method), selected_method
+    return translator.convert(text, selected_method, "en"), selected_method
+
+@app.post("/canvas-workbench/translate-run")
+async def canvas_workbench_translate_run_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+        text = str(payload.get("text") or "")
+        if not text.strip():
+            return JSONResponse({"ok": False, "error": "empty text"}, status_code=400)
+
+        _canvas_translate_cleanup()
+        job_id = f"translate_{uuid.uuid4().hex[:12]}"
+        job = {
+            "ok": True,
+            "job_id": job_id,
+            "state": "queued",
+            "text": text,
+            "translated_text": "",
+            "method": str(payload.get("method") or ads.get_admin_default('translation_methods') or modules.config.default_translation_methods),
+            "direction": str(payload.get("direction") or "to_en"),
+            "created_at": time.time(),
+            "updated_at": time.time(),
+        }
+        with _canvas_translate_lock:
+            _canvas_translate_jobs[job_id] = job
+
+        def worker():
+            _canvas_translate_update(job_id, state="running", updated_at=time.time())
+            try:
+                translated_text, used_method = _canvas_translate_text(
+                    text,
+                    job.get("method"),
+                    job.get("direction"),
+                )
+                _canvas_translate_update(
+                    job_id,
+                    state="finished",
+                    translated_text=str(translated_text or ""),
+                    method=used_method,
+                    updated_at=time.time(),
+                )
+            except Exception as exc:
+                import traceback
+                traceback.print_exc()
+                _canvas_translate_update(
+                    job_id,
+                    ok=False,
+                    state="failed",
+                    error="Translate Error",
+                    details=str(exc),
+                    updated_at=time.time(),
+                )
+
+        threading.Thread(target=worker, daemon=True, name=f"canvas-translate-{job_id}").start()
+        return JSONResponse({"ok": True, "job_id": job_id, "state": "queued"})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Translate Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/canvas-workbench/translate-poll")
+async def canvas_workbench_translate_poll_endpoint(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"ok": False, "error": "Bad Request", "details": "Payload must be an object."},
+                status_code=400,
+            )
+        job_id = str(payload.get("job_id") or "")
+        job = _canvas_translate_snapshot(job_id)
+        if not job:
+            return JSONResponse({"ok": False, "error": "translate job not found", "job_id": job_id}, status_code=404)
+        response = dict(job)
+        response.pop("created_at", None)
+        response.pop("updated_at", None)
+        return JSONResponse(response, status_code=200 if response.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Canvas Workbench Translate Poll Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.get("/matting/check-model")
+async def matting_check_model():
+    return layerforge_matting.check_model_availability()
+
+@app.post("/matting")
+async def matting_endpoint(payload: dict = Body(...)):
+    try:
+        image_data = payload.get("image")
+        threshold = payload.get("threshold", 0.5)
+        if not isinstance(image_data, str) or not image_data.startswith("data:image"):
+            return JSONResponse(
+                {
+                    "error": "Bad Request",
+                    "details": "Missing or invalid 'image' data URL.",
+                },
+                status_code=400,
+            )
+
+        def safe_process():
+            with _matting_lock:
+                return layerforge_matting.process_matting(image_data, threshold)
+
+        result = await run_in_threadpool(safe_process)
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "error": "Matting Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.get("/openpose/check-model")
+async def openpose_check_model():
+    return layerforge_openpose.check_model_availability()
+
+@app.post("/openpose/detect")
+async def openpose_detect_endpoint(payload: dict = Body(...)):
+    try:
+        image_data = payload.get("image")
+        detect_resolution = payload.get("detect_resolution", 512)
+        allow_download = payload.get("allow_download", False)
+        if not isinstance(image_data, str) or not image_data.startswith("data:image"):
+            return JSONResponse(
+                {
+                    "error": "Bad Request",
+                    "details": "Missing or invalid 'image' data URL.",
+                },
+                status_code=400,
+            )
+
+        def safe_process():
+            with _openpose_lock:
+                return layerforge_openpose.process_openpose(image_data, detect_resolution, allow_download)
+
+        result = await run_in_threadpool(safe_process)
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "error": "OpenPose Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.get("/sam3/check-model")
+async def sam3_check_model():
+    return layerforge_sam3_image_mask.check_model_availability()
+
+@app.post("/sam3/image-mask")
+async def sam3_image_mask_endpoint(payload: dict = Body(...)):
+    try:
+        image_data = payload.get("image")
+        positive_points = payload.get("positive_points", None)
+        negative_points = payload.get("negative_points", None)
+        threshold = payload.get("threshold", 0.3)
+        fill_holes = payload.get("fill_holes", False)
+        if not isinstance(image_data, str) or not image_data.startswith("data:image"):
+            return JSONResponse(
+                {
+                    "error": "Bad Request",
+                    "details": "Missing or invalid 'image' data URL.",
+                },
+                status_code=400,
+            )
+
+        def safe_process():
+            with _sam3_image_mask_lock:
+                return layerforge_sam3_image_mask.process_sam3_image_mask(
+                    image_data,
+                    positive_points=positive_points,
+                    negative_points=negative_points,
+                    threshold=threshold,
+                    fill_holes=fill_holes,
+                )
+
+        result = await run_in_threadpool(safe_process)
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "error": "SAM3 Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/sam3/offload")
+async def sam3_offload_endpoint():
+    try:
+        def safe_process():
+            with _sam3_image_mask_lock:
+                return layerforge_sam3_image_mask.offload_model()
+
+        result = await run_in_threadpool(safe_process)
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "error": "SAM3 Offload Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.get("/tag-cart/custom-tags")
+async def tag_cart_custom_tags_get():
+    try:
+        custom_tags_path = ensure_tag_cart_custom_tags_path()
+        with open(custom_tags_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return JSONResponse(
+            {
+                "path": custom_tags_path,
+                "content": content,
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            {
+                "error": "Custom Tags Read Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.post("/tag-cart/custom-tags")
+async def tag_cart_custom_tags_save(payload: dict = Body(...)):
+    try:
+        content = payload.get("content", "")
+        if not isinstance(content, str):
+            return JSONResponse(
+                {
+                    "error": "Bad Request",
+                    "details": "Expected string field 'content'.",
+                },
+                status_code=400,
+            )
+
+        normalized = content.replace("\r\n", "\n").replace("\r", "\n")
+        custom_tags_path = ensure_tag_cart_custom_tags_path()
+        with open(custom_tags_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(normalized)
+
+        return JSONResponse(
+            {
+                "ok": True,
+                "path": custom_tags_path,
+                "size": len(normalized),
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            {
+                "error": "Custom Tags Save Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.get("/wildcards/readme")
+async def wildcards_readme():
+    import html
+    try:
+        md_path = os.path.join(os.path.dirname(__file__), "wildcards", "readme.md")
+        content = open(md_path, encoding="utf-8").read()
+        body = html.escape(content)
+        page = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>wildcards/readme.md</title>
+  <style>
+    body {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; padding: 16px; }}
+    pre {{ white-space: pre-wrap; word-break: break-word; }}
+    a {{ color: #2563eb; text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
+  </style>
+</head>
+<body>
+  <div><a href="readme/raw" target="_blank" rel="noopener noreferrer">Open raw</a></div>
+  <pre>{body}</pre>
+</body>
+</html>"""
+        return HTMLResponse(content=page)
+    except Exception as e:
+        return PlainTextResponse(content=str(e), status_code=500)
+
+@app.get("/wildcards/readme/raw")
+async def wildcards_readme_raw():
+    try:
+        md_path = os.path.join(os.path.dirname(__file__), "wildcards", "readme.md")
+        content = open(md_path, encoding="utf-8").read()
+        return PlainTextResponse(content=content)
+    except Exception as e:
+        return PlainTextResponse(content=str(e), status_code=500)
+
+threading.Event().wait()

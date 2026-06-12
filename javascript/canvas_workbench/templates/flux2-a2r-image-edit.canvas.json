@@ -1,0 +1,713 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "flux2_a2r_image_edit_20260605062039_template_20260605062335",
+  "title": "Flux2-A2R 图像编辑",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T06:23:36Z",
+  "viewport": {
+    "x": -68,
+    "y": -68,
+    "zoom": 0.534906945525257
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "flux_a2r_group_input",
+      "title": "1. Source And Prompt / 源图与指令",
+      "x": -140,
+      "y": -180,
+      "w": 572,
+      "h": 972,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "flux_a2r_group_config",
+      "title": "2. Configs / 配置",
+      "x": 500,
+      "y": -180,
+      "w": 506,
+      "h": 2105,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "flux_a2r_group_run",
+      "title": "3. Edit And Reuse / 编辑与复用",
+      "x": 1060,
+      "y": -180,
+      "w": 1051,
+      "h": 1111,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "flux_a2r_intro_note",
+      "type": "note",
+      "x": -72,
+      "y": -96,
+      "w": 445,
+      "h": 145,
+      "title": "Image Edit Flow / 图像编辑链路",
+      "text": "Flux2-A2R converts an anime-style source image toward realistic Asian portrait styling. Replace the source image first, then check models and run. / Flux2-A2R 用于将动漫风格源图转向亚洲写实人像风格。先替换源图，再检查模型并运行。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "flux_a2r_source_image",
+      "type": "image",
+      "x": -72,
+      "y": 96,
+      "w": 300,
+      "h": 330,
+      "title": "Source Image / 源图占位",
+      "asset": null,
+      "mask": null,
+      "status": {
+        "state": "waiting",
+        "message": "Drop or replace this image before running Flux2-A2R."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "scene_canvas_image"
+      }
+    },
+    {
+      "id": "flux_a2r_prompt_text",
+      "type": "text",
+      "x": -72,
+      "y": 480,
+      "w": 445,
+      "h": 175,
+      "title": "Edit Instruction / 编辑指令",
+      "text": {
+        "value": "转成亚洲写实风格，保留原始构图和人物身份，写实摄影质感，自然肤色，柔和光线",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "flux_a2r_models_config",
+      "type": "config",
+      "config_kind": "models",
+      "x": 552,
+      "y": -96,
+      "w": 380,
+      "h": 545,
+      "title": "Models Config / 模型配置",
+      "target_preset_id": "flux_a2r_preset",
+      "config": {
+        "defaults": {
+          "base_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "flux2-vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+              "weight": 1
+            }
+          ]
+        },
+        "values": {
+          "base_model": "",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "flux2-vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Flux2-A2R"
+      }
+    },
+    {
+      "id": "flux_a2r_resolution_config",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 552,
+      "y": 672,
+      "w": 380,
+      "h": 430,
+      "title": "Resolution Config / 分辨率配置",
+      "target_preset_id": "flux_a2r_preset",
+      "config": {
+        "defaults": {
+          "template": "Flux",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "1024|1:1",
+            "1536|1:1",
+            "2048|1:1",
+            "origin|Original"
+          ],
+          "resolution_control": {
+            "mode": "image_keep_input_area",
+            "source": "scene_canvas",
+            "base_width": 1024,
+            "base_height": 1024,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "image",
+            "preprocess_fit": "proportional"
+          }
+        },
+        "values": {
+          "template": "Preset",
+          "aspect_ratio": "1024|1:1",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Flux2-A2R"
+      }
+    },
+    {
+      "id": "flux_a2r_preset",
+      "type": "preset",
+      "x": 1128,
+      "y": -96,
+      "w": 430,
+      "h": 630,
+      "title": "Flux2-A2R",
+      "preset": {
+        "name": "Flux2-A2R",
+        "display_name": "Flux2-A2R",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "转成亚洲写实风格",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Flux",
+        "engine_type": "image",
+        "scene_frontend": "m1.1",
+        "scene_theme": "Flux2_A2R",
+        "task_method": "flux2_9b_edit_cn"
+      },
+      "schema": {
+        "version": "m1.1",
+        "scene_frontend": "m1.1",
+        "engine_type": "image",
+        "theme_title": "Flux2-9B-A2R Anime-to-Real [Optional mask]",
+        "default_theme": "Flux2_A2R",
+        "themes": [
+          "Flux2_A2R"
+        ],
+        "per_theme": {
+          "Flux2_A2R": {
+            "task_method": "flux2_9b_edit_cn",
+            "defaults": {
+              "prompt": "转成亚洲写实风格",
+              "scene_steps": 4,
+              "scene_image_number": 1,
+              "scene_var_number4": 0,
+              "scene_switch_option1": false,
+              "scene_switch_option2": false
+            }
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "#1 Canvas Image",
+            "visible": true,
+            "interactive": true
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Positive Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "negative_prompt",
+            "label": "Negative Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "seed_random",
+            "label": "Random Seed",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "image_seed",
+            "label": "Seed",
+            "type": "number",
+            "min": 0,
+            "max": 1125899906842623,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_steps",
+            "label": "Scene Steps",
+            "type": "number",
+            "min": 4,
+            "max": 8,
+            "step": 1,
+            "default": 4
+          },
+          {
+            "key": "scene_image_number",
+            "label": "Image Number",
+            "type": "number",
+            "min": 1,
+            "max": 5,
+            "step": 1,
+            "default": 1
+          },
+          {
+            "key": "scene_var_number4",
+            "label": "Match original colors",
+            "type": "number",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "default": 0
+          },
+          {
+            "key": "scene_switch_option2",
+            "label": "Convert Image 2 to pose",
+            "type": "checkbox",
+            "default": false
+          }
+        ]
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "flux2-vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+              "weight": 1
+            }
+          ]
+        },
+        "overrides": {
+          "base_model": "",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "flux2-vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "flux_a2r_models_config",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "Flux",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "1024|1:1",
+            "1536|1:1",
+            "2048|1:1",
+            "origin|Original"
+          ],
+          "resolution_control": {
+            "mode": "image_keep_input_area",
+            "source": "scene_canvas",
+            "base_width": 1024,
+            "base_height": 1024,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "image",
+            "preprocess_fit": "proportional"
+          }
+        },
+        "overrides": {
+          "template": "Preset",
+          "aspect_ratio": "1024|1:1",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "source_node_id": "flux_a2r_resolution_config",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 8,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 8,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "source_node_id": "flux_a2r_advanced_config",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "diffusion_models,Flux2-Klein-9B-True-v2-fp8mixed.safetensors,9433058560,0,https://modelscope.cn/models/wikeeyang/Flux2-Klein-9B-True-V2/resolve/master/Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
+          "text_encoders,qwen3_8b_abliterated_v2-fp8mixed.safetensors,8191194604,0,https://www.modelscope.cn/models/silveroxides/FLUX.2-dev-fp8_scaled/resolve/master/qwen3_8b_abliterated_v2-fp8mixed.safetensors",
+          "loras,Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors,165704392,0,https://www.modelscope.cn/models/zhouwenbin1994/Klein9BAnythingtoRealC/resolve/20260128232821/Flux2%20Klein%E5%8A%A8%E6%BC%AB%E8%BD%AC%E5%86%99%E5%AE%9E%E7%9C%9F%E4%BA%BA%20AnythingtoRealCharacters.safetensors",
+          "vae,flux2-vae.safetensors,336211292,0,https://www.modelscope.cn/models/Comfy-Org/flux2-klein-4B/resolve/master/split_files/vae/flux2-vae.safetensors",
+          "controlnet/hr16/DWPose-TorchScript-BatchSize5,dw-ll_ucoco_384_bs5.torchscript.pt,135059124,0,https://www.modelscope.cn/models/svjack/DWPose-TorchScript-BatchSize5/resolve/master/dw-ll_ucoco_384_bs5.torchscript.pt",
+          "controlnet/yzd-v/DWPose,yolox_l.onnx,216746733,0,https://www.modelscope.cn/models/zhangjin/DWPose/resolve/master/yolox_l.onnx"
+        ],
+        "has_model_probe": true,
+        "source": "presets/Flux2-A2R.json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Model requirements loaded from presets/Flux2-A2R.json; replace the source image and check models before running."
+      },
+      "upload_slots": {
+        "scene_canvas_image": "flux_a2r_source_image"
+      },
+      "text_inputs": {
+        "prompt": "flux_a2r_prompt_text"
+      },
+      "params": {
+        "prompt": "",
+        "negative_prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_steps": 4,
+        "scene_image_number": 1,
+        "scene_var_number4": 0,
+        "scene_switch_option1": false,
+        "scene_switch_option2": false
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "Flux2-A2R"
+      }
+    },
+    {
+      "id": "flux_a2r_advanced_config",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 552,
+      "y": 1440,
+      "w": 380,
+      "h": 385,
+      "title": "Advanced Config / 高级配置",
+      "target_preset_id": "flux_a2r_preset",
+      "config": {
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 8,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 8,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Flux2-A2R"
+      }
+    },
+    {
+      "id": "flux_a2r_result",
+      "type": "result",
+      "x": 1656,
+      "y": -96,
+      "w": 380,
+      "h": 330,
+      "title": "Edited Result / 编辑结果",
+      "producer": {
+        "preset_node_id": "flux_a2r_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 8,
+        "percent": 0,
+        "message": "Replace the source image, then run Flux2-A2R. The edited image will appear here."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "flux_a2r_reuse_note",
+      "type": "note",
+      "x": 1608,
+      "y": 312,
+      "w": 430,
+      "h": 130,
+      "title": "Downstream Use / 下游复用",
+      "text": "After generation, use the Result as a new source image for Qwen/Flux edits, Wan image-to-video, or comparison nodes. / 生成后，可把 Result 作为 Qwen/Flux 编辑、Wan 图生视频或对比节点的新输入。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "flux_a2r_edge_source",
+      "type": "upload",
+      "from": "flux_a2r_source_image",
+      "to": "flux_a2r_preset",
+      "slot": "scene_canvas_image"
+    },
+    {
+      "id": "flux_a2r_edge_prompt",
+      "type": "text",
+      "from": "flux_a2r_prompt_text",
+      "to": "flux_a2r_preset",
+      "slot": "prompt"
+    },
+    {
+      "id": "flux_a2r_edge_models",
+      "type": "config",
+      "from": "flux_a2r_models_config",
+      "to": "flux_a2r_preset",
+      "slot": "models"
+    },
+    {
+      "id": "flux_a2r_edge_resolution",
+      "type": "config",
+      "from": "flux_a2r_resolution_config",
+      "to": "flux_a2r_preset",
+      "slot": "resolution"
+    },
+    {
+      "id": "flux_a2r_edge_advanced",
+      "type": "config",
+      "from": "flux_a2r_advanced_config",
+      "to": "flux_a2r_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "flux_a2r_edge_result",
+      "type": "generate",
+      "from": "flux_a2r_preset",
+      "to": "flux_a2r_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "flux2_a2r_image_edit_20260605062039_template_20260605062335",
+    "title": "Flux2-A2R 图像编辑",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 1 个 preset 节点和 6 个模型依赖。运行前请检查模型。",
+      "models": [
+        "diffusion_models,Flux2-Klein-9B-True-v2-fp8mixed.safetensors,9433058560,0,https://modelscope.cn/models/wikeeyang/Flux2-Klein-9B-True-V2/resolve/master/Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
+        "text_encoders,qwen3_8b_abliterated_v2-fp8mixed.safetensors,8191194604,0,https://www.modelscope.cn/models/silveroxides/FLUX.2-dev-fp8_scaled/resolve/master/qwen3_8b_abliterated_v2-fp8mixed.safetensors",
+        "loras,Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors,165704392,0,https://www.modelscope.cn/models/zhouwenbin1994/Klein9BAnythingtoRealC/resolve/20260128232821/Flux2%20Klein%E5%8A%A8%E6%BC%AB%E8%BD%AC%E5%86%99%E5%AE%9E%E7%9C%9F%E4%BA%BA%20AnythingtoRealCharacters.safetensors",
+        "vae,flux2-vae.safetensors,336211292,0,https://www.modelscope.cn/models/Comfy-Org/flux2-klein-4B/resolve/master/split_files/vae/flux2-vae.safetensors",
+        "controlnet/hr16/DWPose-TorchScript-BatchSize5,dw-ll_ucoco_384_bs5.torchscript.pt,135059124,0,https://www.modelscope.cn/models/svjack/DWPose-TorchScript-BatchSize5/resolve/master/dw-ll_ucoco_384_bs5.torchscript.pt",
+        "controlnet/yzd-v/DWPose,yolox_l.onnx,216746733,0,https://www.modelscope.cn/models/zhangjin/DWPose/resolve/master/yolox_l.onnx"
+      ]
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T06:23:36Z"
+  }
+}

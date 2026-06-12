@@ -1,0 +1,480 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "tts_timeline_voiceover_mix_20260606065922_template_20260606070026",
+  "title": "TTS Timeline 配音混剪",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-06T07:00:27Z",
+  "viewport": {
+    "x": 97,
+    "y": 184,
+    "zoom": 0.2756828779020806
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    },
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "voiceover_group_tts",
+      "title": "1. Narration / 旁白生成",
+      "x": -150,
+      "y": -170,
+      "w": 615,
+      "h": 1147,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "voiceover_group_media",
+      "title": "2. Media Sources / 媒体素材",
+      "x": 530,
+      "y": -170,
+      "w": 504,
+      "h": 1335,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "voiceover_group_timeline",
+      "title": "3. Timeline Mix / 时间线混音",
+      "x": 1110,
+      "y": -170,
+      "w": 677,
+      "h": 991,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "3",
+      "locked": false
+    },
+    {
+      "id": "voiceover_group_result",
+      "title": "4. Final Result / 最终结果",
+      "x": 1840,
+      "y": -170,
+      "w": 470,
+      "h": 760,
+      "color": "#2563eb",
+      "alpha": 0.09,
+      "shortcut": "4",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "voiceover_intro_note",
+      "type": "note",
+      "x": -96,
+      "y": -120,
+      "w": 500,
+      "h": 125,
+      "title": "TTS To Timeline / TTS 接入 Timeline",
+      "text": "This template demonstrates a common chain: Qwen TTS generates narration audio, then the audio Result is mixed with video on Timeline. / 这个模板演示常用链路：Qwen TTS 生成旁白音频，然后把音频 Result 放进 Timeline 与视频混剪。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "voiceover_tts_node",
+      "type": "qwen_tts_voice_design",
+      "qwen_tts_mode": "voice_design",
+      "x": -96,
+      "y": 72,
+      "w": 500,
+      "h": 575,
+      "title": "Qwen TTS Narration",
+      "params": {
+        "model_choice": "1.7B",
+        "precision": "bf16",
+        "device": "auto",
+        "language": "Auto",
+        "attention": "auto",
+        "seed_random": true,
+        "seed": 0,
+        "max_new_tokens": 4096,
+        "split_max_chars": 200,
+        "split_hard_max_chars": 260,
+        "top_p": 0.8,
+        "top_k": 20,
+        "temperature": 1,
+        "repetition_penalty": 1.05,
+        "unload_model_after_generate": true,
+        "decode_batch_size": 2,
+        "batch_size": 4,
+        "text": "欢迎来到这段演示视频。我们先用 Qwen TTS 生成旁白，再把旁白音频放到 Timeline 中，与视频素材一起完成混剪输出。",
+        "style_preset": "Warm Female",
+        "instruct": "Female, mid-20s, warm narrator voice, clear articulation, medium pace, friendly and confident, natural breath.",
+        "lock_timbre_with_first_segment": true,
+        "clone_batch_size": 16
+      },
+      "audio_inputs": {},
+      "source": {
+        "kind": "template_qwen_tts",
+        "mode": "voice_design",
+        "module": "enhanced.webui_qwen_tts"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Run Qwen TTS first; the generated audio Result feeds the Timeline voiceover clip."
+      }
+    },
+    {
+      "id": "voiceover_tts_result",
+      "type": "result",
+      "x": 576,
+      "y": -120,
+      "w": 400,
+      "h": 330,
+      "title": "Narration Audio Result / 旁白音频 Result",
+      "producer": {
+        "qwen_tts_node_id": "voiceover_tts_node",
+        "preset_node_id": null,
+        "timeline_node_id": null,
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "percent": 0,
+        "message": "Run Qwen TTS; this audio Result is connected to the Timeline voiceover track."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "qwen_tts",
+        "qwen_tts_node_id": "voiceover_tts_node"
+      }
+    },
+    {
+      "id": "voiceover_source_video",
+      "type": "video",
+      "x": 576,
+      "y": 264,
+      "w": 400,
+      "h": 320,
+      "title": "Base Video / 主视频",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Replace with an imported video or generated video Result before rendering."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "timeline_video"
+      }
+    },
+    {
+      "id": "voiceover_music",
+      "type": "audio",
+      "x": 576,
+      "y": 720,
+      "w": 400,
+      "h": 220,
+      "title": "Optional Bed Music / 可选背景音乐",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Optional: replace with music or leave empty while testing the narration mix."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "timeline_audio"
+      }
+    },
+    {
+      "id": "voiceover_timeline",
+      "type": "timeline",
+      "x": 1176,
+      "y": -120,
+      "w": 540,
+      "h": 625,
+      "title": "Voiceover Timeline / 配音时间线",
+      "params": {
+        "width": 1280,
+        "height": 720,
+        "aspect": "16:9",
+        "fps": 30,
+        "duration": 10,
+        "background": "#000000",
+        "zoom": 1,
+        "playhead": 0,
+        "selected_clip_id": "voiceover_clip_tts",
+        "size_preset": "1280x720",
+        "fps_preset": "30",
+        "preview_tool": "transform",
+        "preview_playing": false,
+        "snap_enabled": true,
+        "guides_enabled": true,
+        "mask_mode": "pen",
+        "mask_feather": 0
+      },
+      "tracks": [
+        {
+          "id": "v1",
+          "type": "video",
+          "name": "Video"
+        },
+        {
+          "id": "a2",
+          "type": "audio",
+          "name": "Voiceover"
+        },
+        {
+          "id": "a1",
+          "type": "audio",
+          "name": "Music"
+        }
+      ],
+      "clips": [
+        {
+          "id": "voiceover_clip_video",
+          "title": "Base Video",
+          "source_node_id": "voiceover_source_video",
+          "source_type": "",
+          "kind": "video",
+          "track_id": "v1",
+          "start": 0,
+          "in": 0,
+          "out": 10,
+          "duration": 10,
+          "x": 0,
+          "y": 0,
+          "scale": 1,
+          "opacity": 1,
+          "volume": 1,
+          "fit": "cover",
+          "rotate": 0,
+          "crop_left": 0,
+          "crop_top": 0,
+          "crop_right": 0,
+          "crop_bottom": 0,
+          "mask": null,
+          "mask_data_url": "",
+          "keyframes": []
+        },
+        {
+          "id": "voiceover_clip_tts",
+          "title": "Qwen TTS Voiceover",
+          "source_node_id": "voiceover_tts_result",
+          "source_type": "",
+          "kind": "audio",
+          "track_id": "a2",
+          "start": 0.4,
+          "in": 0,
+          "out": 8.8,
+          "duration": 8.8,
+          "x": 0,
+          "y": 0,
+          "scale": 1,
+          "opacity": 1,
+          "volume": 1,
+          "fit": "contain",
+          "rotate": 0,
+          "crop_left": 0,
+          "crop_top": 0,
+          "crop_right": 0,
+          "crop_bottom": 0,
+          "mask": null,
+          "mask_data_url": "",
+          "keyframes": []
+        },
+        {
+          "id": "voiceover_clip_music",
+          "title": "Optional Bed Music",
+          "source_node_id": "voiceover_music",
+          "source_type": "",
+          "kind": "audio",
+          "track_id": "a1",
+          "start": 0,
+          "in": 0,
+          "out": 10,
+          "duration": 10,
+          "x": 0,
+          "y": 0,
+          "scale": 1,
+          "opacity": 1,
+          "volume": 0.25,
+          "fit": "contain",
+          "rotate": 0,
+          "crop_left": 0,
+          "crop_top": 0,
+          "crop_right": 0,
+          "crop_bottom": 0,
+          "mask": null,
+          "mask_data_url": "",
+          "keyframes": []
+        }
+      ],
+      "source": {
+        "kind": "template_timeline"
+      }
+    },
+    {
+      "id": "voiceover_timeline_result",
+      "type": "result",
+      "x": 1896,
+      "y": -120,
+      "w": 350,
+      "h": 330,
+      "title": "Voiceover Video Result / 配音视频结果",
+      "producer": {
+        "preset_node_id": null,
+        "qwen_tts_node_id": null,
+        "timeline_node_id": "voiceover_timeline",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "percent": 0,
+        "message": "After the TTS audio is generated and media is replaced, render the Timeline here."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "timeline",
+        "timeline_node_id": "voiceover_timeline"
+      }
+    },
+    {
+      "id": "voiceover_result_note",
+      "type": "note",
+      "x": 1896,
+      "y": 264,
+      "w": 350,
+      "h": 145,
+      "title": "Reuse The Mix / 复用混剪结果",
+      "text": "The rendered video Result can feed Hunyuan-Foley, Wan-Extent, another Timeline, or a media viewer. / 渲染后的视频 Result 可以继续接入 Hunyuan-Foley、Wan-Extent、另一个 Timeline 或媒体浏览器。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "voiceover_edge_tts_result",
+      "type": "generate",
+      "from": "voiceover_tts_node",
+      "to": "voiceover_tts_result"
+    },
+    {
+      "id": "voiceover_edge_video_timeline",
+      "type": "timeline",
+      "from": "voiceover_source_video",
+      "to": "voiceover_timeline",
+      "slot": "voiceover_clip_video"
+    },
+    {
+      "id": "voiceover_edge_tts_timeline",
+      "type": "timeline",
+      "from": "voiceover_tts_result",
+      "to": "voiceover_timeline",
+      "slot": "voiceover_clip_tts"
+    },
+    {
+      "id": "voiceover_edge_music_timeline",
+      "type": "timeline",
+      "from": "voiceover_music",
+      "to": "voiceover_timeline",
+      "slot": "voiceover_clip_music"
+    },
+    {
+      "id": "voiceover_edge_timeline_result",
+      "type": "generate",
+      "from": "voiceover_timeline",
+      "to": "voiceover_timeline_result",
+      "slot": "timeline"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "tts_timeline_voiceover_mix_20260606065922_template_20260606070026",
+    "title": "TTS Timeline 配音混剪",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "model_free",
+      "label": "无模型依赖",
+      "note": "未检测到可运行的 Preset 或 Classic 节点。",
+      "models": []
+    },
+    "preview": "",
+    "saved_at": "2026-06-06T07:00:27Z"
+  }
+}

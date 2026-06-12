@@ -1,0 +1,826 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "hunyuan_foley_video_audio_20260605070749_template_20260605071057",
+  "title": "Hunyuan-Foley 视频音效",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T07:10:58Z",
+  "viewport": {
+    "x": 205,
+    "y": 129,
+    "zoom": 0.2603671624630761
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "__template_source": "user",
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    }
+  },
+  "groups": [
+    {
+      "id": "foley_group_input",
+      "title": "1. Video And Sound Prompt / 视频与音效提示",
+      "x": -160,
+      "y": -180,
+      "w": 659,
+      "h": 1319,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "foley_group_config",
+      "title": "2. Foley Configs / Foley 配置",
+      "x": 540,
+      "y": -180,
+      "w": 538,
+      "h": 2000,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "foley_group_run",
+      "title": "3. Audio Result / 音效结果",
+      "x": 1120,
+      "y": -180,
+      "w": 1076,
+      "h": 1435,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "foley_intro",
+      "type": "note",
+      "x": -96,
+      "y": -96,
+      "w": 520,
+      "h": 125,
+      "title": "Video Foley / 视频拟音",
+      "text": "Use Hunyuan-Foley to add generated sound effects to a video. Connect a video Result from Wan/LTX, or replace the placeholder video. / 使用 Hunyuan-Foley 为视频生成音效。可接入 Wan/LTX 的视频 Result，也可替换占位视频。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "foley_source_video",
+      "type": "video",
+      "x": -96,
+      "y": 96,
+      "w": 520,
+      "h": 300,
+      "title": "Source Video / 源视频",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: replace this video or connect a video Result before running Hunyuan-Foley."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "scene_video"
+      }
+    },
+    {
+      "id": "foley_prompt",
+      "type": "text",
+      "x": -96,
+      "y": 528,
+      "w": 520,
+      "h": 145,
+      "title": "Audio Effects Prompt / 音效提示词",
+      "text": {
+        "value": "'''Audio Effects Prompt'''\nsoft footsteps on concrete, distant city ambience, light wind, subtle cloth movement, cinematic natural foley",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "foley_negative",
+      "type": "text",
+      "x": -96,
+      "y": 816,
+      "w": 520,
+      "h": 115,
+      "title": "Negative Audio Prompt / 负向音频提示",
+      "text": {
+        "value": "noisy, harsh, background music, BGM, singing, vocals, song, melody",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "foley_models",
+      "type": "config",
+      "config_kind": "models",
+      "x": 600,
+      "y": -96,
+      "w": 400,
+      "h": 440,
+      "title": "Models Config / 模型配置",
+      "target_preset_id": "foley_preset",
+      "config": {
+        "defaults": {
+          "base_model": "None",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "Default (model)",
+          "loras": []
+        },
+        "values": {
+          "base_model": "None",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "Default (model)",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Hunyuan-Foley"
+      }
+    },
+    {
+      "id": "foley_resolution",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 600,
+      "y": 672,
+      "w": 400,
+      "h": 430,
+      "title": "Resolution Config / 分辨率配置",
+      "target_preset_id": "foley_preset",
+      "config": {
+        "defaults": {
+          "template": "Preset",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "832*1216",
+          "aspect_ratios": [
+            "origin|Original",
+            "640|1:1",
+            "720|1:1",
+            "832|1:1",
+            "960|1:1",
+            "1024|1:1",
+            "1280|1:1"
+          ],
+          "resolution_control": {
+            "mode": "video_keep_input_area",
+            "source": "scene_video",
+            "base_width": 640,
+            "base_height": 640,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "video",
+            "preprocess_fit": "proportional",
+            "preserve_audio": true
+          }
+        },
+        "values": {
+          "template": "Preset",
+          "aspect_ratio": "origin|Original",
+          "width": 640,
+          "height": 640,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Hunyuan-Foley"
+      }
+    },
+    {
+      "id": "foley_preset",
+      "type": "preset",
+      "x": 1176,
+      "y": -96,
+      "w": 445,
+      "h": 670,
+      "title": "Hunyuan-Foley",
+      "preset": {
+        "name": "Hunyuan-Foley",
+        "display_name": "Hunyuan-Foley",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "'''Audio Effects Prompt'''\n",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Comfy",
+        "engine_type": "video",
+        "scene_frontend": "v1.1",
+        "scene_theme": "Hunyuan-Foley",
+        "task_method": "hunyuan_foley"
+      },
+      "schema": {
+        "version": "v1.1",
+        "scene_frontend": "v1.1",
+        "engine_type": "video",
+        "theme_title": "Hunyuan-Foley Video Audio Effects Generator",
+        "default_theme": "Hunyuan-Foley",
+        "themes": [
+          "Hunyuan-Foley"
+        ],
+        "per_theme": {
+          "Hunyuan-Foley": {
+            "task_method": "hunyuan_foley",
+            "defaults": {
+              "prompt": "'''Audio Effects Prompt'''\n",
+              "scene_additional_prompt_2": "noisy, harsh, background music, BGM, singing, vocals, song, melody",
+              "scene_var_number": 0,
+              "scene_var_number2": 4,
+              "scene_var_number3": 4.5,
+              "scene_var_number7": 0,
+              "scene_var_number8": 0,
+              "scene_switch_option1": false,
+              "scene_switch_option2": true,
+              "scene_steps": 50,
+              "scene_image_number": 1
+            }
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_video",
+            "label": "#1 Source Video",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "scene_canvas_image",
+            "label": "Canvas Image",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_input_image1",
+            "label": "Input Image 1",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_input_image2",
+            "label": "Input Image 2",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_audio",
+            "label": "Audio",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "SAM3 Source Video",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "SAM3 Mask Video",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Audio Effects Prompt",
+            "type": "textarea",
+            "default": "'''Audio Effects Prompt'''\n"
+          },
+          {
+            "key": "scene_additional_prompt_2",
+            "label": "Negative Prompt",
+            "type": "textarea",
+            "default": "noisy, harsh, background music, BGM, singing, vocals, song, melody"
+          },
+          {
+            "key": "seed_random",
+            "label": "Random Seed",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "image_seed",
+            "label": "Seed",
+            "type": "number",
+            "min": 0,
+            "max": 1125899906842623,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number",
+            "label": "Voice Volume Global",
+            "type": "number",
+            "min": -50,
+            "max": 20,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number2",
+            "label": "Batch Size",
+            "type": "number",
+            "min": -1,
+            "max": 64,
+            "step": 1,
+            "default": 4
+          },
+          {
+            "key": "scene_var_number3",
+            "label": "CFG Scale",
+            "type": "number",
+            "min": 1,
+            "max": 10,
+            "step": 0.1,
+            "default": 4.5
+          },
+          {
+            "key": "scene_var_number7",
+            "label": "Voice Volume Origin",
+            "type": "number",
+            "min": -50,
+            "max": 20,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number8",
+            "label": "Voice Volume Foley",
+            "type": "number",
+            "min": -50,
+            "max": 20,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_switch_option1",
+            "label": "Merge Original Audio",
+            "type": "checkbox",
+            "default": false
+          },
+          {
+            "key": "scene_switch_option2",
+            "label": "Use CPU-Offload",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "scene_steps",
+            "label": "Scene Steps",
+            "type": "number",
+            "min": 30,
+            "max": 100,
+            "step": 1,
+            "default": 50
+          },
+          {
+            "key": "scene_image_number",
+            "label": "Output Number",
+            "type": "number",
+            "min": 1,
+            "max": 5,
+            "step": 1,
+            "default": 1
+          }
+        ]
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "None",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "Default (model)",
+          "loras": []
+        },
+        "overrides": {
+          "base_model": "None",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "Default (model)",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "foley_models",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "Preset",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "832*1216",
+          "aspect_ratios": [
+            "origin|Original",
+            "640|1:1",
+            "720|1:1",
+            "832|1:1",
+            "960|1:1",
+            "1024|1:1",
+            "1280|1:1"
+          ],
+          "resolution_control": {
+            "mode": "video_keep_input_area",
+            "source": "scene_video",
+            "base_width": 640,
+            "base_height": 640,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "video",
+            "preprocess_fit": "proportional",
+            "preserve_audio": true
+          }
+        },
+        "overrides": {
+          "template": "Preset",
+          "aspect_ratio": "origin|Original",
+          "width": 640,
+          "height": 640,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "source_node_id": "foley_resolution",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 20,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 20,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "source_node_id": "foley_advanced",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "hunyuan_foley,clap/config.json,643,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/config.json",
+          "hunyuan_foley,clap/merges.txt,456318,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/merges.txt",
+          "hunyuan_foley,clap/pytorch_model.bin,776444665,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/pytorch_model.bin",
+          "hunyuan_foley,clap/vocab.json,798293,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/vocab.json",
+          "hunyuan_foley,hunyuanvideo_foley_xl.pth,5854140970,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/hunyuanvideo_foley_xl.pth",
+          "hunyuan_foley,siglip2/config.json,276,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/siglip2/config.json",
+          "hunyuan_foley,siglip2/model.safetensors,1503344520,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/siglip2/model.safetensors",
+          "hunyuan_foley,siglip2/preprocessor_config.json,394,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/siglip2/preprocessor_config.json",
+          "hunyuan_foley,synchformer_state_dict.pth,950058171,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/synchformer_state_dict.pth",
+          "hunyuan_foley,vae_128d_48k.pth,1486465965,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/vae_128d_48k.pth"
+        ],
+        "has_model_probe": true,
+        "source": "presets/Hunyuan-Foley.json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Model requirements loaded from presets/Hunyuan-Foley.json; connect video and check models before running."
+      },
+      "upload_slots": {
+        "scene_video": "foley_source_video"
+      },
+      "text_inputs": {
+        "prompt": "foley_prompt",
+        "scene_additional_prompt_2": "foley_negative"
+      },
+      "params": {
+        "prompt": "'''Audio Effects Prompt'''\n",
+        "negative_prompt": "",
+        "scene_additional_prompt_2": "noisy, harsh, background music, BGM, singing, vocals, song, melody",
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_var_number": 0,
+        "scene_var_number2": 4,
+        "scene_var_number3": 4.5,
+        "scene_var_number7": 0,
+        "scene_var_number8": 0,
+        "scene_switch_option1": false,
+        "scene_switch_option2": true,
+        "scene_steps": 50,
+        "scene_image_number": 1
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "Hunyuan-Foley"
+      }
+    },
+    {
+      "id": "foley_advanced",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 624,
+      "y": 1392,
+      "w": 360,
+      "h": 360,
+      "title": "Advanced Config / 高级配置",
+      "target_preset_id": "foley_preset",
+      "config": {
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 20,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 20,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Hunyuan-Foley"
+      }
+    },
+    {
+      "id": "foley_result",
+      "type": "result",
+      "x": 1680,
+      "y": -96,
+      "w": 360,
+      "h": 330,
+      "title": "Foley Result / 拟音结果",
+      "producer": {
+        "preset_node_id": "foley_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 50,
+        "percent": 0,
+        "message": "Connect a source video, then run Hunyuan-Foley."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "foley_reuse_note",
+      "type": "note",
+      "x": 1680,
+      "y": 288,
+      "w": 445,
+      "h": 130,
+      "title": "Timeline Use / Timeline 复用",
+      "text": "Send the finished Result to Timeline to mix it with generated video, TTS voice, or other audio layers. / 完成后的 Result 可送入 Timeline，与生成视频、TTS 人声或其他音轨混合。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "foley_edge_video",
+      "type": "upload",
+      "from": "foley_source_video",
+      "to": "foley_preset",
+      "slot": "scene_video"
+    },
+    {
+      "id": "foley_edge_prompt",
+      "type": "text",
+      "from": "foley_prompt",
+      "to": "foley_preset",
+      "slot": "prompt"
+    },
+    {
+      "id": "foley_edge_negative",
+      "type": "text",
+      "from": "foley_negative",
+      "to": "foley_preset",
+      "slot": "scene_additional_prompt_2"
+    },
+    {
+      "id": "foley_edge_models",
+      "type": "config",
+      "from": "foley_models",
+      "to": "foley_preset",
+      "slot": "models"
+    },
+    {
+      "id": "foley_edge_resolution",
+      "type": "config",
+      "from": "foley_resolution",
+      "to": "foley_preset",
+      "slot": "resolution"
+    },
+    {
+      "id": "foley_edge_advanced",
+      "type": "config",
+      "from": "foley_advanced",
+      "to": "foley_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "foley_edge_result",
+      "type": "generate",
+      "from": "foley_preset",
+      "to": "foley_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "hunyuan_foley_video_audio_20260605070749_template_20260605071057",
+    "title": "Hunyuan-Foley 视频音效",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 1 个 preset 节点和 10 个模型依赖。运行前请检查模型。",
+      "models": [
+        "hunyuan_foley,clap/config.json,643,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/config.json",
+        "hunyuan_foley,clap/merges.txt,456318,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/merges.txt",
+        "hunyuan_foley,clap/pytorch_model.bin,776444665,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/pytorch_model.bin",
+        "hunyuan_foley,clap/vocab.json,798293,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/vocab.json",
+        "hunyuan_foley,hunyuanvideo_foley_xl.pth,5854140970,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/hunyuanvideo_foley_xl.pth",
+        "hunyuan_foley,siglip2/config.json,276,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/siglip2/config.json",
+        "hunyuan_foley,siglip2/model.safetensors,1503344520,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/siglip2/model.safetensors",
+        "hunyuan_foley,siglip2/preprocessor_config.json,394,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/siglip2/preprocessor_config.json",
+        "hunyuan_foley,synchformer_state_dict.pth,950058171,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/synchformer_state_dict.pth",
+        "hunyuan_foley,vae_128d_48k.pth,1486465965,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/vae_128d_48k.pth"
+      ]
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T07:10:58Z"
+  }
+}

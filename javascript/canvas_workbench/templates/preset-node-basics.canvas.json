@@ -1,0 +1,548 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "preset_node_basics_20260605060454_template_20260605060919",
+  "title": "Preset 节点入门",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T06:09:20Z",
+  "viewport": {
+    "x": 484,
+    "y": 284,
+    "zoom": 0.17532654142477022
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__onboarding_template": true,
+    "__onboarding_checklist_title": {
+      "en": "Preset Basics Tour",
+      "zh": "Preset 入门导览"
+    },
+    "__onboarding_checklist_steps": [
+      {
+        "key": "preset_focus",
+        "action": "focus_node",
+        "target_node_id": "preset_basic_scene",
+        "inspect": true,
+        "icon": "fa-wand-magic-sparkles",
+        "title": {
+          "en": "Inspect the Preset node",
+          "zh": "检查 Preset 节点"
+        },
+        "detail": {
+          "en": "Select it and review model status, ports, and parameters.",
+          "zh": "选中它，查看模型状态、接口和参数。"
+        }
+      },
+      {
+        "key": "preset_prompt",
+        "action": "focus_node",
+        "target_node_id": "preset_prompt_text",
+        "icon": "fa-font",
+        "title": {
+          "en": "Trace the Prompt input",
+          "zh": "追踪 Prompt 输入"
+        },
+        "detail": {
+          "en": "Text nodes can feed Prompt and Negative Prompt ports.",
+          "zh": "Text 节点可以接入 Prompt 和 Negative Prompt 接口。"
+        }
+      },
+      {
+        "key": "preset_resolution",
+        "action": "focus_node",
+        "target_node_id": "preset_resolution_config",
+        "inspect": true,
+        "icon": "fa-ruler-combined",
+        "title": {
+          "en": "Open Resolution Config",
+          "zh": "打开 Resolution Config"
+        },
+        "detail": {
+          "en": "Resolution can be managed as a reusable config node.",
+          "zh": "分辨率可以用可复用的配置节点管理。"
+        }
+      },
+      {
+        "key": "preset_advanced",
+        "action": "focus_node",
+        "target_node_id": "preset_advanced_config",
+        "inspect": true,
+        "icon": "fa-sliders",
+        "title": {
+          "en": "Open Advanced Config",
+          "zh": "打开 Advanced Config"
+        },
+        "detail": {
+          "en": "Sampler, scheduler, steps, and guidance live here.",
+          "zh": "采样器、调度器、步数和引导强度在这里。"
+        }
+      },
+      {
+        "key": "preset_result",
+        "action": "focus_node",
+        "target_node_id": "preset_result_example",
+        "icon": "fa-image",
+        "title": {
+          "en": "Review the Result example",
+          "zh": "查看 Result 示例"
+        },
+        "detail": {
+          "en": "Real runs create Result nodes that can be reused downstream.",
+          "zh": "真实运行会生成可下游复用的 Result 节点。"
+        }
+      },
+      {
+        "key": "preset_queue",
+        "action": "run_queue",
+        "icon": "fa-list-check",
+        "title": {
+          "en": "Open Run Queue",
+          "zh": "打开运行队列"
+        },
+        "detail": {
+          "en": "Queued preset runs are tracked from the top widget.",
+          "zh": "排队中的 preset 任务会显示在顶部控件中。"
+        }
+      }
+    ],
+    "__minimap_initialized": true,
+    "__template_source": "user",
+    "__onboarding_checklist": {
+      "completed": {
+        "add_text": true,
+        "select_node": true,
+        "inspect_node": true,
+        "preset_prompt": true,
+        "preset_resolution": true,
+        "preset_focus": true,
+        "preset_advanced": true,
+        "preset_result": true
+      }
+    }
+  },
+  "groups": [
+    {
+      "id": "preset_group_ready",
+      "title": "1. Preset And Models / Preset 与模型",
+      "x": -120,
+      "y": -130,
+      "w": 580,
+      "h": 520,
+      "color": "#14b8a6",
+      "alpha": 0.13,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "preset_group_inputs",
+      "title": "2. Prompt And Config Inputs / 提示词与配置输入",
+      "x": 520,
+      "y": -130,
+      "w": 918,
+      "h": 1877,
+      "color": "#7c3aed",
+      "alpha": 0.11,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "preset_group_run",
+      "title": "3. Run And Reuse / 运行与复用",
+      "x": 1480,
+      "y": -130,
+      "w": 553,
+      "h": 718,
+      "color": "#22c55e",
+      "alpha": 0.1,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "preset_note_intro",
+      "type": "note",
+      "x": -48,
+      "y": -72,
+      "w": 430,
+      "h": 150,
+      "title": "What is a Preset? / 什么是 Preset？",
+      "text": "A Preset node wraps a backend workflow and exposes only the controls users need: prompt, media slots, model readiness, configs, and Run. / Preset 节点封装后端工作流，只暴露用户需要的提示词、媒体槽、模型状态、配置和运行入口。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "preset_note_models",
+      "type": "note",
+      "x": -48,
+      "y": 144,
+      "w": 430,
+      "h": 160,
+      "title": "Model Readiness / 模型就绪状态",
+      "text": "This teaching preset is skipped and not meant to run. In real templates, use Check/download models first; a missing state means the workflow can be inspected but may not run. / 这个教学 Preset 被标记为跳过，不用于真实运行。真实模板中先检查/下载模型。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "preset_prompt_text",
+      "type": "text",
+      "x": 576,
+      "y": 1104,
+      "w": 330,
+      "h": 210,
+      "title": "Prompt Text / 正向提示词",
+      "text": {
+        "value": "a bright product-style render of a compact creative workstation, clean composition, soft studio lighting",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "onboarding_text"
+      }
+    },
+    {
+      "id": "preset_negative_text",
+      "type": "text",
+      "x": 576,
+      "y": 1416,
+      "w": 330,
+      "h": 180,
+      "title": "Negative Prompt / 负向提示词",
+      "text": {
+        "value": "worst quality, low quality, blurry, noisy, jpeg artifacts",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "onboarding_text"
+      }
+    },
+    {
+      "id": "preset_basic_scene",
+      "type": "preset",
+      "x": 1008,
+      "y": -96,
+      "w": 380,
+      "h": 520,
+      "title": "Example Preset (teaching only)",
+      "ignored": true,
+      "preset": {
+        "name": "Preset_Basics_Teaching",
+        "display_name": "Preset Basics Teaching",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "a bright product-style render of a compact creative workstation",
+          "default_prompt_negative": "worst quality, low quality, blurry"
+        }
+      },
+      "runtime": {
+        "backend_engine": "Example",
+        "engine_type": "image",
+        "scene_frontend": "scene",
+        "scene_theme": "Text to Image",
+        "task_method": "example_t2i"
+      },
+      "schema": {
+        "engine_type": "image",
+        "theme_title": "Mode",
+        "default_theme": "Text to Image",
+        "themes": [
+          "Text to Image"
+        ],
+        "per_theme": {
+          "Text to Image": {
+            "task_method": "example_t2i",
+            "defaults": {
+              "scene_steps": 8,
+              "scene_image_number": 1
+            }
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "Optional Input Image",
+            "visible": true,
+            "interactive": true
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Positive Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "negative_prompt",
+            "label": "Negative Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "seed_random",
+            "label": "Random Seed",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "scene_steps",
+            "label": "Steps",
+            "type": "number",
+            "min": 1,
+            "max": 80,
+            "step": 1,
+            "default": 8
+          },
+          {
+            "key": "scene_image_number",
+            "label": "Images",
+            "type": "number",
+            "min": 1,
+            "max": 4,
+            "step": 1,
+            "default": 1
+          }
+        ]
+      },
+      "models_config": {
+        "mode": "preset_default",
+        "defaults": {},
+        "overrides": {}
+      },
+      "resolution_config": {
+        "mode": "preset_default",
+        "defaults": {
+          "template": "SDXL",
+          "aspect_ratio": "1024*1024",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 8,
+          "multiplier": 1
+        },
+        "overrides": {}
+      },
+      "generation_config": {
+        "mode": "preset_default",
+        "defaults": {
+          "guidance_scale": 4,
+          "overwrite_step": -1,
+          "sampler_name": "dpmpp_2m_sde_gpu",
+          "scheduler_name": "karras",
+          "clip_skip": 2
+        },
+        "overrides": {}
+      },
+      "model_requirements": {
+        "model_list": [],
+        "has_model_probe": false,
+        "source": "starter_template"
+      },
+      "model_status": {
+        "state": "missing",
+        "missing_count": 1,
+        "message": "Teaching example: real preset templates should check/download models before running."
+      },
+      "upload_slots": {
+        "scene_canvas_image": null
+      },
+      "text_inputs": {
+        "prompt": "preset_prompt_text",
+        "negative_prompt": "preset_negative_text"
+      },
+      "params": {
+        "prompt": "",
+        "negative_prompt": "",
+        "seed_random": true,
+        "scene_steps": 8,
+        "scene_image_number": 1
+      },
+      "status": "idle",
+      "source": {
+        "kind": "onboarding_preset_example"
+      }
+    },
+    {
+      "id": "preset_resolution_config",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 576,
+      "y": -72,
+      "w": 360,
+      "h": 380,
+      "title": "Resolution Config / 分辨率配置",
+      "target_preset_id": "preset_basic_scene",
+      "config": {
+        "defaults": {
+          "template": "SDXL",
+          "aspect_ratio": "1024*1024",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 8,
+          "multiplier": 1
+        },
+        "values": {
+          "template": "SDXL",
+          "aspect_ratio": "1024*1024",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 8,
+          "multiplier": 1,
+          "edit_mode": "proportional"
+        }
+      },
+      "source": {
+        "kind": "onboarding_config_example"
+      }
+    },
+    {
+      "id": "preset_advanced_config",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 576,
+      "y": 672,
+      "w": 380,
+      "h": 380,
+      "title": "Advanced Config / 高级配置",
+      "target_preset_id": "preset_basic_scene",
+      "config": {
+        "defaults": {
+          "guidance_scale": 4,
+          "overwrite_step": -1,
+          "sampler_name": "dpmpp_2m_sde_gpu",
+          "scheduler_name": "karras",
+          "clip_skip": 2
+        },
+        "values": {
+          "guidance_scale": 4,
+          "overwrite_step": -1,
+          "sampler_name": "dpmpp_2m_sde_gpu",
+          "scheduler_name": "karras",
+          "clip_skip": 2
+        }
+      },
+      "source": {
+        "kind": "onboarding_config_example"
+      }
+    },
+    {
+      "id": "preset_note_run",
+      "type": "note",
+      "x": 1560,
+      "y": 288,
+      "w": 390,
+      "h": 140,
+      "title": "Run Path / 运行路径",
+      "text": "For real presets, click Run on a selected node or run a selected chain. The Run Queue widget tracks progress; the Result node appears on canvas. / 真实 Preset 可单节点运行或选中链路运行。运行队列显示进度，Result 会出现在画布上。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "preset_result_example",
+      "type": "result",
+      "x": 1560,
+      "y": -96,
+      "w": 390,
+      "h": 330,
+      "title": "Result Example / 结果示例",
+      "producer": {
+        "preset_node_id": "preset_basic_scene",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "example",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 8,
+        "percent": 0,
+        "message": "A real run writes output metadata here and can be reused downstream."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "onboarding_result_example"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "preset_edge_prompt",
+      "type": "text",
+      "from": "preset_prompt_text",
+      "to": "preset_basic_scene",
+      "slot": "prompt"
+    },
+    {
+      "id": "preset_edge_negative",
+      "type": "text",
+      "from": "preset_negative_text",
+      "to": "preset_basic_scene",
+      "slot": "negative_prompt"
+    },
+    {
+      "id": "preset_edge_resolution",
+      "type": "config",
+      "from": "preset_resolution_config",
+      "to": "preset_basic_scene",
+      "slot": "resolution"
+    },
+    {
+      "id": "preset_edge_advanced",
+      "type": "config",
+      "from": "preset_advanced_config",
+      "to": "preset_basic_scene",
+      "slot": "advanced"
+    },
+    {
+      "id": "preset_edge_result",
+      "type": "generate",
+      "from": "preset_basic_scene",
+      "to": "preset_result_example",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "preset_node_basics_20260605060454_template_20260605060919",
+    "title": "Preset 节点入门",
+    "description": "从当前画布保存。",
+    "category": "starter",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 1 个 preset 节点。运行前请检查模型就绪状态。",
+      "models": []
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T06:09:20Z"
+  }
+}

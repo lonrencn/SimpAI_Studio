@@ -1,0 +1,232 @@
+{
+  "23": {
+    "inputs": {
+      "image": "welcome.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "i2i_inpaint_image"
+    }
+  },
+  "72": {
+    "inputs": {
+      "boolean": [
+        "74",
+        0
+      ],
+      "on_true": [
+        "75",
+        0
+      ],
+      "on_false": [
+        "78",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "74": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "easy boolean",
+    "_meta": {
+      "title": "switch_option1"
+    }
+  },
+  "75": {
+    "inputs": {
+      "draw_body": true,
+      "draw_hands": [
+        "79",
+        0
+      ],
+      "draw_face": [
+        "80",
+        0
+      ],
+      "draw_feet": [
+        "81",
+        0
+      ],
+      "stick_width": 9,
+      "face_point_size": 3,
+      "score_threshold": [
+        "82",
+        0
+      ],
+      "keypoints": [
+        "94",
+        0
+      ]
+    },
+    "class_type": "SDPoseDrawKeypoints",
+    "_meta": {
+      "title": "SDPoseDrawKeypoints"
+    }
+  },
+  "77": {
+    "inputs": {
+      "ckpt_name": "sdpose_wholebody_fp16.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "78": {
+    "inputs": {
+      "draw_body": true,
+      "draw_hands": [
+        "79",
+        0
+      ],
+      "draw_face": [
+        "80",
+        0
+      ],
+      "draw_feet": [
+        "81",
+        0
+      ],
+      "stick_width": 4,
+      "face_point_size": 3,
+      "score_threshold": [
+        "82",
+        0
+      ],
+      "keypoints": [
+        "94",
+        0
+      ]
+    },
+    "class_type": "SDPoseDrawKeypoints",
+    "_meta": {
+      "title": "SDPoseDrawKeypoints"
+    }
+  },
+  "79": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "easy boolean",
+    "_meta": {
+      "title": "switch_option2"
+    }
+  },
+  "80": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "easy boolean",
+    "_meta": {
+      "title": "switch_option3"
+    }
+  },
+  "81": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "easy boolean",
+    "_meta": {
+      "title": "switch_option4"
+    }
+  },
+  "82": {
+    "inputs": {
+      "value": 0.3
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "var_number3"
+    }
+  },
+  "85": {
+    "inputs": {
+      "detect_hand": "enable",
+      "detect_body": "enable",
+      "detect_face": "enable",
+      "resolution": 1024,
+      "bbox_detector": "yolox_l.onnx",
+      "pose_estimator": "dw-ll_ucoco_384_bs5.torchscript.pt",
+      "scale_stick_for_xinsr_cn": "disable",
+      "image": [
+        "97",
+        0
+      ]
+    },
+    "class_type": "DWPreprocessor",
+    "_meta": {
+      "title": "DWPose Estimator"
+    }
+  },
+  "94": {
+    "inputs": {
+      "batch_size": 1,
+      "scale": 1.2,
+      "force_square": false,
+      "max_people": [
+        "99",
+        0
+      ],
+      "min_box_size": 64,
+      "model": [
+        "77",
+        0
+      ],
+      "vae": [
+        "77",
+        2
+      ],
+      "image": [
+        "97",
+        0
+      ],
+      "keypoints": [
+        "85",
+        1
+      ]
+    },
+    "class_type": "SDPoseMultiPersonKeypoints",
+    "_meta": {
+      "title": "SDPoseMultiPersonKeypoints"
+    }
+  },
+  "97": {
+    "inputs": {
+      "shorter_edge": 1024,
+      "images": [
+        "23",
+        0
+      ]
+    },
+    "class_type": "ResizeImagesByShorterEdge",
+    "_meta": {
+      "title": "Resize Images by Shorter Edge"
+    }
+  },
+  "99": {
+    "inputs": {
+      "value": 3
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "var_number1"
+    }
+  },
+  "100": {
+    "inputs": {
+      "images": [
+        "72",
+        0
+      ]
+    },
+    "class_type": "SaveImageWebsocket",
+    "_meta": {
+      "title": "SaveImageWebsocket"
+    }
+  }
+}

@@ -1,0 +1,613 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "anima_text_to_image_20260605061802_template_20260605062002",
+  "title": "Anima 文生图",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T06:20:03Z",
+  "viewport": {
+    "x": 423,
+    "y": -53,
+    "zoom": 0.5023269547711426
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "anima_group_prompt",
+      "title": "1. Prompt / 提示词",
+      "x": -120,
+      "y": -160,
+      "w": 510,
+      "h": 889,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "anima_group_configs",
+      "title": "2. Configs / 配置",
+      "x": 460,
+      "y": -160,
+      "w": 509,
+      "h": 2043,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "anima_group_run",
+      "title": "3. Run / 运行",
+      "x": 1010,
+      "y": -160,
+      "w": 1060,
+      "h": 898,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "anima_intro_note",
+      "type": "note",
+      "x": -72,
+      "y": -72,
+      "w": 400,
+      "h": 150,
+      "title": "Runnable Template / 可运行模板",
+      "text": "This is the first model-dependent Image template. It is safe to browse without models, but generation requires the Anima files to be ready. / 这是第一组带模型依赖的图像模板。未安装模型时可浏览编辑，但生成前需要先让 Anima 模型就绪。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "anima_prompt_text",
+      "type": "text",
+      "x": -72,
+      "y": 120,
+      "w": 400,
+      "h": 205,
+      "title": "Positive Prompt / 正向提示词",
+      "text": {
+        "value": "masterpiece, best quality, anime key visual, a young illustrator sitting at a cozy studio desk, warm window light, art books, sketch papers, detailed background, clean linework, soft color harmony",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "anima_negative_text",
+      "type": "text",
+      "x": -72,
+      "y": 408,
+      "w": 400,
+      "h": 135,
+      "title": "Negative Prompt / 负向提示词",
+      "text": {
+        "value": "worst quality, low quality, blurry, jpeg artifacts, sepia",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "anima_models_config",
+      "type": "config",
+      "config_kind": "models",
+      "x": 528,
+      "y": -72,
+      "w": 370,
+      "h": 510,
+      "title": "Models Config / 模型配置",
+      "target_preset_id": "anima_classic",
+      "config": {
+        "defaults": {
+          "base_model": "anima-base-v1.0.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "qwen_image_vae.safetensors",
+          "loras": []
+        },
+        "values": {
+          "base_model": "anima-base-v1.0.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "qwen_image_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Anima"
+      }
+    },
+    {
+      "id": "anima_resolution_config",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 528,
+      "y": 696,
+      "w": 370,
+      "h": 430,
+      "title": "Resolution Config / 分辨率配置",
+      "target_preset_id": "anima_classic",
+      "config": {
+        "defaults": {
+          "template": "SDXL",
+          "available_aspect_ratios_selection": "SDXL",
+          "default_aspect_ratio": "832*1216",
+          "resolution_control": {
+            "mode": "standard",
+            "source": "none",
+            "base_width": 896,
+            "base_height": 1152,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": false,
+            "preprocess_target": "none",
+            "preprocess_fit": "scale"
+          }
+        },
+        "values": {
+          "template": "SDXL",
+          "aspect_ratio": "832*1216",
+          "width": 832,
+          "height": 1216,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Anima"
+      }
+    },
+    {
+      "id": "anima_classic",
+      "type": "classic",
+      "x": 1080,
+      "y": -72,
+      "w": 430,
+      "h": 585,
+      "title": "Anima Text to Image",
+      "classic_mode": "t2i",
+      "classic_ip_count": 1,
+      "preset": {
+        "name": "Anima",
+        "display_name": "Anima",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [
+            "Fooocus Pony"
+          ],
+          "default_prompt": "",
+          "default_prompt_negative": "worst quality, low quality, blurry, jpeg artifacts, sepia"
+        }
+      },
+      "runtime": {
+        "backend_engine": "Comfy",
+        "engine_type": "image",
+        "task_method": "anima_aio"
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "anima-base-v1.0.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "qwen_image_vae.safetensors",
+          "loras": []
+        },
+        "overrides": {
+          "base_model": "anima-base-v1.0.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "qwen_image_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 0.8
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "anima_models_config",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "SDXL",
+          "available_aspect_ratios_selection": "SDXL",
+          "default_aspect_ratio": "832*1216",
+          "resolution_control": {
+            "mode": "standard",
+            "source": "none",
+            "base_width": 896,
+            "base_height": 1152,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": false,
+            "preprocess_target": "none",
+            "preprocess_fit": "scale"
+          }
+        },
+        "overrides": {
+          "template": "SDXL",
+          "aspect_ratio": "832*1216",
+          "width": 832,
+          "height": 1216,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "source_node_id": "anima_resolution_config",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 4,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "er_sde",
+          "scheduler_name": "simple",
+          "clip_skip": 2,
+          "performance_selection": "Speed",
+          "style_selections": [
+            "Fooocus Pony"
+          ],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 4,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "er_sde",
+          "scheduler_name": "simple",
+          "clip_skip": 2,
+          "performance_selection": "Speed",
+          "style_selections": [
+            "Fooocus Pony"
+          ],
+          "image_number": 1
+        },
+        "source_node_id": "anima_advanced_config",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "diffusion_models,anima-base-v1.0.safetensors,4182218328,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/diffusion_models/anima-base-v1.0.safetensors",
+          "text_encoders,qwen_3_06b_base.safetensors,1192135096,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/text_encoders/qwen_3_06b_base.safetensors",
+          "vae,qwen_image_vae.safetensors,253806246,0,",
+          "upscale_models,4x-AnimeSharp.pth,67010245,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/upscale_models/4x-AnimeSharp.pth"
+        ],
+        "has_model_probe": true,
+        "source": "presets/Anima.json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Model requirements loaded from presets/Anima.json; click Check/download models before running."
+      },
+      "upload_slots": {},
+      "text_inputs": {
+        "prompt": "anima_prompt_text",
+        "negative_prompt": "anima_negative_text"
+      },
+      "params": {
+        "prompt": "",
+        "negative_prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "image_number": 1,
+        "uov_method": "Upscale (1.5x)",
+        "inpaint_mode": "Inpaint or Outpaint (default)",
+        "inpaint_denoising_strength": 1,
+        "inpaint_respective_field": 0.618,
+        "inpaint_engine": null,
+        "inpaint_disable_initial_latent": false,
+        "invert_mask": false,
+        "inpaint_additional_prompt": "",
+        "outpaint_selections": [],
+        "enhance_uov_method": "Disabled",
+        "enhance_uov_strength": 0.5,
+        "enhance_uov_processing_order": "Before First Enhancement",
+        "enhance_uov_prompt_type": "Original Prompts",
+        "mixing_image_prompt_and_vary_upscale": false,
+        "mixing_image_prompt_and_inpaint": false
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "Anima"
+      }
+    },
+    {
+      "id": "anima_advanced_config",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 528,
+      "y": 1440,
+      "w": 370,
+      "h": 385,
+      "title": "Advanced Config / 高级配置",
+      "target_preset_id": "anima_classic",
+      "config": {
+        "defaults": {
+          "guidance_scale": 4,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "er_sde",
+          "scheduler_name": "simple",
+          "clip_skip": 2,
+          "performance_selection": "Speed",
+          "style_selections": [
+            "Fooocus Pony"
+          ],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 4,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "er_sde",
+          "scheduler_name": "simple",
+          "clip_skip": 2,
+          "performance_selection": "Speed",
+          "style_selections": [
+            "Fooocus Pony"
+          ],
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Anima"
+      }
+    },
+    {
+      "id": "anima_result",
+      "type": "result",
+      "x": 1584,
+      "y": -72,
+      "w": 370,
+      "h": 330,
+      "title": "Anima Result / Anima 结果",
+      "producer": {
+        "preset_node_id": "anima_classic",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 30,
+        "percent": 0,
+        "message": "Run Anima after models are ready; generated images will appear here."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "anima_result_note",
+      "type": "note",
+      "x": 1560,
+      "y": 336,
+      "w": 430,
+      "h": 130,
+      "title": "Reuse Results / 复用结果",
+      "text": "A completed Result can be dragged into downstream image/video presets, opened in LayerForge, retried, or inspected from History. / 完成后的 Result 可以接到下游图像/视频 preset，进入 LayerForge，重试，或从 History 查看。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "anima_edge_prompt",
+      "type": "text",
+      "from": "anima_prompt_text",
+      "to": "anima_classic",
+      "slot": "prompt"
+    },
+    {
+      "id": "anima_edge_negative",
+      "type": "text",
+      "from": "anima_negative_text",
+      "to": "anima_classic",
+      "slot": "negative_prompt"
+    },
+    {
+      "id": "anima_edge_models",
+      "type": "config",
+      "from": "anima_models_config",
+      "to": "anima_classic",
+      "slot": "models"
+    },
+    {
+      "id": "anima_edge_resolution",
+      "type": "config",
+      "from": "anima_resolution_config",
+      "to": "anima_classic",
+      "slot": "resolution"
+    },
+    {
+      "id": "anima_edge_advanced",
+      "type": "config",
+      "from": "anima_advanced_config",
+      "to": "anima_classic",
+      "slot": "advanced"
+    },
+    {
+      "id": "anima_edge_result",
+      "type": "generate",
+      "from": "anima_classic",
+      "to": "anima_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "anima_text_to_image_20260605061802_template_20260605062002",
+    "title": "Anima 文生图",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 1 个 preset 节点和 4 个模型依赖。运行前请检查模型。",
+      "models": [
+        "diffusion_models,anima-base-v1.0.safetensors,4182218328,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/diffusion_models/anima-base-v1.0.safetensors",
+        "text_encoders,qwen_3_06b_base.safetensors,1192135096,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/text_encoders/qwen_3_06b_base.safetensors",
+        "vae,qwen_image_vae.safetensors,253806246,0,",
+        "upscale_models,4x-AnimeSharp.pth,67010245,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/upscale_models/4x-AnimeSharp.pth"
+      ]
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T06:20:03Z"
+  }
+}

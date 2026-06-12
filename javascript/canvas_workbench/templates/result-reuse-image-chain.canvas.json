@@ -1,0 +1,990 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "result_reuse_image_chain_20260605062919_template_20260605063717",
+  "title": "Result 复用图像链",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T06:37:18Z",
+  "viewport": {
+    "x": 110,
+    "y": 146,
+    "zoom": 0.24241116032893406
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "chain_group_generate",
+      "title": "1. Generate Source / 生成源图",
+      "x": -160,
+      "y": -190,
+      "w": 1463,
+      "h": 1595,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "chain_group_edit",
+      "title": "2. Reuse As Input / 复用为输入",
+      "x": 1368,
+      "y": -192,
+      "w": 975,
+      "h": 1979,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "chain_group_result",
+      "title": "3. Edited Output / 编辑输出",
+      "x": 2400,
+      "y": -192,
+      "w": 500,
+      "h": 724,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "chain_intro_note",
+      "type": "note",
+      "x": -96,
+      "y": -120,
+      "w": 500,
+      "h": 130,
+      "title": "Result Reuse Chain / Result 复用链",
+      "text": "This template shows the core canvas pattern: one preset produces a Result, and that same Result becomes the image input for another preset. / 此模板演示画布核心模式：一个 preset 生成 Result，同一个 Result 继续作为另一个 preset 的图像输入。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "chain_anima_prompt",
+      "type": "text",
+      "x": -96,
+      "y": 72,
+      "w": 500,
+      "h": 155,
+      "title": "Anima Prompt / Anima 提示词",
+      "text": {
+        "value": "masterpiece, best quality, anime key visual, a stylish character portrait, soft window light, detailed eyes, clean linework, rich background details",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "chain_anima_negative",
+      "type": "text",
+      "x": -96,
+      "y": 384,
+      "w": 500,
+      "h": 115,
+      "title": "Anima Negative / Anima 负向",
+      "text": {
+        "value": "worst quality, low quality, blurry, jpeg artifacts, sepia",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "chain_anima_models",
+      "type": "config",
+      "config_kind": "models",
+      "x": 456,
+      "y": -120,
+      "w": 220,
+      "h": 295,
+      "title": "Anima Models",
+      "target_preset_id": "chain_anima_classic",
+      "config": {
+        "defaults": {
+          "base_model": "anima-base-v1.0.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "qwen_image_vae.safetensors",
+          "loras": []
+        },
+        "values": {
+          "base_model": "anima-base-v1.0.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "qwen_image_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Anima"
+      }
+    },
+    {
+      "id": "chain_anima_resolution",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 456,
+      "y": 648,
+      "w": 220,
+      "h": 255,
+      "title": "Anima Resolution",
+      "target_preset_id": "chain_anima_classic",
+      "config": {
+        "defaults": {
+          "template": "SDXL",
+          "available_aspect_ratios_selection": "SDXL",
+          "default_aspect_ratio": "832*1216",
+          "resolution_control": {
+            "mode": "standard",
+            "source": "none",
+            "base_width": 896,
+            "base_height": 1152,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": false,
+            "preprocess_target": "none",
+            "preprocess_fit": "scale"
+          }
+        },
+        "values": {
+          "template": "SDXL",
+          "aspect_ratio": "832*1216",
+          "width": 832,
+          "height": 1216,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1",
+          "manual": true
+        },
+        "updated_at": "2026-06-05T06:32:46.077Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Anima"
+      }
+    },
+    {
+      "id": "chain_anima_classic",
+      "type": "classic",
+      "x": 744,
+      "y": -120,
+      "w": 500,
+      "h": 310,
+      "title": "1. Anima Text to Image",
+      "classic_mode": "t2i",
+      "classic_ip_count": 1,
+      "preset": {
+        "name": "Anima",
+        "display_name": "Anima",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [
+            "Fooocus Pony"
+          ],
+          "default_prompt": "",
+          "default_prompt_negative": "worst quality, low quality, blurry, jpeg artifacts, sepia"
+        }
+      },
+      "runtime": {
+        "backend_engine": "Comfy",
+        "engine_type": "image",
+        "task_method": "anima_aio"
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "anima-base-v1.0.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "qwen_image_vae.safetensors",
+          "loras": []
+        },
+        "overrides": {
+          "base_model": "anima-base-v1.0.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "qwen_image_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "chain_anima_models",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "SDXL",
+          "available_aspect_ratios_selection": "SDXL",
+          "default_aspect_ratio": "832*1216",
+          "resolution_control": {
+            "mode": "standard",
+            "source": "none",
+            "base_width": 896,
+            "base_height": 1152,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": false,
+            "preprocess_target": "none",
+            "preprocess_fit": "scale"
+          }
+        },
+        "overrides": {
+          "template": "SDXL",
+          "aspect_ratio": "832*1216",
+          "width": 832,
+          "height": 1216,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1",
+          "manual": true
+        },
+        "source_node_id": "chain_anima_resolution",
+        "updated_at": "2026-06-05T06:32:46.077Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 4,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "er_sde",
+          "scheduler_name": "simple",
+          "clip_skip": 2,
+          "performance_selection": "Speed",
+          "style_selections": [
+            "Fooocus Pony"
+          ],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 4,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "er_sde",
+          "scheduler_name": "simple",
+          "clip_skip": 2,
+          "performance_selection": "Speed",
+          "style_selections": [
+            "Fooocus Pony"
+          ],
+          "image_number": 1
+        },
+        "source_node_id": "chain_anima_advanced",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "diffusion_models,anima-base-v1.0.safetensors,4182218328,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/diffusion_models/anima-base-v1.0.safetensors",
+          "text_encoders,qwen_3_06b_base.safetensors,1192135096,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/text_encoders/qwen_3_06b_base.safetensors",
+          "vae,qwen_image_vae.safetensors,253806246,0,",
+          "upscale_models,4x-AnimeSharp.pth,67010245,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/upscale_models/4x-AnimeSharp.pth"
+        ],
+        "has_model_probe": true,
+        "source": "presets/Anima.json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Check Anima models before running the first step."
+      },
+      "upload_slots": {},
+      "text_inputs": {
+        "prompt": "chain_anima_prompt",
+        "negative_prompt": "chain_anima_negative"
+      },
+      "params": {
+        "prompt": "",
+        "negative_prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "image_number": 1
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "Anima"
+      }
+    },
+    {
+      "id": "chain_anima_advanced",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 168,
+      "y": 696,
+      "w": 220,
+      "h": 190,
+      "title": "Anima Advanced",
+      "target_preset_id": "chain_anima_classic",
+      "config": {
+        "defaults": {
+          "guidance_scale": 4,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "er_sde",
+          "scheduler_name": "simple",
+          "clip_skip": 2,
+          "performance_selection": "Speed",
+          "style_selections": [
+            "Fooocus Pony"
+          ],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 4,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "sampler_name": "er_sde",
+          "scheduler_name": "simple",
+          "clip_skip": 2,
+          "performance_selection": "Speed",
+          "style_selections": [
+            "Fooocus Pony"
+          ],
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Anima"
+      }
+    },
+    {
+      "id": "chain_anima_result",
+      "type": "result",
+      "x": 1416,
+      "y": -120,
+      "w": 340,
+      "h": 330,
+      "title": "Anima Result / 上游结果",
+      "producer": {
+        "preset_node_id": "chain_anima_classic",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 30,
+        "percent": 0,
+        "message": "Run Anima first. This Result is connected to Flux2-A2R as scene_canvas_image."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "chain_flux_prompt",
+      "type": "text",
+      "x": 1416,
+      "y": 240,
+      "w": 340,
+      "h": 145,
+      "title": "Flux Edit Prompt / Flux 编辑指令",
+      "text": {
+        "value": "转成亚洲写实风格，保留原始构图和人物身份，写实摄影质感，自然肤色，柔和光线",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "chain_flux_models",
+      "type": "config",
+      "config_kind": "models",
+      "x": 1416,
+      "y": 528,
+      "w": 220,
+      "h": 295,
+      "title": "Flux Models",
+      "target_preset_id": "chain_flux_preset",
+      "config": {
+        "defaults": {
+          "base_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "flux2-vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+              "weight": 1
+            }
+          ]
+        },
+        "values": {
+          "base_model": "",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "flux2-vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Flux2-A2R"
+      }
+    },
+    {
+      "id": "chain_flux_resolution",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 1680,
+      "y": 528,
+      "w": 220,
+      "h": 255,
+      "title": "Flux Resolution",
+      "target_preset_id": "chain_flux_preset",
+      "config": {
+        "defaults": {
+          "template": "Flux",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "1024|1:1",
+            "1536|1:1",
+            "2048|1:1",
+            "origin|Original"
+          ],
+          "resolution_control": {
+            "mode": "image_keep_input_area",
+            "source": "scene_canvas",
+            "base_width": 1024,
+            "base_height": 1024,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "image",
+            "preprocess_fit": "proportional"
+          }
+        },
+        "values": {
+          "template": "Preset",
+          "aspect_ratio": "1024|1:1",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Flux2-A2R"
+      }
+    },
+    {
+      "id": "chain_flux_preset",
+      "type": "preset",
+      "x": 1944,
+      "y": -96,
+      "w": 340,
+      "h": 320,
+      "title": "2. Flux2-A2R Edit",
+      "preset": {
+        "name": "Flux2-A2R",
+        "display_name": "Flux2-A2R",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "转成亚洲写实风格",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Flux",
+        "engine_type": "image",
+        "scene_frontend": "m1.1",
+        "scene_theme": "Flux2_A2R",
+        "task_method": "flux2_9b_edit_cn"
+      },
+      "schema": {
+        "version": "m1.1",
+        "scene_frontend": "m1.1",
+        "engine_type": "image",
+        "theme_title": "Flux2-9B-A2R Anime-to-Real [Optional mask]",
+        "default_theme": "Flux2_A2R",
+        "themes": [
+          "Flux2_A2R"
+        ],
+        "per_theme": {
+          "Flux2_A2R": {
+            "task_method": "flux2_9b_edit_cn",
+            "defaults": {
+              "prompt": "转成亚洲写实风格",
+              "scene_steps": 4,
+              "scene_image_number": 1,
+              "scene_var_number4": 0,
+              "scene_switch_option1": false,
+              "scene_switch_option2": false
+            }
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "#1 Canvas Image",
+            "visible": true,
+            "interactive": true
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Positive Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "seed_random",
+            "label": "Random Seed",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "image_seed",
+            "label": "Seed",
+            "type": "number",
+            "min": 0,
+            "max": 1125899906842623,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_steps",
+            "label": "Scene Steps",
+            "type": "number",
+            "min": 4,
+            "max": 8,
+            "step": 1,
+            "default": 4
+          },
+          {
+            "key": "scene_image_number",
+            "label": "Image Number",
+            "type": "number",
+            "min": 1,
+            "max": 5,
+            "step": 1,
+            "default": 1
+          }
+        ]
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "flux2-vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+              "weight": 1
+            }
+          ]
+        },
+        "overrides": {
+          "base_model": "",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "flux2-vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "chain_flux_models",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "Flux",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "1024|1:1",
+            "1536|1:1",
+            "2048|1:1",
+            "origin|Original"
+          ],
+          "resolution_control": {
+            "mode": "image_keep_input_area",
+            "source": "scene_canvas",
+            "base_width": 1024,
+            "base_height": 1024,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "image",
+            "preprocess_fit": "proportional"
+          }
+        },
+        "overrides": {
+          "template": "Preset",
+          "aspect_ratio": "1024|1:1",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "source_node_id": "chain_flux_resolution",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 8,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 8,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "source_node_id": "chain_flux_advanced",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "diffusion_models,Flux2-Klein-9B-True-v2-fp8mixed.safetensors,9433058560,0,https://modelscope.cn/models/wikeeyang/Flux2-Klein-9B-True-V2/resolve/master/Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
+          "text_encoders,qwen3_8b_abliterated_v2-fp8mixed.safetensors,8191194604,0,https://www.modelscope.cn/models/silveroxides/FLUX.2-dev-fp8_scaled/resolve/master/qwen3_8b_abliterated_v2-fp8mixed.safetensors",
+          "loras,Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors,165704392,0,https://www.modelscope.cn/models/zhouwenbin1994/Klein9BAnythingtoRealC/resolve/20260128232821/Flux2%20Klein%E5%8A%A8%E6%BC%AB%E8%BD%AC%E5%86%99%E5%AE%9E%E7%9C%9F%E4%BA%BA%20AnythingtoRealCharacters.safetensors",
+          "vae,flux2-vae.safetensors,336211292,0,https://www.modelscope.cn/models/Comfy-Org/flux2-klein-4B/resolve/master/split_files/vae/flux2-vae.safetensors",
+          "controlnet/hr16/DWPose-TorchScript-BatchSize5,dw-ll_ucoco_384_bs5.torchscript.pt,135059124,0,https://www.modelscope.cn/models/svjack/DWPose-TorchScript-BatchSize5/resolve/master/dw-ll_ucoco_384_bs5.torchscript.pt",
+          "controlnet/yzd-v/DWPose,yolox_l.onnx,216746733,0,https://www.modelscope.cn/models/zhangjin/DWPose/resolve/master/yolox_l.onnx"
+        ],
+        "has_model_probe": true,
+        "source": "presets/Flux2-A2R.json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Check Flux2-A2R models after the upstream Result is ready."
+      },
+      "upload_slots": {
+        "scene_canvas_image": "chain_anima_result"
+      },
+      "text_inputs": {
+        "prompt": "chain_flux_prompt"
+      },
+      "params": {
+        "prompt": "",
+        "negative_prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_steps": 4,
+        "scene_image_number": 1,
+        "scene_var_number4": 0,
+        "scene_switch_option1": false,
+        "scene_switch_option2": false
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "Flux2-A2R"
+      }
+    },
+    {
+      "id": "chain_flux_advanced",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 1416,
+      "y": 1296,
+      "w": 220,
+      "h": 190,
+      "title": "Flux Advanced",
+      "target_preset_id": "chain_flux_preset",
+      "config": {
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 8,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 8,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Flux2-A2R"
+      }
+    },
+    {
+      "id": "chain_flux_result",
+      "type": "result",
+      "x": 2472,
+      "y": -96,
+      "w": 370,
+      "h": 330,
+      "title": "Edited Chain Result / 编辑链结果",
+      "producer": {
+        "preset_node_id": "chain_flux_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 8,
+        "percent": 0,
+        "message": "After Anima finishes, run Flux2-A2R to reuse that Result as input."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "chain_usage_note",
+      "type": "note",
+      "x": 2472,
+      "y": 264,
+      "w": 370,
+      "h": 160,
+      "title": "Why This Matters / 复用意义",
+      "text": "This pattern works beyond images: video Results can feed Wan-Extent or Hunyuan-Foley, and audio Results can feed InfiniteTalk or LTX2.3 TA2V. / 这个模式不只适用于图像：视频 Result 可接入 Wan-Extent 或 Hunyuan-Foley，音频 Result 可接入 InfiniteTalk 或 LTX2.3 TA2V。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "chain_edge_anima_prompt",
+      "type": "text",
+      "from": "chain_anima_prompt",
+      "to": "chain_anima_classic",
+      "slot": "prompt"
+    },
+    {
+      "id": "chain_edge_anima_negative",
+      "type": "text",
+      "from": "chain_anima_negative",
+      "to": "chain_anima_classic",
+      "slot": "negative_prompt"
+    },
+    {
+      "id": "chain_edge_anima_models",
+      "type": "config",
+      "from": "chain_anima_models",
+      "to": "chain_anima_classic",
+      "slot": "models"
+    },
+    {
+      "id": "chain_edge_anima_resolution",
+      "type": "config",
+      "from": "chain_anima_resolution",
+      "to": "chain_anima_classic",
+      "slot": "resolution"
+    },
+    {
+      "id": "chain_edge_anima_advanced",
+      "type": "config",
+      "from": "chain_anima_advanced",
+      "to": "chain_anima_classic",
+      "slot": "advanced"
+    },
+    {
+      "id": "chain_edge_anima_result",
+      "type": "generate",
+      "from": "chain_anima_classic",
+      "to": "chain_anima_result",
+      "slot": "preset"
+    },
+    {
+      "id": "chain_edge_result_to_flux",
+      "type": "upload",
+      "from": "chain_anima_result",
+      "to": "chain_flux_preset",
+      "slot": "scene_canvas_image"
+    },
+    {
+      "id": "chain_edge_flux_prompt",
+      "type": "text",
+      "from": "chain_flux_prompt",
+      "to": "chain_flux_preset",
+      "slot": "prompt"
+    },
+    {
+      "id": "chain_edge_flux_models",
+      "type": "config",
+      "from": "chain_flux_models",
+      "to": "chain_flux_preset",
+      "slot": "models"
+    },
+    {
+      "id": "chain_edge_flux_resolution",
+      "type": "config",
+      "from": "chain_flux_resolution",
+      "to": "chain_flux_preset",
+      "slot": "resolution"
+    },
+    {
+      "id": "chain_edge_flux_advanced",
+      "type": "config",
+      "from": "chain_flux_advanced",
+      "to": "chain_flux_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "chain_edge_flux_result",
+      "type": "generate",
+      "from": "chain_flux_preset",
+      "to": "chain_flux_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "result_reuse_image_chain_20260605062919_template_20260605063717",
+    "title": "Result 复用图像链",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 2 个 preset 节点和 10 个模型依赖。运行前请检查模型。",
+      "models": [
+        "diffusion_models,anima-base-v1.0.safetensors,4182218328,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/diffusion_models/anima-base-v1.0.safetensors",
+        "text_encoders,qwen_3_06b_base.safetensors,1192135096,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/text_encoders/qwen_3_06b_base.safetensors",
+        "vae,qwen_image_vae.safetensors,253806246,0,",
+        "upscale_models,4x-AnimeSharp.pth,67010245,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/upscale_models/4x-AnimeSharp.pth",
+        "diffusion_models,Flux2-Klein-9B-True-v2-fp8mixed.safetensors,9433058560,0,https://modelscope.cn/models/wikeeyang/Flux2-Klein-9B-True-V2/resolve/master/Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
+        "text_encoders,qwen3_8b_abliterated_v2-fp8mixed.safetensors,8191194604,0,https://www.modelscope.cn/models/silveroxides/FLUX.2-dev-fp8_scaled/resolve/master/qwen3_8b_abliterated_v2-fp8mixed.safetensors",
+        "loras,Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors,165704392,0,https://www.modelscope.cn/models/zhouwenbin1994/Klein9BAnythingtoRealC/resolve/20260128232821/Flux2%20Klein%E5%8A%A8%E6%BC%AB%E8%BD%AC%E5%86%99%E5%AE%9E%E7%9C%9F%E4%BA%BA%20AnythingtoRealCharacters.safetensors",
+        "vae,flux2-vae.safetensors,336211292,0,https://www.modelscope.cn/models/Comfy-Org/flux2-klein-4B/resolve/master/split_files/vae/flux2-vae.safetensors",
+        "controlnet/hr16/DWPose-TorchScript-BatchSize5,dw-ll_ucoco_384_bs5.torchscript.pt,135059124,0,https://www.modelscope.cn/models/svjack/DWPose-TorchScript-BatchSize5/resolve/master/dw-ll_ucoco_384_bs5.torchscript.pt",
+        "controlnet/yzd-v/DWPose,yolox_l.onnx,216746733,0,https://www.modelscope.cn/models/zhangjin/DWPose/resolve/master/yolox_l.onnx"
+      ]
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T06:37:18Z"
+  }
+}

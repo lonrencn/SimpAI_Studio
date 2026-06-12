@@ -1,0 +1,458 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "timeline_composite_basics_20260605061618_template_20260605061755",
+  "title": "Timeline 合成入门",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T06:17:56Z",
+  "viewport": {
+    "x": 112,
+    "y": 62,
+    "zoom": 0.40612061070957967
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__onboarding_template": true,
+    "__onboarding_checklist_title": {
+      "en": "Timeline Composite Checklist",
+      "zh": "Timeline 合成检查"
+    },
+    "__onboarding_checklist_steps": [
+      {
+        "key": "timeline_sources",
+        "action": "focus_node",
+        "target_node_id": "timeline_source_video",
+        "icon": "fa-photo-film",
+        "title": {
+          "en": "Replace media placeholders",
+          "zh": "替换媒体占位"
+        },
+        "detail": {
+          "en": "Replace the Video, Image, and Audio placeholders with real media or generated Results.",
+          "zh": "将 Video、Image、Audio 占位替换为真实素材或生成的 Result。"
+        }
+      },
+      {
+        "key": "timeline_node",
+        "action": "focus_node",
+        "target_node_id": "timeline_composite_node",
+        "inspect": true,
+        "icon": "fa-clapperboard",
+        "title": {
+          "en": "Edit Timeline",
+          "zh": "编辑 Timeline"
+        },
+        "detail": {
+          "en": "Inspect the Timeline to adjust size, FPS, duration, clip timing, crop, mask, transform, and volume.",
+          "zh": "在 Inspector 中调整尺寸、FPS、时长、片段时序、裁剪、遮罩、变换和音量。"
+        }
+      },
+      {
+        "key": "timeline_result",
+        "action": "focus_node",
+        "target_node_id": "timeline_composite_result",
+        "icon": "fa-circle-dot",
+        "title": {
+          "en": "Render to Result",
+          "zh": "渲染到 Result"
+        },
+        "detail": {
+          "en": "Use the Timeline render action to materialize a video Result without any generation model.",
+          "zh": "使用 Timeline 渲染动作生成视频 Result，不需要生成模型。"
+        }
+      },
+      {
+        "key": "timeline_reuse",
+        "action": "run_queue",
+        "icon": "fa-share-nodes",
+        "title": {
+          "en": "Reuse composite output",
+          "zh": "复用合成输出"
+        },
+        "detail": {
+          "en": "Rendered Results can feed Wan-Extent, Hunyuan-Foley, media viewers, or another Timeline.",
+          "zh": "渲染后的 Result 可接入 Wan-Extent、Hunyuan-Foley、媒体浏览器或另一个 Timeline。"
+        }
+      }
+    ],
+    "__minimap_initialized": true,
+    "__template_source": "user",
+    "__onboarding_checklist": {
+      "completed": {
+        "select_node": true,
+        "inspect_node": true,
+        "timeline_sources": true,
+        "timeline_node": true,
+        "timeline_result": true
+      }
+    }
+  },
+  "template": {
+    "id": "timeline_composite_basics_20260605061618_template_20260605061755",
+    "title": "Timeline 合成入门",
+    "description": "从当前画布保存。",
+    "category": "starter",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "model_free",
+      "label": "无模型依赖",
+      "note": "未检测到可运行的 Preset 或 Classic 节点。",
+      "models": []
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T06:17:56Z"
+  },
+  "groups": [
+    {
+      "id": "timeline_group_sources",
+      "title": "1. Media Sources / 媒体素材",
+      "x": -150,
+      "y": -160,
+      "w": 570,
+      "h": 1467,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "timeline_group_edit",
+      "title": "2. Timeline Edit / 时间线编辑",
+      "x": 648,
+      "y": -168,
+      "w": 662,
+      "h": 1051,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "timeline_group_result",
+      "title": "3. Render Result / 渲染结果",
+      "x": 1392,
+      "y": -168,
+      "w": 500,
+      "h": 780,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "timeline_intro_note",
+      "type": "note",
+      "x": -96,
+      "y": -96,
+      "w": 440,
+      "h": 125,
+      "title": "Model-Free Timeline / 无模型 Timeline",
+      "text": "This template teaches Timeline composition. It does not require model files: replace placeholders, adjust clips, then render the Timeline to a Result. / 这个模板演示 Timeline 合成，不需要模型文件：替换占位素材、调整片段，再把 Timeline 渲染为 Result。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "timeline_source_video",
+      "type": "video",
+      "x": -96,
+      "y": 96,
+      "w": 440,
+      "h": 320,
+      "title": "Base Video / 主视频",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Replace with a video file or generated video Result."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "timeline_video"
+      }
+    },
+    {
+      "id": "timeline_overlay_image",
+      "type": "image",
+      "x": 72,
+      "y": 528,
+      "w": 264,
+      "h": 300,
+      "title": "Overlay Image / 叠加图片",
+      "asset": null,
+      "mask": null,
+      "status": {
+        "state": "waiting",
+        "message": "Optional: replace with an overlay image or image Result."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "timeline_overlay"
+      }
+    },
+    {
+      "id": "timeline_audio",
+      "type": "audio",
+      "x": 24,
+      "y": 864,
+      "w": 320,
+      "h": 205,
+      "title": "Audio Layer / 音频层",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Optional: replace with music, TTS, or Foley audio."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "timeline_audio"
+      }
+    },
+    {
+      "id": "timeline_composite_node",
+      "type": "timeline",
+      "x": 720,
+      "y": -96,
+      "w": 540,
+      "h": 610,
+      "title": "Media Timeline / 媒体时间线",
+      "params": {
+        "width": 1280,
+        "height": 720,
+        "aspect": "16:9",
+        "fps": 30,
+        "duration": 8,
+        "background": "#000000",
+        "zoom": 1,
+        "playhead": 0,
+        "selected_clip_id": "timeline_clip_video",
+        "size_preset": "1280x720",
+        "fps_preset": "30",
+        "preview_tool": "transform",
+        "preview_playing": false,
+        "snap_enabled": true,
+        "guides_enabled": true,
+        "mask_mode": "pen",
+        "mask_feather": 0
+      },
+      "tracks": [
+        {
+          "id": "v2",
+          "type": "video",
+          "name": "Overlay"
+        },
+        {
+          "id": "v1",
+          "type": "video",
+          "name": "Video / Image"
+        },
+        {
+          "id": "a1",
+          "type": "audio",
+          "name": "Audio"
+        }
+      ],
+      "clips": [
+        {
+          "id": "timeline_clip_video",
+          "title": "Base Video",
+          "source_node_id": "timeline_source_video",
+          "source_type": "",
+          "kind": "video",
+          "track_id": "v1",
+          "start": 0,
+          "in": 0,
+          "out": 8,
+          "duration": 8,
+          "x": 0,
+          "y": 0,
+          "scale": 1,
+          "opacity": 1,
+          "volume": 1,
+          "fit": "cover",
+          "rotate": 0,
+          "crop_left": 0,
+          "crop_top": 0,
+          "crop_right": 0,
+          "crop_bottom": 0,
+          "mask": null,
+          "mask_data_url": "",
+          "keyframes": []
+        },
+        {
+          "id": "timeline_clip_overlay",
+          "title": "Overlay Image",
+          "source_node_id": "timeline_overlay_image",
+          "source_type": "",
+          "kind": "image",
+          "track_id": "v2",
+          "start": 1,
+          "in": 0,
+          "out": 5,
+          "duration": 5,
+          "x": 28,
+          "y": -22,
+          "scale": 0.36,
+          "opacity": 0.86,
+          "volume": 1,
+          "fit": "contain",
+          "rotate": 0,
+          "crop_left": 0,
+          "crop_top": 0,
+          "crop_right": 0,
+          "crop_bottom": 0,
+          "mask": null,
+          "mask_data_url": "",
+          "keyframes": [
+            {
+              "id": "timeline_kf_overlay_in",
+              "time": 1,
+              "values": {
+                "x": 36,
+                "y": -22,
+                "scale": 0.32,
+                "opacity": 0
+              },
+              "easing": "linear"
+            },
+            {
+              "id": "timeline_kf_overlay_settle",
+              "time": 2,
+              "values": {
+                "x": 28,
+                "y": -22,
+                "scale": 0.36,
+                "opacity": 0.86
+              },
+              "easing": "linear"
+            }
+          ]
+        },
+        {
+          "id": "timeline_clip_audio",
+          "title": "Audio Layer",
+          "source_node_id": "timeline_audio",
+          "source_type": "",
+          "kind": "audio",
+          "track_id": "a1",
+          "start": 0,
+          "in": 0,
+          "out": 8,
+          "duration": 8,
+          "x": 0,
+          "y": 0,
+          "scale": 1,
+          "opacity": 1,
+          "volume": 1,
+          "fit": "contain",
+          "rotate": 0,
+          "crop_left": 0,
+          "crop_top": 0,
+          "crop_right": 0,
+          "crop_bottom": 0,
+          "mask": null,
+          "mask_data_url": "",
+          "keyframes": []
+        }
+      ],
+      "source": {
+        "kind": "template_timeline"
+      }
+    },
+    {
+      "id": "timeline_composite_result",
+      "type": "result",
+      "x": 1464,
+      "y": -96,
+      "w": 380,
+      "h": 330,
+      "title": "Rendered Timeline / 渲染结果",
+      "producer": {
+        "preset_node_id": null,
+        "qwen_tts_node_id": null,
+        "timeline_node_id": "timeline_composite_node",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "percent": 0,
+        "message": "Replace media, then render the Timeline to this Result."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "timeline",
+        "timeline_node_id": "timeline_composite_node"
+      }
+    },
+    {
+      "id": "timeline_tip_note",
+      "type": "note",
+      "x": 1464,
+      "y": 288,
+      "w": 380,
+      "h": 155,
+      "title": "Render And Reuse / 渲染与复用",
+      "text": "Timeline rendering turns layout, crop, keyframes, audio, and masks into a Result node. That output can be chained back into video or audio templates. / Timeline 渲染会把布局、裁剪、关键帧、音频和遮罩固化为 Result 节点，之后还能接回视频或音频模板。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "timeline_edge_video",
+      "type": "timeline",
+      "from": "timeline_source_video",
+      "to": "timeline_composite_node",
+      "slot": "timeline_clip_video"
+    },
+    {
+      "id": "timeline_edge_overlay",
+      "type": "timeline",
+      "from": "timeline_overlay_image",
+      "to": "timeline_composite_node",
+      "slot": "timeline_clip_overlay"
+    },
+    {
+      "id": "timeline_edge_audio",
+      "type": "timeline",
+      "from": "timeline_audio",
+      "to": "timeline_composite_node",
+      "slot": "timeline_clip_audio"
+    },
+    {
+      "id": "timeline_edge_result",
+      "type": "generate",
+      "from": "timeline_composite_node",
+      "to": "timeline_composite_result",
+      "slot": "timeline"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": []
+}

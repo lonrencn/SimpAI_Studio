@@ -1,0 +1,122 @@
+{
+    "default_engine": {
+        "backend_engine": "Wan",
+            "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+            "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "available_aspect_ratios_selection": "Flux",
+        "scene_frontend": {
+            "version": "m1.1",
+            "theme": ["Wan_TTP_Hires.Upscale"],
+            "theme_title": "Use SeedVR2 + Wan for tiled TTP upscaling",
+            "disable_canvas_mask": true,
+            "disvisible": ["scene_input_image1", "scene_additional_prompt","scene_additional_prompt_2","scene_input_image2","scene_aspect_ratio", "scene_video", "scene_audio",
+                "scene_steps", "scene_refiner_model", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10"
+                    ,"scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
+            "task_method": {
+                "Wan_TTP_Hires.Upscale": "wan_ttp_cn"
+            },
+            "prompt": {
+                "Wan_TTP_Hires.Upscale": "(Masterpiece:1.2), (best quality:1.2), ultra high resolution, (ultra-detailed), (beautiful and aesthetic:1.2),high texture,hyperrealistic materials, 4K, raw, arw, cr2,"                },
+            "scene_steps": {
+                "Wan_TTP_Hires.Upscale": 12
+            },
+            "image_preprocessor_method": {
+                "Wan_TTP_Hires.Upscale": [["-normalization"]]
+            },
+            "var_number_title": "Final megapixels",
+            "var_number_min": 4,
+            "var_number_max": 16,
+            "var_number": {
+                "Wan_TTP_Hires.Upscale": 8
+            },
+            "var_number2_title": "SeedVR2 pre-upscale resolution (short side)",
+            "var_number2_max": 4096,
+            "var_number2_min": 1024,
+            "var_number2": {
+                "Wan_TTP_Hires.Upscale": 3072
+            },
+            "var_number3_title": "Upscale denoise strength [too high may cause seams]",
+            "var_number3_max": 0.5,
+            "var_number3_min": 0.1,
+            "var_number3": {
+                "Wan_TTP_Hires.Upscale": 0.25
+            },
+            "var_number4_title": "Match original colors",
+            "var_number4_min": 0,
+            "var_number4_max": 1.0,
+            "var_number4": {
+                "Wan_TTP_Hires.Upscale": 0
+            },
+            "switch_option1_title": "FlashAttention [Disable on RTX 20 series and below]",
+            "switch_option1": {
+                "Wan_TTP_Hires.Upscale": true
+            },
+            "switch_option2_title": "Use 2x VAE Decode",
+            "switch_option2": {
+                "Wan_TTP_Hires.Upscale": false
+            },
+            "aspect_ratio": ["origin|Original"],
+            "resolution_control": {
+                "mode": "image_keep_input_area",
+                "source": "scene_canvas",
+                "quantize": 16,
+                "interactive": true,
+                "frontend_preprocess": true,
+                "preprocess_target": "image",
+                "preprocess_fit": "proportional"
+            }
+        }
+    },
+    "default_model": "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+    "default_refiner": "None",
+    "default_refiner_switch": 0.5,
+    "default_upscale_model": "default",
+    "default_vae": "wan_2.1_vae.safetensors",
+    "default_clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+    "default_loras": [
+        [
+            "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+            3.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ]
+    ],
+    "default_cfg_scale": 1,
+    "default_sample_sharpness": 2,
+    "default_sampler": "euler",
+    "default_scheduler": "kl_optimal",
+    "default_performance": "Speed",
+    "default_styles": [],
+    "default_aspect_ratio": "1024*1024",
+    "default_image_number": 1,
+    "default_overwrite_step": 24,
+    "default_prompt": "",
+    "default_prompt_negative": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+    "checkpoint_downloads": {},
+    "embeddings_downloads": {},
+    "lora_downloads": {},
+    "vae_downloads": {},
+    "model_list": [
+        "diffusion_models,wan2.2_bernini_r_low_noise_fp8_scaled.safetensors,15574833216,0,https://www.modelscope.cn/models/Comfy-Org/Bernini-R/resolve/master/diffusion_models/wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+        "loras,lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors,630697104,0,https://modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Lightx2v/lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+        "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
+        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
+        "vae,Wan2.1_VAE_upscale2x_imageonly_real_v1.safetensors,507684560,0,https://www.modelscope.cn/models/spacepxl/Wan2.1-VAE-upscale2x/resolve/master/Wan2.1_VAE_upscale2x_imageonly_real_v1.safetensors",
+        "SEEDVR2,ema_vae_fp16.safetensors,501324814,0,https://www.modelscope.cn/models/numz/SeedVR2_comfyUI/resolve/master/ema_vae_fp16.safetensors",
+        "SEEDVR2,seedvr2_ema_3b_fp16.safetensors,6783018808,0,https://www.modelscope.cn/models/numz/SeedVR2_comfyUI/resolve/master/seedvr2_ema_3b_fp16.safetensors"
+    ]
+}

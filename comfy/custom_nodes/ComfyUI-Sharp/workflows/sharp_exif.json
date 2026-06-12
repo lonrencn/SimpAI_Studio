@@ -1,0 +1,265 @@
+{
+  "id": "sharp-basic-workflow",
+  "revision": 0,
+  "last_node_id": 10,
+  "last_link_id": 21,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "LoadSharpModel",
+      "pos": [
+        -150,
+        -400
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "SHARP_MODEL",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "PozzettiAndrea/ComfyUI-Sharp",
+        "ver": "9f1b9c726e2cfc0118866c3df783e7f6bc895226",
+        "Node name for S&R": "LoadSharpModel"
+      },
+      "widgets_values": [
+        "auto",
+        ""
+      ]
+    },
+    {
+      "id": 9,
+      "type": "LoadImageWithExif",
+      "pos": [
+        -208.74978010739324,
+        -99.02778023242435
+      ],
+      "size": [
+        342.2955078125,
+        358
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            19
+          ]
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "name": "focal_length_mm",
+          "type": "FLOAT",
+          "links": [
+            20
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "PozzettiAndrea/ComfyUI-Sharp",
+        "ver": "c69751a59b587c3b83d0e37cfe2bab3bc838574a",
+        "Node name for S&R": "LoadImageWithExif"
+      },
+      "widgets_values": [
+        "eth3d.png",
+        30,
+        "image"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "SharpPredict",
+      "pos": [
+        226.15696022727278,
+        -245.70490056818184
+      ],
+      "size": [
+        298.9009765625,
+        122
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "SHARP_MODEL",
+          "link": 11
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 19
+        },
+        {
+          "name": "focal_length_mm",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "focal_length_mm"
+          },
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ply_path",
+          "type": "STRING",
+          "links": [
+            16
+          ]
+        },
+        {
+          "name": "extrinsics",
+          "type": "EXTRINSICS",
+          "links": [
+            17
+          ]
+        },
+        {
+          "name": "intrinsics",
+          "type": "INTRINSICS",
+          "links": [
+            18
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "PozzettiAndrea/ComfyUI-Sharp",
+        "ver": "c69751a59b587c3b83d0e37cfe2bab3bc838574a",
+        "Node name for S&R": "SharpPredict"
+      },
+      "widgets_values": [
+        30,
+        "sharp"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "GeomPackPreviewGaussian",
+      "pos": [
+        641.9426914835157,
+        -275.49795068697
+      ],
+      "size": [
+        512,
+        471
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "ply_path",
+          "type": "STRING",
+          "link": 16
+        },
+        {
+          "name": "extrinsics",
+          "shape": 7,
+          "type": "EXTRINSICS",
+          "link": 17
+        },
+        {
+          "name": "intrinsics",
+          "shape": 7,
+          "type": "INTRINSICS",
+          "link": 18
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "aux_id": "PozzettiAndrea/ComfyUI-GeometryPack",
+        "ver": "df6bf3d73d0dda9c6ad7428eb58a00dc8cbaf6ed",
+        "Node name for S&R": "GeomPackPreviewGaussian",
+        "cnr_id": "comfyui-geometrypack"
+      },
+      "widgets_values": [
+        ""
+      ]
+    }
+  ],
+  "links": [
+    [
+      11,
+      2,
+      0,
+      7,
+      0,
+      "SHARP_MODEL"
+    ],
+    [
+      16,
+      7,
+      0,
+      8,
+      0,
+      "STRING"
+    ],
+    [
+      17,
+      7,
+      1,
+      8,
+      1,
+      "EXTRINSICS"
+    ],
+    [
+      18,
+      7,
+      2,
+      8,
+      2,
+      "INTRINSICS"
+    ],
+    [
+      19,
+      9,
+      0,
+      7,
+      1,
+      "IMAGE"
+    ],
+    [
+      20,
+      9,
+      2,
+      7,
+      2,
+      "FLOAT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.1,
+      "offset": [
+        292.8560303656579,
+        525.3669699599554
+      ]
+    },
+    "workflowRendererVersion": "LG",
+    "frontendVersion": "1.34.9"
+  },
+  "version": 0.4
+}

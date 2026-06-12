@@ -1,0 +1,30 @@
+{
+  "runtime": "simpai-danbooru-tags",
+  "source_crate": "rust/danbooru-tags",
+  "build_command": "cargo build --release --manifest-path rust/danbooru-tags/Cargo.toml",
+  "data_source": "repo tags/*.csv via SIMPAI_TAGS_ROOT plus Anima CSV supplement",
+  "anima_csv_source": "anima-1.0.csv",
+  "files": [
+    {
+      "path": "bin/danbooru-tags.exe",
+      "bytes": 1268736,
+      "sha256": "8a60db92c44b1ee1c081f3fc600ae4770bc7501b7c4440d24af231eb5a9e2364"
+    },
+    {
+      "path": "tags_lookup.bin",
+      "bytes": 27731835,
+      "sha256": "7aaa6bcf4a6e27aa2bffd75ce798aa0ebf0cae6e763b72d3a35151bd10264c67"
+    },
+    {
+      "path": "tags_lookup_values.bin",
+      "bytes": 8704792,
+      "sha256": "e0d23b7cd13453b5b836a6a09d98dd12124a23871141a5fc9c679bc272b8d6e0"
+    },
+    {
+      "path": "tags_lookup_records.bin",
+      "bytes": 26724150,
+      "sha256": "b7e47a1ac1f00869b3d4861cb49e536da09565f014c9f93674fd091b706a39b1"
+    }
+  ],
+  "license": "Apache-2.0 first-party code"
+}

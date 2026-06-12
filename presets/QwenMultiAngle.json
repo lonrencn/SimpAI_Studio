@@ -1,0 +1,109 @@
+{
+    "default_engine": {
+        "backend_engine": "Qwen",
+        "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "available_aspect_ratios_selection": "Flux",
+        "scene_frontend": {
+            "version": "m1.1",
+            "theme": ["Qwen-MultiAngle"],
+            "theme_title": "Qwen-MultiAngle Free Viewpoint",
+            "disable_canvas_mask": true,
+            "disvisible": ["scene_additional_prompt", "scene_video", "scene_audio","scene_input_image1","scene_input_image2",
+                "scene_var_number","scene_var_number2","scene_switch_option2", "scene_refiner_model", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10"
+                ,"scene_switch_option1", "scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
+            "task_method": {
+                "Qwen-MultiAngle": "qwen_multiangle_cn"
+            },
+            "prompt": {
+                "Qwen-MultiAngle": " "
+            },
+            "scene_steps_min": 4,
+            "scene_steps_max": 10,
+            "scene_steps": {
+                "Qwen-MultiAngle": 4
+            },
+            "var_number3_title": "CFGNorm Texture Fine-tune",
+            "var_number3_min": 0.95,
+            "var_number3_max": 1.05,
+            "var_number3": {
+                "Qwen-MultiAngle": 0.98
+            },
+            "var_number4_title": "Match original colors",
+            "var_number4_min": 0,
+            "var_number4_max": 1.0,
+            "var_number4": {
+                "Qwen-MultiAngle": 0
+            },
+            "additional_prompt_title_2": "View parameters",
+            "additional_prompt_2": {
+                "Qwen-MultiAngle": "front view, eye level, medium shot, {\"horizontal\":0,\"vertical\":0,\"zoom\":5}"
+            },
+            "resolution_control": {
+            "mode": "image_keep_input_area",
+            "source": "scene_canvas",
+            "base_width": 1024,
+            "base_height": 1024,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "image",
+            "preprocess_fit": "proportional"
+            },
+            "aspect_ratio": ["1024|1:1", "1536|1:1", "2048|1:1", "origin|Original"]
+        }
+    },
+    "default_model": "qwen_image_edit_2511_fp8mixed.safetensors",
+    "default_refiner": "None",
+    "default_refiner_switch": 0.5,
+    "default_upscale_model": "default",
+    "default_vae": "qwen_image_vae.safetensors",
+    "default_clip_model": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+    "default_loras": [
+        [
+            "qwen-image-edit-2511-multiple-angles-lora.safetensors",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ],
+        [
+            "None",
+            1.0
+        ]
+    ],
+    "default_cfg_scale": 1,
+    "default_sample_sharpness": 2,
+    "default_sampler": "euler",
+    "default_scheduler": "simple",
+    "default_performance": "Speed",
+    "default_styles": [],
+    "default_aspect_ratio": "1024*1024",
+    "default_image_number": 1,
+    "default_overwrite_step": 8,
+    "default_prompt": "",
+    "default_prompt_negative": "",
+    "checkpoint_downloads": {},
+    "embeddings_downloads": {},
+    "lora_downloads": {},
+    "vae_downloads": {},
+    "model_list": [
+        "diffusion_models,qwen_image_edit_2511_fp8mixed.safetensors,20533762817,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
+        "loras,Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors,849608296,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+        "loras,Qwen-Image-Edit-2511-Lightning-8steps-V1.0-bf16.safetensors,849608296,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/loras/Qwen-Image-Edit-2511-Lightning-8steps-V1.0-bf16.safetensors",
+        "loras,qwen-image-edit-2511-multiple-angles-lora.safetensors,295140688,0,https://www.modelscope.cn/models/fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA/resolve/master/qwen-image-edit-2511-multiple-angles-lora.safetensors",
+        "text_encoders,qwen_2.5_vl_7b_fp8_scaled.safetensors,9384670680,0,",
+        "vae,qwen_image_vae.safetensors,253806246,0,",
+        "controlnet/hr16/DWPose-TorchScript-BatchSize5,dw-ll_ucoco_384_bs5.torchscript.pt,135059124,0,https://www.modelscope.cn/models/svjack/DWPose-TorchScript-BatchSize5/resolve/master/dw-ll_ucoco_384_bs5.torchscript.pt",
+        "controlnet/yzd-v/DWPose,yolox_l.onnx,216746733,0,https://www.modelscope.cn/models/zhangjin/DWPose/resolve/master/yolox_l.onnx"
+    ]
+}

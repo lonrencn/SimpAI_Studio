@@ -1,0 +1,593 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "nvidia_vsr_video_upscale_20260606070657_template_20260606070744",
+  "title": "Nvidia-VSR 视频超分",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-06T07:07:45Z",
+  "viewport": {
+    "x": -133,
+    "y": 122,
+    "zoom": 0.4061206107095796
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    },
+    "__template_source": "user"
+  },
+  "groups": [
+    {
+      "id": "vsr_group_input",
+      "title": "1. Reserved Video / 预占位视频",
+      "x": -150,
+      "y": -160,
+      "w": 594,
+      "h": 1291,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "vsr_group_config",
+      "title": "2. VSR Config / 超分配置",
+      "x": 510,
+      "y": -160,
+      "w": 506,
+      "h": 1179,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "vsr_group_run",
+      "title": "3. Upscale Result / 超分结果",
+      "x": 1080,
+      "y": -160,
+      "w": 950,
+      "h": 1135,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "vsr_intro_note",
+      "type": "note",
+      "x": -96,
+      "y": -96,
+      "w": 480,
+      "h": 120,
+      "title": "Video Super-Resolution / 视频超分",
+      "text": "Use Nvidia-VSR to upscale an existing clip. This template preloads a reserved sample video so the graph is visible immediately. / 使用 Nvidia-VSR 对已有视频做超分。此模板预载示例视频，方便立即查看链路。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "vsr_source_video",
+      "type": "video",
+      "x": -96,
+      "y": 96,
+      "w": 480,
+      "h": 300,
+      "title": "Source Video / 源视频",
+      "asset": {
+        "kind": "reserved_input",
+        "name": "example.mp4",
+        "mime": "video/mp4",
+        "path": "presets/input_reserved/example.mp4",
+        "width": 816,
+        "height": 1216,
+        "duration": 5.06
+      },
+      "status": {
+        "state": "ready",
+        "message": "Reserved sample video loaded. Replace with the video you want to upscale."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "scene_video",
+        "reserved_asset": "presets/input_reserved/example.mp4"
+      }
+    },
+    {
+      "id": "vsr_models",
+      "type": "config",
+      "config_kind": "models",
+      "x": 576,
+      "y": -96,
+      "w": 390,
+      "h": 245,
+      "title": "Models Config / 模型配置",
+      "target_preset_id": "vsr_preset",
+      "config": {
+        "defaults": {
+          "base_model": "None",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "Default (model)",
+          "loras": []
+        },
+        "values": {
+          "base_model": "None",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "Default (model)",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Nvidia-VSR"
+      }
+    },
+    {
+      "id": "vsr_advanced",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 576,
+      "y": 672,
+      "w": 390,
+      "h": 295,
+      "title": "VSR Parameters / VSR 参数",
+      "target_preset_id": "vsr_preset",
+      "config": {
+        "defaults": {
+          "scene_var_number": 2,
+          "scene_var_number2": 19,
+          "scene_var_number3": 30,
+          "scene_var_number7": 300,
+          "scene_switch_option1": false,
+          "image_number": 1
+        },
+        "values": {
+          "scene_var_number": 2,
+          "scene_var_number2": 19,
+          "scene_var_number3": 30,
+          "scene_var_number7": 300,
+          "scene_switch_option1": false,
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Nvidia-VSR"
+      }
+    },
+    {
+      "id": "vsr_preset",
+      "type": "preset",
+      "x": 1152,
+      "y": -96,
+      "w": 420,
+      "h": 540,
+      "title": "Nvidia-VSR Super Resolution",
+      "preset": {
+        "name": "Nvidia-VSR",
+        "display_name": "Nvidia-VSR",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Comfy",
+        "engine_type": "video",
+        "scene_frontend": "v1.1",
+        "scene_theme": "Nvidia-VSR Super Resolution",
+        "task_method": "nvidia_vsr"
+      },
+      "schema": {
+        "version": "v1.1",
+        "scene_frontend": "v1.1",
+        "engine_type": "video",
+        "theme_title": "Nvidia-VSR Fast Video Super-Resolution Upscale [Optional frame interpolation]",
+        "default_theme": "Nvidia-VSR Super Resolution",
+        "themes": [
+          "Nvidia-VSR Super Resolution"
+        ],
+        "per_theme": {
+          "Nvidia-VSR Super Resolution": {
+            "task_method": "nvidia_vsr",
+            "defaults": {
+              "prompt": "",
+              "scene_var_number": 2,
+              "scene_var_number2": 19,
+              "scene_var_number3": 30,
+              "scene_var_number7": 300,
+              "scene_switch_option1": false,
+              "scene_image_number": 1
+            }
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_video",
+            "label": "#1 Source Video",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "scene_canvas_image",
+            "label": "Canvas Image",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_input_image1",
+            "label": "Input Image 1",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_input_image2",
+            "label": "Input Image 2",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_audio",
+            "label": "Audio",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "SAM3 Source Video",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "SAM3 Mask Video",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "seed_random",
+            "label": "Random Seed",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "image_seed",
+            "label": "Seed",
+            "type": "number",
+            "min": 0,
+            "max": 1125899906842623,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number",
+            "label": "Upscale factor",
+            "type": "number",
+            "min": 1,
+            "max": 4,
+            "step": 1,
+            "default": 2
+          },
+          {
+            "key": "scene_var_number2",
+            "label": "Save quality (lower = better, larger file size)",
+            "type": "number",
+            "min": 5,
+            "max": 45,
+            "step": 1,
+            "default": 19
+          },
+          {
+            "key": "scene_var_number3",
+            "label": "Interpolate to target FPS",
+            "type": "number",
+            "min": 16,
+            "max": 120,
+            "step": 1,
+            "default": 30
+          },
+          {
+            "key": "scene_var_number7",
+            "label": "Long video segment length (frames)",
+            "type": "number",
+            "min": 60,
+            "max": 600,
+            "step": 10,
+            "default": 300
+          },
+          {
+            "key": "scene_switch_option1",
+            "label": "Enable frame interpolation",
+            "type": "checkbox",
+            "default": false
+          }
+        ]
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "None",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "Default (model)",
+          "loras": []
+        },
+        "overrides": {
+          "base_model": "None",
+          "refiner_model": "None",
+          "clip_model": "Default (model)",
+          "vae": "Default (model)",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "vsr_models",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "scene_var_number": 2,
+          "scene_var_number2": 19,
+          "scene_var_number3": 30,
+          "scene_var_number7": 300,
+          "scene_switch_option1": false,
+          "image_number": 1
+        },
+        "overrides": {
+          "scene_var_number": 2,
+          "scene_var_number2": 19,
+          "scene_var_number3": 30,
+          "scene_var_number7": 300,
+          "scene_switch_option1": false,
+          "image_number": 1
+        },
+        "source_node_id": "vsr_advanced",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+        ],
+        "has_model_probe": true,
+        "source": "presets/Nvidia-VSR.json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Reserved source video is loaded. Replace or confirm it, then check optional RIFE model before running."
+      },
+      "upload_slots": {
+        "scene_video": "vsr_source_video"
+      },
+      "text_inputs": {},
+      "params": {
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_var_number": 2,
+        "scene_var_number2": 19,
+        "scene_var_number3": 30,
+        "scene_var_number7": 300,
+        "scene_switch_option1": false,
+        "scene_image_number": 1
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "Nvidia-VSR"
+      }
+    },
+    {
+      "id": "vsr_result",
+      "type": "result",
+      "x": 1608,
+      "y": -96,
+      "w": 340,
+      "h": 330,
+      "title": "VSR Result / 超分结果",
+      "producer": {
+        "preset_node_id": "vsr_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 30,
+        "percent": 0,
+        "message": "Replace or confirm the reserved source video, then run Nvidia-VSR."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "vsr_tip_note",
+      "type": "note",
+      "x": 1608,
+      "y": 264,
+      "w": 340,
+      "h": 180,
+      "title": "Interpolation / 插帧",
+      "text": "Enable interpolation only when you need a target FPS conversion. It may add processing time. / 仅在需要转换目标 FPS 时开启插帧，处理时间会增加。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "vsr_edge_video",
+      "type": "upload",
+      "from": "vsr_source_video",
+      "to": "vsr_preset",
+      "slot": "scene_video"
+    },
+    {
+      "id": "vsr_edge_models",
+      "type": "config",
+      "from": "vsr_models",
+      "to": "vsr_preset",
+      "slot": "models"
+    },
+    {
+      "id": "vsr_edge_advanced",
+      "type": "config",
+      "from": "vsr_advanced",
+      "to": "vsr_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "vsr_edge_result",
+      "type": "generate",
+      "from": "vsr_preset",
+      "to": "vsr_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "nvidia_vsr_video_upscale_20260606070657_template_20260606070744",
+    "title": "Nvidia-VSR 视频超分",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 1 个 preset 节点和 1 个模型依赖。运行前请检查模型。",
+      "models": [
+        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+      ]
+    },
+    "preview": "",
+    "saved_at": "2026-06-06T07:07:45Z"
+  }
+}

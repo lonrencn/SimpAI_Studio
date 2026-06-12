@@ -1,0 +1,816 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "infinitetalk_ai2v_lipsync_20260605070553_template_20260605070725",
+  "title": "InfiniteTalk 图片+音频口型视频",
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-06-05T07:07:27Z",
+  "viewport": {
+    "x": 87,
+    "y": 40,
+    "zoom": 0.3212564889335813
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false,
+    "__minimap_initialized": true,
+    "__template_source": "user",
+    "canvasAgent": {
+      "enabled": true,
+      "executionRoute": "programmatic",
+      "promptStrategy": "ask",
+      "rewriteModel": "Qwen3.5-9B-abliterated-Q4_K_M",
+      "videoFrames": 25,
+      "t2iPresetMode": "auto",
+      "t2iPreset": "",
+      "editPresetMode": "auto",
+      "editPreset": "",
+      "i2vPresetMode": "auto",
+      "i2vPreset": "",
+      "t2vPresetMode": "auto",
+      "t2vPreset": "",
+      "videoEditPresetMode": "auto",
+      "videoEditPreset": "",
+      "audioPresetMode": "auto",
+      "audioPreset": "",
+      "outpaintPreset": "OneKey-Outpaint",
+      "erasePreset": "Eraser",
+      "replacePreset": "Swap+",
+      "upscalePresetMode": "uov_auto",
+      "upscalePreset": "",
+      "videoOutpaintPreset": "LTX-Outpaint",
+      "videoErasePreset": "Wan-Remover",
+      "videoReplacePreset": "Wan-Animate",
+      "videoUpscalePreset": "Nvidia-VSR",
+      "outpaintUpPercent": 15,
+      "outpaintDownPercent": 15,
+      "outpaintLeftPercent": 15,
+      "outpaintRightPercent": 15,
+      "customApiCollapsed": true,
+      "customProvider": "openai",
+      "customApiName": "OpenAI",
+      "customApiFormat": "openai_compatible",
+      "customBaseUrl": "https://api.openai.com/v1",
+      "customModel": "",
+      "customSupportsImages": true,
+      "attachPaused": true,
+      "minimized": true,
+      "panelPosition": null,
+      "bubblePosition": null,
+      "allowPresetInstructionOverride": true
+    }
+  },
+  "groups": [
+    {
+      "id": "infinitetalk_group_inputs",
+      "title": "1. Image And Audio / 图片与音频",
+      "x": -170,
+      "y": -190,
+      "w": 683,
+      "h": 1161,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "infinitetalk_group_configs",
+      "title": "2. Configs / 配置",
+      "x": 540,
+      "y": -190,
+      "w": 511,
+      "h": 1973,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "infinitetalk_group_run",
+      "title": "3. Lip Sync / 口型生成",
+      "x": 1120,
+      "y": -190,
+      "w": 1061,
+      "h": 1211,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "infinitetalk_intro",
+      "type": "note",
+      "x": -120,
+      "y": -144,
+      "w": 520,
+      "h": 130,
+      "title": "Image + Audio Lip Sync / 图片+音频口型",
+      "text": "InfiniteTalk starts from a portrait image and speech audio, then produces a talking video. Qwen TTS Results can be connected directly to the Audio slot. / InfiniteTalk 从人物图片和语音音频开始，生成说话视频。Qwen TTS 的音频 Result 可直接接入 Audio 槽。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "infinitetalk_portrait",
+      "type": "image",
+      "x": -120,
+      "y": 48,
+      "w": 250,
+      "h": 300,
+      "title": "Portrait Image / 人物图片",
+      "asset": null,
+      "mask": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: replace this portrait before running InfiniteTalk."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "scene_canvas_image"
+      }
+    },
+    {
+      "id": "infinitetalk_audio",
+      "type": "audio",
+      "x": 168,
+      "y": 48,
+      "w": 320,
+      "h": 300,
+      "title": "Speech Audio / 语音音频",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Required: replace this audio or connect a TTS Result before Run."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "scene_audio"
+      }
+    },
+    {
+      "id": "infinitetalk_prompt",
+      "type": "text",
+      "x": -72,
+      "y": 456,
+      "w": 520,
+      "h": 140,
+      "title": "Optional Prompt / 可选提示词",
+      "text": {
+        "value": "人物正面对镜头自然说话，表情轻松，头部有轻微自然动作，背景稳定，口型与语音同步。",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "infinitetalk_input_note",
+      "type": "note",
+      "x": -72,
+      "y": 744,
+      "w": 520,
+      "h": 160,
+      "title": "Input Tip / 输入建议",
+      "text": "Shorter clean speech clips are easier to preview. Use Duration limit if you only want the first section of a long audio file. / 较短且干净的语音更易预览。长音频只想生成前半段时，可使用 Duration limit。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "infinitetalk_models",
+      "type": "config",
+      "config_kind": "models",
+      "x": 600,
+      "y": -144,
+      "w": 400,
+      "h": 545,
+      "title": "Models Config / 模型配置",
+      "target_preset_id": "infinitetalk_preset",
+      "config": {
+        "defaults": {
+          "base_model": "Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
+          "refiner_model": "None",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+              "weight": 1
+            }
+          ]
+        },
+        "values": {
+          "base_model": "Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
+          "refiner_model": "None",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "InfiniteTalk"
+      }
+    },
+    {
+      "id": "infinitetalk_resolution",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 600,
+      "y": 624,
+      "w": 400,
+      "h": 430,
+      "title": "Resolution Config / 分辨率配置",
+      "target_preset_id": "infinitetalk_preset",
+      "config": {
+        "defaults": {
+          "template": "Wan",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "640|1:1",
+            "720|1:1",
+            "832|1:1",
+            "960|1:1",
+            "1024|1:1",
+            "1280|1:1"
+          ],
+          "resolution_control": {
+            "mode": "image_keep_input_area",
+            "source": "scene_canvas_image",
+            "base_width": 640,
+            "base_height": 640,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "image",
+            "preprocess_fit": "proportional"
+          }
+        },
+        "values": {
+          "template": "Preset",
+          "aspect_ratio": "640|1:1",
+          "width": 640,
+          "height": 640,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "InfiniteTalk"
+      }
+    },
+    {
+      "id": "infinitetalk_preset",
+      "type": "preset",
+      "x": 1176,
+      "y": -144,
+      "w": 445,
+      "h": 660,
+      "title": "InfiniteTalk-AI2V",
+      "preset": {
+        "name": "InfiniteTalk",
+        "display_name": "InfiniteTalk",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "",
+          "default_prompt_negative": ""
+        }
+      },
+      "runtime": {
+        "backend_engine": "Wan",
+        "engine_type": "video",
+        "scene_frontend": "v1.1",
+        "scene_theme": "InfiniteTalk-AI2V",
+        "task_method": "wan_infinitetalk_cn"
+      },
+      "schema": {
+        "version": "v1.1",
+        "scene_frontend": "v1.1",
+        "engine_type": "video",
+        "theme_title": "Wan-InfiniteTalk Image+Audio Lip Sync",
+        "default_theme": "InfiniteTalk-AI2V",
+        "themes": [
+          "InfiniteTalk-AI2V"
+        ],
+        "per_theme": {
+          "InfiniteTalk-AI2V": {
+            "task_method": "wan_infinitetalk_cn",
+            "defaults": {
+              "prompt": "",
+              "scene_steps": 4,
+              "scene_var_number": 0,
+              "scene_var_number2": 60,
+              "scene_var_number3": 0,
+              "scene_var_number7": 121,
+              "scene_image_number": 1
+            }
+          }
+        },
+        "upload_slots": [
+          {
+            "key": "scene_canvas_image",
+            "label": "#1 Portrait Image",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "scene_audio",
+            "label": "#2 Speech Audio",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "scene_input_image1",
+            "label": "Input Image 1",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_input_image2",
+            "label": "Input Image 2",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "scene_video",
+            "label": "Scene Video",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "SAM3 Source Video",
+            "visible": false,
+            "interactive": false
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "SAM3 Mask Video",
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "params": [
+          {
+            "key": "prompt",
+            "label": "Prompt",
+            "type": "textarea",
+            "default": ""
+          },
+          {
+            "key": "seed_random",
+            "label": "Random Seed",
+            "type": "checkbox",
+            "default": true
+          },
+          {
+            "key": "image_seed",
+            "label": "Seed",
+            "type": "number",
+            "min": 0,
+            "max": 1125899906842623,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_steps",
+            "label": "Scene Steps",
+            "type": "number",
+            "min": 4,
+            "max": 6,
+            "step": 1,
+            "default": 4
+          },
+          {
+            "key": "scene_var_number",
+            "label": "Duration limit",
+            "type": "number",
+            "min": 0,
+            "max": 120,
+            "step": 1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number2",
+            "label": "Interpolate Frames",
+            "type": "number",
+            "min": 25,
+            "max": 60,
+            "step": 1,
+            "default": 60
+          },
+          {
+            "key": "scene_var_number3",
+            "label": "Skip Audio Seconds",
+            "type": "number",
+            "min": 0,
+            "max": 120,
+            "step": 0.1,
+            "default": 0
+          },
+          {
+            "key": "scene_var_number7",
+            "label": "Frames Per Segment",
+            "type": "number",
+            "min": 45,
+            "max": 185,
+            "step": 1,
+            "default": 121
+          },
+          {
+            "key": "scene_image_number",
+            "label": "Video Number",
+            "type": "number",
+            "min": 1,
+            "max": 5,
+            "step": 1,
+            "default": 1
+          }
+        ]
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
+          "refiner_model": "None",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+              "weight": 1
+            }
+          ]
+        },
+        "overrides": {
+          "base_model": "Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
+          "refiner_model": "None",
+          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1
+            }
+          ]
+        },
+        "source_node_id": "infinitetalk_models",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "Wan",
+          "available_aspect_ratios_selection": "Flux",
+          "default_aspect_ratio": "1024*1024",
+          "aspect_ratios": [
+            "640|1:1",
+            "720|1:1",
+            "832|1:1",
+            "960|1:1",
+            "1024|1:1",
+            "1280|1:1"
+          ],
+          "resolution_control": {
+            "mode": "image_keep_input_area",
+            "source": "scene_canvas_image",
+            "base_width": 640,
+            "base_height": 640,
+            "quantize": 16,
+            "interactive": true,
+            "frontend_preprocess": true,
+            "preprocess_target": "image",
+            "preprocess_fit": "proportional"
+          }
+        },
+        "overrides": {
+          "template": "Preset",
+          "aspect_ratio": "640|1:1",
+          "width": 640,
+          "height": 640,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false,
+          "ratio_lock": false,
+          "ratio_lock_value": "current",
+          "ratio_lock_custom": "1:1"
+        },
+        "source_node_id": "infinitetalk_resolution",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "source_node_id": "infinitetalk_advanced",
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "diffusion_models,Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors,16993877896,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
+          "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
+          "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
+          "loras,lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,738005744,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+          "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl",
+          "diffusion_models,MelBandRoformer_fp16.safetensors,456479072,0,https://www.modelscope.cn/models/Kijai/MelBandRoFormer_comfy/resolve/master/MelBandRoformer_fp16.safetensors",
+          "model_patches,wan2.1_infiniteTalk_single_fp16.safetensors,5125258232,0,https://www.modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/model_patches/wan2.1_infiniteTalk_single_fp16.safetensors",
+          "audio_encoders,wav2vec2-chinese-base_fp16.safetensors,190115368,0,https://www.modelscope.cn/models/Kijai/wav2vec2_safetensors/resolve/master/wav2vec2-chinese-base_fp16.safetensors"
+        ],
+        "has_model_probe": true,
+        "source": "presets/InfiniteTalk.json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Model requirements loaded from presets/InfiniteTalk.json; replace image/audio and check models before running."
+      },
+      "upload_slots": {
+        "scene_canvas_image": "infinitetalk_portrait",
+        "scene_audio": "infinitetalk_audio"
+      },
+      "text_inputs": {
+        "prompt": "infinitetalk_prompt"
+      },
+      "params": {
+        "prompt": "",
+        "negative_prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_steps": 4,
+        "scene_var_number": 0,
+        "scene_var_number2": 60,
+        "scene_var_number3": 0,
+        "scene_var_number7": 121,
+        "scene_image_number": 1
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "InfiniteTalk"
+      }
+    },
+    {
+      "id": "infinitetalk_advanced",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 624,
+      "y": 1368,
+      "w": 360,
+      "h": 365,
+      "title": "Advanced Config / 高级配置",
+      "target_preset_id": "infinitetalk_preset",
+      "config": {
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 30,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "updated_at": "2026-05-23T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "InfiniteTalk"
+      }
+    },
+    {
+      "id": "infinitetalk_result",
+      "type": "result",
+      "x": 1680,
+      "y": -144,
+      "w": 360,
+      "h": 330,
+      "title": "Lip Sync Video / 口型视频",
+      "producer": {
+        "preset_node_id": "infinitetalk_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 30,
+        "percent": 0,
+        "message": "Replace portrait and speech audio, then run InfiniteTalk."
+      },
+      "preview": null,
+      "asset": null,
+      "source": {
+        "kind": "template_result_placeholder"
+      }
+    },
+    {
+      "id": "infinitetalk_reuse_note",
+      "type": "note",
+      "x": 1680,
+      "y": 240,
+      "w": 445,
+      "h": 130,
+      "title": "Chain From TTS / 接入 TTS",
+      "text": "Run a Qwen TTS template first, then connect its audio Result to this template's Speech Audio slot to build a talking portrait workflow. / 可先运行 Qwen TTS 模板，再把音频 Result 接入本模板的 Speech Audio 槽，形成配音头像工作流。",
+      "style": {
+        "color": "#052e16",
+        "background": "#bbf7d0",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "infinitetalk_edge_image",
+      "type": "upload",
+      "from": "infinitetalk_portrait",
+      "to": "infinitetalk_preset",
+      "slot": "scene_canvas_image"
+    },
+    {
+      "id": "infinitetalk_edge_audio",
+      "type": "upload",
+      "from": "infinitetalk_audio",
+      "to": "infinitetalk_preset",
+      "slot": "scene_audio"
+    },
+    {
+      "id": "infinitetalk_edge_prompt",
+      "type": "text",
+      "from": "infinitetalk_prompt",
+      "to": "infinitetalk_preset",
+      "slot": "prompt"
+    },
+    {
+      "id": "infinitetalk_edge_models",
+      "type": "config",
+      "from": "infinitetalk_models",
+      "to": "infinitetalk_preset",
+      "slot": "models"
+    },
+    {
+      "id": "infinitetalk_edge_resolution",
+      "type": "config",
+      "from": "infinitetalk_resolution",
+      "to": "infinitetalk_preset",
+      "slot": "resolution"
+    },
+    {
+      "id": "infinitetalk_edge_advanced",
+      "type": "config",
+      "from": "infinitetalk_advanced",
+      "to": "infinitetalk_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "infinitetalk_edge_result",
+      "type": "generate",
+      "from": "infinitetalk_preset",
+      "to": "infinitetalk_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "infinitetalk_ai2v_lipsync_20260605070553_template_20260605070725",
+    "title": "InfiniteTalk 图片+音频口型视频",
+    "description": "从当前画布保存。",
+    "category": "image",
+    "tags": [
+      "user",
+      "canvas"
+    ],
+    "type_label": "用户模板",
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": "需要模型",
+      "note": "包含 1 个 preset 节点和 8 个模型依赖。运行前请检查模型。",
+      "models": [
+        "diffusion_models,Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors,16993877896,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
+        "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
+        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
+        "loras,lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,738005744,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl",
+        "diffusion_models,MelBandRoformer_fp16.safetensors,456479072,0,https://www.modelscope.cn/models/Kijai/MelBandRoFormer_comfy/resolve/master/MelBandRoformer_fp16.safetensors",
+        "model_patches,wan2.1_infiniteTalk_single_fp16.safetensors,5125258232,0,https://www.modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/model_patches/wan2.1_infiniteTalk_single_fp16.safetensors",
+        "audio_encoders,wav2vec2-chinese-base_fp16.safetensors,190115368,0,https://www.modelscope.cn/models/Kijai/wav2vec2_safetensors/resolve/master/wav2vec2-chinese-base_fp16.safetensors"
+      ]
+    },
+    "preview": "",
+    "saved_at": "2026-06-05T07:07:27Z"
+  }
+}

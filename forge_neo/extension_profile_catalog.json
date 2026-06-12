@@ -1,0 +1,1246 @@
+{
+  "schema_version": 1,
+  "kind": "forge-neo-extension-profile-catalog",
+  "install_extensions_root": "forge_neo/webui/extensions",
+  "supported": [
+    "sd-webui-tagcomplete-neo",
+    "sd-webui-prompt-all-in-one-forgeneo",
+    "sd-dynamic-prompts",
+    "stable-diffusion-webui-wd14-tagger",
+    "adetailer",
+    "sd-neo-regional-prompter",
+    "infinite-browsing",
+    "Auto-Photoshop-StableDiffusion-Plugin",
+    "sd-webui-aspect-ratio-helper",
+    "sd-webui-camera-angle-selector",
+    "sd-webui-Storyboard-Assistant",
+    "sd-webui-AestheticEnhancement",
+    "sd-webui-multimodal-media",
+    "sd-webui-qwen-vision-chat",
+    "sd-webui-sam-matting",
+    "sd-webui-see-through",
+    "sd-webui-trellis2",
+    "sd-webui-style-organizer"
+  ],
+  "supported_prompt_extensions": [
+    "sd-webui-tagcomplete-neo",
+    "sd-webui-prompt-all-in-one-forgeneo"
+  ],
+  "first_batch_profiles": [
+    "sd-webui-tagcomplete-neo",
+    "sd-webui-prompt-all-in-one-forgeneo"
+  ],
+  "priority_profiles": [
+    "sd-dynamic-prompts",
+    "stable-diffusion-webui-wd14-tagger",
+    "adetailer",
+    "sd-neo-regional-prompter",
+    "infinite-browsing"
+  ],
+  "api_route_profiles": [
+    "Auto-Photoshop-StableDiffusion-Plugin"
+  ],
+  "ui_helper_profiles": [
+    "sd-webui-aspect-ratio-helper"
+  ],
+  "ui_tab_profiles": [
+    "sd-webui-camera-angle-selector",
+    "sd-webui-Storyboard-Assistant",
+    "sd-webui-AestheticEnhancement",
+    "sd-webui-multimodal-media",
+    "sd-webui-qwen-vision-chat",
+    "sd-webui-sam-matting",
+    "sd-webui-see-through",
+    "sd-webui-trellis2"
+  ],
+  "prompt_style_profiles": [
+    "sd-webui-style-organizer"
+  ],
+  "not_loaded": [
+    "sd-webui-auto-complete"
+  ],
+  "excluded_profiles": {
+    "sd-webui-auto-complete": "Excluded by user request; do not load auto complete."
+  },
+  "nodes": [
+    {
+      "id": "sd-webui-tagcomplete-neo",
+      "display_name": "TagComplete Neo",
+      "family": "prompt-helper",
+      "support_level": "first-batch",
+      "extension_dirname": "sd-webui-tagcomplete-neo",
+      "adapter_scope": "prompt-resource",
+      "remote_url": "https://github.com/eduardoabreu81/sd-webui-tagcomplete-neo.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-tagcomplete-neo",
+      "source_branch": "main",
+      "source_commit": "8e0d81fd",
+      "source_commit_date": "2026-05-08 16:36:03 +0000"
+    },
+    {
+      "id": "sd-webui-prompt-all-in-one-forgeneo",
+      "display_name": "Prompt All In One For Forge Neo",
+      "family": "prompt-helper",
+      "support_level": "first-batch",
+      "extension_dirname": "sd-webui-prompt-all-in-one-forgeneo",
+      "adapter_scope": "prompt-resource",
+      "remote_url": "https://github.com/abzaloff/sd-webui-prompt-all-in-one-forgeneo.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-prompt-all-in-one-forgeneo",
+      "source_branch": "main",
+      "source_commit": "da8342c",
+      "source_commit_date": "2026-02-27 12:04:27 +0800"
+    },
+    {
+      "id": "sd-dynamic-prompts",
+      "display_name": "Dynamic Prompts",
+      "family": "prompt-helper",
+      "support_level": "priority-profile",
+      "extension_dirname": "sd-dynamic-prompts",
+      "adapter_scope": "alwayson-args",
+      "remote_url": "https://github.com/akirau-ai/sd-dynamic-prompts",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-dynamic-prompts",
+      "source_branch": "main",
+      "source_commit": "",
+      "source_commit_date": ""
+    },
+    {
+      "id": "stable-diffusion-webui-wd14-tagger",
+      "display_name": "WD14 Tagger",
+      "family": "image-interrogation",
+      "support_level": "priority-profile",
+      "extension_dirname": "stable-diffusion-webui-wd14-tagger",
+      "adapter_scope": "api-adapter",
+      "remote_url": "https://github.com/Akegarasu/sd-webui-wd14-tagger",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/stable-diffusion-webui-wd14-tagger",
+      "source_branch": "master",
+      "source_commit": "711ba0a",
+      "source_commit_date": "2024-10-24 15:06:11 +0800"
+    },
+    {
+      "id": "adetailer",
+      "display_name": "ADetailer Neo",
+      "family": "generation-hook",
+      "support_level": "priority-profile",
+      "extension_dirname": "ADetailer-Neo",
+      "adapter_scope": "alwayson-args",
+      "remote_url": "https://github.com/Haoming02/ADetailer-Neo",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/ADetailer-Neo",
+      "source_branch": "main",
+      "source_commit": "",
+      "source_commit_date": ""
+    },
+    {
+      "id": "sd-neo-regional-prompter",
+      "display_name": "Regional Prompter",
+      "family": "generation-hook",
+      "support_level": "priority-profile",
+      "extension_dirname": "sd-neo-regional-prompter",
+      "adapter_scope": "alwayson-args",
+      "remote_url": "https://github.com/CyrixJD115/sd-neo-regional-prompter",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-neo-regional-prompter",
+      "source_branch": "main",
+      "source_commit": "27ba390",
+      "source_commit_date": "2026-06-02 18:12:17 -0700"
+    },
+    {
+      "id": "infinite-browsing",
+      "display_name": "Infinite Browsing",
+      "family": "image-browser",
+      "support_level": "priority-profile",
+      "extension_dirname": "infinite-browsing",
+      "adapter_scope": "ui-route",
+      "remote_url": "https://github.com/laptise/infinite-browsing.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/infinite-browsing",
+      "source_branch": "main",
+      "source_commit": "fc3dcb5",
+      "source_commit_date": "2024-05-21 07:59:44 +0800"
+    },
+    {
+      "id": "Auto-Photoshop-StableDiffusion-Plugin",
+      "display_name": "Auto Photoshop StableDiffusion Plugin",
+      "family": "external-client",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "Auto-Photoshop-StableDiffusion-Plugin",
+      "adapter_scope": "api-route",
+      "remote_url": "https://github.com/AbdullahAlfaraj/Auto-Photoshop-StableDiffusion-Plugin.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/Auto-Photoshop-StableDiffusion-Plugin",
+      "source_branch": "master",
+      "source_commit": "6f6d490",
+      "source_commit_date": "2023-12-09 16:58:35 +0300"
+    },
+    {
+      "id": "sd-webui-aspect-ratio-helper",
+      "display_name": "Aspect Ratio Helper",
+      "family": "ui-helper",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-aspect-ratio-helper",
+      "adapter_scope": "ui-helper",
+      "remote_url": "https://github.com/thomasasfk/sd-webui-aspect-ratio-helper.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-aspect-ratio-helper",
+      "source_branch": "main",
+      "source_commit": "0909671",
+      "source_commit_date": "2025-02-20 15:03:31 +0000"
+    },
+    {
+      "id": "sd-webui-camera-angle-selector",
+      "display_name": "Camera Angle Selector",
+      "family": "prompt-helper",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-camera-angle-selector",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-camera-angle-selector.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-camera-angle-selector",
+      "source_branch": "main",
+      "source_commit": "726347a",
+      "source_commit_date": "2026-03-28 04:27:03 +0800"
+    },
+    {
+      "id": "sd-webui-Storyboard-Assistant",
+      "display_name": "Storyboard Assistant",
+      "family": "storyboard",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-Storyboard-Assistant",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-Storyboard-Assistant.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-Storyboard-Assistant",
+      "source_branch": "main",
+      "source_commit": "795e83d",
+      "source_commit_date": "2026-03-29 19:48:27 +0800"
+    },
+    {
+      "id": "sd-webui-AestheticEnhancement",
+      "display_name": "Aesthetic Enhancement",
+      "family": "analysis-ui",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-AestheticEnhancement",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-AestheticEnhancement.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-AestheticEnhancement",
+      "source_branch": "main",
+      "source_commit": "eeced55",
+      "source_commit_date": "2026-04-11 12:11:10 +0800"
+    },
+    {
+      "id": "sd-webui-multimodal-media",
+      "display_name": "Multimodal Media",
+      "family": "multimodal-tools",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-multimodal-media",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-multimodal-media.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-multimodal-media",
+      "source_branch": "main",
+      "source_commit": "ccb3186",
+      "source_commit_date": "2026-03-22 04:03:18 +0800"
+    },
+    {
+      "id": "sd-webui-qwen-vision-chat",
+      "display_name": "Qwen Vision Chat",
+      "family": "vision-chat",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-qwen-vision-chat",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-qwen-vision-chat.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-qwen-vision-chat",
+      "source_branch": "main",
+      "source_commit": "db26bbc",
+      "source_commit_date": "2026-04-10 19:34:17 +0800"
+    },
+    {
+      "id": "sd-webui-sam-matting",
+      "display_name": "SAM Matting",
+      "family": "segmentation",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-sam-matting",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-sam-matting.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-sam-matting",
+      "source_branch": "main",
+      "source_commit": "b1e8e09",
+      "source_commit_date": "2026-04-10 19:28:06 +0800"
+    },
+    {
+      "id": "sd-webui-see-through",
+      "display_name": "See-Through Layer Decomposition",
+      "family": "layer-decomposition",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-see-through",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/shitagaki-lab/see-through",
+      "repository_layout": "bundled-upstream",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-see-through",
+      "source_branch": "",
+      "source_commit": "",
+      "source_commit_date": ""
+    },
+    {
+      "id": "sd-webui-trellis2",
+      "display_name": "TRELLIS.2",
+      "family": "3d-generation",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-trellis2",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/microsoft/TRELLIS.2",
+      "repository_layout": "bundled-upstream",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-trellis2",
+      "source_branch": "",
+      "source_commit": "",
+      "source_commit_date": ""
+    },
+    {
+      "id": "sd-webui-style-organizer",
+      "display_name": "Style Grid",
+      "family": "prompt-style",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-style-organizer",
+      "adapter_scope": "prompt-style",
+      "remote_url": "https://github.com/KazeKaze93/sd-webui-style-organizer.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-style-organizer",
+      "source_branch": "master",
+      "source_commit": "5ff9f40",
+      "source_commit_date": "2026-05-05 22:45:28 +0400"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "sd-webui-tagcomplete-neo",
+      "display_name": "TagComplete Neo",
+      "family": "prompt-helper",
+      "support_level": "first-batch",
+      "extension_dirname": "sd-webui-tagcomplete-neo",
+      "adapter_scope": "prompt-resource",
+      "remote_url": "https://github.com/eduardoabreu81/sd-webui-tagcomplete-neo.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-tagcomplete-neo",
+      "source_branch": "main",
+      "source_commit": "8e0d81fd",
+      "source_commit_date": "2026-05-08 16:36:03 +0000",
+      "required_files": [
+        "javascript/__globals.js",
+        "javascript/_utils.js",
+        "javascript/_textAreas.js",
+        "javascript/tagAutocomplete.js",
+        "tags/danbooru.csv"
+      ],
+      "javascript_files": [
+        "javascript/__globals.js",
+        "javascript/_baseParser.js",
+        "javascript/_caretPosition.js",
+        "javascript/_result.js",
+        "javascript/_textAreas.js",
+        "javascript/_utils.js",
+        "javascript/ext_chants.js",
+        "javascript/ext_embeddings.js",
+        "javascript/ext_loras.js",
+        "javascript/ext_lycos.js",
+        "javascript/ext_modelKeyword.js",
+        "javascript/ext_styles.js",
+        "javascript/ext_umi.js",
+        "javascript/ext_wildcards.js",
+        "javascript/tagAutocomplete.js"
+      ],
+      "css_files": [],
+      "runtime_files": [
+        "tmp/tagAutocompletePath.txt",
+        "tmp/modelKeywordPath.txt",
+        "tags/temp/emb.txt",
+        "tags/temp/lora.txt",
+        "tags/temp/lyco.txt",
+        "tags/temp/wc.txt",
+        "tags/temp/wce.txt",
+        "tags/temp/wc_yaml.json"
+      ],
+      "routes": [
+        "/tacapi/v1/refresh-temp-files",
+        "/tacapi/v1/refresh-embeddings",
+        "/tacapi/v1/lora-info/{name}",
+        "/tacapi/v1/wildcard-contents",
+        "/tacapi/v1/get-use-count",
+        "/tacapi/v1/get-use-count-list",
+        "/tacapi/v1/get-all-use-counts"
+      ],
+      "source_routes": [],
+      "source_callbacks": [],
+      "notes": [
+        "Uses Forge Neo DOM id bridge for txt2img/img2img prompts.",
+        "Runtime files are created only when the extension is installed and enabled."
+      ]
+    },
+    {
+      "name": "sd-webui-prompt-all-in-one-forgeneo",
+      "display_name": "Prompt All In One For Forge Neo",
+      "family": "prompt-helper",
+      "support_level": "first-batch",
+      "extension_dirname": "sd-webui-prompt-all-in-one-forgeneo",
+      "adapter_scope": "prompt-resource",
+      "remote_url": "https://github.com/abzaloff/sd-webui-prompt-all-in-one-forgeneo.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-prompt-all-in-one-forgeneo",
+      "source_branch": "main",
+      "source_commit": "da8342c",
+      "source_commit_date": "2026-02-27 12:04:27 +0800",
+      "required_files": [
+        "javascript/main.entry.js",
+        "style.css",
+        "i18n.json",
+        "translate_apis.json",
+        "group_tags/default.yaml",
+        "scripts/physton_prompt/translate.py",
+        "scripts/physton_prompt/translator/translators_translator.py",
+        "scripts/physton_prompt/translators/server.py"
+      ],
+      "javascript_files": [
+        "javascript/main.entry.js"
+      ],
+      "css_files": [
+        "style.css"
+      ],
+      "runtime_files": [
+        "storage"
+      ],
+      "routes": [
+        "/physton_prompt/get_config",
+        "/physton_prompt/token_counter",
+        "/physton_prompt/get_data",
+        "/physton_prompt/set_data",
+        "/physton_prompt/get_histories",
+        "/physton_prompt/get_favorites",
+        "/physton_prompt/translate",
+        "/physton_prompt/translates",
+        "/physton_prompt/get_csvs",
+        "/physton_prompt/styles",
+        "/physton_prompt/get_group_tags"
+      ],
+      "source_routes": [],
+      "source_callbacks": [],
+      "notes": [
+        "Uses lightweight Forge Neo /physton_prompt API routes.",
+        "Translation routes call the installed Prompt All In One translator backend.",
+        "OpenAI generation and MBart50 remain disabled unless configured later."
+      ]
+    },
+    {
+      "name": "sd-dynamic-prompts",
+      "display_name": "Dynamic Prompts",
+      "family": "prompt-helper",
+      "support_level": "priority-profile",
+      "extension_dirname": "sd-dynamic-prompts",
+      "adapter_scope": "alwayson-args",
+      "remote_url": "https://github.com/akirau-ai/sd-dynamic-prompts",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-dynamic-prompts",
+      "source_branch": "main",
+      "source_commit": "",
+      "source_commit_date": "",
+      "required_files": [
+        "scripts/dynamic_prompting.py",
+        "sd_dynamic_prompts/dynamic_prompting.py",
+        "sd_dynamic_prompts/generator_builder.py",
+        "sd_dynamic_prompts/wildcards_tab.py",
+        "sd_dynamic_prompts/settings.py",
+        "javascript/dynamic_prompting.js",
+        "style.css",
+        "config/magicprompt_models.txt"
+      ],
+      "javascript_files": [
+        "javascript/dynamic_prompting.js",
+        "javascript/dynamic_prompting_hints.js"
+      ],
+      "css_files": [
+        "style.css"
+      ],
+      "runtime_files": [
+        "wildcards"
+      ],
+      "routes": [],
+      "source_routes": [],
+      "source_callbacks": [
+        "scripts.AlwaysVisible",
+        "process",
+        "script_callbacks.on_ui_settings(on_ui_settings)",
+        "script_callbacks.on_ui_tabs(on_ui_tabs)",
+        "script_callbacks.on_before_image_saved(on_save)",
+        "script_callbacks.on_infotext_pasted(on_infotext_pasted)"
+      ],
+      "notes": [
+        "Forge Neo emits Dynamic Prompts alwayson args for source_backend requests.",
+        "The source_backend adapter can expand common variant and wildcard syntax without installing the dynamicprompts package.",
+        "Magic Prompt model generation remains available only when the source extension dependencies are installed."
+      ]
+    },
+    {
+      "name": "stable-diffusion-webui-wd14-tagger",
+      "display_name": "WD14 Tagger",
+      "family": "image-interrogation",
+      "support_level": "priority-profile",
+      "extension_dirname": "stable-diffusion-webui-wd14-tagger",
+      "adapter_scope": "api-adapter",
+      "remote_url": "https://github.com/Akegarasu/sd-webui-wd14-tagger",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/stable-diffusion-webui-wd14-tagger",
+      "source_branch": "master",
+      "source_commit": "711ba0a",
+      "source_commit_date": "2024-10-24 15:06:11 +0800",
+      "required_files": [
+        "scripts/tagger.py",
+        "tagger/api.py",
+        "tagger/api_models.py",
+        "tagger/ui.py",
+        "tagger/interrogator.py",
+        "tagger/utils.py",
+        "javascript/tagger.js",
+        "style.css"
+      ],
+      "javascript_files": [
+        "javascript/tagger.js"
+      ],
+      "css_files": [
+        "style.css"
+      ],
+      "runtime_files": [],
+      "routes": [
+        "/tagger/v1/interrogate",
+        "/tagger/v1/interrogators"
+      ],
+      "source_routes": [
+        "/tagger/v1/interrogate",
+        "/tagger/v1/interrogators"
+      ],
+      "source_callbacks": [
+        "script_callbacks.on_app_started(on_app_started)",
+        "script_callbacks.on_ui_tabs(on_ui_tabs)"
+      ],
+      "notes": [
+        "Source extension registers a standalone tagger tab and /tagger/v1 API.",
+        "Forge Neo provides source-compatible /tagger/v1 API routes from local ONNX models."
+      ]
+    },
+    {
+      "name": "adetailer",
+      "display_name": "ADetailer Neo",
+      "family": "generation-hook",
+      "support_level": "priority-profile",
+      "extension_dirname": "ADetailer-Neo",
+      "adapter_scope": "alwayson-args",
+      "remote_url": "https://github.com/Haoming02/ADetailer-Neo",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/ADetailer-Neo",
+      "source_branch": "main",
+      "source_commit": "",
+      "source_commit_date": "",
+      "required_files": [
+        "scripts/adetailer.py",
+        "lib_adetailer/__init__.py",
+        "lib_adetailer/args.py",
+        "lib_adetailer/ui.py",
+        "lib_adetailer/controlnet.py",
+        "lib_adetailer/mask.py",
+        "lib_adetailer/opts.py",
+        "lib_adetailer/detection/common.py",
+        "lib_adetailer/detection/mediapipe.py",
+        "lib_adetailer/detection/ultralytics.py",
+        "preload.py"
+      ],
+      "javascript_files": [],
+      "css_files": [],
+      "runtime_files": [],
+      "routes": [
+        "/adetailer/v1/version",
+        "/adetailer/v1/schema",
+        "/adetailer/v1/ad_model"
+      ],
+      "source_routes": [
+        "/adetailer/v1/version",
+        "/adetailer/v1/schema",
+        "/adetailer/v1/ad_model"
+      ],
+      "source_callbacks": [
+        "scripts.AlwaysVisible",
+        "process",
+        "postprocess",
+        "postprocess_image"
+      ],
+      "notes": [
+        "ADetailer Neo is the Forge Neo rewrite of ADetailer.",
+        "Source extension is an always-visible generation script with process/postprocess hooks.",
+        "Forge Neo emits ADetailer-Neo-compatible alwayson script args and lightweight /adetailer/v1 metadata routes."
+      ]
+    },
+    {
+      "name": "sd-neo-regional-prompter",
+      "display_name": "Regional Prompter",
+      "family": "generation-hook",
+      "support_level": "priority-profile",
+      "extension_dirname": "sd-neo-regional-prompter",
+      "adapter_scope": "alwayson-args",
+      "remote_url": "https://github.com/CyrixJD115/sd-neo-regional-prompter",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-neo-regional-prompter",
+      "source_branch": "main",
+      "source_commit": "27ba390",
+      "source_commit_date": "2026-06-02 18:12:17 -0700",
+      "required_files": [
+        "scripts/rp.py",
+        "scripts/rps.py",
+        "scripts/attention.py",
+        "scripts/latent.py",
+        "scripts/regions.py",
+        "javascript/inputAccordion-m.js",
+        "style.css",
+        "regional_prompter_presets.json"
+      ],
+      "javascript_files": [
+        "javascript/inputAccordion-m.js"
+      ],
+      "css_files": [
+        "style.css"
+      ],
+      "runtime_files": [],
+      "routes": [
+        "/regional-prompter/v1/schema",
+        "/regional-prompter/v1/defaults"
+      ],
+      "source_routes": [],
+      "source_callbacks": [
+        "scripts.AlwaysVisible",
+        "process",
+        "before_process_batch",
+        "process_before_every_sampling",
+        "before_hr",
+        "process_batch",
+        "postprocess",
+        "script_callbacks.on_ui_settings(ext_on_ui_settings)",
+        "script_callbacks.on_cfg_denoiser(denoiser_callback)",
+        "script_callbacks.on_cfg_denoised(denoised_callback)"
+      ],
+      "notes": [
+        "Regional Prompter is an always-visible source generation script.",
+        "Forge Neo emits source-compatible alwayson script args for Regional Prompter.",
+        "The source backend imports rp.py only when the request asks for Regional Prompter."
+      ]
+    },
+    {
+      "name": "infinite-browsing",
+      "display_name": "Infinite Browsing",
+      "family": "image-browser",
+      "support_level": "priority-profile",
+      "extension_dirname": "infinite-browsing",
+      "adapter_scope": "ui-route",
+      "remote_url": "https://github.com/laptise/infinite-browsing.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/infinite-browsing",
+      "source_branch": "main",
+      "source_commit": "fc3dcb5",
+      "source_commit_date": "2024-05-21 07:59:44 +0800",
+      "required_files": [
+        "app.py",
+        "scripts/iib_setup.py",
+        "scripts/iib/api.py",
+        "scripts/iib/tool.py",
+        "scripts/iib/db/datamodel.py",
+        "scripts/iib/db/update_image_data.py",
+        "vue/dist/index.html",
+        "vue/dist/assets/index-4577cc7c.js",
+        "vue/dist/assets/index-f6de8b10.css"
+      ],
+      "javascript_files": [],
+      "css_files": [],
+      "runtime_files": [],
+      "routes": [
+        "/infinite_image_browsing",
+        "/infinite_image_browsing/hello",
+        "/infinite_image_browsing/global_setting",
+        "/infinite_image_browsing/files",
+        "/infinite_image_browsing/file",
+        "/infinite_image_browsing/image-thumbnail",
+        "/infinite_image_browsing/fe-static/{file_path:path}",
+        "/infinite_image_browsing/db/basic_info",
+        "/infinite_image_browsing/db/rebuild_index"
+      ],
+      "source_routes": [
+        "/infinite_image_browsing",
+        "/infinite_image_browsing/hello",
+        "/infinite_image_browsing/global_setting",
+        "/infinite_image_browsing/fe-static/{file_path:path}"
+      ],
+      "source_callbacks": [
+        "script_callbacks.on_ui_tabs(on_ui_tabs)",
+        "script_callbacks.on_app_started(on_app_started)"
+      ],
+      "notes": [
+        "Source extension registers a Gradio iframe tab and FastAPI routes under /infinite_image_browsing.",
+        "Forge Neo mounts the source FastAPI app and exposes it as a top-level iframe tab.",
+        "The legacy WebUI DOM injector is not loaded into the Gradio 6 page."
+      ]
+    },
+    {
+      "name": "Auto-Photoshop-StableDiffusion-Plugin",
+      "display_name": "Auto Photoshop StableDiffusion Plugin",
+      "family": "external-client",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "Auto-Photoshop-StableDiffusion-Plugin",
+      "adapter_scope": "api-route",
+      "remote_url": "https://github.com/AbdullahAlfaraj/Auto-Photoshop-StableDiffusion-Plugin.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/Auto-Photoshop-StableDiffusion-Plugin",
+      "source_branch": "master",
+      "source_commit": "6f6d490",
+      "source_commit_date": "2023-12-09 16:58:35 +0300",
+      "required_files": [
+        "manifest.json",
+        "index.html",
+        "index.js",
+        "psapi.js",
+        "sdapi_py_re.js",
+        "scripts/main.py",
+        "server/python_server/serverMain.py",
+        "server/python_server/img2imgapi.py"
+      ],
+      "javascript_files": [],
+      "css_files": [],
+      "runtime_files": [],
+      "routes": [
+        "/sdapi/auto-photoshop-sd",
+        "/sdapi/auto-photoshop-sd/version",
+        "/sdapi/auto-photoshop-sd/heartbeat",
+        "/sdapi/auto-photoshop-sd/sdapi/v1/{path:path}",
+        "/sdapi/auto-photoshop-sd/txt2img/",
+        "/sdapi/auto-photoshop-sd/img2img/",
+        "/sdapi/auto-photoshop-sd/save/png/",
+        "/sdapi/auto-photoshop-sd/prompt_shortcut/load",
+        "/sdapi/auto-photoshop-sd/prompt_shortcut/save",
+        "/forge-neo/extensions/auto-photoshop-status"
+      ],
+      "source_routes": [
+        "/sdapi/auto-photoshop-sd",
+        "/sdapi/auto-photoshop-sd/version",
+        "/sdapi/auto-photoshop-sd/heartbeat",
+        "/sdapi/auto-photoshop-sd/sdapi/v1/{path:path}",
+        "/sdapi/auto-photoshop-sd/txt2img/",
+        "/sdapi/auto-photoshop-sd/img2img/",
+        "/sdapi/auto-photoshop-sd/save/png/",
+        "/sdapi/auto-photoshop-sd/prompt_shortcut/load",
+        "/sdapi/auto-photoshop-sd/prompt_shortcut/save"
+      ],
+      "source_callbacks": [
+        "script_callbacks.on_app_started(on_app_started)"
+      ],
+      "notes": [
+        "Photoshop UXP client plus a source WebUI FastAPI bridge.",
+        "Forge Neo exposes a source-compatible API bridge under /sdapi/auto-photoshop-sd.",
+        "Image cache files stay under the installed extension server/python_server directory."
+      ]
+    },
+    {
+      "name": "sd-webui-aspect-ratio-helper",
+      "display_name": "Aspect Ratio Helper",
+      "family": "ui-helper",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-aspect-ratio-helper",
+      "adapter_scope": "ui-helper",
+      "remote_url": "https://github.com/thomasasfk/sd-webui-aspect-ratio-helper.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-aspect-ratio-helper",
+      "source_branch": "main",
+      "source_commit": "0909671",
+      "source_commit_date": "2025-02-20 15:03:31 +0000",
+      "required_files": [
+        "scripts/sd_webui_aspect_ratio_helper.py",
+        "aspect_ratio_helper",
+        "javascript/aspectRatioController.js",
+        "style.css"
+      ],
+      "javascript_files": [
+        "javascript/aspectRatioController.js"
+      ],
+      "css_files": [
+        "style.css"
+      ],
+      "runtime_files": [
+        "javascript/forge_neo_aspect_ratio_helper.js",
+        "css/forge_neo_aspect_ratio_helper.css"
+      ],
+      "routes": [
+        "/forge-neo/extensions/aspect-ratio-helper-status",
+        "/forge-neo/extensions/aspect-ratio-helper-config"
+      ],
+      "source_routes": [],
+      "source_callbacks": [],
+      "notes": [
+        "Source extension injects aspect-ratio helper UI and JavaScript.",
+        "Forge Neo uses a dedicated Gradio 6 JavaScript adapter for forge_neo_width and forge_neo_img2img_width."
+      ]
+    },
+    {
+      "name": "sd-webui-camera-angle-selector",
+      "display_name": "Camera Angle Selector",
+      "family": "prompt-helper",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-camera-angle-selector",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-camera-angle-selector.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-camera-angle-selector",
+      "source_branch": "main",
+      "source_commit": "726347a",
+      "source_commit_date": "2026-03-28 04:27:03 +0800",
+      "required_files": [
+        "scripts/camera_angle_selector.py",
+        "scripts/camera_3d_view.html",
+        "README.md"
+      ],
+      "javascript_files": [],
+      "css_files": [],
+      "runtime_files": [
+        "javascript/forge_neo_camera_angle_selector.js",
+        "css/forge_neo_camera_angle_selector.css"
+      ],
+      "routes": [
+        "/forge-neo/extensions/camera-angle-selector",
+        "/forge-neo/extensions/camera-angle-selector/view",
+        "/forge-neo/extensions/camera-angle-selector-status",
+        "/forge-neo/extensions/camera-angle-selector-config"
+      ],
+      "source_routes": [],
+      "source_callbacks": [
+        "script_callbacks.on_ui_tabs(create_angle_selector_ui)"
+      ],
+      "notes": [
+        "Source extension provides an independent camera-angle selection tab.",
+        "Forge Neo exposes the source camera_3d_view.html in a Gradio 6 iframe tab and applies prompts to Forge Neo prompt textareas."
+      ]
+    },
+    {
+      "name": "sd-webui-Storyboard-Assistant",
+      "display_name": "Storyboard Assistant",
+      "family": "storyboard",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-Storyboard-Assistant",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-Storyboard-Assistant.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-Storyboard-Assistant",
+      "source_branch": "main",
+      "source_commit": "795e83d",
+      "source_commit_date": "2026-03-29 19:48:27 +0800",
+      "required_files": [
+        "scripts/sd_MultiModal.py",
+        "scripts/storyboard_assistant.py",
+        "scripts/announcement.py",
+        "javascript/storyboard.js",
+        "scripts/storyboard_data/storyboard.json",
+        "scripts/storyboard_data/script.json"
+      ],
+      "javascript_files": [
+        "javascript/storyboard.js"
+      ],
+      "css_files": [],
+      "runtime_files": [
+        "forge_neo/storyboard.py"
+      ],
+      "routes": [
+        "/forge-neo/extensions/storyboard-assistant-status"
+      ],
+      "source_routes": [],
+      "source_callbacks": [
+        "script_callbacks.on_ui_tabs(storyboard_tab)"
+      ],
+      "notes": [
+        "Source extension provides storyboard planning and media helper tabs.",
+        "Forge Neo exposes its native storyboard wall as a top-level Gradio 6 tab when this extension profile is installed."
+      ]
+    },
+    {
+      "name": "sd-webui-AestheticEnhancement",
+      "display_name": "Aesthetic Enhancement",
+      "family": "analysis-ui",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-AestheticEnhancement",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-AestheticEnhancement.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-AestheticEnhancement",
+      "source_branch": "main",
+      "source_commit": "eeced55",
+      "source_commit_date": "2026-04-11 12:11:10 +0800",
+      "required_files": [
+        "scripts/main.py",
+        "scripts/qwen_analysis_ui.py",
+        "Aesthetic-Enhancement",
+        "README.md"
+      ],
+      "javascript_files": [],
+      "css_files": [],
+      "runtime_files": [
+        "forge_neo/aesthetic_enhancement.py"
+      ],
+      "routes": [
+        "/forge-neo/extensions/aesthetic-enhancement-status"
+      ],
+      "source_routes": [],
+      "source_callbacks": [
+        "script_callbacks.on_ui_tabs(MultiModal_tab)",
+        "script_callbacks.on_app_started(on_app_started)"
+      ],
+      "notes": [
+        "Source extension provides an independent multimodal/aesthetic analysis tab.",
+        "Forge Neo exposes a Gradio 6 tab for the bundled artist, composition and lighting reference assets.",
+        "Forge Neo also exposes the source Qwen analysis workflow through native Gradio 6 controls."
+      ]
+    },
+    {
+      "name": "sd-webui-multimodal-media",
+      "display_name": "Multimodal Media",
+      "family": "multimodal-tools",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-multimodal-media",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-multimodal-media.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-multimodal-media",
+      "source_branch": "main",
+      "source_commit": "ccb3186",
+      "source_commit_date": "2026-03-22 04:03:18 +0800",
+      "required_files": [
+        "extension.py",
+        "scripts/multimodal_media_main.py",
+        "scripts/video_frame_extractor.py",
+        "scripts/qwen3_tts_ui.py",
+        "scripts/qwen_video/main_ui.py",
+        "scripts/qwen_video/api_handler.py",
+        "scripts/latent_sync_ui.py",
+        "LatentSync",
+        "scripts/ace_step_ui.py",
+        "ACE-Step-1.5",
+        "scripts/indextts_ui.py",
+        "index-tts"
+      ],
+      "javascript_files": [],
+      "css_files": [],
+      "runtime_files": [
+        "forge_neo/multimodal_media.py"
+      ],
+      "routes": [
+        "/forge-neo/extensions/multimodal-media-status"
+      ],
+      "source_routes": [],
+      "source_callbacks": [
+        "script_callbacks.on_ui_tabs(multimodal_media_tab)",
+        "on_app_started"
+      ],
+      "notes": [
+        "Source extension provides media extraction, Qwen video, TTS, ACE-Step and LatentSync UI tabs.",
+        "Forge Neo exposes video frame extraction in a Gradio 6 tab and reports heavy audio/video dependency status without running the source installer.",
+        "Forge Neo exposes Qwen3-TTS speech generation as a native Gradio 6 subtab and loads the source model code only when users generate audio.",
+        "Forge Neo exposes Qwen Video generation and task query as a native Gradio 6 subtab using the source DashScope API modules.",
+        "Forge Neo exposes LatentSync video/audio lip-sync generation as a native Gradio 6 subtab and loads the source inference module only when users run a task.",
+        "Forge Neo exposes ACE-Step music generation and reference-audio analysis as a native Gradio 6 subtab and loads the source model code only when users run a task.",
+        "Forge Neo exposes IndexTTS-2 speech generation and emotion controls as a native Gradio 6 subtab and loads the source model code only when users generate audio."
+      ]
+    },
+    {
+      "name": "sd-webui-qwen-vision-chat",
+      "display_name": "Qwen Vision Chat",
+      "family": "vision-chat",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-qwen-vision-chat",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-qwen-vision-chat.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-qwen-vision-chat",
+      "source_branch": "main",
+      "source_commit": "db26bbc",
+      "source_commit_date": "2026-04-10 19:34:17 +0800",
+      "required_files": [
+        "scripts/sd_qwen_vision_chat.py",
+        "scripts/quick_description.py",
+        "scripts/image_management.py",
+        "scripts/prompt_templates.py",
+        "scripts/tag_management.py",
+        "ollama/ollama_api.py"
+      ],
+      "javascript_files": [],
+      "css_files": [],
+      "runtime_files": [
+        "forge_neo/qwen_vision_chat.py"
+      ],
+      "routes": [
+        "/forge-neo/extensions/qwen-vision-chat-status"
+      ],
+      "source_routes": [],
+      "source_callbacks": [
+        "script_callbacks.on_ui_tabs(vision_chat_tab)",
+        "script_callbacks.on_app_started(on_app_started)"
+      ],
+      "notes": [
+        "Source extension provides an Ollama-backed Qwen vision chat tab.",
+        "Forge Neo exposes a Gradio 6 tab that calls the same local Ollama /api/chat endpoint without importing the classic WebUI tab."
+      ]
+    },
+    {
+      "name": "sd-webui-sam-matting",
+      "display_name": "SAM Matting",
+      "family": "segmentation",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-sam-matting",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/exo101/sd-webui-sam-matting.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-sam-matting",
+      "source_branch": "main",
+      "source_commit": "b1e8e09",
+      "source_commit_date": "2026-04-10 19:28:06 +0800",
+      "required_files": [
+        "scripts/sd_segment_anything.py",
+        "scripts/segment_anything_ui.py",
+        "scripts/image_matting.py",
+        "scripts/cleaner_ui.py",
+        "install_dependencies.py"
+      ],
+      "javascript_files": [],
+      "css_files": [],
+      "runtime_files": [
+        "forge_neo/sam_matting.py"
+      ],
+      "routes": [
+        "/forge-neo/extensions/sam-matting-status"
+      ],
+      "source_routes": [],
+      "source_callbacks": [
+        "script_callbacks.on_ui_tabs(segmentation_tab)",
+        "script_callbacks.on_app_started(on_app_started)"
+      ],
+      "notes": [
+        "Source extension provides SAM segmentation, matting and cleaner tabs.",
+        "Forge Neo exposes a dedicated Gradio 6 tab and loads rembg, segment_anything or litelama only when users run a task.",
+        "Forge Neo exposes source point segmentation through Gradio image select events."
+      ]
+    },
+    {
+      "name": "sd-webui-see-through",
+      "display_name": "See-Through Layer Decomposition",
+      "family": "layer-decomposition",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-see-through",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/shitagaki-lab/see-through",
+      "repository_layout": "bundled-upstream",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-see-through",
+      "source_branch": "",
+      "source_commit": "",
+      "source_commit_date": "",
+      "required_files": [
+        "scripts/see_through.py",
+        "see-through",
+        "requirements.txt",
+        "requirements-inference-bnb.txt",
+        "README.md"
+      ],
+      "javascript_files": [],
+      "css_files": [],
+      "runtime_files": [
+        "forge_neo/see_through.py"
+      ],
+      "routes": [
+        "/forge-neo/extensions/see-through-status"
+      ],
+      "source_routes": [],
+      "source_callbacks": [
+        "scripts.AlwaysVisible",
+        "script_callbacks.on_ui_settings(on_ui_settings)",
+        "script_callbacks.on_app_started(on_app_started)"
+      ],
+      "notes": [
+        "Local wrapper is not a standalone git checkout; remote URL points to the upstream research project.",
+        "Forge Neo exposes a dedicated Gradio 6 tab that calls the installed see-through inference script on demand."
+      ]
+    },
+    {
+      "name": "sd-webui-trellis2",
+      "display_name": "TRELLIS.2",
+      "family": "3d-generation",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-trellis2",
+      "adapter_scope": "ui-tab",
+      "remote_url": "https://github.com/microsoft/TRELLIS.2",
+      "repository_layout": "bundled-upstream",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-trellis2",
+      "source_branch": "",
+      "source_commit": "",
+      "source_commit_date": "",
+      "required_files": [
+        "extension.json",
+        "scripts/trellis2_script.py",
+        "TRELLIS.2",
+        "download_model.py",
+        "check_env.py"
+      ],
+      "javascript_files": [],
+      "css_files": [],
+      "runtime_files": [
+        "forge_neo/trellis2.py"
+      ],
+      "routes": [
+        "/forge-neo/extensions/trellis2-status"
+      ],
+      "source_routes": [],
+      "source_callbacks": [
+        "scripts.Script",
+        "script_callbacks.on_ui_tabs(on_ui_tabs)"
+      ],
+      "notes": [
+        "Local wrapper is not a standalone git checkout; remote URL points to the TRELLIS.2 upstream project.",
+        "Forge Neo exposes a Gradio 6 tab that imports the source script only when users start a TRELLIS.2 generation."
+      ]
+    },
+    {
+      "name": "sd-webui-style-organizer",
+      "display_name": "Style Grid",
+      "family": "prompt-style",
+      "support_level": "runtime-adapter",
+      "extension_dirname": "sd-webui-style-organizer",
+      "adapter_scope": "prompt-style",
+      "remote_url": "https://github.com/KazeKaze93/sd-webui-style-organizer.git",
+      "repository_layout": "standalone",
+      "repository_subdir": "",
+      "install_dir": "forge_neo/webui/extensions/sd-webui-style-organizer",
+      "source_branch": "master",
+      "source_commit": "5ff9f40",
+      "source_commit_date": "2026-05-05 22:45:28 +0400",
+      "required_files": [
+        "scripts/style_grid.py",
+        "stylegrid/config.py",
+        "stylegrid/csv_io.py",
+        "stylegrid/routes.py",
+        "stylegrid/wildcards.py",
+        "javascript/sg_prompt_utils.js",
+        "javascript/style_grid.js",
+        "style.css",
+        "ui/dist/index.html"
+      ],
+      "javascript_files": [
+        "javascript/sg_prompt_utils.js",
+        "javascript/style_grid.js"
+      ],
+      "css_files": [
+        "style.css"
+      ],
+      "runtime_files": [
+        "forge_neo/style_grid.py",
+        "data",
+        "styles",
+        "samples"
+      ],
+      "routes": [
+        "/style_grid/styles",
+        "/style_grid/reload",
+        "/style_grid/check_update",
+        "/style_grid/conflicts",
+        "/style_grid/export",
+        "/style_grid/import",
+        "/style_grid/category_order/save",
+        "/style_grid/presets",
+        "/style_grid/presets/save",
+        "/style_grid/presets/delete",
+        "/style_grid/presets/list",
+        "/style_grid/usage",
+        "/style_grid/usage/increment",
+        "/style_grid/style/save",
+        "/style_grid/style/delete",
+        "/style_grid/backup",
+        "/style_grid/thumbnails/list",
+        "/style_grid/thumbnail",
+        "/style_grid/thumbnail/upload",
+        "/style_grid/thumbnail/gen_status",
+        "/style_grid/thumbnail/generate",
+        "/style_grid/thumbnails/cleanup",
+        "/style_grid/ui",
+        "/forge-neo/extensions/style-grid-status"
+      ],
+      "source_routes": [
+        "/style_grid/styles",
+        "/style_grid/reload",
+        "/style_grid/check_update",
+        "/style_grid/conflicts",
+        "/style_grid/export",
+        "/style_grid/import",
+        "/style_grid/category_order/save",
+        "/style_grid/presets",
+        "/style_grid/presets/save",
+        "/style_grid/presets/delete",
+        "/style_grid/presets/list",
+        "/style_grid/usage",
+        "/style_grid/usage/increment",
+        "/style_grid/style/save",
+        "/style_grid/style/delete",
+        "/style_grid/backup",
+        "/style_grid/thumbnails/list",
+        "/style_grid/thumbnail",
+        "/style_grid/thumbnail/upload",
+        "/style_grid/thumbnail/gen_status",
+        "/style_grid/thumbnail/generate",
+        "/style_grid/thumbnails/cleanup",
+        "/style_grid/ui"
+      ],
+      "source_callbacks": [
+        "scripts.AlwaysVisible",
+        "script_callbacks.on_app_started(register_api)",
+        "StyleGridScript.process"
+      ],
+      "notes": [
+        "Forge Neo serves the Style Grid API routes locally because the source package imports WebUI modules at import time.",
+        "Source JavaScript, CSS and React UI assets remain loaded from the installed extension directory."
+      ]
+    }
+  ]
+}
