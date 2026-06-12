@@ -85,8 +85,10 @@ import enhanced.sam3_video_mask as sam3_video_mask
 import logging
 logger = logging.getLogger(__name__)
 regen_manifest.ensure_api_params_backend_arg(api_params)
-if isinstance(getattr(api_params, "backend_args", None), list) and "keep_vlm_model_loaded" not in api_params.backend_args:
-    api_params.backend_args.append("keep_vlm_model_loaded")
+if isinstance(getattr(api_params, "backend_args", None), list):
+    for backend_arg_name in ("upscale_model", "keep_vlm_model_loaded"):
+        if backend_arg_name not in api_params.backend_args:
+            api_params.backend_args.append(backend_arg_name)
 
 START_TIMESTAMP = time.time()
 COMPARE_BUTTON_ICON = "🔍"
@@ -421,6 +423,41 @@ def _raw_task_arg_index(api_arg_name):
         return 1 + normalized_index
     return 1 + normalized_index + expanded_lora_count - 1
 
+def _normalize_model_bridge_value(value, default=""):
+    text = str(value or default or "").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+    return text or default
+
+def _is_default_upscale_model(value):
+    return str(value or "").strip().lower() in ("", "auto", "default")
+
+def _apply_live_model_bridge_to_task_args(args, clip_model=None, upscale_model=None):
+    args = list(args)
+    params_index = _raw_task_arg_index("params_backend")
+    if not (0 <= params_index < len(args)):
+        return args
+
+    params = dict(args[params_index] or {})
+    if clip_model is not None:
+        existing_clip = _normalize_model_bridge_value(params.get("clip_model"))
+        live_clip = _normalize_model_bridge_value(clip_model)
+        if live_clip and live_clip not in (modules.flags.default_clip, modules.flags.default_vae, "auto"):
+            params["clip_model"] = live_clip
+        elif existing_clip and existing_clip not in (modules.flags.default_clip, modules.flags.default_vae, "auto"):
+            params["clip_model"] = existing_clip
+        else:
+            params.pop("clip_model", None)
+
+    if upscale_model is not None:
+        existing_upscale_model = _normalize_model_bridge_value(params.get("upscale_model"), "default")
+        live_upscale_model = _normalize_model_bridge_value(upscale_model, "default")
+        if _is_default_upscale_model(live_upscale_model) and not _is_default_upscale_model(existing_upscale_model):
+            params["upscale_model"] = existing_upscale_model
+        else:
+            params["upscale_model"] = live_upscale_model or "default"
+
+    args[params_index] = params
+    return args
+
 def _apply_model_params_state_to_task_args(args, model_state):
     args = list(args)
     if not isinstance(model_state, dict) or not model_state.get("__model_params_state"):
@@ -453,11 +490,15 @@ def _apply_model_params_state_to_task_args(args, model_state):
         params = dict(args[params_index] or {})
         clip_model = model_state.get("clip_model")
         if clip_model and clip_model not in (modules.flags.default_clip, modules.flags.default_vae, "auto"):
-            params["clip_model"] = str(clip_model).replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+            params["clip_model"] = _normalize_model_bridge_value(clip_model)
         else:
             params.pop("clip_model", None)
-        upscale_model = str(model_state.get("upscale_model") or "default").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
-        params["upscale_model"] = upscale_model or "default"
+        existing_upscale_model = _normalize_model_bridge_value(params.get("upscale_model"), "default")
+        state_upscale_model = _normalize_model_bridge_value(model_state.get("upscale_model"), "default")
+        if _is_default_upscale_model(state_upscale_model) and not _is_default_upscale_model(existing_upscale_model):
+            params["upscale_model"] = existing_upscale_model
+        else:
+            params["upscale_model"] = state_upscale_model or "default"
         args[params_index] = params
     return args
 
@@ -534,8 +575,14 @@ def get_task_with_resolution_multiplier_and_model_state(*args):
         return get_task_with_resolution_multiplier(*args)
     resolution_quantize_step = args.pop()
     resolution_multiplier = args.pop()
+    live_clip_model = None
+    live_upscale_model = None
+    if len(args) >= 3 and isinstance(args[-3], dict) and args[-3].get("__model_params_state"):
+        live_upscale_model = args.pop()
+        live_clip_model = args.pop()
     model_state = args.pop()
     args = _apply_model_params_state_to_task_args(args, model_state)
+    args = _apply_live_model_bridge_to_task_args(args, live_clip_model, live_upscale_model)
     return get_task_with_resolution_multiplier(*(args + [resolution_multiplier, resolution_quantize_step]))
 
 def _minimal_dropdown_choices(*values):
@@ -5745,6 +5792,8 @@ with shared.gradio_root:
                                         describe_vlm_custom_message = gr.HTML(value='', elem_id='describe_vlm_custom_message')
                                     describe_vlm_chat_prompt_bridge = gr.Textbox(value='', visible='hidden', elem_id='describe_vlm_chat_prompt_bridge', elem_classes=['sai-gradio-hidden-bridge'])
                                     describe_vlm_chat_apply_prompt_btn = gr.Button('Apply Describe VLM chat prompt', visible='hidden', elem_id='describe_vlm_chat_apply_prompt_btn', elem_classes=['sai-gradio-hidden-bridge'])
+                                    describe_vlm_model_select_bridge = gr.Textbox(value='', visible='hidden', elem_id='describe_vlm_model_select_bridge', elem_classes=['sai-gradio-hidden-bridge'])
+                                    describe_vlm_model_select_btn = gr.Button('Apply Describe VLM model selection', visible='hidden', elem_id='describe_vlm_model_select_btn', elem_classes=['sai-gradio-hidden-bridge'])
 
                                     def trigger_show_image_properties(image):
                                         image_size = modules.util.get_image_size_info(image, modules.flags.available_aspect_ratios[0])
@@ -5761,19 +5810,20 @@ with shared.gradio_root:
                                             else:
                                                 recommended_part = button_text
 
-                                            if 'x' in recommended_part:
-                                                size_part = recommended_part.split('|')[0].strip()
-                                                width_str, height_str = size_part.split('x')[:2]
-                                                width = int(''.join(filter(str.isdigit, width_str)))
-                                                height = int(''.join(filter(str.isdigit, height_str)))
-                                                return [width, height]
+                                            size_part = str(recommended_part).split('|')[0].strip()
+                                            match = re.search(r'(\d+)\s*[xX×*]\s*(\d+)', size_part)
+                                            if match:
+                                                width = int(match.group(1))
+                                                height = int(match.group(2))
+                                                return [width, height, True]
                                             else:
-                                                return [skip_component_update(), skip_component_update()]
+                                                return [skip_component_update(), skip_component_update(), skip_component_update()]
                                         except Exception:
-                                            return [skip_component_update(), skip_component_update()]
+                                            return [skip_component_update(), skip_component_update(), skip_component_update()]
 
                                     describe_input_image.upload(trigger_show_image_properties, inputs=describe_input_image, outputs=describe_image_size, show_progress=False, queue=False)
-                                    describe_image_size.click(apply_recommended_size, inputs=describe_image_size, outputs=[overwrite_width, overwrite_height], show_progress=False, queue=False)
+                                    describe_image_size.click(apply_recommended_size, inputs=describe_image_size, outputs=[overwrite_width, overwrite_height, use_resolution_override_checkbox], show_progress=False, queue=False) \
+                                        .then(lambda: None, js='()=>{try{if(typeof syncResolutionControlWidgets==="function"){syncResolutionControlWidgets({force:true}); setTimeout(()=>syncResolutionControlWidgets({force:true}),80);}}catch(e){console.warn("[UI-TRACE] describe_resolution_sync_failed", e);}}', show_progress=False, queue=False)
 
                         with gr.Tab(label='Metadata', id='metadata_tab', visible=True) as metadata_tab:
                             with gr.Column():
@@ -7040,6 +7090,13 @@ with shared.gradio_root:
                 describe_vlm_model.change(
                     set_describe_vlm_version,
                     inputs=[describe_vlm_model, state_topbar] + main_vlm_custom_inputs,
+                    outputs=[describe_vlm_model, vlm_status_info, describe_vlm_custom_panel, describe_vlm_custom_message, vlm_version],
+                    queue=False,
+                    show_progress=False,
+                )
+                describe_vlm_model_select_btn.click(
+                    set_describe_vlm_version,
+                    inputs=[describe_vlm_model_select_bridge, state_topbar] + main_vlm_custom_inputs,
                     outputs=[describe_vlm_model, vlm_status_info, describe_vlm_custom_panel, describe_vlm_custom_message, vlm_version],
                     queue=False,
                     show_progress=False,
@@ -8378,7 +8435,7 @@ with shared.gradio_root:
         scene_batch_evt.then(topbar.process_after_generation, inputs=state_topbar, outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False) \
             .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once)});}')
 
-        generate_event = bind_generation_failure_cleanup(generate_button.click(_stash_scene_media_before_generation, inputs=[scene_video, scene_audio, scene_original_video_path, state_topbar, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder, generate_button, skip_button, stop_button, random_aspect_ratio_state], show_progress=False, js='()=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generate_start"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generate_start");}catch(e){console.warn("[UI-TRACE] preset_gallery.generate_clear_failed", e);}}'))
+        generate_event = bind_generation_failure_cleanup(generate_button.click(_stash_scene_media_before_generation, inputs=[scene_video, scene_audio, scene_original_video_path, state_topbar, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder, generate_button, skip_button, stop_button, random_aspect_ratio_state], show_progress=False, js='()=>{try{if(typeof window.simpleaiSyncModelsJsPanelBridge==="function") window.simpleaiSyncModelsJsPanelBridge(); if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generate_start"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generate_start");}catch(e){console.warn("[UI-TRACE] preset_gallery.generate_clear_failed", e);}}'))
         generate_event = bind_generation_failure_cleanup(generate_event.success(cache_input_image_func, inputs=[state_topbar, enhance_checkbox, current_tab, uov_input_image, inpaint_input_image, enhance_input_image, scene_input_image1, scene_canvas_image], outputs=[cached_input_image], show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(show_generation_preview_surface, inputs=state_topbar, outputs=[progress_window, progress_gallery, progress_video, gallery, comparison_box, compare_btn], show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(
@@ -8405,7 +8462,7 @@ with shared.gradio_root:
         generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.avoid_empty_prompt_for_scene, inputs=[prompt, state_topbar, scene_canvas_image, scene_input_image1, scene_theme, scene_additional_prompt, scene_additional_prompt_2], outputs=prompt, show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(select_random_aspect_ratio, inputs=[random_aspect_ratio_checkbox, random_aspect_ratio_state, aspect_ratios_selection], outputs=[overwrite_width, overwrite_height, aspect_ratios_selection, random_aspect_ratio_state], show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(sync_inpaint_engine_dropdowns_before_generation, inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls], outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls], show_progress=False))
-        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls + [model_params_state, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls + [model_params_state, clip_model, upscale_model, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=generate_clicked, inputs=[currentTask, state_topbar], outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button], show_progress=False))
         generate_event.success(fn=update_prompt_history, inputs=[currentTask, state_prompt_history, prompt], outputs=[state_prompt_history, history_prompts], show_progress=False)
         generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.process_after_generation, inputs=[state_topbar, currentTask, progress_gallery, progress_video], outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False))
@@ -8421,7 +8478,7 @@ with shared.gradio_root:
         debug_true_state = gr.State(value=True)
         ctrls_preview = [debug_true_state if c == debugging_cn_preprocessor else c for c in ctrls]
 
-        preview_event = bind_generation_failure_cleanup(preview_preprocessing.click(_stash_scene_media_preview, inputs=[scene_video, scene_audio, scene_original_video_path, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder], show_progress=False, js='()=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("preview_start"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("preview_start");}catch(e){console.warn("[UI-TRACE] preset_gallery.preview_clear_failed", e);}}'))
+        preview_event = bind_generation_failure_cleanup(preview_preprocessing.click(_stash_scene_media_preview, inputs=[scene_video, scene_audio, scene_original_video_path, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder], show_progress=False, js='()=>{try{if(typeof window.simpleaiSyncModelsJsPanelBridge==="function") window.simpleaiSyncModelsJsPanelBridge(); if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("preview_start"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("preview_start");}catch(e){console.warn("[UI-TRACE] preset_gallery.preview_clear_failed", e);}}'))
         preview_event = bind_generation_failure_cleanup(preview_event.success(lambda: (False, gr_update(visible=False), gr_update(visible=False), gr_update(visible=False), gr_update(value=None, visible=True), compare_button_gr_update(ready=False)), outputs=[comparison_state, comparison_box, progress_window, gallery, progress_gallery, compare_btn], show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(
             topbar.process_before_generation,
@@ -8444,7 +8501,7 @@ with shared.gradio_root:
         ))
         preview_event = bind_generation_failure_cleanup(preview_event.success(_sync_model_params_state_from_ui, inputs=model_state_ui_inputs, outputs=model_params_state, show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(sync_inpaint_engine_dropdowns_before_generation, inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls], outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls], show_progress=False))
-        preview_event = bind_generation_failure_cleanup(preview_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls_preview + [model_params_state, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls_preview + [model_params_state, clip_model, upscale_model, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(fn=generate_clicked, inputs=[currentTask, state_topbar], outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button], show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(topbar.process_after_generation, inputs=[state_topbar, currentTask, progress_gallery, progress_video], outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(check_comparison_visibility, inputs=[cached_input_image, currentTask, progress_gallery, progress_video, state_topbar, image_tools_checkbox, scene_input_image1, scene_canvas_image], outputs=[compare_btn, image_toolbox, state_topbar], show_progress=False))

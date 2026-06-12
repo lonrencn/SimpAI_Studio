@@ -4231,6 +4231,7 @@ body[data-theme="dark"] .preset_store button.preset-missing {
 
 .describe-vlm-chat-panel {
   position: fixed !important;
+  container-type: inline-size;
   left: 50% !important;
   top: 50% !important;
   right: auto !important;
@@ -4304,7 +4305,8 @@ html.describe-vlm-chat-resizing * {
 }
 
 .describe-vlm-chat-title-text,
-.describe-vlm-chat-model-pill b {
+.describe-vlm-chat-model-pill b,
+.describe-vlm-chat-model-pill select {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4337,6 +4339,44 @@ html.describe-vlm-chat-resizing * {
   font-weight: 700;
 }
 
+.describe-vlm-chat-model-pill select {
+  flex: 0 1 auto;
+  width: min(300px, 36vw);
+  max-width: 100%;
+  min-width: 150px;
+  height: 24px;
+  padding: 0 20px 0 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  color-scheme: dark;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  outline: none;
+}
+
+.describe-vlm-chat-model-pill select:focus {
+  box-shadow: none;
+}
+
+.describe-vlm-chat-model-pill select:focus-visible {
+  border-radius: 4px;
+  outline: 1px solid color-mix(in srgb, var(--body-text-color, #f8fafc) 46%, transparent);
+  outline-offset: 2px;
+}
+
+.describe-vlm-chat-model-pill select option {
+  background: #1f2024;
+  color: #f3f4f8;
+}
+
+.describe-vlm-chat-model-pill select option:checked {
+  background: #2563eb;
+  color: #ffffff;
+}
+
 .describe-vlm-chat-head-actions {
   display: inline-flex;
   justify-self: end;
@@ -4358,6 +4398,36 @@ html.describe-vlm-chat-resizing * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+@container (max-width: 780px) {
+  .describe-vlm-chat-head {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 8px;
+  }
+
+  .describe-vlm-chat-title {
+    grid-column: 1;
+    grid-row: 1;
+    overflow: hidden;
+  }
+
+  .describe-vlm-chat-head-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .describe-vlm-chat-model-pill {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+  }
+
+  .describe-vlm-chat-model-pill select {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 .describe-vlm-chat-controls {
@@ -4830,6 +4900,34 @@ html.describe-vlm-chat-resizing * {
     grid-template-columns: 1fr;
   }
 
+  .describe-vlm-chat-head {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 8px;
+  }
+
+  .describe-vlm-chat-title {
+    grid-column: 1;
+    grid-row: 1;
+    overflow: hidden;
+  }
+
+  .describe-vlm-chat-head-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .describe-vlm-chat-model-pill {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+  }
+
+  .describe-vlm-chat-model-pill select {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
   .describe-vlm-chat-compose-tools {
     grid-column: 1 / 2;
     grid-row: 2 / 3;
@@ -4944,6 +5042,10 @@ html.describe-vlm-chat-resizing * {
 .describe-vlm-chat-model-pill {
   border-color: var(--describe-chat-line-soft);
   background: var(--describe-chat-panel-deep);
+  color: var(--describe-chat-text);
+}
+
+.describe-vlm-chat-model-pill select {
   color: var(--describe-chat-text);
 }
 
@@ -7975,11 +8077,11 @@ button.style-button.primary::after {
 #gallery_browser_toolbar,
 .simpleai-main-gallery-browser {
   display: grid !important;
-  grid-template-columns: max-content 150px max-content;
+  grid-template-columns: minmax(max-content, 1fr) 150px minmax(max-content, 1fr);
   grid-template-areas: "left switch right";
   align-items: center !important;
   justify-items: start !important;
-  justify-content: start !important;
+  justify-content: stretch !important;
   column-gap: 10px !important;
   row-gap: 8px !important;
   width: 100% !important;

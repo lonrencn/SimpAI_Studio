@@ -1742,6 +1742,13 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
         preset=state_params["__preset"],
         engine_type=state_params.get("engine_type", "image"),
         ))
+    state_upscale_model = str(state_params.get("upscale_model") or "").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+    if state_upscale_model:
+        if state_upscale_model.lower() not in ("auto", "default") or "upscale_model" not in backend_params:
+            backend_params["upscale_model"] = state_upscale_model
+    state_clip_model = str(state_params.get("clip_model") or "").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+    if state_clip_model and state_clip_model not in (modules.flags.default_clip, modules.flags.default_vae, "auto"):
+        backend_params["clip_model"] = state_clip_model
     if scene_audio is not None and not (isinstance(scene_audio, str) and os.path.exists(scene_audio)):
         try:
             from extras.media_normalize import normalize_gradio_audio_value
@@ -2129,6 +2136,10 @@ def _has_generation_output(generation_task=None, gallery_output=None, video_outp
     return task_has_output or _has_component_output(gallery_output) or _has_component_output(video_output)
 
 
+def should_show_finished_catalog(engine_type, output_list):
+    return bool(output_list) or engine_type == "video"
+
+
 def process_after_generation(state_params, generation_task=None, gallery_output=None, video_output=None):
     if "__max_per_page" not in state_params.keys():
         state_params.update({"__max_per_page": 18})
@@ -2157,10 +2168,11 @@ def process_after_generation(state_params, generation_task=None, gallery_output=
     # generate_button, stop_button, skip_button, state_is_generating
     results = [gr.update(visible=True, interactive=True)] + [gr.update(visible=False, interactive=False), gr.update(visible=False, interactive=False), False]
     # gallery_index, index_radio
+    catalog_visible = should_show_finished_catalog(engine_type, state_params["__output_list"])
     if has_generation_context:
-        results += [gr.update(choices=state_params["__output_list"], value=None), gr.update(visible=len(state_params["__output_list"])>0, open=False)]
+        results += [gr.update(choices=state_params["__output_list"], value=None), gr.update(visible=catalog_visible, open=False)]
     else:
-        results += [gr.update(choices=state_params["__output_list"]), gr.update(visible=len(state_params["__output_list"])>0, open=len(state_params["__output_list"])>0)]
+        results += [gr.update(choices=state_params["__output_list"]), gr.update(visible=catalog_visible, open=len(state_params["__output_list"])>0)]
     # random_button, super_prompter, background_theme, image_tools_checkbox, bar_store_button, bar0_button, bar1_button, bar2_button, bar3_button, bar4_button, bar5_button, bar6_button, bar7_button, bar8_button
     preset_nums = len(get_preset_name_list(state_params["__session"], state_params["ua_hash"]).split(','))
     results += [gr.update(interactive=True)] * (preset_nums + 5)
@@ -3628,11 +3640,13 @@ def update_after_identity_sub(state, lightweight_nav=False, skip_output_refresh=
             logger.warning(f"Error updating comfyd IO directories: {e}")
 
     if skip_output_refresh:
+        catalog_visible = should_show_finished_catalog(engine_type, output_list)
         results = [gr.update(choices=output_list, value=None)]
-        results += [gr.update(visible=len(output_list) > 0)]
+        results += [gr.update(visible=catalog_visible)]
         results += [finished_nums_pages]
     else:
-        results = [gr.update(choices=output_list, value=None), gr.update(visible=len(output_list)>0)]
+        catalog_visible = should_show_finished_catalog(engine_type, output_list)
+        results = [gr.update(choices=output_list, value=None), gr.update(visible=catalog_visible)]
         results += [finished_nums_pages]
     results += [gr.update(visible=False if 'preset_store' not in state else state['preset_store'])]
     results += [skip_update() if lightweight_nav else dataset_update(samples=get_preset_samples(user_did))]

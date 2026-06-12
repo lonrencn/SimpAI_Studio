@@ -369,15 +369,6 @@ def _reference_root_candidates(config) -> list[Path]:
     if isinstance(config_dict, dict):
         values.extend(_as_list(config_dict.get("forge_neo_reference_roots")))
         values.extend(_as_list(config_dict.get("forge_neo_model_roots")))
-    if os.environ.get("FORGE_NEO_AUTO_REFERENCE_ROOTS", "1") != "0":
-        root = _root_path()
-        values.extend(
-            [
-                str(root.parent / "sd-webui-forge-neo-v3"),
-                str(root.parent / "sd-webui-forge-classic"),
-            ]
-        )
-
     roots: list[Path] = []
     seen: set[str] = set()
     for value in values:

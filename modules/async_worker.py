@@ -86,8 +86,10 @@ class AsyncTask:
         logger = logging.getLogger(format_name(__name__))
         regen_manifest.ensure_api_params_backend_arg(api_params)
         backend_args = getattr(api_params, 'backend_args', None)
-        if isinstance(backend_args, list) and 'keep_vlm_model_loaded' not in backend_args:
-            backend_args.append('keep_vlm_model_loaded')
+        if isinstance(backend_args, list):
+            for backend_arg_name in ('upscale_model', 'keep_vlm_model_loaded'):
+                if backend_arg_name not in backend_args:
+                    backend_args.append(backend_arg_name)
 
         self.args = args.copy()
         self.yields = []

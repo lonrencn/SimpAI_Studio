@@ -2440,6 +2440,12 @@ def _extra_network_metadata_for_path(model_path: Path) -> dict[str, Any]:
     return metadata
 
 
+def _extra_network_internal_metadata_for_path(page: str, model_path: Path) -> dict[str, Any]:
+    if _extra_network_page_key(page) in {"lora", "loras"}:
+        return _source_safetensors_metadata(str(model_path))
+    return {}
+
+
 def _pretty_extra_network_size(size: int) -> str:
     value = float(max(0, int(size)))
     units = ("B", "KB", "MB", "GB", "TB")
@@ -2508,6 +2514,7 @@ def sd_extra_networks_metadata_payload(page: str = "", item: str = "") -> dict[s
     if model_path is None:
         return {}
     metadata = _extra_network_metadata_for_path(model_path)
+    internal_metadata = _extra_network_internal_metadata_for_path(page, model_path)
     metadata.pop("ssmd_cover_images", None)
     user_metadata = _extra_network_user_metadata_for_path(model_path)
     preview = _extra_network_preview_path(model_path)
@@ -2519,6 +2526,7 @@ def sd_extra_networks_metadata_payload(page: str = "", item: str = "") -> dict[s
     modified_text = datetime.fromtimestamp(modified_time).strftime("%Y-%m-%d %H:%M") if modified_time else ""
     return {
         "metadata": json.dumps(metadata, ensure_ascii=False, indent=4),
+        "internal_metadata": internal_metadata,
         "user_metadata": user_metadata,
         "name": model_path.stem,
         "filename": str(model_path),
@@ -2555,6 +2563,13 @@ def sd_extra_networks_metadata_save_payload(values: dict[str, Any]) -> dict[str,
     user_metadata = dict(metadata)
     for key in ("filename", "size_bytes", "modified_time"):
         user_metadata.pop(key, None)
+    page_key = _extra_network_page_key(page)
+    if page_key in {"lora", "loras"}:
+        for key in ("sd_version_str", "vae_te"):
+            user_metadata.pop(key, None)
+    else:
+        for key in ("activation text", "negative text", "preferred weight", "sd version"):
+            user_metadata.pop(key, None)
     target = _extra_network_user_metadata_path(model_path)
     try:
         target.write_text(json.dumps(user_metadata, ensure_ascii=False, indent=4), encoding="utf-8")

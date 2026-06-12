@@ -944,6 +944,64 @@ def _source_adetailer_preview_capture_enabled(payload: dict[str, Any]) -> bool:
     return False
 
 
+def _source_adetailer_selected_models(payload: dict[str, Any]) -> list[str]:
+    alwayson_scripts = payload.get("alwayson_scripts")
+    if not isinstance(alwayson_scripts, dict):
+        return []
+    models: list[str] = []
+    seen: set[str] = set()
+    for name, value in alwayson_scripts.items():
+        if "adetailer" not in str(name or "").casefold() or not isinstance(value, dict):
+            continue
+        args = value.get("args")
+        if not isinstance(args, list):
+            continue
+        if args and isinstance(args[0], bool) and not args[0]:
+            continue
+        for item in args[2:]:
+            if not isinstance(item, dict):
+                continue
+            if item.get("ad_tab_enable") is False:
+                continue
+            model = str(item.get("ad_model") or "").strip()
+            if not model or model.casefold() == "none":
+                continue
+            key = model.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            models.append(model)
+    return models
+
+
+def _ensure_source_adetailer_models(payload: dict[str, Any]) -> dict[str, Any]:
+    selected = _source_adetailer_selected_models(payload)
+    if not selected:
+        return {"requested": [], "existing": [], "downloaded": [], "errors": []}
+    from forge_neo.adetailer_compat import adetailer_ensure_model
+
+    existing: list[str] = []
+    downloaded: list[str] = []
+    errors: list[dict[str, str]] = []
+    for model in selected:
+        try:
+            result = adetailer_ensure_model(model)
+        except Exception as exc:
+            errors.append({"model": model, "error": f"{type(exc).__name__}: {exc}"})
+            continue
+        if result.get("ok"):
+            if result.get("downloaded"):
+                downloaded.append(str(result.get("model") or model))
+            else:
+                existing.append(str(result.get("model") or model))
+        else:
+            errors.append({"model": model, "error": str(result.get("error") or "download_failed")})
+    if errors:
+        detail = "; ".join(f"{item['model']}: {item['error']}" for item in errors)
+        raise RuntimeError(f"ADetailer model download failed: {detail}")
+    return {"requested": selected, "existing": existing, "downloaded": downloaded, "errors": []}
+
+
 def _source_called_from_adetailer_script() -> bool:
     try:
         frames = inspect.stack(context=0)
@@ -1126,6 +1184,19 @@ def _ensure_adetailer_neo_import_modules() -> None:
         cmd_opts = getattr(shared, "cmd_opts", None)
         if cmd_opts is not None and not hasattr(cmd_opts, "ad_no_huggingface"):
             setattr(cmd_opts, "ad_no_huggingface", True)
+        opts = getattr(shared, "opts", None)
+        data = getattr(opts, "data", None)
+        if isinstance(data, dict):
+            from forge_neo.adetailer_compat import adetailer_primary_model_dir
+
+            model_dir = str(adetailer_primary_model_dir())
+            current = str(data.get("ad_extra_models_dir") or "")
+            parts = [item for item in current.split(os.pathsep) if item]
+            keys = {os.path.normcase(os.path.normpath(item)) for item in parts}
+            key = os.path.normcase(os.path.normpath(model_dir))
+            if key not in keys:
+                parts.append(model_dir)
+                data["ad_extra_models_dir"] = os.pathsep.join(parts)
     except Exception:
         pass
     _ensure_gradio_rangeslider_compat()
@@ -2408,6 +2479,7 @@ def _ensure_source_api_script_defaults(api: object, *, mode: str, payload: dict[
     dynamic_selectable = _normalize_source_dynamic_prompts_selectable_script(payload)
     requested_names = _requested_source_script_names(payload)
     script_opts = _prepare_source_script_opts(requested_names)
+    adetailer_models = _ensure_source_adetailer_models(payload) if "adetailer" in requested_names else {}
     adapter_scripts = _ensure_source_adapter_scripts(requested_names, runner)
     initialized_ranges = False
     if not _source_script_runner_ready(runner) or not _source_runner_has_requested_scripts(runner, requested_names):
@@ -2444,6 +2516,7 @@ def _ensure_source_api_script_defaults(api: object, *, mode: str, payload: dict[
         "default_arg_count": len(default_args),
         "initialized_ranges": initialized_ranges,
         "script_opts": script_opts,
+        "adetailer_models": adetailer_models,
         "adapter_scripts": adapter_scripts,
         "normalized_script_names": normalized_script_names,
         "dynamic_prompts_lookup": dynamic_lookup,

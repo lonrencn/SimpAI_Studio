@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import ast
+import os
 from pathlib import Path
 from typing import Any
+import urllib.request
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +15,7 @@ ADETAILER_MODEL_DIRS = (
     ROOT / "forge_neo" / "webui" / "models" / "adetailer",
     ADETAILER_EXTENSION_ROOT / "models",
 )
+ADETAILER_MODEL_EXTENSIONS = (".pt", ".tflite", ".task")
 ADETAILER_BUILTIN_MODELS = (
     "face_yolov8n.pt",
     "face_yolov8s.pt",
@@ -25,6 +28,11 @@ ADETAILER_BUILTIN_MODELS = (
     "mediapipe_face_full.tflite",
     "face_landmarker.task",
 )
+ADETAILER_MODELSCOPE_BASE_URL = "https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/adetailer"
+ADETAILER_MODEL_DOWNLOAD_URLS = {
+    model_name: f"{ADETAILER_MODELSCOPE_BASE_URL}/{model_name}"
+    for model_name in ADETAILER_BUILTIN_MODELS
+}
 ADETAILER_ARG_LABELS = (
     ("ad_model", "ADetailer model"),
     ("ad_model_classes", "ADetailer model classes"),
@@ -126,10 +134,68 @@ def adetailer_model_names(*, include_none: bool = True) -> list[str]:
     for root in ADETAILER_MODEL_DIRS:
         if not root.is_dir():
             continue
-        for path in sorted(root.rglob("*.pt"), key=lambda item: item.name.lower()):
+        for path in sorted(root.rglob("*"), key=lambda item: item.name.lower()):
+            if not path.is_file() or path.suffix.lower() not in ADETAILER_MODEL_EXTENSIONS:
+                continue
             if path.name not in names:
                 names.append(path.name)
     return names
+
+
+def adetailer_primary_model_dir() -> Path:
+    return ROOT / "forge_neo" / "webui" / "models" / "adetailer"
+
+
+def adetailer_model_download_url(model_name: object) -> str:
+    name = _adetailer_model_basename(model_name)
+    return ADETAILER_MODEL_DOWNLOAD_URLS.get(name, "")
+
+
+def adetailer_find_model_path(model_name: object) -> Path | None:
+    name = _adetailer_model_basename(model_name)
+    if not name:
+        return None
+    for root in ADETAILER_MODEL_DIRS:
+        path = root / name
+        if path.is_file():
+            return path
+    return None
+
+
+def adetailer_ensure_model(model_name: object, *, download: bool = True, target_dir: Path | None = None) -> dict[str, Any]:
+    name = _adetailer_model_basename(model_name)
+    if not name or name == "None":
+        return {"ok": True, "model": name or "None", "skipped": True, "reason": "empty"}
+
+    existing = adetailer_find_model_path(name)
+    if existing is not None:
+        return {"ok": True, "model": name, "downloaded": False, "path": str(existing)}
+
+    url = adetailer_model_download_url(name)
+    if not url:
+        return {"ok": False, "model": name, "downloaded": False, "error": "model_url_not_configured"}
+    if not download:
+        return {"ok": False, "model": name, "downloaded": False, "url": url, "error": "model_missing"}
+
+    root = Path(target_dir) if target_dir is not None else adetailer_primary_model_dir()
+    root.mkdir(parents=True, exist_ok=True)
+    target = root / name
+    temp = target.with_name(f"{target.name}.download")
+    try:
+        with urllib.request.urlopen(url, timeout=180) as response, temp.open("wb") as handle:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                handle.write(chunk)
+        os.replace(temp, target)
+    finally:
+        if temp.exists():
+            try:
+                temp.unlink()
+            except OSError:
+                pass
+    return {"ok": True, "model": name, "downloaded": True, "path": str(target), "url": url}
 
 
 def adetailer_preferred_model() -> str:
@@ -173,6 +239,16 @@ def adetailer_version() -> str:
                     if isinstance(value, ast.Constant) and value.value:
                         return str(value.value)
     return "forge-neo-adapter"
+
+
+def _adetailer_model_basename(model_name: object) -> str:
+    name = str(model_name or "").strip()
+    if not name:
+        return ""
+    basename = Path(name).name
+    if basename != name or "/" in name or "\\" in name:
+        return ""
+    return basename
 
 
 def _json_schema_type(value: Any) -> str:

@@ -385,6 +385,11 @@
         return id.indexOf("img2img") >= 0 ? "#forge_neo_img2img_prompt" : "#forge_neo_prompt";
     }
 
+    function negativeTargetForExtraBrowser(browser) {
+        const id = String((browser && browser.id) || "");
+        return id.indexOf("img2img") >= 0 ? "#forge_neo_img2img_negative_prompt" : "#forge_neo_negative_prompt";
+    }
+
     function appendExtraNetworkPromptToken(browser, token) {
         const root = document.querySelector(promptTargetForExtraBrowser(browser));
         const input = root && root.querySelector("textarea, input");
@@ -392,6 +397,19 @@
         if (!input || !clean) return false;
         const current = String(input.value || "").trim();
         return setComponentValue(root, [current, clean].filter(Boolean).join(", "));
+    }
+
+    function appendExtraNetworkNegativeToken(browser, token) {
+        const root = document.querySelector(negativeTargetForExtraBrowser(browser));
+        const input = root && root.querySelector("textarea, input");
+        const clean = String(token || "").trim();
+        if (!input || !clean) return false;
+        const current = String(input.value || "").trim();
+        return setComponentValue(root, [current, clean].filter(Boolean).join(", "));
+    }
+
+    function extraNetworkCardMetadataText(card, attr) {
+        return String((card && card.getAttribute(attr)) || "").trim();
     }
 
     function cardLoraWeight(card) {
@@ -402,7 +420,11 @@
 
     function handleExtraNetworkCardPrompt(card, browser, kind, name) {
         if (kind === "lora") {
-            return appendExtraNetworkPromptToken(browser, "<lora:" + extraTokenName(name) + ":" + cardLoraWeight(card) + ">");
+            const loraToken = "<lora:" + extraTokenName(name) + ":" + cardLoraWeight(card) + ">";
+            const activationText = extraNetworkCardMetadataText(card, "data-activation-text");
+            const promptChanged = appendExtraNetworkPromptToken(browser, [loraToken, activationText].filter(Boolean).join(", "));
+            const negativeChanged = appendExtraNetworkNegativeToken(browser, extraNetworkCardMetadataText(card, "data-negative-text"));
+            return Boolean(promptChanged || negativeChanged);
         }
         if (kind === "textual_inversion") {
             return appendExtraNetworkPromptToken(browser, extraTokenName(name));
@@ -483,10 +505,13 @@
 
     function normalizeExtraNetworkMetadataPayload(payload) {
         if (typeof payload === "string") {
-            return { metadata: payload || "{}", user_metadata: {} };
+            return { metadata: payload || "{}", internal_metadata: {}, user_metadata: {} };
         }
         const normalized = payload && typeof payload === "object" ? Object.assign({}, payload) : {};
         if (!normalized.metadata) normalized.metadata = "{}";
+        if (!normalized.internal_metadata || typeof normalized.internal_metadata !== "object" || Array.isArray(normalized.internal_metadata)) {
+            normalized.internal_metadata = {};
+        }
         if (!normalized.user_metadata || typeof normalized.user_metadata !== "object" || Array.isArray(normalized.user_metadata)) {
             normalized.user_metadata = {};
         }
@@ -529,6 +554,16 @@
         }).join("");
     }
 
+    function extraNetworkLoraPresetHtml(payload) {
+        const userMetadata = payload.user_metadata || {};
+        const value = extraNetworkMetadataValue(userMetadata, "sd version") || String(payload.base_model || "Unknown");
+        const choices = ["SD1", "SD2", "SDXL", "Flux", "Unknown"];
+        return '<select class="forge-neo-extra-lora-preset">' + choices.map(function (choice) {
+            const selected = choice === value ? " selected" : "";
+            return '<option value="' + escapeHtml(choice) + '"' + selected + ">" + escapeHtml(choice) + "</option>";
+        }).join("") + "</select>";
+    }
+
     function extraNetworkVaeSelectHtml(payload) {
         const selected = payload.vae_te.map(function (item) { return String(item || ""); }).filter(Boolean);
         const choices = ["Built in"].concat(payload.vae_te_choices || []);
@@ -541,9 +576,75 @@
         }).join("") + "</select>";
     }
 
+    function extraNetworkMetadataValue(userMetadata, key) {
+        const value = userMetadata && Object.prototype.hasOwnProperty.call(userMetadata, key) ? userMetadata[key] : "";
+        return value == null ? "" : String(value);
+    }
+
+    function extraNetworkPreferredWeightValue(userMetadata) {
+        const number = Number.parseFloat(extraNetworkMetadataValue(userMetadata, "preferred weight"));
+        if (!Number.isFinite(number)) return "0";
+        return String(Math.max(0, Math.min(2, number)));
+    }
+
+    function extraNetworkPreferredWeightHtml(userMetadata) {
+        const value = extraNetworkPreferredWeightValue(userMetadata);
+        return [
+            '<div class="forge-neo-extra-weight-control">',
+            '<input class="forge-neo-extra-preferred-weight-range" type="range" min="0" max="2" step="0.01" value="' + escapeHtml(value) + '">',
+            '<input class="forge-neo-extra-preferred-weight" type="number" min="0" max="2" step="0.01" value="' + escapeHtml(value) + '">',
+            "</div>"
+        ].join("");
+    }
+
+    function extraNetworkPlainMetadataObject(payload) {
+        if (payload && payload.metadata && typeof payload.metadata === "object" && !Array.isArray(payload.metadata)) return payload.metadata;
+        try {
+            const parsed = JSON.parse(String(payload && payload.metadata ? payload.metadata : "{}"));
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+        } catch (_error) {
+            return {};
+        }
+    }
+
+    function extraNetworkInternalMetadataRows(metadata, depth) {
+        const rows = [];
+        Object.keys(metadata || {}).sort().forEach(function (key) {
+            const value = metadata[key];
+            if (value && typeof value === "object" && !Array.isArray(value)) {
+                rows.push('<tr class="is-group"><th colspan="2" style="padding-left: ' + String(10 + depth * 18) + 'px">' + escapeHtml(key) + "</th></tr>");
+                rows.push(extraNetworkInternalMetadataRows(value, depth + 1));
+            } else {
+                const text = Array.isArray(value) ? JSON.stringify(value) : String(value == null ? "" : value);
+                rows.push(
+                    '<tr><th style="padding-left: ' + String(10 + depth * 18) + 'px">' + escapeHtml(key) + "</th><td>" + escapeHtml(text) + "</td></tr>"
+                );
+            }
+        });
+        return rows.join("");
+    }
+
+    function extraNetworkInternalMetadataHtml(payload) {
+        const internal = payload && payload.internal_metadata && typeof payload.internal_metadata === "object" && !Array.isArray(payload.internal_metadata)
+            ? payload.internal_metadata
+            : {};
+        const metadata = Object.keys(internal).length ? internal : extraNetworkPlainMetadataObject(payload);
+        if (!Object.keys(metadata).length) {
+            return '<div class="forge-neo-extra-metadata-empty">' + escapeHtml(t("No internal metadata.", "没有内部 metadata。")) + "</div>";
+        }
+        return [
+            '<table class="forge-neo-extra-internal-metadata">',
+            "<thead><tr><th>key</th><th>value</th></tr></thead>",
+            "<tbody>",
+            extraNetworkInternalMetadataRows(metadata, 0),
+            "</tbody></table>"
+        ].join("");
+    }
+
     function extraNetworkEditFormHtml(payload) {
         const userMetadata = payload.user_metadata || {};
-        return [
+        const isLora = String(payload.page || "") === "lora";
+        const fields = [
             '<div class="forge-neo-extra-edit-grid">',
             '<div class="forge-neo-extra-edit-left">',
             '<div class="forge-neo-extra-edit-name">' + escapeHtml(payload.name || "") + "</div>",
@@ -555,10 +656,30 @@
             extraNetworkPreviewHtml(payload),
             "</div>",
             "</div>",
-            '<label class="forge-neo-extra-edit-label">' + escapeHtml(t("Base model", "基础模型")) + "</label>",
-            '<div class="forge-neo-extra-base-model">' + extraNetworkBaseModelHtml(payload) + "</div>",
-            '<label class="forge-neo-extra-edit-label">' + escapeHtml(t("Preferred VAE / Text encoder(s)", "首选 VAE / 文本编码器")) + "</label>",
-            '<div class="forge-neo-extra-vae-row">' + extraNetworkVaeSelectHtml(payload) + '<button type="button" class="forge-neo-extra-vae-refresh" title="' + escapeHtml(t("Refresh", "刷新")) + '">↻</button></div>',
+        ];
+        if (isLora) {
+            fields.push(
+                '<label class="forge-neo-extra-edit-label">' + escapeHtml(t("Preset", "预设")) + "</label>",
+                '<div class="forge-neo-extra-lora-preset-row">' + extraNetworkLoraPresetHtml(payload) + "</div>",
+                '<label class="forge-neo-extra-edit-label">' + escapeHtml(t("Trigger words", "触发词")) + "</label>",
+                '<div class="forge-neo-extra-edit-info">' + escapeHtml(t("Will be added to prompt along with Lora", "会和 Lora 一起添加到提示词中")) + "</div>",
+                '<textarea class="forge-neo-extra-activation-text" rows="3">' + escapeHtml(extraNetworkMetadataValue(userMetadata, "activation text")) + "</textarea>",
+                '<label class="forge-neo-extra-edit-label">' + escapeHtml(t("Preferred weight", "推荐权重")) + "</label>",
+                '<div class="forge-neo-extra-edit-info">' + escapeHtml(t("Set to 0 to disable", "设置为 0 以禁用")) + "</div>",
+                extraNetworkPreferredWeightHtml(userMetadata),
+                '<label class="forge-neo-extra-edit-label">' + escapeHtml(t("Negative prompt", "反向提示词")) + "</label>",
+                '<div class="forge-neo-extra-edit-info">' + escapeHtml(t("Will be added to negative prompts", "会被添加到反向提示词中")) + "</div>",
+                '<textarea class="forge-neo-extra-negative-text" rows="3">' + escapeHtml(extraNetworkMetadataValue(userMetadata, "negative text")) + "</textarea>"
+            );
+        } else {
+            fields.push(
+                '<label class="forge-neo-extra-edit-label">' + escapeHtml(t("Base model", "基础模型")) + "</label>",
+                '<div class="forge-neo-extra-base-model">' + extraNetworkBaseModelHtml(payload) + "</div>",
+                '<label class="forge-neo-extra-edit-label">' + escapeHtml(t("Preferred VAE / Text encoder(s)", "首选 VAE / 文本编码器")) + "</label>",
+                '<div class="forge-neo-extra-vae-row">' + extraNetworkVaeSelectHtml(payload) + '<button type="button" class="forge-neo-extra-vae-refresh" title="' + escapeHtml(t("Refresh", "刷新")) + '">↻</button></div>'
+            );
+        }
+        fields.push(
             '<label class="forge-neo-extra-edit-label">' + escapeHtml(t("Notes", "备注")) + "</label>",
             '<textarea class="forge-neo-extra-notes" rows="4">' + escapeHtml(userMetadata.notes || "") + "</textarea>",
             '<input type="file" class="forge-neo-extra-preview-file" accept="image/*" hidden>',
@@ -568,7 +689,8 @@
             '<button type="button" class="forge-neo-extra-metadata-save">' + escapeHtml(t("Save", "保存")) + "</button>",
             "</div>",
             '<div class="forge-neo-extra-metadata-status"></div>'
-        ].join("");
+        );
+        return fields.join("");
     }
 
     function selectedExtraNetworkVaeValues(overlay) {
@@ -581,17 +703,55 @@
         return checked ? checked.value : "Unknown";
     }
 
+    function selectedExtraNetworkLoraPreset(overlay) {
+        const select = overlay.querySelector(".forge-neo-extra-lora-preset");
+        return select ? select.value : "Unknown";
+    }
+
+    function extraNetworkPreferredWeightFromInput(overlay) {
+        const input = overlay.querySelector(".forge-neo-extra-preferred-weight");
+        const raw = input ? String(input.value || "").trim() : "0";
+        const number = Number.parseFloat(raw);
+        if (!Number.isFinite(number)) return 0;
+        return Math.max(0, Math.min(2, number));
+    }
+
+    function syncExtraNetworkPreferredWeightControl(overlay) {
+        const range = overlay.querySelector(".forge-neo-extra-preferred-weight-range");
+        const input = overlay.querySelector(".forge-neo-extra-preferred-weight");
+        if (!range || !input) return;
+        const sync = function (source, target) {
+            const value = Math.max(0, Math.min(2, Number.parseFloat(source.value || "0") || 0));
+            source.value = String(value);
+            target.value = String(value);
+        };
+        range.addEventListener("input", function () { sync(range, input); });
+        input.addEventListener("input", function () { sync(input, range); });
+        sync(input, range);
+    }
+
     function extraNetworkEditedMetadata(card, payload, overlay) {
         const original = Object.assign({}, payload.user_metadata || {});
         const description = overlay.querySelector(".forge-neo-extra-description");
+        const activationText = overlay.querySelector(".forge-neo-extra-activation-text");
+        const negativeText = overlay.querySelector(".forge-neo-extra-negative-text");
         const notes = overlay.querySelector(".forge-neo-extra-notes");
         const page = extraNetworkPage(card.getAttribute("data-kind"));
-        const baseModel = selectedExtraNetworkBaseModel(overlay);
         original.description = description ? description.value : "";
         original.notes = notes ? notes.value : "";
         if (page === "lora") {
-            original["sd version"] = baseModel;
+            original["activation text"] = activationText ? activationText.value : "";
+            original["negative text"] = negativeText ? negativeText.value : "";
+            original["preferred weight"] = extraNetworkPreferredWeightFromInput(overlay);
+            original["sd version"] = selectedExtraNetworkLoraPreset(overlay);
+            delete original.sd_version_str;
+            delete original.vae_te;
         } else {
+            const baseModel = selectedExtraNetworkBaseModel(overlay);
+            delete original["activation text"];
+            delete original["negative text"];
+            delete original["preferred weight"];
+            delete original["sd version"];
             original.sd_version_str = "SdVersion." + baseModel;
             original.vae_te = selectedExtraNetworkVaeValues(overlay);
         }
@@ -605,6 +765,24 @@
         thumb.classList.add("forge-neo-extra-thumb-has-image");
         thumb.setAttribute("data-preview", previewUrl);
         thumb.innerHTML = '<img src="' + escapeHtml(previewUrl) + '" alt="" loading="lazy">';
+    }
+
+    function updateExtraNetworkCardMetadata(card, metadata) {
+        if (!card || !metadata) return;
+        if (String(card.getAttribute("data-kind") || "") !== "lora") return;
+        const activationText = metadata["activation text"];
+        const negativeText = metadata["negative text"];
+        card.setAttribute("data-activation-text", activationText == null ? "" : String(activationText));
+        card.setAttribute("data-negative-text", negativeText == null ? "" : String(negativeText));
+        const rawWeight = metadata["preferred weight"];
+        const numericWeight = Number.parseFloat(rawWeight == null ? "" : String(rawWeight));
+        if (Number.isFinite(numericWeight)) {
+            card.setAttribute("data-weight", String(numericWeight));
+        } else if (rawWeight == null || !String(rawWeight).trim()) {
+            card.removeAttribute("data-weight");
+        } else {
+            card.setAttribute("data-weight", "1");
+        }
     }
 
     function readExtraNetworkPreviewFile(file) {
@@ -643,11 +821,12 @@
         overlay.id = "forge_neo_extra_network_modal";
         overlay.className = "forge-neo-profile-modal forge-neo-extra-network-modal" + (editable ? " is-editor" : "");
         payload.name = title;
+        payload.page = page;
         const body = errorText
             ? '<p class="forge-neo-profile-error">' + escapeHtml(errorText) + "</p>"
             : editable
                 ? extraNetworkEditFormHtml(payload)
-                : '<pre class="forge-neo-extra-metadata-viewer">' + escapeHtml(payload.metadata || "{}") + "</pre>";
+                : extraNetworkInternalMetadataHtml(payload);
         overlay.innerHTML = [
             '<div class="forge-neo-profile-card forge-neo-extra-metadata-card" role="dialog" aria-modal="true">',
             editable ? "" : '<button type="button" class="forge-neo-profile-close" aria-label="' + escapeHtml(t("Close", "关闭")) + '">x</button>',
@@ -659,6 +838,7 @@
         overlay.addEventListener("click", function (event) {
             if (event.target === overlay || event.target.closest(".forge-neo-profile-close") || event.target.closest(".forge-neo-extra-edit-cancel")) closeExtraNetworkModal();
         });
+        syncExtraNetworkPreferredWeightControl(overlay);
         const refreshButton = overlay.querySelector(".forge-neo-extra-vae-refresh");
         if (refreshButton) refreshButton.addEventListener("click", async function () {
             const status = overlay.querySelector(".forge-neo-extra-metadata-status");
@@ -723,8 +903,9 @@
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ page: page, item: item, metadata: metadata })
                     });
-                    const payload = await response.json().catch(function () { return {}; });
-                    if (!response.ok) throw new Error(payload.detail || "HTTP " + response.status);
+                    const savedPayload = await response.json().catch(function () { return {}; });
+                    if (!response.ok) throw new Error(savedPayload.detail || "HTTP " + response.status);
+                    updateExtraNetworkCardMetadata(card, metadata);
                     if (status) status.textContent = t("Saved.", "已保存。");
                     showExtraNetworkToast(t("Metadata saved.", "Metadata 已保存。"));
                     closeExtraNetworkModal();
@@ -771,6 +952,10 @@
         }
         if (action === "edit") {
             requestExtraNetworkMetadata(card, true);
+            return true;
+        }
+        if (action === "metadata") {
+            requestExtraNetworkMetadata(card, false);
             return true;
         }
         return false;
@@ -848,8 +1033,20 @@
         });
         document.querySelectorAll(".forge-neo-extra-card").forEach(function (card) {
             const existingTools = card.querySelector(".forge-neo-extra-card-tools");
+            const isLora = String(card.getAttribute("data-kind") || "") === "lora";
             if (existingTools) {
-                existingTools.querySelectorAll('[data-extra-action="metadata"]').forEach(function (tool) { tool.remove(); });
+                const metadataTool = existingTools.querySelector('[data-extra-action="metadata"]');
+                if (isLora && !metadataTool) {
+                    const tool = document.createElement("span");
+                    tool.className = "forge-neo-extra-card-tool forge-neo-extra-card-tool-metadata";
+                    tool.setAttribute("data-extra-action", "metadata");
+                    tool.setAttribute("title", "Show internal metadata");
+                    tool.textContent = "i";
+                    const editTool = existingTools.querySelector('[data-extra-action="edit"]');
+                    existingTools.insertBefore(tool, editTool || null);
+                } else if (!isLora && metadataTool) {
+                    metadataTool.remove();
+                }
                 return;
             }
             const tools = document.createElement("span");
@@ -857,6 +1054,7 @@
             tools.setAttribute("aria-hidden", "true");
             tools.innerHTML = [
                 '<span class="forge-neo-extra-card-tool" data-extra-action="copy" title="Copy path">⎘</span>',
+                isLora ? '<span class="forge-neo-extra-card-tool forge-neo-extra-card-tool-metadata" data-extra-action="metadata" title="Show internal metadata">i</span>' : "",
                 '<span class="forge-neo-extra-card-tool" data-extra-action="edit" title="Edit metadata">🛠</span>'
             ].join("");
             const text = card.querySelector(".forge-neo-extra-card-text");

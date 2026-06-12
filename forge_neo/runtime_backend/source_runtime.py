@@ -74,10 +74,7 @@ def _default_data_root() -> Path:
         if (candidate / "webui" / "models").is_dir():
             return candidate / "webui"
         return candidate
-    v3_root = DEV_ROOT / "sd-webui-forge-neo-v3" / "webui"
-    if (v3_root / "models").is_dir():
-        return v3_root
-    return DEV_ROOT / "sd-webui-forge-classic"
+    return SOURCE_WEBUI_ROOT
 
 
 def _source_env_dirs(name: str) -> list[str]:

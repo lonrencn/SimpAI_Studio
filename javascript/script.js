@@ -666,11 +666,22 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
         return true;
     }
 
-    function setGradioValue(rootId, value) {
+    function findGradioField(rootId) {
         const root = getRoot();
         const node = root.getElementById?.(rootId) || root.querySelector?.(`#${rootId}`) || document.getElementById(rootId);
-        const field = node?.matches?.('input, textarea, select') ? node : node?.querySelector?.('textarea, input, select');
-        return setNativeValue(field, value);
+        return node?.matches?.('input, textarea, select') ? node : node?.querySelector?.('textarea, input, select');
+    }
+
+    function setGradioValue(rootId, value) {
+        return setNativeValue(findGradioField(rootId), value);
+    }
+
+    function setGradioValueIfDifferent(rootId, value) {
+        const field = findGradioField(rootId);
+        if (!field) return false;
+        const nextValue = String(value ?? '');
+        if (String(field.value ?? '') === nextValue) return true;
+        return setNativeValue(field, nextValue);
     }
 
     function clickGradioButton(rootId) {
@@ -1174,6 +1185,54 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
         return payload;
     }
 
+    const modelsPanelBridgeIds = {
+        base_model: 'model_bridge_base',
+        refiner_model: 'model_bridge_refiner',
+        clip_model: 'model_bridge_clip',
+        vae_name: 'model_bridge_vae',
+        upscale_model: 'model_bridge_upscale',
+        refiner_switch: 'refiner_switch'
+    };
+
+    function syncModelsPanelBridgeControls(panel, payload = null) {
+        const data = payload || collectModelsPanelPayload(panel);
+        if (!data || typeof data !== 'object') return;
+        Object.entries(modelsPanelBridgeIds).forEach(([key, rootId]) => {
+            if (!Object.prototype.hasOwnProperty.call(data, key)) return;
+            setGradioValueIfDifferent(rootId, data[key]);
+        });
+        if (!Array.isArray(data.loras)) return;
+        data.loras.forEach((item, index) => {
+            if (!item || !Object.prototype.hasOwnProperty.call(item, 'model')) return;
+            setGradioValueIfDifferent(`lora_bridge_${index}`, item.model || 'None');
+        });
+    }
+
+    function syncActiveModelsPanelBridgeControls() {
+        const panel = document.querySelector('[data-simpai-models-js-root]');
+        if (!panel) return false;
+        syncModelsPanelBridgeControls(panel);
+        return true;
+    }
+
+    function syncModelsPanelBridgeField(field, panel) {
+        if (!field || !panel) return;
+        if (field.matches('[data-simpai-model-field], [data-simpai-model-range]')) {
+            const key = field.dataset.simpaiModelField || field.dataset.simpaiModelRange;
+            const rootId = modelsPanelBridgeIds[key];
+            if (!rootId) return;
+            const source = panel.querySelector(`[data-simpai-model-field="${key}"]`) || field;
+            const value = key === 'refiner_switch' ? numericValue(source.value, 0.5) : String(source.value || '');
+            setGradioValueIfDifferent(rootId, value);
+            return;
+        }
+        if (field.matches('[data-simpai-lora-model]')) {
+            const index = Number(field.dataset.simpaiLoraModel);
+            if (!Number.isInteger(index)) return;
+            setGradioValueIfDifferent(`lora_bridge_${index}`, String(field.value || 'None'));
+        }
+    }
+
     let applyTimer = null;
     function cancelModelsPanelApply() {
         if (!applyTimer) return;
@@ -1186,7 +1245,9 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
         cancelModelsPanelApply();
         applyTimer = setTimeout(() => {
             applyTimer = null;
-            const payload = JSON.stringify(collectModelsPanelPayload(panel));
+            const data = collectModelsPanelPayload(panel);
+            syncModelsPanelBridgeControls(panel, data);
+            const payload = JSON.stringify(data);
             if (!setGradioValue('models_js_payload', payload)) {
                 console.warn('models_js_payload bridge not found');
                 return;
@@ -1271,6 +1332,7 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
         if (event.target.matches('[data-simpai-model-field], [data-simpai-model-range], [data-simpai-lora-model], [data-simpai-lora-enabled], [data-simpai-lora-weight], [data-simpai-lora-weight-range]')) {
             syncSliderPair(event.target);
             if (event.target.matches('[data-simpai-lora-enabled]')) syncLoraRowInteractivity(event.target);
+            syncModelsPanelBridgeField(event.target, panel);
             const applyDelay = isModelsPanelNumberField(event.target) ? 0 : 80;
             applyModelsPanel(panel, applyDelay);
             if (event.target.matches('[data-simpai-lora-model]')) {
@@ -1284,6 +1346,7 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
         if (!panel) return;
         if (!event.target.matches('[data-simpai-model-field], [data-simpai-model-range], [data-simpai-lora-weight], [data-simpai-lora-weight-range]')) return;
         syncSliderPair(event.target);
+        syncModelsPanelBridgeField(event.target, panel);
         if (isModelsPanelNumberField(event.target)) {
             cancelModelsPanelApply();
             return;
@@ -1436,6 +1499,7 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
     setInterval(syncModelsJsPanelLocalizationIfLanguageChanged, 800);
 
     window.simpleaiApplyModelsJsPanel = applyModelsPanel;
+    window.simpleaiSyncModelsJsPanelBridge = syncActiveModelsPanelBridgeControls;
     window.simpleaiRefreshModelsJsPanelCatalog = refreshModelsPanelCatalog;
     window.simpleaiInvalidateModelsPanelCatalog = markModelsPanelCatalogDirty;
     window.simpleaiPopulateModelsJsSelect = populateLiteModelSelect;

@@ -261,6 +261,19 @@ body:has(#forge_neo_root) .gradio-container main.contain #forge_neo_root {
     width: 86px !important;
 }
 
+#forge_neo_root .forge-neo-topbar > .form:has(> #forge_neo_language) {
+    align-items: end !important;
+    flex: 0 1 342px !important;
+    flex-wrap: nowrap !important;
+    max-width: 342px !important;
+    min-width: 342px !important;
+}
+
+#forge_neo_root #forge_neo_low_bits {
+    flex: 1 1 220px !important;
+    min-width: 220px !important;
+}
+
 #forge_neo_root #forge_neo_language .wrap,
 #forge_neo_root #forge_neo_language .wrap-inner {
     min-height: 32px !important;
@@ -2769,6 +2782,20 @@ body:has(#forge_neo_root) .gradio-container main.contain #forge_neo_root {
     color: #ff4d4d !important;
 }
 
+#forge_neo_root .forge-neo-extra-card-tool-metadata {
+    color: #ffffff !important;
+    font-family: Arial, sans-serif;
+    font-size: 27px;
+    font-weight: 800;
+    height: 28px;
+    text-shadow: 2px 2px 3px #000000;
+    width: 28px;
+}
+
+#forge_neo_root .forge-neo-extra-card-tool-metadata:hover {
+    color: #ff4d4d !important;
+}
+
 #forge_neo_root .forge-neo-extra-empty,
 #forge_neo_root .forge-neo-extra-more {
     color: var(--forge-neo-muted) !important;
@@ -4772,18 +4799,18 @@ body:has(#forge_neo_root) .gradio-container main.contain #forge_neo_root {
 .forge-neo-extra-network-modal.is-editor {
     align-items: flex-start;
     overflow: auto;
-    padding: 32px 24px;
+    padding: 24px 18px;
 }
 
 .forge-neo-extra-network-modal.is-editor .forge-neo-extra-metadata-card {
     background: var(--block-background-fill, #202124);
     border-color: var(--border-color-primary, #3f3f46);
-    box-shadow: 0 22px 70px rgba(0, 0, 0, 0.62);
-    max-height: none;
-    max-width: 1220px;
-    overflow: visible;
-    padding: 32px 42px 34px;
-    width: min(1220px, calc(100vw - 48px));
+    box-shadow: 0 18px 54px rgba(0, 0, 0, 0.58);
+    max-height: min(676px, calc(100vh - 48px));
+    max-width: 760px;
+    overflow: auto;
+    padding: 20px 26px 22px;
+    width: min(760px, calc(100vw - 36px));
 }
 
 .forge-neo-extra-metadata-name {
@@ -4830,10 +4857,56 @@ body:has(#forge_neo_root) .gradio-container main.contain #forge_neo_root {
     font-size: 13px;
 }
 
+.forge-neo-extra-metadata-empty {
+    background: #151518;
+    border: 1px solid var(--forge-neo-border, #3f3f46);
+    border-radius: 6px;
+    color: var(--forge-neo-muted, #a1a1aa);
+    padding: 18px;
+}
+
+.forge-neo-extra-internal-metadata {
+    border-collapse: collapse;
+    color: var(--forge-neo-text, #f4f4f5);
+    font-size: 14px;
+    line-height: 1.45;
+    width: 100%;
+}
+
+.forge-neo-extra-internal-metadata th,
+.forge-neo-extra-internal-metadata td {
+    border-top: 1px solid var(--forge-neo-border, #3f3f46);
+    padding: 9px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.forge-neo-extra-internal-metadata thead th {
+    border-top: 0;
+    color: #ffffff;
+    font-weight: 800;
+}
+
+.forge-neo-extra-internal-metadata tbody th {
+    color: #ffffff;
+    font-weight: 650;
+    width: 38%;
+}
+
+.forge-neo-extra-internal-metadata td {
+    overflow-wrap: anywhere;
+}
+
+.forge-neo-extra-internal-metadata tr.is-group th {
+    color: #ffffff;
+    font-size: 15px;
+    text-decoration: underline;
+}
+
 .forge-neo-extra-edit-grid {
     display: grid;
-    gap: 28px;
-    grid-template-columns: minmax(0, 2fr) minmax(260px, 0.9fr);
+    gap: 18px;
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
 }
 
 .forge-neo-extra-edit-left {
@@ -4842,53 +4915,105 @@ body:has(#forge_neo_root) .gradio-container main.contain #forge_neo_root {
 
 .forge-neo-extra-edit-name {
     color: #ffffff;
-    font-size: 30px;
+    font-size: 24px;
     line-height: 1.18;
-    margin: 0 0 14px;
+    margin: 0 0 10px;
     overflow-wrap: anywhere;
 }
 
 .forge-neo-extra-edit-label {
     color: #ffffff;
     display: block;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 650;
-    margin: 10px 0 6px;
+    margin: 8px 0 5px;
+}
+
+.forge-neo-extra-edit-info {
+    color: var(--forge-neo-muted, #a1a1aa);
+    font-size: 13px;
+    margin: -2px 0 8px;
 }
 
 .forge-neo-extra-description,
+.forge-neo-extra-activation-text,
+.forge-neo-extra-negative-text,
 .forge-neo-extra-notes {
     background: var(--input-background-fill, #242428);
     border: 1px solid var(--border-color-primary, #3f3f46);
     border-radius: 7px;
     color: var(--body-text-color, #f4f4f5);
-    font-size: 15px;
+    font-size: 13px;
     line-height: 1.45;
-    min-height: 118px;
-    padding: 10px 12px;
+    min-height: 76px;
+    padding: 8px 10px;
     resize: vertical;
     width: 100%;
+}
+
+.forge-neo-extra-lora-preset {
+    background: var(--input-background-fill, #242428);
+    border: 1px solid var(--border-color-primary, #3f3f46);
+    border-radius: 7px;
+    color: var(--body-text-color, #f4f4f5);
+    font-size: 13px;
+    min-height: 38px;
+    padding: 0 10px;
+    width: 100%;
+}
+
+.forge-neo-extra-lora-preset-row {
+    margin-bottom: 6px;
+}
+
+.forge-neo-extra-weight-control {
+    align-items: center;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) 92px;
+    margin-bottom: 8px;
+}
+
+.forge-neo-extra-preferred-weight-range {
+    accent-color: #f97316;
+    width: 100%;
+}
+
+.forge-neo-extra-preferred-weight {
+    background: var(--input-background-fill, #242428);
+    border: 1px solid var(--border-color-primary, #3f3f46);
+    border-radius: 7px;
+    color: var(--body-text-color, #f4f4f5);
+    font-size: 13px;
+    min-height: 36px;
+    padding: 0 8px;
+    width: 92px;
+}
+
+.forge-neo-extra-activation-text,
+.forge-neo-extra-negative-text {
+    min-height: 58px;
 }
 
 .forge-neo-extra-file-metadata {
     border-collapse: collapse;
     color: #ffffff;
-    font-size: 15px;
+    font-size: 13px;
     margin-top: 0;
-    max-width: 640px;
+    max-width: 460px;
     width: 100%;
 }
 
 .forge-neo-extra-file-metadata th,
 .forge-neo-extra-file-metadata td {
     border: 1px solid var(--border-color-primary, #3f3f46);
-    padding: 8px 16px;
+    padding: 6px 10px;
     text-align: left;
 }
 
 .forge-neo-extra-file-metadata th {
     font-weight: 700;
-    width: 150px;
+    width: 118px;
 }
 
 .forge-neo-extra-file-metadata td {
@@ -4902,10 +5027,10 @@ body:has(#forge_neo_root) .gradio-container main.contain #forge_neo_root {
     border-radius: 6px;
     color: #cbd5e1;
     display: flex;
-    height: 512px;
+    height: 300px;
     justify-content: center;
-    margin: 10px auto 0;
-    max-width: 360px;
+    margin: 8px auto 0;
+    max-width: 220px;
     overflow: hidden;
     width: 100%;
 }
@@ -4945,7 +5070,7 @@ body:has(#forge_neo_root) .gradio-container main.contain #forge_neo_root {
 .forge-neo-extra-vae-row {
     display: grid;
     gap: 6px;
-    grid-template-columns: minmax(0, 1fr) 48px;
+    grid-template-columns: minmax(0, 1fr) 40px;
 }
 
 .forge-neo-extra-vae-select {
@@ -4953,8 +5078,8 @@ body:has(#forge_neo_root) .gradio-container main.contain #forge_neo_root {
     border: 1px solid var(--border-color-primary, #3f3f46);
     border-radius: 7px;
     color: var(--body-text-color, #f4f4f5);
-    min-height: 54px;
-    padding: 0 12px;
+    min-height: 42px;
+    padding: 0 10px;
     width: 100%;
 }
 
@@ -4962,22 +5087,22 @@ body:has(#forge_neo_root) .gradio-container main.contain #forge_neo_root {
     background: var(--button-secondary-background-fill, #55555f) !important;
     border-color: var(--border-color-primary, #3f3f46) !important;
     color: var(--body-text-color, #f4f4f5) !important;
-    min-height: 54px;
-    min-width: 48px;
+    min-height: 42px;
+    min-width: 40px;
 }
 
 .forge-neo-extra-edit-actions {
     display: grid;
     gap: 0;
     grid-template-columns: 1fr 1fr 1fr;
-    margin-top: 32px;
+    margin-top: 20px;
 }
 
 .forge-neo-extra-edit-actions button {
     border-radius: 0;
-    font-size: 17px;
+    font-size: 15px;
     font-weight: 700;
-    min-height: 60px;
+    min-height: 48px;
 }
 
 .forge-neo-extra-edit-cancel {
@@ -5182,10 +5307,25 @@ body:has(#forge_neo_root) .gradio-container main.contain #forge_neo_root {
     }
 
     #forge_neo_root #forge_neo_language {
-        align-self: stretch !important;
+        align-self: end !important;
         flex: 0 0 86px !important;
         max-width: none !important;
-        width: 100% !important;
+        width: 86px !important;
+    }
+
+    #forge_neo_root .forge-neo-topbar > .form:has(> #forge_neo_language) {
+        flex: 0 0 auto !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        width: min(342px, 100%) !important;
+    }
+
+    #forge_neo_root #forge_neo_low_bits {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        width: auto !important;
     }
 
     #forge_neo_root .forge-neo-settings-search-row > *,

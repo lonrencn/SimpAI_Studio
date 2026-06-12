@@ -3838,6 +3838,27 @@ def _extra_network_preview_url(model_path: Path | None) -> str:
     return ""
 
 
+def _extra_network_sidecar_metadata(model_path: Path | None) -> dict[str, object]:
+    if model_path is None:
+        return {}
+    target = Path(str(model_path.with_suffix("")) + ".json")
+    try:
+        if target.is_file():
+            loaded = json.loads(target.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                return loaded
+    except Exception:
+        return {}
+    return {}
+
+
+def _extra_network_sidecar_text(metadata: dict[str, object], key: str) -> str:
+    value = metadata.get(key)
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
 def _extra_network_file_sort_attrs(model_path: Path | None) -> tuple[str, str, str]:
     if model_path is None:
         return "", "0", "0"
@@ -3895,16 +3916,34 @@ def _extra_network_cards(kind: str, names: list[str], weights: dict[str, float] 
         directory = normalized_path.rsplit("/", 1)[0] + "/" if "/" in normalized_path else ""
         attr_dir = html_lib.escape(directory, quote=True)
         model_path = _extra_network_model_path(kind, name)
+        sidecar_metadata = _extra_network_sidecar_metadata(model_path) if kind == "lora" else {}
         filename, created_time, modified_time = _extra_network_file_sort_attrs(model_path)
         preview_url = _extra_network_preview_url(model_path)
         raw_weight = None
+        sidecar_weight = sidecar_metadata.get("preferred weight")
+        if kind == "lora" and sidecar_weight not in (None, ""):
+            raw_weight = sidecar_weight
         for key in (name, normalized_path, _extra_token_name(name)):
-            if key in weight_values:
+            if raw_weight is None and key in weight_values:
                 raw_weight = weight_values[key]
                 break
         weight_attr = ""
         if kind == "lora" and raw_weight is not None:
             weight_attr = f' data-weight="{html_lib.escape(_format_lora_weight(raw_weight), quote=True)}"'
+        prompt_attrs = ""
+        if kind == "lora":
+            activation_text = _extra_network_sidecar_text(sidecar_metadata, "activation text")
+            negative_text = _extra_network_sidecar_text(sidecar_metadata, "negative text")
+            prompt_attrs = (
+                f' data-activation-text="{html_lib.escape(activation_text, quote=True)}"'
+                f' data-negative-text="{html_lib.escape(negative_text, quote=True)}"'
+            )
+        metadata_tool = (
+            '<span class="forge-neo-extra-card-tool forge-neo-extra-card-tool-metadata" '
+            'data-extra-action="metadata" title="Show internal metadata">i</span>'
+            if kind == "lora"
+            else ""
+        )
         if preview_url:
             safe_preview = html_lib.escape(preview_url, quote=True)
             thumb = (
@@ -3917,10 +3956,11 @@ def _extra_network_cards(kind: str, names: list[str], weights: dict[str, float] 
             '<button type="button" class="forge-neo-extra-card" '
             f'data-kind="{safe_kind}" data-name="{attr_path}" data-dir="{attr_dir}" data-path="{attr_path}" '
             f'data-filename="{html_lib.escape(filename, quote=True)}" data-sort-name="{html_lib.escape(_extra_token_name(name).casefold(), quote=True)}" '
-            f'data-sort-created="{created_time}" data-sort-modified="{modified_time}"{weight_attr} aria-pressed="false">'
+            f'data-sort-created="{created_time}" data-sort-modified="{modified_time}"{weight_attr}{prompt_attrs} aria-pressed="false">'
             f"{thumb}"
             '<span class="forge-neo-extra-card-tools" aria-hidden="true">'
             '<span class="forge-neo-extra-card-tool" data-extra-action="copy" title="Copy path">⎘</span>'
+            f"{metadata_tool}"
             '<span class="forge-neo-extra-card-tool" data-extra-action="edit" title="Edit metadata">🛠</span>'
             "</span>"
             '<div class="forge-neo-extra-card-text">'

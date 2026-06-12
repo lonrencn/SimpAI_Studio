@@ -315,6 +315,33 @@ function simpleaiAnyManagedGalleryPreviewOpen() {
     return false;
 }
 
+function simpleaiRevealGalleryToolbox(toolbox) {
+    if (!toolbox) return;
+    try {
+        toolbox.classList.remove('simpleai-gallery-toolbox-hidden');
+        toolbox.classList.remove('hidden');
+        toolbox.classList.remove('hide');
+    } catch (e) {}
+    try { toolbox.removeAttribute('hidden'); } catch (e) {}
+    try { toolbox.removeAttribute('aria-hidden'); } catch (e) {}
+    try { toolbox.hidden = false; } catch (e) {}
+    try { toolbox.style.removeProperty('display'); } catch (e) {}
+    try { toolbox.style.removeProperty('visibility'); } catch (e) {}
+    try { toolbox.style.removeProperty('pointer-events'); } catch (e) {}
+    try {
+        toolbox.querySelectorAll?.('button.toolbox_icon_btn, #compare_btn').forEach((button) => {
+            button.classList.remove('simpleai-gallery-toolbox-hidden');
+            button.classList.remove('hidden');
+            button.removeAttribute('hidden');
+            button.removeAttribute('aria-hidden');
+            button.hidden = false;
+            button.style.removeProperty('display');
+            button.style.removeProperty('visibility');
+            button.style.removeProperty('pointer-events');
+        });
+    } catch (e) {}
+}
+
 function simpleaiSyncGalleryToolboxState() {
     const imageToolsDisabled = document.documentElement.classList.contains('simpleai-image-tools-disabled');
     const hidden = imageToolsDisabled || !simpleaiAnyManagedGalleryPreviewOpen();
@@ -322,7 +349,11 @@ function simpleaiSyncGalleryToolboxState() {
         '#image_toolbox, .toolbox, .gr-group:has(> .styler > button.toolbox_icon_btn)'
     );
     toolboxes.forEach((toolbox) => {
-        toolbox.classList.toggle('simpleai-gallery-toolbox-hidden', hidden);
+        if (hidden) {
+            toolbox.classList.add('simpleai-gallery-toolbox-hidden');
+        } else {
+            simpleaiRevealGalleryToolbox(toolbox);
+        }
     });
 }
 

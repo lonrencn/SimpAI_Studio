@@ -15,6 +15,13 @@
     const MAX_HISTORY_TURNS = 18;
     const HISTORY_BUDGET = 6200;
     const FULL_HISTORY_BUDGET = 9000;
+    const DESCRIBE_VLM_MODEL_CHOICES = [
+        'Qwen3.5-9B-abliterated-Q4_K_M',
+        'Qwen3.5-9B-abliterated-Q2_K',
+        'Qwen3.5-9B-abliterated-Q6_K',
+        'Qwen3.5-9B-abliterated-Q8_0',
+        'Custom'
+    ];
     const ONE_PIXEL_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
     const SETTINGS_STORAGE_KEY = 'simpai.describeVlmChat.settings.v1';
 
@@ -382,6 +389,78 @@
         return text;
     }
 
+    function addUniqueVlmModelOption(options, option) {
+        const value = cleanVlmVersion(option?.value || option?.label);
+        if (!value || options.some((item) => item.value === value)) return;
+        options.push({
+            value,
+            label: String(option?.label || option?.value || value).trim() || value
+        });
+    }
+
+    function nativeVlmDropdownOptions(elemId) {
+        const host = componentHost(elemId);
+        const select = host?.matches?.('select') ? host : host?.querySelector?.('select');
+        if (!select) return [];
+        return Array.from(select.options || [])
+            .map((option) => {
+                const label = String(option.textContent || option.value || '').trim();
+                const value = cleanVlmVersion(option.value || label);
+                return value ? { value, label: label || value } : null;
+            })
+            .filter(Boolean);
+    }
+
+    function registryVlmDropdownOptions() {
+        const registry = window.SimpAICanvasWorkbenchRegistry || window.SimpAICanvasWorkbenchVlm || {};
+        const choices = Array.isArray(registry.VLM_VERSION_CHOICES) && registry.VLM_VERSION_CHOICES.length
+            ? registry.VLM_VERSION_CHOICES
+            : DESCRIBE_VLM_MODEL_CHOICES;
+        return choices.map((choice) => ({ value: cleanVlmVersion(choice), label: String(choice || '').trim() }))
+            .filter((choice) => choice.value);
+    }
+
+    function describeVlmModelOptions() {
+        const options = [];
+        nativeVlmDropdownOptions('describe_vlm_model_dropdown').forEach((option) => addUniqueVlmModelOption(options, option));
+        nativeVlmDropdownOptions('describe_vlm_model').forEach((option) => addUniqueVlmModelOption(options, option));
+        registryVlmDropdownOptions().forEach((option) => addUniqueVlmModelOption(options, option));
+        const current = cleanVlmVersion(readSelectedVlmVersion());
+        if (current) addUniqueVlmModelOption(options, { value: current, label: current });
+        addUniqueVlmModelOption(options, { value: 'Custom', label: 'Custom' });
+        return options;
+    }
+
+    function syncHeaderVlmModelSelect(select, selectedVersion) {
+        if (!select) return;
+        const options = describeVlmModelOptions();
+        const signature = options.map((option) => `${option.value}\u001f${option.label}`).join('\u001e');
+        if (select.dataset.describeVlmModelChoices !== signature) {
+            select.innerHTML = options
+                .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+                .join('');
+            select.dataset.describeVlmModelChoices = signature;
+        }
+        const version = cleanVlmVersion(selectedVersion || readSelectedVlmVersion());
+        if (version && Array.from(select.options || []).some((option) => option.value === version) && select.value !== version) {
+            select.value = version;
+        }
+    }
+
+    function setDescribeVlmVersionFromHeader(rawValue) {
+        const version = cleanVlmVersion(rawValue);
+        if (!version) return false;
+        const clicked = setComponentValue('describe_vlm_model_select_bridge', version)
+            && clickComponentButton('describe_vlm_model_select_btn');
+        if (!clicked) {
+            const option = describeVlmModelOptions().find((item) => item.value === version);
+            setComponentValue('describe_vlm_model_dropdown', option?.label || version);
+            setStatus(t('Model selector is unavailable. Please reload the page.', '模型选择暂不可用，请刷新页面。'), true);
+        }
+        updateAnswerModelIndicator();
+        return clicked;
+    }
+
     function isVisible(element) {
         if (!element) return false;
         const style = window.getComputedStyle(element);
@@ -516,12 +595,15 @@
     function updateAnswerModelIndicator(modal = document.getElementById('describe_vlm_chat_modal')) {
         const indicator = modal?.querySelector?.('[data-describe-vlm-chat-model]');
         const value = indicator?.querySelector?.('[data-describe-vlm-chat-model-value]');
-        if (!indicator || !value) return;
+        const select = indicator?.querySelector?.('[data-describe-vlm-chat-model-select]');
+        if (!indicator) return;
         const label = currentAnswerModelLabel();
         const title = `${t('Answering model', '当前应答模型')}: ${label}`;
-        if (value.textContent !== label) value.textContent = label;
+        if (value && value.textContent !== label) value.textContent = label;
+        syncHeaderVlmModelSelect(select, readSelectedVlmVersion());
         if (indicator.getAttribute('title') !== title) indicator.setAttribute('title', title);
         if (indicator.getAttribute('aria-label') !== title) indicator.setAttribute('aria-label', title);
+        if (select && select.getAttribute('aria-label') !== title) select.setAttribute('aria-label', title);
     }
 
     function ensureFloatingHost() {
@@ -825,7 +907,10 @@
     <div class="describe-vlm-chat-model-pill" data-describe-vlm-chat-model aria-live="polite">
       <i class="fa-solid fa-microchip"></i>
       <span>${escapeHtml(t('Model', '模型'))}</span>
-      <b data-describe-vlm-chat-model-value>${escapeHtml(t('Detecting', '检测中'))}</b>
+      <select data-describe-vlm-chat-model-select aria-label="${escapeHtml(t('Answering model', '当前应答模型'))}">
+        <option value="">${escapeHtml(t('Detecting', '检测中'))}</option>
+      </select>
+      <b data-describe-vlm-chat-model-value hidden>${escapeHtml(t('Detecting', '检测中'))}</b>
     </div>
     <span class="describe-vlm-chat-head-actions">
       <button type="button" data-describe-vlm-chat-close title="${escapeHtml(t('Close', '关闭'))}" aria-label="${escapeHtml(t('Close', '关闭'))}"><i class="fa-solid fa-xmark"></i></button>
@@ -1631,6 +1716,10 @@
     });
 
     document.addEventListener('change', (evt) => {
+        if (evt.target?.matches?.('[data-describe-vlm-chat-model-select]')) {
+            setDescribeVlmVersionFromHeader(evt.target.value);
+            return;
+        }
         if (evt.target?.matches?.('[data-describe-vlm-chat-mode]')) {
             state.chatMode = normalizeChatMode(evt.target.value);
             saveChatSettings();
