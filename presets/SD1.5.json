@@ -23,7 +23,7 @@
     "default_refiner": "None",
     "default_refiner_switch": 0.5,
     "default_upscale_model": "4x-UltraSharp.pth",
-    "default_clip_model": "sd15_clip_model.fp16.safetensors",
+    "default_clip_model": "default",
     "default_loras": [
         [
             "None",

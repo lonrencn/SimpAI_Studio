@@ -183,6 +183,7 @@ javascript/canvas_workbench/templates/perf/perf-smoke-80.canvas.json
 javascript/canvas_workbench/templates/perf/perf-vlm-timeline-200.canvas.json
 
 # Forge Neo local runtime and generated files
+/forge_neo/config.json
 /forge_neo/webui/outputs/
 /forge_neo/webui/temp/
 /forge_neo/webui/tmp/

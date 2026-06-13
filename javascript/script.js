@@ -2463,23 +2463,16 @@ addObserverIfDesiredNodeAvailable(".toast-wrap", function(added) {
     added.forEach(function(element) {
          if (element.innerText.includes("Connection errored out.")) {
              window.setTimeout(function() {
-                const generateButton = document.getElementById("generate_button");
-                const skipButton = document.getElementById("skip_button");
-                const stopButton = document.getElementById("stop_button");
-                const isGenerating = !!(stopButton && stopButton.offsetParent);
+                const stopButton = getGradioRootById("stop_button");
+                const isGenerating = elementIsVisible(stopButton);
 
                 if (isGenerating) {
                     return;
                 }
 
-                [generateButton, skipButton, stopButton].forEach(function(btn) {
-                    if (!btn) {
-                        return;
-                    }
-                    btn.classList.remove("hidden");
-                    btn.disabled = false;
-                    btn.setAttribute("aria-disabled", "false");
-                });
+                setGradioComponentVisible("skip_button", false);
+                setGradioComponentVisible("stop_button", false);
+                reconcileGenerationActionButtons("connection_error");
             });
          }
     });
@@ -2529,9 +2522,7 @@ function initGeneratingStateRecovery() {
             if (!btn) {
                 return;
             }
-            btn.classList.remove("hidden");
-            btn.disabled = false;
-            btn.setAttribute("aria-disabled", "false");
+            restoreGradioComponentVisibility(btn, { interactive: true });
         });
     };
 
@@ -2550,9 +2541,17 @@ function initGeneratingStateRecovery() {
         }
 
         const stopVisible = !!stopbutton.offsetParent;
+        const skipVisible = !!(skipbutton && skipbutton.offsetParent);
         const generateVisible = !!genbutton.offsetParent;
+        const loadParameterVisible = elementIsVisible(getGradioRootById('load_parameter_button'));
         const progressVisible = !!(progressBar && progressBar.offsetParent);
         const sceneBusy = !!((sceneVideoPlaceholder && sceneVideoPlaceholder.offsetParent) || (sceneAudioPlaceholder && sceneAudioPlaceholder.offsetParent));
+
+        if (!stopVisible && !skipVisible && !generateVisible && !loadParameterVisible && !sceneBusy) {
+            reconcileGenerationActionButtons("empty_generation_controls");
+            stopVisibleSince = null;
+            return;
+        }
 
         if (!stopVisible || sceneBusy) {
             stopVisibleSince = null;
@@ -2865,17 +2864,91 @@ function setGradioComponentVisible(rootId, visible) {
     if (!root) return false;
     if (visible) {
         root.hidden = false;
+        root.removeAttribute('hidden');
+        root.removeAttribute('aria-hidden');
         root.classList.remove('hidden', 'hide');
         root.style.removeProperty('display');
         root.style.removeProperty('pointer-events');
+        root.style.removeProperty('visibility');
         return true;
     }
     root.hidden = true;
     root.classList.add('hidden', 'hide');
+    root.setAttribute('aria-hidden', 'true');
     root.style.setProperty('display', 'none', 'important');
     root.style.setProperty('pointer-events', 'none', 'important');
     return true;
 }
+
+function restoreGradioComponentVisibility(rootOrId, options = {}) {
+    const root = typeof rootOrId === 'string' ? getGradioRootById(rootOrId) : rootOrId;
+    if (!root) return false;
+
+    const nodes = [root];
+    const button = root.matches?.('button') ? root : root.querySelector?.('button');
+    if (button && button !== root) nodes.push(button);
+
+    let changed = false;
+    nodes.forEach((node) => {
+        if (!node) return;
+        const wasHidden = !!(
+            node.hidden
+            || node.hasAttribute?.('hidden')
+            || node.getAttribute?.('aria-hidden') === 'true'
+            || node.classList?.contains('hidden')
+            || node.classList?.contains('hide')
+            || node.classList?.contains('simpai-mounted-hidden')
+            || node.style?.getPropertyValue('display')
+            || node.style?.getPropertyValue('visibility')
+            || node.style?.getPropertyValue('pointer-events')
+        );
+        try { node.hidden = false; } catch (e) {}
+        try { node.removeAttribute('hidden'); } catch (e) {}
+        try { node.removeAttribute('aria-hidden'); } catch (e) {}
+        try {
+            node.classList.remove('hidden');
+            node.classList.remove('hide');
+            node.classList.remove('simpai-mounted-hidden');
+            node.classList.remove('simpai-force-hidden');
+        } catch (e) {}
+        try {
+            node.style.removeProperty('display');
+            node.style.removeProperty('visibility');
+            node.style.removeProperty('pointer-events');
+            node.style.removeProperty('opacity');
+        } catch (e) {}
+        changed = changed || wasHidden;
+    });
+
+    if (button && options.interactive !== false) {
+        if (button.disabled || button.getAttribute('aria-disabled') === 'true' || button.classList?.contains('disabled')) {
+            changed = true;
+        }
+        button.disabled = false;
+        button.setAttribute('aria-disabled', 'false');
+        button.classList?.remove('disabled');
+    }
+    return changed;
+}
+
+function reconcileGenerationActionButtons(reason) {
+    const generateRoot = getGradioRootById('generate_button');
+    if (!generateRoot) return false;
+    const stopVisible = elementIsVisible(getGradioRootById('stop_button'));
+    const skipVisible = elementIsVisible(getGradioRootById('skip_button'));
+    const loadParameterVisible = elementIsVisible(getGradioRootById('load_parameter_button'));
+    if (stopVisible || skipVisible || loadParameterVisible) return false;
+
+    const changed = restoreGradioComponentVisibility(generateRoot, { interactive: true });
+    if (changed) {
+        try {
+            console.info('[UI-TRACE] generation_button.reconciled', { reason: reason || '' });
+        } catch (e) {}
+    }
+    return changed;
+}
+
+window.simpleaiReconcileGenerationActionButtons = reconcileGenerationActionButtons;
 
 function setGradioButtonInteractive(rootId, interactive) {
     const button = getGradioButtonById(rootId);
@@ -2947,6 +3020,9 @@ function syncPositivePromptMetaState() {
     const shouldShowLoadParameters = !sceneFrontendActive && !hasPrompt && getPromptMetaSyncInputImageReady() && !sceneCanvasVisible;
     setGradioComponentVisible('generate_button', !shouldShowLoadParameters);
     setGradioComponentVisible('load_parameter_button', shouldShowLoadParameters);
+    if (!shouldShowLoadParameters) {
+        reconcileGenerationActionButtons('prompt_meta_sync');
+    }
 }
 
 function initPositivePromptMetaSync() {

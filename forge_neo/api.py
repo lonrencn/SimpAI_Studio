@@ -47,6 +47,7 @@ from forge_neo.models import (
     refresh_model_choices,
     sampling_methods,
     scheduler_types,
+    save_forge_neo_config_values,
     source_config_value,
     split_module_selection,
     upscale_model_names,
@@ -394,7 +395,12 @@ def options_payload() -> Any:
     runtime_sysinfo = _runtime_sysinfo_module()
     get_config = getattr(runtime_sysinfo, "get_config", None) if runtime_sysinfo is not None else None
     if callable(get_config):
-        return _jsonable(get_config())
+        values = _jsonable(get_config())
+        if isinstance(values, dict):
+            raw_preset = str(source_config_value("forge_preset", "klein") or "klein").strip().lower()
+            values = dict(values)
+            values["forge_preset"] = raw_preset if raw_preset in UI_PRESETS else "klein"
+        return values
 
     values = dict(load_settings())
     for source_key, target_key in SOURCE_OPTION_ALIASES.items():
@@ -477,13 +483,19 @@ def _settings_update_from_api_values(values: dict[str, Any]) -> dict[str, Any]:
 
 
 def set_options_payload(values: dict[str, Any] | None) -> None:
+    update_values = dict(values or {})
+    if "forge_preset" in update_values:
+        save_forge_neo_config_values({"forge_preset": update_values.pop("forge_preset")})
+    if not update_values:
+        return None
+
     runtime_sysinfo = _runtime_sysinfo_module()
     set_config = getattr(runtime_sysinfo, "set_config", None) if runtime_sysinfo is not None else None
     if callable(set_config):
-        set_config(values or {})
+        set_config(update_values)
         return None
     current = load_settings()
-    current.update(_settings_update_from_api_values(values or {}))
+    current.update(_settings_update_from_api_values(update_values))
     save_settings(current)
     return None
 

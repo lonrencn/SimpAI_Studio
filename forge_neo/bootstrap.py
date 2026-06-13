@@ -7,11 +7,37 @@ import os
 from pathlib import Path
 
 
+def _default_user_base_dir() -> str:
+    try:
+        import args_manager
+
+        path = str(getattr(args_manager.args, "userhome_path", "") or "").strip()
+        if path:
+            return os.path.abspath(path)
+    except Exception:
+        pass
+    env_path = str(os.environ.get("simpleai_userhome") or "").strip()
+    if env_path:
+        return os.path.abspath(env_path)
+    return str(Path(__file__).resolve().parents[3] / "users")
+
+
 def _env_flag(name: str, default: bool = False) -> bool:
     value = os.environ.get(name)
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def enable_forge_neo_read_only_user_config() -> None:
+    try:
+        import args_manager
+
+        args = getattr(args_manager, "args", None)
+        if args is not None:
+            args.forge_neo_read_only_user_config = True
+    except Exception:
+        pass
 
 
 class _ForgeNeoUserContext:
@@ -37,16 +63,18 @@ class _ForgeNeoSysInfo:
 
 class _ForgeNeoTokenStub:
     def __init__(self) -> None:
-        self.base_dir = os.path.abspath("users")
+        self.base_dir = _default_user_base_dir()
         self._guest_did = "forge_neo_guest"
         self._workspace_did = "forge_neo_local"
         self._sys_did = "forge_neo_sys"
+        self.skip_default_outputs_init = True
+        self.read_only_user_config = True
         self._local_vars: dict[tuple[str, str, str], str] = {}
         self._local_admin_vars: dict[str, str] = {}
         self._sessions: dict[str, str] = {}
 
     def set_user_base_dir(self, path: str) -> None:
-        self.base_dir = os.path.abspath(path or "users")
+        self.base_dir = os.path.abspath(path) if path else _default_user_base_dir()
 
     def get_default_workspace_did(self) -> str:
         return self._workspace_did
@@ -67,9 +95,10 @@ class _ForgeNeoTokenStub:
         return "local"
 
     def get_path_in_user_dir(self, user_did: str, catalog: str) -> str:
-        path = Path(self.base_dir) / str(user_did or self.get_guest_did()) / str(catalog or "")
-        path.mkdir(parents=True, exist_ok=True)
-        return str(path)
+        catalog_name = str(catalog or "")
+        if catalog_name == "outputs":
+            return str(Path(self.base_dir) / "ForgeNeo")
+        return str(Path(self.base_dir) / str(user_did or self.get_guest_did()) / catalog_name)
 
     def _session_token(self, did: str, ua_hash: str) -> str:
         digest = hashlib.sha256(f"{did}:{ua_hash or ''}".encode("utf-8")).hexdigest()[:24]
@@ -207,5 +236,6 @@ def ensure_shared_token(*, test_stub: bool = False) -> None:
 
 
 def ensure_config(*, test_stub: bool = False):
+    enable_forge_neo_read_only_user_config()
     ensure_shared_token(test_stub=test_stub)
     return importlib.import_module("modules.config")

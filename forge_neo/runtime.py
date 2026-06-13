@@ -804,14 +804,14 @@ def _image_from_value(value: object) -> Image.Image | None:
     if isinstance(value, Image.Image):
         return value.convert("RGBA")
     if isinstance(value, dict):
-        for key in ("image", "background", "composite", "name", "path"):
+        for key in ("image", "background", "composite", "path", "name"):
             image = _image_from_value(value.get(key))
             if image is not None:
                 return image
         return None
-    path = getattr(value, "name", None) or getattr(value, "path", None)
-    if path is None and isinstance(value, (str, os.PathLike)):
-        path = value
+    path = value if isinstance(value, (str, os.PathLike)) else None
+    if path is None:
+        path = getattr(value, "path", None) or getattr(value, "name", None)
     if path:
         try:
             return Image.open(path).convert("RGBA")
@@ -1753,7 +1753,9 @@ def run_extras(
         values = [request.image] if request.image is not None else []
 
     images: list[Image.Image] = []
-    path_labels: list[str] = []
+    paths: list[str] = []
+    output_dir = extras_outputs_dir(request)
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
     total = max(1, len(values))
     _emit(progress_callback, "progress", 0.05, "extras queued")
     for index, value in enumerate(values):
@@ -1765,14 +1767,15 @@ def run_extras(
                 infotext=f"Extras {control_status}",
                 seed=-1,
                 status=control_status,
-                output_paths=[],
+                output_paths=paths,
                 elapsed_seconds=time.time() - start,
             )
         image = _image_from_value(value)
         if image is None:
             continue
         try:
-            images.append(_resize_image(image, request, progress_callback, control_callback))
+            resized = _resize_image(image, request, progress_callback, control_callback)
+            images.append(resized)
         except Exception as exc:
             _emit(progress_callback, "finish", index / total, "error")
             return ForgeNeoResult(
@@ -1781,24 +1784,19 @@ def run_extras(
                 seed=-1,
                 status="error",
                 error=f"Upscale failed: {type(exc).__name__}: {exc}",
-                output_paths=[],
+                output_paths=paths,
                 elapsed_seconds=time.time() - start,
             )
-        path_labels.append(_file_label(value, f"extras-{index}"))
+        label = _file_label(value, f"extras-{index}")
+        metadata = PngImagePlugin.PngInfo()
+        metadata.add_text("parameters", build_extras_infotext(request, len(images)))
+        name = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in label)[:80]
+        path = output_dir / f"{timestamp}-{index}-{name}.png"
+        resized.save(path, pnginfo=metadata)
+        paths.append(str(path))
         _emit(progress_callback, "progress", (index + 1) / total, f"extras {index + 1}")
 
     infotext = build_extras_infotext(request, len(images))
-    paths: list[str] = []
-    metadata = PngImagePlugin.PngInfo()
-    metadata.add_text("parameters", infotext)
-    output_dir = extras_outputs_dir(request)
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    for index, image in enumerate(images):
-        name = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in path_labels[index])[:80]
-        path = output_dir / f"{timestamp}-{index}-{name}.png"
-        image.save(path, pnginfo=metadata)
-        paths.append(str(path))
-
     status = "finished" if images else "error"
     error = "" if images else "No input image found."
     _emit(progress_callback, "finish", 1.0, status)

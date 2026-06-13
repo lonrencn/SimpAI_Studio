@@ -478,6 +478,57 @@
         return setComponentValue(document.querySelector(rootSelector), value);
     }
 
+    const forgeNeoPresetChoices = ["sd", "xl", "flux", "klein", "qwen", "lumina", "zit", "anima"];
+    let forgeNeoPresetRestoreDone = false;
+
+    function normalizeForgeNeoPreset(value) {
+        const preset = String(value || "").trim().toLowerCase();
+        return forgeNeoPresetChoices.includes(preset) ? preset : "";
+    }
+
+    function rememberForgeNeoPreset(value) {
+        return value;
+    }
+
+    async function readForgeNeoPresetForRestore() {
+        try {
+            const response = await fetch(appRoot() + "/forge-neo/api/options", { cache: "no-store" });
+            if (!response.ok) return "";
+            const payload = await response.json();
+            return normalizeForgeNeoPreset(payload && payload.forge_preset);
+        } catch (error) {
+            console.error("read Forge Neo preset restore value failed:", error);
+            return "";
+        }
+    }
+
+    function scheduleForgeNeoPresetRestore() {
+        if (forgeNeoPresetRestoreDone) return;
+        window.setTimeout(restoreForgeNeoPresetFromBrowser, 300);
+    }
+
+    async function restoreForgeNeoPresetFromBrowser() {
+        if (forgeNeoPresetRestoreDone) return;
+        if (
+            !document.querySelector("#forge_neo_preset input")
+            || !document.querySelector("#forge_neo_preset_restore textarea, #forge_neo_preset_restore input")
+            || !document.querySelector("#forge_neo_preset_restore_apply")
+        ) {
+            scheduleForgeNeoPresetRestore();
+            return;
+        }
+        const preset = await readForgeNeoPresetForRestore();
+        if (!preset) {
+            forgeNeoPresetRestoreDone = true;
+            return;
+        }
+        if (setComponentInputValue("#forge_neo_preset_restore", preset) && clickComponentButton("#forge_neo_preset_restore_apply")) {
+            forgeNeoPresetRestoreDone = true;
+        } else {
+            scheduleForgeNeoPresetRestore();
+        }
+    }
+
     function clickComponentButton(rootSelector) {
         const root = document.querySelector(rootSelector);
         const button = root && (root.matches("button") ? root : root.querySelector("button"));
@@ -2189,6 +2240,7 @@
         populateForgeNeoLicenses();
         decorateExtraNetworkBrowsers();
         initStyleEditorModals();
+        restoreForgeNeoPresetFromBrowser();
         if (document.body && !document.body.dataset.forgeNeoProgressCleanupObserver) {
             document.body.dataset.forgeNeoProgressCleanupObserver = "1";
             progressCleanupObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
@@ -2212,6 +2264,7 @@
     window.forgeNeoInstallExtensionFromIndex = installExtensionFromIndex;
     window.forgeNeoRequestReload = requestReloadUi;
     window.forgeNeoSetLanguage = setForgeNeoLanguage;
+    window.forgeNeoRememberPreset = rememberForgeNeoPreset;
     window.forgeNeoShowProfile = showProfile;
     window.forgeNeoFooterReload = footerReload;
 })();

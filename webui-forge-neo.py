@@ -39,6 +39,20 @@ os.chdir(ROOT)
 _ensure_local_proxy_bypass()
 
 
+def _default_userhome_path() -> str:
+    return os.path.abspath(os.path.join(ROOT, "..", "..", "users"))
+
+
+def _ensure_forge_neo_userhome_path(args_manager_module) -> None:
+    args = getattr(args_manager_module, "args", None)
+    if args is None:
+        return
+    args.forge_neo_read_only_user_config = True
+    if getattr(args, "userhome_path", None):
+        return
+    args.userhome_path = _default_userhome_path()
+
+
 def _browser_dark_url(url: str) -> str:
     parts = urlsplit(url)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
@@ -48,6 +62,9 @@ def _browser_dark_url(url: str) -> str:
 
 def _launch() -> tuple[object, str, str | None]:
     import args_manager
+
+    _ensure_forge_neo_userhome_path(args_manager)
+
     import modules.constants as constants
     import shared
     from forge_neo.api import install_api_routes

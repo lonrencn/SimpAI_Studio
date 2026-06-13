@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import threading
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -26,6 +27,7 @@ class ForgeNeoWorker:
     current_image: object | None = None
     id_live_preview: int = 0
     job_timestamp: str = field(default_factory=lambda: datetime.now().strftime("%Y%m%d%H%M%S"))
+    _started_at: float = field(default_factory=time.monotonic)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def stop(self) -> None:
@@ -52,6 +54,23 @@ class ForgeNeoWorker:
             self.current_image = None
             self.id_live_preview = 0
             self.job_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            self._started_at = time.monotonic()
+
+    def _estimated_eta(self, event: dict[str, object], progress: float) -> float:
+        try:
+            incoming_eta = float(event.get("eta_relative", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            incoming_eta = 0.0
+        if incoming_eta > 0:
+            return incoming_eta
+        if event.get("event") == "finish" or progress >= 1.0:
+            return 0.0
+        if progress <= 0.0:
+            return self.eta_relative
+        elapsed = max(0.0, time.monotonic() - self._started_at)
+        if elapsed <= 0.0:
+            return self.eta_relative
+        return max(0.0, elapsed * (1.0 - progress) / progress)
 
     def should_stop(self) -> bool:
         with self._lock:
@@ -89,7 +108,7 @@ class ForgeNeoWorker:
             self.message = str(entry.get("message", self.message_en or self.message_cn or self.message) or "")
             self.sampling_step = incoming_sampling_step
             self.sampling_steps = incoming_sampling_steps
-            self.eta_relative = float(entry.get("eta_relative", self.eta_relative) or 0.0)
+            self.eta_relative = self._estimated_eta(entry, self.progress)
             if current_image is not None:
                 self.current_image = current_image
                 self.id_live_preview = int(entry.get("id_live_preview", self.id_live_preview + 1) or self.id_live_preview + 1)

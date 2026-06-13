@@ -14,6 +14,10 @@ logger = logging.getLogger(format_name(__name__))
 from modules.util import get_files_from_folder
 from args_manager import args
 
+def _default_userhome_path():
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "users"))
+
+
 wildcards_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../wildcards/'))
 wildcards_max_bfs_depth = 64
 
@@ -76,11 +80,11 @@ def _get_user_wildcards_dir(user_did):
         if shared.token is not None and hasattr(shared.token, "get_path_in_user_dir"):
             path = shared.token.get_path_in_user_dir(user_did, "wildcards")
         else:
-            path = os.path.join(getattr(shared, "path_userhome", "users"), str(user_did), "wildcards")
+            path = os.path.join(getattr(shared, "path_userhome", "") or _default_userhome_path(), str(user_did), "wildcards")
         os.makedirs(path, exist_ok=True)
         return path
     except Exception:
-        path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "users", str(user_did), "wildcards"))
+        path = os.path.join(_default_userhome_path(), str(user_did), "wildcards")
         os.makedirs(path, exist_ok=True)
         return path
 

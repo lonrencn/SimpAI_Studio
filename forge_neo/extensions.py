@@ -16,7 +16,7 @@ from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 
 import args_manager
-from forge_neo.bootstrap import ensure_config
+from forge_neo.bootstrap import _default_user_base_dir, ensure_config
 from forge_neo.models import SOURCE_BRANCH, SOURCE_COMMIT, SOURCE_PROJECT
 
 
@@ -1308,7 +1308,7 @@ def _extension_user_config_path() -> Path:
     config_path = str(getattr(config, "config_path", "") or "").strip()
     if config_path:
         return Path(config_path)
-    return _repo_root() / "users" / "config.txt"
+    return Path(_default_user_base_dir()) / "config.txt"
 
 
 def _read_extension_user_config() -> dict[str, object]:
@@ -1470,7 +1470,12 @@ def _extensions_root() -> Path:
 
 
 def _extension_install_tmp_root() -> Path:
-    return _repo_root() / "users" / "tmp" / "forge_neo_extension_installs"
+    try:
+        config = ensure_config()
+        base = Path(getattr(config, "path_userhome", "") or _default_user_base_dir())
+    except Exception:
+        base = Path(_default_user_base_dir())
+    return base / "tmp" / "forge_neo_extension_installs"
 
 
 def _remove_tree_force(path: Path) -> None:

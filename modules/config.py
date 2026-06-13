@@ -48,6 +48,7 @@ userhome_path = get_config_path('simpleai_userhome', "users") if not args_manage
 config_path_old = get_config_path('config_path', "config.txt")
 config_path = os.path.abspath(os.path.join(userhome_path, "config.txt"))
 config_example_path = os.path.join(os.path.dirname(config_path), "config_modification_tutorial.txt")
+forge_neo_read_only_user_config = bool(getattr(args_manager.args, "forge_neo_read_only_user_config", False))
 
 config_dict = {}
 config_template_dict = {}
@@ -64,7 +65,7 @@ except Exception as e:
     logger.info(e)
 
 try:
-    if os.path.exists(config_path_old) and not os.path.exists(config_path):
+    if not forge_neo_read_only_user_config and os.path.exists(config_path_old) and not os.path.exists(config_path):
         shutil.copy(config_path_old, config_path)
         config_path_deprecated = config_path_old + '.deprecated'
         os.rename(config_path_old, config_path_deprecated)
@@ -209,7 +210,8 @@ def _migrate_path_alias(legacy_key, canonical_key):
         logger.info(f'Auto merged alias paths into "{canonical_key}": {json.dumps(added, ensure_ascii=False)}')
 
 
-try_load_deprecated_user_path_config()
+if not forge_neo_read_only_user_config:
+    try_load_deprecated_user_path_config()
 _migrate_path_alias("path_llm", "path_LLM")
 
 def get_gpu_arch_str_in_preset_name():
@@ -268,7 +270,8 @@ def get_path_userhome() -> str:
     """
     path_userhome = userhome_path
     if args_manager.args.userhome_path:
-        makedirs_with_log(_config_path_to_abs(path_userhome))
+        if not forge_neo_read_only_user_config:
+            makedirs_with_log(_config_path_to_abs(path_userhome))
     else:
         path_userhome = get_dir_or_set_default('path_userhome', userhome_path)
     _log_info_once("path_userhome", f'The path_userhome: {os.path.abspath(path_userhome)}')
@@ -687,10 +690,12 @@ modelsinfo = init_modelsinfo(path_models_root, _build_modelsinfo_path_map(model_
 shared.path_userhome = path_userhome
 shared.token.set_user_base_dir(path_userhome)
 default_workspace_did = shared.token.get_default_workspace_did() if hasattr(shared.token, "get_default_workspace_did") else shared.token.get_guest_did()
-path_outputs = shared.token.get_path_in_user_dir(default_workspace_did, "outputs")
-
-if not os.path.exists(path_outputs):
-    os.makedirs(path_outputs, exist_ok=True)
+if getattr(shared.token, "skip_default_outputs_init", False):
+    path_outputs = os.path.abspath(shared.token.get_path_in_user_dir(default_workspace_did, "outputs"))
+else:
+    path_outputs = shared.token.get_path_in_user_dir(default_workspace_did, "outputs")
+    if not os.path.exists(path_outputs):
+        os.makedirs(path_outputs, exist_ok=True)
 
 def get_user_path_outputs(user_did=None):
     if user_did is None:
@@ -1385,20 +1390,21 @@ available_aspect_ratios_labels = modules.flags.available_aspect_ratios_list['SDX
 
 
 # Only write config in the first launch.
-if not os.path.exists(config_path) or config_needs_write:
+if not forge_neo_read_only_user_config and (not os.path.exists(config_path) or config_needs_write):
     with open(config_path, "w", encoding="utf-8") as json_file:
         json.dump({k: config_dict[k] for k in always_save_keys}, json_file, indent=4)
 
 
 # Always write tutorials.
-with open(config_example_path, "w", encoding="utf-8") as json_file:
-    cpa = config_path.replace("\\", "\\\\")
-    json_file.write(f'You can modify your "{cpa}" using the below keys, formats, and examples.\n'
-                    f'Do not modify this file. Modifications in this file will not take effect.\n'
-                    f'This file is a tutorial and example. Please edit "{cpa}" to really change any settings.\n'
-                    + 'Remember to split the paths with "\\\\" rather than "\\", '
-                      'and there is no "," before the last "}". \n\n\n')
-    json.dump({k: config_dict[k] for k in visited_keys}, json_file, indent=4)
+if not forge_neo_read_only_user_config:
+    with open(config_example_path, "w", encoding="utf-8") as json_file:
+        cpa = config_path.replace("\\", "\\\\")
+        json_file.write(f'You can modify your "{cpa}" using the below keys, formats, and examples.\n'
+                        f'Do not modify this file. Modifications in this file will not take effect.\n'
+                        f'This file is a tutorial and example. Please edit "{cpa}" to really change any settings.\n'
+                        + 'Remember to split the paths with "\\\\" rather than "\\", '
+                          'and there is no "," before the last "}". \n\n\n')
+        json.dump({k: config_dict[k] for k in visited_keys}, json_file, indent=4)
 
 
 

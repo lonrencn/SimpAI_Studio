@@ -14,6 +14,7 @@ SOURCE_COMMIT = "bfa6f820"
 SOURCE_LICENSE = "AGPL-3.0"
 
 UI_PRESETS = ["sd", "xl", "flux", "klein", "qwen", "lumina", "zit", "anima"]
+FORGE_NEO_LOCAL_CONFIG_KEYS = {"forge_preset"}
 LOW_BIT_CHOICES = ["Automatic", "Float8 e4m3fn", "Float8 e5m2", "NF4", "None"]
 MODEL_EXTENSIONS = {".pth", ".ckpt", ".bin", ".safetensors", ".fooocus.patch", ".patch", ".gguf", ".pt", ".onnx"}
 UPSCALER_MODEL_EXTENSIONS = {".pt", ".pth", ".safetensors"}
@@ -331,6 +332,10 @@ def _source_config_dicts(config=None) -> list[dict[str, object]]:
 
 
 def _source_config_value(key: str, default=None, config=None):
+    if key in FORGE_NEO_LOCAL_CONFIG_KEYS:
+        local_value = _forge_neo_config_value(key, None)
+        if local_value is not None:
+            return local_value
     for data in _source_config_dicts(config):
         if key in data:
             return data.get(key)
@@ -339,6 +344,35 @@ def _source_config_value(key: str, default=None, config=None):
 
 def source_config_value(key: str, default=None):
     return _source_config_value(key, default)
+
+
+def forge_neo_config_path() -> Path:
+    return Path(__file__).resolve().parent / "config.json"
+
+
+def _forge_neo_config_value(key: str, default=None):
+    if key not in FORGE_NEO_LOCAL_CONFIG_KEYS:
+        return default
+    path = forge_neo_config_path()
+    if not path.is_file():
+        return default
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return default
+    if not isinstance(data, dict) or key not in data:
+        return default
+    return data.get(key)
+
+
+def save_forge_neo_config_values(values: dict[str, object]) -> None:
+    preset = str((values or {}).get("forge_preset") or "").strip().lower() if isinstance(values, dict) else ""
+    if preset not in UI_PRESETS:
+        return None
+    path = forge_neo_config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"forge_preset": preset}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return None
 
 
 def _config_file_paths(config, catalog: str) -> list[str]:
@@ -449,6 +483,18 @@ def _simplemodels_dirs(config, catalog: str) -> list[str]:
     return out
 
 
+def _forge_webui_model_dirs(config, catalog: str) -> list[str]:
+    models_root = _root_path() / "forge_neo" / "webui" / "models"
+    if not models_root.is_dir():
+        return []
+    out: list[str] = []
+    for alias in REFERENCE_MODEL_DIRS.get(catalog, ()):
+        candidate = models_root / alias
+        if candidate.is_dir():
+            out.append(str(candidate))
+    return out
+
+
 def model_roots_for_catalog(catalog: str) -> list[str]:
     config = ensure_config()
     roots: list[str] = []
@@ -459,6 +505,7 @@ def model_roots_for_catalog(catalog: str) -> list[str]:
         roots.extend(_as_list(getattr(config, attr_name, [])))
     roots.extend(_config_file_paths(config, catalog))
     roots.extend(_simplemodels_dirs(config, catalog))
+    roots.extend(_forge_webui_model_dirs(config, catalog))
     roots.extend(_reference_model_dirs(config, catalog))
     return _dedupe_dirs(roots)
 

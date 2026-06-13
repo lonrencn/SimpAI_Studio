@@ -6,7 +6,6 @@ import html as html_lib
 import io
 import json
 import os
-import random
 import subprocess
 import sys
 import urllib.parse
@@ -92,6 +91,7 @@ from forge_neo.models import (
     refresh_model_choices,
     sampling_methods,
     scheduler_types,
+    save_forge_neo_config_values,
     split_module_selection,
     upscale_model_names,
 )
@@ -3738,15 +3738,15 @@ def _controlnet_type_changed(control_type: str | None, preset: str | None, pixel
 
 def _extras_upscaler_choices(include_none: bool = False) -> list[tuple[str, str]]:
     items = [
-        ("Nearest", "最近邻"),
-        ("Bilinear", "双线性"),
-        ("Bicubic", "双三次"),
-        ("Lanczos", "兰索斯"),
+        ("Nearest", "Nearest-最近邻"),
+        ("Bilinear", "Bilinear-双线性"),
+        ("Bicubic", "Bicubic-双三次"),
+        ("Lanczos", "Lanczos-兰索斯"),
         ("ESRGAN", "ESRGAN"),
     ]
     items.extend((name, name) for name in upscale_model_names())
     if include_none:
-        items.insert(0, ("None", "无"))
+        items.insert(0, ("None", "None-无"))
     choices: list[tuple[str, str]] = []
     seen: set[str] = set()
     for value, label in items:
@@ -6231,10 +6231,9 @@ def _refresh_merger_models(preset: str):
 
 def _checkpoint_changed(checkpoint_name: str, preset: str):
     choices = refresh_model_choices(preset)
-    defaults = preset_model_defaults(preset, choices)
     return (
-        gr.update(value=defaults.vae),
-        gr.update(choices=module_choices(choices), value=defaults.modules),
+        gr.update(choices=choices.vae),
+        gr.update(choices=module_choices(choices)),
     )
 
 
@@ -6275,6 +6274,9 @@ def _preset_dcfg_update(preset: str, *, is_img2img: bool = False):
 
 
 def _preset_changed(preset: str):
+    preset_key = str(preset or "").strip().lower()
+    if preset_key in UI_PRESETS:
+        save_forge_neo_config_values({"forge_preset": preset_key})
     defaults = defaults_for_preset(preset)
     choices = refresh_model_choices(preset)
     lora_update, lora_weights = _lora_default_updates(preset, choices)
@@ -6310,6 +6312,16 @@ def _preset_changed(preset: str):
         *_controlnet_model_updates(choices),
         *_extra_browser_updates(preset, choices),
         *_merger_model_updates(choices),
+    )
+
+
+def _preset_restore_changed(preset: str):
+    preset_key = str(preset or "").strip().lower()
+    if preset_key not in UI_PRESETS:
+        preset_key = initial_preset()
+    return (
+        gr.update(value=preset_key),
+        *_preset_changed(preset_key),
     )
 
 
@@ -6562,7 +6574,7 @@ def _clear_prompts_clicked(state):
 
 
 def _random_seed_clicked() -> int:
-    return random.SystemRandom().randint(0, 2**32 - 1)
+    return -1
 
 
 def _reuse_seed_clicked(infotext: str | None):
@@ -8234,6 +8246,10 @@ def _create_adetailer_unit_controls(
         gr.Textbox(
             label=_label(f"ADetailer prompt{suffix}", f"ADetailer 提示词{suffix}"),
             lines=3,
+            placeholder=_label(
+                f"ADetailer Prompt{suffix}\n(if blank, the original prompt is used)",
+                f"ADetailer 提示词{suffix}\n留空则使用原始提示词",
+            ),
             elem_id=elem(f"adetailer_unit_{unit_index + 1}_prompt"),
         ),
     )
@@ -8242,6 +8258,10 @@ def _create_adetailer_unit_controls(
         gr.Textbox(
             label=_label(f"ADetailer negative prompt{suffix}", f"ADetailer 反向提示词{suffix}"),
             lines=2,
+            placeholder=_label(
+                f"ADetailer Negative Prompt{suffix}\n(if blank, the original negative prompt is used)",
+                f"ADetailer 反向提示词{suffix}\n留空则使用原始反向提示词",
+            ),
             elem_id=elem(f"adetailer_unit_{unit_index + 1}_negative_prompt"),
         ),
     )
@@ -10540,6 +10560,8 @@ def create_app() -> gr.Blocks:
             runtime_marker = gr.HTML(_runtime_marker_html(state_value["__lang"]))
             with gr.Row(elem_classes=["forge-neo-topbar"]):
                 preset = gr.Dropdown(UI_PRESETS, value=default_preset, label=_label("UI Preset", "界面预设"), scale=1, min_width=110, elem_id="forge_neo_preset")
+                preset_restore = gr.Textbox(value="", show_label=False, elem_id="forge_neo_preset_restore", elem_classes=["forge-neo-hidden-bridge"])
+                preset_restore_apply = gr.Button("", elem_id="forge_neo_preset_restore_apply", elem_classes=["forge-neo-hidden-bridge"])
                 checkpoint = gr.Dropdown(
                     model_choices.checkpoints,
                     value=model_defaults.checkpoint,
@@ -15803,54 +15825,63 @@ def create_app() -> gr.Blocks:
                 outputs=[extras_image, extras_status],
             )
 
+            preset_outputs = [
+                checkpoint,
+                vae,
+                text_encoders,
+                low_bits,
+                prompt,
+                img_prompt,
+                steps,
+                width,
+                height,
+                cfg_scale,
+                distilled_cfg_scale,
+                sampler,
+                scheduler,
+                img_steps,
+                img_width,
+                img_height,
+                img_cfg_scale,
+                img_distilled_cfg_scale,
+                img_sampler,
+                img_scheduler,
+                lora_dropdown,
+                img_lora_dropdown,
+                txt_lora_weights,
+                img_lora_weights,
+                hr_checkpoint,
+                hr_additional_modules,
+                refiner_checkpoint,
+                img_refiner_checkpoint,
+                txt_integrated["modulated_guidance_clip"],
+                img_integrated["modulated_guidance_clip"],
+                *_controlnet_model_outputs(txt_integrated, img_integrated),
+                *_extra_browser_outputs(
+                    txt_ti_browser,
+                    txt_checkpoint_browser,
+                    txt_lora_browser,
+                    img_ti_browser,
+                    img_checkpoint_browser,
+                    img_lora_browser,
+                ),
+                merger_primary,
+                merger_secondary,
+                merger_tertiary,
+                merger_bake_in_vae,
+            ]
             preset.change(
                 _preset_changed,
                 inputs=[preset],
-                outputs=[
-                    checkpoint,
-                    vae,
-                    text_encoders,
-                    low_bits,
-                    prompt,
-                    img_prompt,
-                    steps,
-                    width,
-                    height,
-                    cfg_scale,
-                    distilled_cfg_scale,
-                    sampler,
-                    scheduler,
-                    img_steps,
-                    img_width,
-                    img_height,
-                    img_cfg_scale,
-                    img_distilled_cfg_scale,
-                    img_sampler,
-                    img_scheduler,
-                    lora_dropdown,
-                    img_lora_dropdown,
-                    txt_lora_weights,
-                    img_lora_weights,
-                    hr_checkpoint,
-                    hr_additional_modules,
-                    refiner_checkpoint,
-                    img_refiner_checkpoint,
-                    txt_integrated["modulated_guidance_clip"],
-                    img_integrated["modulated_guidance_clip"],
-                    *_controlnet_model_outputs(txt_integrated, img_integrated),
-                    *_extra_browser_outputs(
-                        txt_ti_browser,
-                        txt_checkpoint_browser,
-                        txt_lora_browser,
-                        img_ti_browser,
-                        img_checkpoint_browser,
-                        img_lora_browser,
-                    ),
-                    merger_primary,
-                    merger_secondary,
-                    merger_tertiary,
-                    merger_bake_in_vae,
-                ],
+                outputs=preset_outputs,
+                js="(preset) => window.forgeNeoRememberPreset(preset)",
+            )
+            preset_restore_apply.click(
+                _preset_restore_changed,
+                inputs=[preset_restore],
+                outputs=[preset, *preset_outputs],
+                queue=False,
+                show_progress=False,
             )
             checkpoint.change(
                 _checkpoint_changed,

@@ -4,7 +4,7 @@ import csv
 from dataclasses import dataclass
 from pathlib import Path
 
-from forge_neo.bootstrap import ensure_config
+from forge_neo.bootstrap import _default_user_base_dir, ensure_config
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,7 +37,7 @@ def user_styles_path() -> Path:
         config = ensure_config()
         base = Path(config.path_userhome)
     except Exception:
-        base = ROOT / "users"
+        base = Path(_default_user_base_dir())
     path = base / "forge_neo" / "styles.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path

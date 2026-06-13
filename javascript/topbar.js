@@ -8288,6 +8288,12 @@ function syncPostGenerationResultControls(stateOverride) {
         ensurePreviewGeneratingFitObserver();
         schedulePreviewGeneratingImageFit(0);
     } catch (e) {}
+    try {
+        if (typeof window.simpleaiReconcileGenerationActionButtons === "function") {
+            window.simpleaiReconcileGenerationActionButtons("post_generation_result_controls");
+            setTimeout(() => window.simpleaiReconcileGenerationActionButtons("post_generation_result_controls+120"), 120);
+        }
+    } catch (e) {}
     const find = (id) => {
         try {
             if (app && app.getElementById) {
