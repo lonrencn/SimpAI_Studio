@@ -1945,6 +1945,36 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             video_effective = sam3_video_effective if sam3_video_effective else scene_video_effective
         scene_task_methods = scene_frontend.get("task_method", {}) if isinstance(scene_frontend, dict) else {}
         scene_task_method_value = scene_task_methods.get(scene_theme) if isinstance(scene_task_methods, dict) else None
+
+        def _scene_image_trace_shape(value, *, sketch=False):
+            try:
+                image = value.get("image") if sketch and isinstance(value, dict) else value
+                shape = getattr(image, "shape", None)
+                if shape is None:
+                    return None
+                return tuple(int(part) for part in shape[:3])
+            except Exception:
+                return None
+
+        util.log_ui_trace(
+            logger,
+            "[UI-TRACE] scene_image_backend_input | preset=%r, theme=%r, task_method=%r, hidden=%s, canvas_present=%s, canvas_shape=%s, input1_present=%s, input1_shape=%s, input2_present=%s, input2_shape=%s, input3_present=%s, input3_shape=%s, input4_present=%s, input4_shape=%s",
+            state_params.get("__preset"),
+            scene_theme,
+            scene_task_method_value,
+            sorted(disvisible),
+            scene_canvas_image is not None,
+            _scene_image_trace_shape(scene_canvas_image, sketch=True),
+            scene_input_image1 is not None,
+            _scene_image_trace_shape(scene_input_image1),
+            scene_input_image2 is not None,
+            _scene_image_trace_shape(scene_input_image2),
+            scene_input_image3 is not None,
+            _scene_image_trace_shape(scene_input_image3),
+            scene_input_image4 is not None,
+            _scene_image_trace_shape(scene_input_image4),
+        )
+
         scene_audio_present = scene_audio is not None and not (isinstance(scene_audio, str) and not scene_audio.strip())
         scene_audio_exists = os.path.exists(scene_audio) if isinstance(scene_audio, str) and scene_audio.strip() else None
         scene_audio_ready = scene_audio_present and scene_audio_exists is not False

@@ -3605,6 +3605,21 @@ def _model_default_updates(preset: str, choices):
     )
 
 
+def _module_selection_for_request(text_encoders: object) -> tuple[str, list[str]]:
+    if isinstance(text_encoders, str):
+        values = [text_encoders] if text_encoders.strip() else []
+    elif isinstance(text_encoders, (list, tuple, set)):
+        values = list(text_encoders)
+    else:
+        values = []
+    return split_module_selection(values, fallback_vae="None")
+
+
+def _text_encoders_changed(text_encoders: list[str] | tuple[str, ...] | None):
+    selected_vae, _selected_text_encoders = _module_selection_for_request(text_encoders)
+    return gr.update(value=selected_vae)
+
+
 def _lora_default_updates(preset: str, choices) -> tuple[object, dict[str, float]]:
     defaults = preset_model_defaults(preset, choices)
     return gr.update(choices=choices.loras, value=defaults.loras), dict(defaults.lora_weights)
@@ -4593,7 +4608,6 @@ def _build_request(
     preset: str,
     checkpoint: str,
     text_encoders: list[str] | None,
-    vae: str,
     low_bits: str,
     prompt: str,
     negative_prompt: str,
@@ -4841,7 +4855,7 @@ def _build_request(
 
     selected_styles = list(styles or [])
     styled_prompt, styled_negative_prompt = apply_style_names(prompt, negative_prompt, selected_styles)
-    selected_vae, selected_text_encoders = split_module_selection(text_encoders, fallback_vae=vae or "None")
+    selected_vae, selected_text_encoders = _module_selection_for_request(text_encoders)
     return ForgeNeoRequest(
         mode=mode,
         prompt=styled_prompt or "",
@@ -5176,18 +5190,18 @@ def _save_current_checkpoint_notice(
     state,
     kind: str,
     checkpoint_name: str = "None",
-    vae_name: str = "None",
     text_encoders: list[str] | None = None,
     low_bit_dtype: str = "Automatic",
 ) -> str:
     label = _status(state, "Save UNet" if kind == "unet" else "Save Checkpoint", "保存 UNet" if kind == "unet" else "保存模型")
+    selected_vae, selected_text_encoders = _module_selection_for_request(text_encoders)
     result = run_current_model_save_plan(
         ForgeNeoCurrentModelSaveRequest(
             filename=str(filename or "my_model.safetensors"),
             kind=kind,
             checkpoint=str(checkpoint_name or "None"),
-            vae=str(vae_name or "None"),
-            text_encoders=list(text_encoders or []),
+            vae=selected_vae,
+            text_encoders=selected_text_encoders,
             low_bit_dtype=str(low_bit_dtype or "Automatic"),
         )
     )
@@ -5229,7 +5243,6 @@ def _save_current_checkpoint_notice_update(
     state,
     kind: str,
     checkpoint_name: str = "None",
-    vae_name: str = "None",
     text_encoders: list[str] | None = None,
     low_bit_dtype: str = "Automatic",
 ):
@@ -5239,7 +5252,6 @@ def _save_current_checkpoint_notice_update(
             state,
             kind,
             checkpoint_name,
-            vae_name,
             text_encoders,
             low_bit_dtype,
         ),
@@ -5428,22 +5440,20 @@ def _settings_defaults_apply_clicked(state, *values):
     )
 
 
-def _settings_loaded_models_html(state, checkpoint_name, vae_name, text_encoders, low_bits) -> str:
+def _settings_loaded_models_html(state, checkpoint_name, text_encoders, low_bits) -> str:
     lang = _state_lang(state)
     none_text = _label_for_lang(lang, "None", "无")
+    selected_vae, selected_text_encoders = _module_selection_for_request(text_encoders)
 
     def value_or_none(value: object) -> str:
         text = str(value or "").strip().strip('"')
         return text if text else none_text
 
-    if isinstance(text_encoders, (list, tuple, set)):
-        encoder_values = [str(item).strip() for item in text_encoders if str(item or "").strip()]
-    else:
-        encoder_values = [str(text_encoders).strip()] if str(text_encoders or "").strip() else []
+    encoder_values = [str(item).strip() for item in selected_text_encoders if str(item or "").strip()]
     encoder_text = "\n".join(encoder_values) if encoder_values else none_text
     rows = [
         (_label_for_lang(lang, "Checkpoint", "模型"), value_or_none(checkpoint_name)),
-        ("VAE", value_or_none(vae_name)),
+        ("VAE", value_or_none(selected_vae)),
         (_label_for_lang(lang, "Text Encoder", "文本编码器"), encoder_text),
         (_label_for_lang(lang, "Diffusion in Low Bits", "低位扩散"), value_or_none(low_bits or "Automatic")),
     ]
@@ -5472,8 +5482,8 @@ def _settings_loaded_models_html(state, checkpoint_name, vae_name, text_encoders
     )
 
 
-def _settings_list_loaded_models_clicked(state, checkpoint_name, vae_name, text_encoders, low_bits):
-    return _settings_result_html_update(_settings_loaded_models_html(state, checkpoint_name, vae_name, text_encoders, low_bits))
+def _settings_list_loaded_models_clicked(state, checkpoint_name, text_encoders, low_bits):
+    return _settings_result_html_update(_settings_loaded_models_html(state, checkpoint_name, text_encoders, low_bits))
 
 
 def _settings_unload_models_html(result: Mapping[str, object], state=None) -> str:
@@ -6231,6 +6241,11 @@ def _refresh_merger_models(preset: str):
 
 def _checkpoint_changed(checkpoint_name: str, preset: str):
     choices = refresh_model_choices(preset)
+    if not str(checkpoint_name or "").strip() or str(checkpoint_name or "").strip().casefold() == "none":
+        return (
+            gr.update(choices=choices.vae, value="None"),
+            gr.update(choices=module_choices(choices), value=[]),
+        )
     return (
         gr.update(choices=choices.vae),
         gr.update(choices=module_choices(choices)),
@@ -10902,7 +10917,6 @@ def create_app() -> gr.Blocks:
                         preset,
                         checkpoint,
                         text_encoders,
-                        vae,
                         low_bits,
                         prompt,
                         negative_prompt,
@@ -11524,7 +11538,6 @@ def create_app() -> gr.Blocks:
                             preset,
                             checkpoint,
                             text_encoders,
-                            vae,
                             low_bits,
                             img_prompt,
                             img_negative,
@@ -12930,30 +12943,28 @@ def create_app() -> gr.Blocks:
                                 visible=False,
                             )
                     merger_save_unet.click(
-                        lambda filename, current_state, current_checkpoint, current_vae, current_text_encoders, current_low_bits: _save_current_checkpoint_notice_update(
+                        lambda filename, current_state, current_checkpoint, current_text_encoders, current_low_bits: _save_current_checkpoint_notice_update(
                             filename,
                             current_state,
                             "unet",
                             current_checkpoint,
-                            current_vae,
                             current_text_encoders,
                             current_low_bits,
                         ),
-                        inputs=[merger_save_filename, state, checkpoint, vae, text_encoders, low_bits],
+                        inputs=[merger_save_filename, state, checkpoint, text_encoders, low_bits],
                         outputs=[merger_save_result],
                         show_progress=False,
                     )
                     merger_save_checkpoint.click(
-                        lambda filename, current_state, current_checkpoint, current_vae, current_text_encoders, current_low_bits: _save_current_checkpoint_notice_update(
+                        lambda filename, current_state, current_checkpoint, current_text_encoders, current_low_bits: _save_current_checkpoint_notice_update(
                             filename,
                             current_state,
                             "checkpoint",
                             current_checkpoint,
-                            current_vae,
                             current_text_encoders,
                             current_low_bits,
                         ),
-                        inputs=[merger_save_filename, state, checkpoint, vae, text_encoders, low_bits],
+                        inputs=[merger_save_filename, state, checkpoint, text_encoders, low_bits],
                         outputs=[merger_save_result],
                         show_progress=False,
                     )
@@ -15291,7 +15302,7 @@ def create_app() -> gr.Blocks:
                     )
                     settings_list_loaded_models.click(
                         _settings_list_loaded_models_clicked,
-                        inputs=[state, checkpoint, vae, text_encoders, low_bits],
+                        inputs=[state, checkpoint, text_encoders, low_bits],
                         outputs=[settings_result],
                         show_progress="hidden",
                     )
@@ -15887,6 +15898,13 @@ def create_app() -> gr.Blocks:
                 _checkpoint_changed,
                 inputs=[checkpoint, preset],
                 outputs=[vae, text_encoders],
+                queue=False,
+                show_progress=False,
+            )
+            text_encoders.change(
+                _text_encoders_changed,
+                inputs=[text_encoders],
+                outputs=[vae],
                 queue=False,
                 show_progress=False,
             )

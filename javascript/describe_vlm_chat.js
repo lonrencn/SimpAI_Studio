@@ -475,11 +475,60 @@
         return version;
     }
 
+    function cleanPresetName(value) {
+        return String(value || '').replace(/[\u2B07\u2193]+$/g, '').trim();
+    }
+
+    function firstTextValue(values) {
+        for (const value of values || []) {
+            const text = String(value || '').trim();
+            if (text) return text;
+        }
+        return '';
+    }
+
+    function readCurrentPresetName(topbar, prepared) {
+        const candidates = [];
+        try {
+            if (typeof topbarPendingPreset !== 'undefined' && topbarPendingPreset) candidates.push(topbarPendingPreset);
+        } catch (err) {}
+        try {
+            if (typeof topbarLastPreset !== 'undefined' && topbarLastPreset) candidates.push(topbarLastPreset);
+        } catch (err) {}
+        candidates.push(topbar?.__preset, prepared?.preset, prepared?.name);
+        return cleanPresetName(firstTextValue(candidates));
+    }
+
+    function readPresetStoreMeta(topbar, presetName) {
+        const meta = topbar && typeof topbar.__preset_store_meta === 'object' ? topbar.__preset_store_meta : null;
+        const target = cleanPresetName(presetName).toLowerCase();
+        if (!meta || !target) return {};
+        if (meta[presetName] && typeof meta[presetName] === 'object') return meta[presetName];
+        const key = Object.keys(meta).find((item) => cleanPresetName(item).toLowerCase() === target);
+        return key && typeof meta[key] === 'object' ? meta[key] : {};
+    }
+
     function readDescribePromptOptions() {
+        const topbar = window.simpleaiTopbarSystemParams && typeof window.simpleaiTopbarSystemParams === 'object'
+            ? window.simpleaiTopbarSystemParams
+            : {};
+        const prepared = topbar.__preset_prepared && typeof topbar.__preset_prepared === 'object'
+            ? topbar.__preset_prepared
+            : {};
+        const engine = prepared.engine && typeof prepared.engine === 'object' ? prepared.engine : {};
+        const backendParams = engine.backend_params && typeof engine.backend_params === 'object' ? engine.backend_params : {};
+        const presetName = readCurrentPresetName(topbar, prepared);
+        const presetMeta = readPresetStoreMeta(topbar, presetName);
         return {
             output_tags: readCheckboxValue('describe_output_tags', false),
             output_chinese: readCheckboxValue('describe_output_chinese', false),
-            output_artist: readCheckboxValue('describe_output_artist', false)
+            output_artist: readCheckboxValue('describe_output_artist', false),
+            preset: presetName,
+            backend_engine: String(topbar.__backend_engine || topbar.backend_engine || engine.backend_engine || backendParams.backend_engine || presetMeta.backend_engine || ''),
+            task_method: String(topbar.task_method || engine.task_method || backendParams.task_method || presetMeta.task_method || ''),
+            prompt_format: String(topbar.prompt_format || engine.prompt_format || backendParams.prompt_format || ''),
+            text_encoder: String(topbar.text_encoder || prepared.text_encoder || backendParams.text_encoder || prepared.default_clip_model || prepared.clip_model || prepared['CLIP Model'] || ''),
+            base_model: String(prepared.base_model || prepared.default_model || prepared['Base Model'] || backendParams.base_model || backendParams.model || '')
         };
     }
 

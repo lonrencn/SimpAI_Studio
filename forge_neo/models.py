@@ -199,7 +199,7 @@ class ForgeNeoModelChoices:
 @dataclass
 class ForgeNeoPresetModelDefaults:
     preset: str = "klein"
-    checkpoint: str = "None"
+    checkpoint: str | None = None
     modules: list[str] = field(default_factory=list)
     vae: str = "None"
     text_encoders: list[str] = field(default_factory=list)
@@ -715,6 +715,13 @@ def _match_choice(value: object, choices: list[str]) -> str:
     return ""
 
 
+def _requested_model_name(value: object) -> str:
+    text = str(value or "").strip()
+    if not text or text.casefold() in {"none", "automatic", "default", "default (model)"}:
+        return ""
+    return text
+
+
 def split_module_selection(values: list[str] | tuple[str, ...] | None, *, fallback_vae: str = "None") -> tuple[str, list[str]]:
     selected = _unique([str(item) for item in list(values or []) if str(item or "").strip()])
     selected_vae = ""
@@ -889,37 +896,58 @@ def preset_model_defaults(preset: str, choices: ForgeNeoModelChoices | None = No
     model_choices = choices or refresh_model_choices(preset_key)
     modules = module_choices(model_choices)
     simpai_defaults = _simpai_preset_model_defaults(preset_key)
-    source_checkpoint = _match_choice(_source_config_value(f"forge_checkpoint_{preset_key}"), model_choices.checkpoints)
-    simpai_checkpoint = _match_choice(simpai_defaults.get("checkpoint"), model_choices.checkpoints)
-    global_checkpoint = _match_choice(_source_config_value("sd_model_checkpoint"), model_choices.checkpoints)
-    if preset_key == "qwen" and simpai_checkpoint:
-        checkpoint = simpai_checkpoint
+    source_checkpoint_value = _requested_model_name(_source_config_value(f"forge_checkpoint_{preset_key}"))
+    simpai_checkpoint_value = _requested_model_name(simpai_defaults.get("checkpoint"))
+    global_checkpoint_value = _requested_model_name(_source_config_value("sd_model_checkpoint"))
+    source_checkpoint = _match_choice(source_checkpoint_value, model_choices.checkpoints)
+    simpai_checkpoint = _match_choice(simpai_checkpoint_value, model_choices.checkpoints)
+    global_checkpoint = _match_choice(global_checkpoint_value, model_choices.checkpoints)
+    checkpoint_missing = False
+    checkpoint_origin = ""
+    if preset_key == "qwen" and simpai_checkpoint_value:
+        checkpoint = simpai_checkpoint or None
+        checkpoint_missing = not bool(simpai_checkpoint)
+        checkpoint_origin = "simpai"
+    elif source_checkpoint_value:
+        checkpoint = source_checkpoint or None
+        checkpoint_missing = not bool(source_checkpoint)
+        checkpoint_origin = "source"
+    elif simpai_checkpoint_value:
+        checkpoint = simpai_checkpoint or None
+        checkpoint_missing = not bool(simpai_checkpoint)
+        checkpoint_origin = "simpai"
     else:
-        checkpoint = source_checkpoint or simpai_checkpoint or global_checkpoint or first_or_none(model_choices.checkpoints)
+        checkpoint = global_checkpoint or first_or_none(model_choices.checkpoints) or None
+        checkpoint_origin = "global" if checkpoint and checkpoint != "None" else ""
 
-    raw_modules = _as_list(_source_config_value(f"forge_additional_modules_{preset_key}"))
+    source_modules = _as_list(_source_config_value(f"forge_additional_modules_{preset_key}"))
     simpai_modules = _simpai_preset_modules(simpai_defaults)
-    if source_checkpoint:
-        raw_modules = _unique([*raw_modules, *simpai_modules])
-    elif simpai_checkpoint:
+    raw_modules_requested = False
+    if checkpoint_origin == "source":
+        raw_modules = _unique([*source_modules, *simpai_modules])
+        raw_modules_requested = bool(source_modules or simpai_modules)
+    elif checkpoint_origin == "simpai":
         raw_modules = simpai_modules
-    elif raw_modules:
-        pass
+        raw_modules_requested = bool(simpai_modules)
+    elif source_modules:
+        raw_modules = source_modules
+        raw_modules_requested = True
     else:
         raw_modules = _as_list(_source_config_value("forge_additional_modules"))
+        raw_modules_requested = bool(raw_modules)
     matched_modules = [matched for value in raw_modules if (matched := _match_choice(value, modules))]
     matched_modules = _unique(matched_modules)
-    if not matched_modules and not (simpai_checkpoint and not simpai_modules):
+    if not matched_modules and not checkpoint_missing and not raw_modules_requested and not (simpai_checkpoint and not simpai_modules):
         matched_modules = modules[:2]
 
     fallback_vae = _match_choice(simpai_defaults.get("vae"), model_choices.vae)
     if not fallback_vae:
-        fallback_vae = "None" if simpai_checkpoint else first_or_none(model_choices.vae)
+        fallback_vae = "None" if (checkpoint_missing or simpai_checkpoint or raw_modules_requested) else first_or_none(model_choices.vae)
     vae_name, text_values = split_module_selection(matched_modules, fallback_vae=fallback_vae)
     low_bits = _low_bits_from_source(
         _source_config_value(f"forge_unet_storage_dtype_{preset_key}") or _source_config_value("forge_unet_storage_dtype")
     )
-    loras, lora_weights = _simpai_preset_loras(simpai_defaults, model_choices.loras)
+    loras, lora_weights = ([], {}) if checkpoint_missing else _simpai_preset_loras(simpai_defaults, model_choices.loras)
     return ForgeNeoPresetModelDefaults(
         preset=preset_key,
         checkpoint=checkpoint,

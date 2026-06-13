@@ -1587,6 +1587,65 @@ def build_extras_infotext(request: ForgeNeoExtrasRequest, count: int) -> str:
     )
 
 
+def _progress_ratio(value: object, default: float = 0.0) -> float:
+    try:
+        ratio = float(value)
+    except (TypeError, ValueError):
+        ratio = default
+    if ratio != ratio:
+        ratio = default
+    return min(1.0, max(0.0, ratio))
+
+
+def _progress_int(value: object, default: int = 0) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(0, number)
+
+
+def _extras_item_progress_event(event: dict[str, object], *, index: int, total: int) -> dict[str, object]:
+    safe_total = max(1, int(total or 1))
+    safe_index = min(max(0, int(index or 0)), safe_total - 1)
+    child_progress = _progress_ratio(event.get("progress", 0.0))
+    aggregate_progress = min(0.99, max(0.0, (safe_index + child_progress) / safe_total))
+    message_en = str(event.get("message_en") or event.get("message") or "Extras working")
+    message_cn = str(event.get("message_cn") or message_en)
+    mapped = dict(event)
+    mapped.update(
+        {
+            "event": "progress",
+            "progress": aggregate_progress,
+            "message": f"Extras item {safe_index + 1}/{safe_total}: {message_en}",
+            "message_en": f"Extras item {safe_index + 1}/{safe_total}: {message_en}",
+            "message_cn": f"后期处理 {safe_index + 1}/{safe_total}: {message_cn}",
+        }
+    )
+    child_steps = _progress_int(event.get("sampling_steps", 0))
+    if child_steps > 0:
+        child_step = min(child_steps, _progress_int(event.get("sampling_step", 0)))
+        aggregate_steps = child_steps * safe_total
+        mapped["sampling_step"] = min(aggregate_steps, safe_index * child_steps + child_step)
+        mapped["sampling_steps"] = aggregate_steps
+    return mapped
+
+
+def _extras_item_progress_callback(
+    progress_callback: ProgressCallback | None,
+    *,
+    index: int,
+    total: int,
+) -> ProgressCallback | None:
+    if progress_callback is None:
+        return None
+
+    def callback(event: dict[str, object]) -> None:
+        progress_callback(_extras_item_progress_event(event, index=index, total=total))
+
+    return callback
+
+
 def _run_extras_video(
     request: ForgeNeoExtrasRequest,
     start: float,
@@ -1670,7 +1729,12 @@ def _run_extras_video(
                     elapsed_seconds=time.time() - start,
                 )
 
-            image = _video_frame_image(_resize_image(frame.to_image(), request, progress_callback, control_callback))
+            frame_progress_callback = _extras_item_progress_callback(
+                progress_callback,
+                index=processed_count,
+                total=total_frames if total_frames > 0 else processed_count + 2,
+            )
+            image = _video_frame_image(_resize_image(frame.to_image(), request, frame_progress_callback, control_callback))
             if output_stream is None:
                 output_stream = output_container.add_stream("mpeg4", rate=fps)
                 output_stream.width = image.width
@@ -1774,7 +1838,8 @@ def run_extras(
         if image is None:
             continue
         try:
-            resized = _resize_image(image, request, progress_callback, control_callback)
+            item_progress_callback = _extras_item_progress_callback(progress_callback, index=index, total=total)
+            resized = _resize_image(image, request, item_progress_callback, control_callback)
             images.append(resized)
         except Exception as exc:
             _emit(progress_callback, "finish", index / total, "error")

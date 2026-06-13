@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import random
 import subprocess
 import sys
 import tempfile
@@ -374,6 +375,148 @@ def _source_result_infotext(result: dict[str, Any]) -> str:
             return infotext
         return json.dumps(data, ensure_ascii=False)
     return str(raw or "")
+
+
+def _source_info_dict(value: object) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    text = str(value or "").strip()
+    if not text:
+        return {}
+    try:
+        data = json.loads(text)
+    except Exception:
+        return {}
+    return dict(data) if isinstance(data, dict) else {}
+
+
+def _source_child_info(result: object) -> dict[str, Any]:
+    debug_info = getattr(result, "debug_info", {}) or {}
+    if isinstance(debug_info, dict):
+        source_backend = debug_info.get("source_backend")
+        if isinstance(source_backend, dict):
+            return _source_info_dict(source_backend.get("source_info"))
+        return _source_info_dict(debug_info.get("source_info"))
+    return {}
+
+
+def _source_info_texts(info: dict[str, Any], fallback: str, count: int) -> list[str]:
+    raw_values = info.get("infotexts")
+    values = [str(item or "").strip() for item in raw_values] if isinstance(raw_values, list) else []
+    if not values and fallback:
+        values = [str(fallback).strip()]
+    if count <= 0:
+        return values
+    while len(values) < count:
+        values.append(values[-1] if values else "")
+    return values[:count]
+
+
+def _source_info_list(info: dict[str, Any], key: str) -> list[Any]:
+    values = info.get(key)
+    return list(values) if isinstance(values, list) else []
+
+
+def _source_sequential_seed(request: object) -> int:
+    seed = _source_seed_value(request)
+    if seed >= 0:
+        return seed
+    return int(random.randrange(0, 2**32 - 1))
+
+
+def _source_generation_batch_count(request: object) -> int:
+    return _source_request_int_arg(request, "batch_count", 1, field="n_iter", minimum=1, maximum=999)
+
+
+def _source_generation_batch_size(request: object) -> int:
+    return _source_request_int_arg(request, "batch_size", 1, field="batch_size", minimum=1, maximum=64)
+
+
+def _source_save_generation_outputs(images: list[Any], infotexts: list[str], seed: int) -> list[str]:
+    if not images:
+        return []
+    from forge_neo.runtime import _save_images
+
+    paths: list[str] = []
+    for index, image in enumerate(images):
+        text = infotexts[index] if index < len(infotexts) else (infotexts[-1] if infotexts else "")
+        image_seed = seed + index if seed >= 0 else seed
+        paths.extend(_save_images([image], text, image_seed))
+    return paths
+
+
+def _source_generation_progress_event(event: dict[str, Any], *, index: int, total: int, requested_steps: int) -> dict[str, Any]:
+    mapped = _source_batch_progress_event(event, index=index, total=total, requested_steps=requested_steps)
+    message_en = str(event.get("message_en") or event.get("message") or "Source backend working")
+    message_cn = str(event.get("message_cn") or message_en)
+    mapped.update(
+        {
+            "message": f"Source backend generation batch {index + 1}/{total}: {message_en}",
+            "message_en": f"Source backend generation batch {index + 1}/{total}: {message_en}",
+            "message_cn": f"源后端生成批次 {index + 1}/{total}: {message_cn}",
+        }
+    )
+    return mapped
+
+
+def _source_merged_generation_info(
+    request: object,
+    *,
+    source_infos: list[dict[str, Any]],
+    infotexts: list[str],
+    image_count: int,
+    seed: int,
+    batch_count: int,
+    batch_size: int,
+) -> dict[str, Any]:
+    base = dict(next((info for info in source_infos if info), {}))
+    all_prompts: list[Any] = []
+    all_negative_prompts: list[Any] = []
+    all_seeds: list[Any] = []
+    all_subseeds: list[Any] = []
+    for info in source_infos:
+        all_prompts.extend(_source_info_list(info, "all_prompts"))
+        all_negative_prompts.extend(_source_info_list(info, "all_negative_prompts"))
+        all_seeds.extend(_source_info_list(info, "all_seeds"))
+        all_subseeds.extend(_source_info_list(info, "all_subseeds"))
+
+    if not all_prompts:
+        all_prompts = [str(getattr(request, "prompt", "") or "") for _index in range(image_count)]
+    if not all_negative_prompts:
+        all_negative_prompts = [str(getattr(request, "negative_prompt", "") or "") for _index in range(image_count)]
+    if not all_seeds:
+        all_seeds = [seed + index if seed >= 0 else seed for index in range(image_count)]
+    if not all_subseeds:
+        subseed = _source_optional_int(getattr(request, "subseed", None))
+        all_subseeds = [subseed + index if subseed is not None and subseed >= 0 else -1 for index in range(image_count)]
+
+    prompt_value = str(base.get("prompt") or getattr(request, "prompt", "") or "")
+    negative_prompt_value = str(base.get("negative_prompt") or getattr(request, "negative_prompt", "") or "")
+    base.update(
+        {
+            "prompt": prompt_value,
+            "all_prompts": all_prompts,
+            "negative_prompt": negative_prompt_value,
+            "all_negative_prompts": all_negative_prompts,
+            "seed": all_seeds[0] if all_seeds else seed,
+            "all_seeds": all_seeds,
+            "subseed": all_subseeds[0] if all_subseeds else -1,
+            "all_subseeds": all_subseeds,
+            "subseed_strength": getattr(request, "subseed_strength", None) or 0.0,
+            "width": base.get("width", getattr(request, "width", None)),
+            "height": base.get("height", getattr(request, "height", None)),
+            "sampler_name": base.get("sampler_name", str(getattr(request, "sampler", "") or "")),
+            "cfg_scale": base.get("cfg_scale", getattr(request, "cfg_scale", None)),
+            "steps": base.get("steps", getattr(request, "steps", None)),
+            "batch_size": batch_size,
+            "n_iter": batch_count,
+            "index_of_first_image": int(base.get("index_of_first_image") or 0),
+            "infotexts": list(infotexts),
+            "styles": list(getattr(request, "styles", []) or []),
+            "version": str(base.get("version") or "forge-neo-source-backend-sequential"),
+        }
+    )
+    return base
 
 
 def _source_batch_path(value: object) -> Path | None:
@@ -1391,6 +1534,203 @@ def _run_source_backend_batch(
     )
 
 
+def _run_source_backend_generation_batches(
+    request: object,
+    *,
+    mode: str,
+    data_root: Path,
+    model_ref: Path | None,
+    timeout: float,
+    started: float,
+    progress_callback=None,
+    control_callback=None,
+):
+    from forge_neo.runtime import ForgeNeoResult
+
+    batch_count = _source_generation_batch_count(request)
+    batch_size = _source_generation_batch_size(request)
+    seed = _source_sequential_seed(request)
+    requested_steps = max(1, int(getattr(request, "steps", 1) or 1))
+    if progress_callback is not None:
+        progress_callback(
+            {
+                "event": "progress",
+                "progress": 0.04,
+                "message": f"Source backend generation queued {batch_count} batches",
+                "message_en": f"Source backend generation queued {batch_count} batches",
+                "message_cn": f"源后端生成已排队 {batch_count} 个批次",
+                "sampling_step": 0,
+                "sampling_steps": requested_steps * batch_count,
+            }
+        )
+
+    images: list[Any] = []
+    infotexts: list[str] = []
+    output_paths: list[str] = []
+    source_infos: list[dict[str, Any]] = []
+    for index in range(batch_count):
+        if control_callback is not None:
+            control_status = control_callback()
+            if control_status in {"stopped", "skipped"}:
+                return ForgeNeoResult(
+                    images=images,
+                    infotext=infotexts[0] if infotexts else "",
+                    seed=seed,
+                    status=str(control_status),
+                    error=f"Source backend generation was {control_status}.",
+                    output_paths=output_paths,
+                    elapsed_seconds=time.monotonic() - started,
+                    debug_info={
+                        "source_backend": {
+                            "mode": mode,
+                            "sequential_batches": True,
+                            "batch_count": batch_count,
+                            "batch_size": batch_size,
+                            "completed_batches": index,
+                            "source_info": _source_merged_generation_info(
+                                request,
+                                source_infos=source_infos,
+                                infotexts=infotexts,
+                                image_count=len(images),
+                                seed=seed,
+                                batch_count=batch_count,
+                                batch_size=batch_size,
+                            ),
+                        }
+                    },
+                )
+
+        child_seed = seed + index * batch_size if seed >= 0 else seed
+        task_prefix = str(getattr(request, "force_task_id", "") or f"forge-neo-source-backend-{mode}")
+        child_request = replace(
+            request,
+            batch_count=1,
+            seed=child_seed,
+            force_task_id=f"{task_prefix}-batch-{index + 1}",
+        )
+        child_payload = _source_backend_payload(child_request)
+        child_payload["payload"]["n_iter"] = 1
+        child_payload["payload"]["seed"] = child_seed
+        child_payload["payload"]["batch_size"] = batch_size
+        child_payload["payload"]["force_task_id"] = str(
+            getattr(child_request, "force_task_id", "") or f"forge-neo-source-backend-{mode}-batch-{index + 1}"
+        )
+
+        def generation_progress(event: dict[str, Any], *, item_index=index) -> None:
+            if progress_callback is None:
+                return
+            progress_callback(
+                _source_generation_progress_event(
+                    event,
+                    index=item_index,
+                    total=batch_count,
+                    requested_steps=max(1, int(getattr(child_request, "steps", requested_steps) or requested_steps)),
+                )
+            )
+
+        child_result = _SOURCE_BACKEND_SESSION.run(
+            request=child_request,
+            mode=mode,
+            payload=child_payload,
+            data_root=data_root,
+            model_ref=model_ref,
+            timeout=timeout,
+            started=started,
+            progress_callback=generation_progress,
+            control_callback=control_callback,
+        )
+        child_images = list(child_result.images or [])
+        child_info = _source_child_info(child_result)
+        child_infotexts = _source_info_texts(child_info, str(child_result.infotext or "").strip(), len(child_images))
+        if child_info:
+            source_infos.append(child_info)
+        if child_result.status == "finished":
+            images.extend(child_images)
+            infotexts.extend(child_infotexts)
+            output_paths.extend(list(child_result.output_paths or []) or _source_save_generation_outputs(child_images, child_infotexts, child_seed))
+            continue
+
+        if child_images:
+            images.extend(child_images)
+            infotexts.extend(child_infotexts)
+            output_paths.extend(list(child_result.output_paths or []) or _source_save_generation_outputs(child_images, child_infotexts, child_seed))
+        return ForgeNeoResult(
+            images=images,
+            infotext=infotexts[0] if infotexts else str(child_result.infotext or ""),
+            seed=seed,
+            status=child_result.status,
+            error=child_result.error,
+            output_paths=output_paths,
+            elapsed_seconds=time.monotonic() - started,
+            debug_info={
+                "source_backend": {
+                    "mode": mode,
+                    "sequential_batches": True,
+                    "batch_count": batch_count,
+                    "batch_size": batch_size,
+                    "failed_batch": index + 1,
+                    "child_debug": child_result.debug_info,
+                    "source_info": _source_merged_generation_info(
+                        request,
+                        source_infos=source_infos,
+                        infotexts=infotexts,
+                        image_count=len(images),
+                        seed=seed,
+                        batch_count=batch_count,
+                        batch_size=batch_size,
+                    ),
+                }
+            },
+        )
+
+    finished_without_images = not bool(getattr(request, "send_images", True))
+    if progress_callback is not None:
+        finish_event: dict[str, Any] = {
+            "event": "finish",
+            "progress": 1.0,
+            "message": "Source backend generation finished" if images or finished_without_images else "Source backend returned no image",
+            "message_en": "Source backend generation finished" if images or finished_without_images else "Source backend returned no image",
+            "message_cn": "源后端生成完成" if images or finished_without_images else "源后端没有返回图片",
+            "sampling_step": 0,
+            "sampling_steps": 0,
+            "eta_relative": 0.0,
+            "id_live_preview": int(time.monotonic() * 1000),
+        }
+        if images:
+            finish_event["current_image"] = images[0]
+        progress_callback(finish_event)
+
+    source_info = _source_merged_generation_info(
+        request,
+        source_infos=source_infos,
+        infotexts=infotexts,
+        image_count=len(images),
+        seed=seed,
+        batch_count=batch_count,
+        batch_size=batch_size,
+    )
+    return ForgeNeoResult(
+        images=images,
+        infotext=infotexts[0] if infotexts else "",
+        seed=seed,
+        status="finished" if images or finished_without_images else "error",
+        error="" if images or finished_without_images else "Source backend generation finished without returned images.",
+        output_paths=output_paths,
+        elapsed_seconds=time.monotonic() - started,
+        debug_info={
+            "source_backend": {
+                "mode": mode,
+                "sequential_batches": True,
+                "batch_count": batch_count,
+                "batch_size": batch_size,
+                "image_count": len(images),
+                "output_paths": output_paths,
+                "source_info": source_info,
+            }
+        },
+    )
+
+
 def run_source_backend_processing(request: object, progress_callback=None, control_callback=None):
     from forge_neo.runtime import ForgeNeoResult
 
@@ -1420,6 +1760,17 @@ def run_source_backend_processing(request: object, progress_callback=None, contr
             status="backend_unavailable",
             error=f"Source backend adapter currently supports txt2img/img2img/batch only, got {mode!r}.",
             elapsed_seconds=time.monotonic() - started,
+        )
+    if _source_generation_batch_count(request) > 1:
+        return _run_source_backend_generation_batches(
+            request,
+            mode=mode,
+            data_root=data_root,
+            model_ref=model_ref,
+            timeout=timeout,
+            started=started,
+            progress_callback=progress_callback,
+            control_callback=control_callback,
         )
 
     if progress_callback is not None:

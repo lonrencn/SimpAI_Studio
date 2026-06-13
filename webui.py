@@ -7742,12 +7742,49 @@ with shared.gradio_root:
             show_progress=False
         )
 
+        scene_sketch_flush_js = """() => {
+            try {
+                if (window.SimpAISketch?.flushAll) window.SimpAISketch.flushAll({ force: true, change: true });
+            } catch (e) {
+                console.warn("[UI-TRACE] scene_sketch_flush_failed", e);
+            }
+        }"""
+        generation_start_js = """() => {
+            try {
+                if (window.SimpAISketch?.flushAll) window.SimpAISketch.flushAll({ force: true, change: true });
+            } catch (e) {
+                console.warn("[UI-TRACE] scene_sketch_flush_failed", e);
+            }
+            try {
+                if (typeof window.simpleaiSyncModelsJsPanelBridge === "function") window.simpleaiSyncModelsJsPanelBridge();
+                if (typeof scheduleSimpleAIPresetGalleryClear === "function") scheduleSimpleAIPresetGalleryClear("generate_start");
+                else if (typeof clearSimpleAIPresetSwitchGalleryHidden === "function") clearSimpleAIPresetSwitchGalleryHidden("generate_start");
+            } catch (e) {
+                console.warn("[UI-TRACE] preset_gallery.generate_clear_failed", e);
+            }
+        }"""
+        preview_start_js = """() => {
+            try {
+                if (window.SimpAISketch?.flushAll) window.SimpAISketch.flushAll({ force: true, change: true });
+            } catch (e) {
+                console.warn("[UI-TRACE] scene_sketch_flush_failed", e);
+            }
+            try {
+                if (typeof window.simpleaiSyncModelsJsPanelBridge === "function") window.simpleaiSyncModelsJsPanelBridge();
+                if (typeof scheduleSimpleAIPresetGalleryClear === "function") scheduleSimpleAIPresetGalleryClear("preview_start");
+                else if (typeof clearSimpleAIPresetSwitchGalleryHidden === "function") clearSimpleAIPresetSwitchGalleryHidden("preview_start");
+            } catch (e) {
+                console.warn("[UI-TRACE] preset_gallery.preview_clear_failed", e);
+            }
+        }"""
+
         scene_batch_stop.click(fn=batch_stop_fn, inputs=[scene_batch_id], outputs=[scene_batch_status], queue=False, show_progress=False)
         scene_batch_evt = scene_batch_start.click(
             fn=lambda: [gr_update(interactive=False)] * len(batch_lock_controls),
             outputs=batch_lock_controls,
             queue=False,
-            show_progress=False
+            show_progress=False,
+            js=scene_sketch_flush_js,
         ).then(
             fn=sync_inpaint_engine_dropdowns_before_generation,
             inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls],
@@ -8447,7 +8484,7 @@ with shared.gradio_root:
         scene_batch_evt.then(topbar.process_after_generation, inputs=state_topbar, outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False) \
             .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once)});}')
 
-        generate_event = bind_generation_failure_cleanup(generate_button.click(_stash_scene_media_before_generation, inputs=[scene_video, scene_audio, scene_original_video_path, state_topbar, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder, generate_button, skip_button, stop_button, random_aspect_ratio_state], show_progress=False, js='()=>{try{if(typeof window.simpleaiSyncModelsJsPanelBridge==="function") window.simpleaiSyncModelsJsPanelBridge(); if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generate_start"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generate_start");}catch(e){console.warn("[UI-TRACE] preset_gallery.generate_clear_failed", e);}}'))
+        generate_event = bind_generation_failure_cleanup(generate_button.click(_stash_scene_media_before_generation, inputs=[scene_video, scene_audio, scene_original_video_path, state_topbar, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder, generate_button, skip_button, stop_button, random_aspect_ratio_state], show_progress=False, js=generation_start_js))
         generate_event = bind_generation_failure_cleanup(generate_event.success(cache_input_image_func, inputs=[state_topbar, enhance_checkbox, current_tab, uov_input_image, inpaint_input_image, enhance_input_image, scene_input_image1, scene_canvas_image], outputs=[cached_input_image], show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(show_generation_preview_surface, inputs=state_topbar, outputs=[progress_window, progress_gallery, progress_video, gallery, comparison_box, compare_btn], show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(
@@ -8490,7 +8527,7 @@ with shared.gradio_root:
         debug_true_state = gr.State(value=True)
         ctrls_preview = [debug_true_state if c == debugging_cn_preprocessor else c for c in ctrls]
 
-        preview_event = bind_generation_failure_cleanup(preview_preprocessing.click(_stash_scene_media_preview, inputs=[scene_video, scene_audio, scene_original_video_path, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder], show_progress=False, js='()=>{try{if(typeof window.simpleaiSyncModelsJsPanelBridge==="function") window.simpleaiSyncModelsJsPanelBridge(); if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("preview_start"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("preview_start");}catch(e){console.warn("[UI-TRACE] preset_gallery.preview_clear_failed", e);}}'))
+        preview_event = bind_generation_failure_cleanup(preview_preprocessing.click(_stash_scene_media_preview, inputs=[scene_video, scene_audio, scene_original_video_path, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder], show_progress=False, js=preview_start_js))
         preview_event = bind_generation_failure_cleanup(preview_event.success(lambda: (False, gr_update(visible=False), gr_update(visible=False), gr_update(visible=False), gr_update(value=None, visible=True), compare_button_gr_update(ready=False)), outputs=[comparison_state, comparison_box, progress_window, gallery, progress_gallery, compare_btn], show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(
             topbar.process_before_generation,

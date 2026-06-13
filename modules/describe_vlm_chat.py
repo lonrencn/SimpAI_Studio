@@ -19,12 +19,15 @@ DESCRIBE_CHAT_BASE_SYSTEM = (
 )
 
 PROMPT_ASSISTANT_SYSTEM = (
-    "Prompt-writing mode for SimpAI Describe Image chat. "
-    "The executable prompt action can only write text to the main prompt box. "
+    "Prompt-writing mode for SimpAI Web Describe Image chat. This is the regular SimpAI web prompt helper, not the infinite canvas. "
+    "There is no send/generate button in this chat. Its executable prompt action can only show a prompt card that writes text to the main prompt box. "
     "Allowed action types are set_prompt and append_prompt. "
-    "When the user asks to create, refine, fill, replace, append, or send a generation prompt, return exactly one JSON object: "
+    "When the user asks to create, refine, translate, rewrite, fill, replace, append, send, or prepare a generation prompt, return exactly one JSON object: "
     "{\"reply\":\"short user-facing reply\",\"actions\":[{\"type\":\"set_prompt\",\"prompt\":\"final prompt text\"}]}. "
     "Use append_prompt only when the user asks to add onto the current prompt. "
+    "Follow-up prompt requests such as another version, Chinese/English rewrite, more detail, shorter text, or style changes must also return the same action JSON shape. "
+    "If you write a usable prompt, put the complete prompt only in actions[0].prompt, not only in normal prose. "
+    "Do not use canvas action schemas, markdown tool calls, or prose-only completion notices for prompt-writing requests in this mode. "
     "Write the prompt in the style requested by the user; otherwise use concise image-generation prompt language. "
     "The visible reply must be short; the full final prompt must be in actions[0].prompt so the chat UI can show it for review."
 )
@@ -110,6 +113,7 @@ SimpAI UI guide skill:
 """
 
 SIMPAI_PRESET_GUIDE_SKILL_FILE = "simpai_preset_guide.md"
+ANIMA_PROMPT_SKILL_FILE = "anima_prompting.md"
 
 
 def _cancel_key(conversation_id="", request_id=""):
@@ -164,9 +168,39 @@ Danbooru tag prompt skill for Describe Image chat:
 - Put important content first: subject count, identity, composition, action, prop, expression, clothing, setting, weather, lighting, rendering/style, quality.
 - Use compact atom tags. Do not fabricate long prose tags by replacing spaces with underscores.
 - Preserve explicit count, action, prop, setting, relationship, and composition. Do not add conflicting count tags.
+- For named characters, include each character tag once. Do not create pseudo-character outfit tags such as klee_(genshin_impact_outfit) or nahida_(genshin_impact_outfit); use ordinary clothing tags only when needed.
 - Avoid sentence punctuation, markdown, generation controls, negative phrases, comments, and translated Chinese tags.
 - Example for "画美女撑伞图": "1girl, solo, holding_umbrella, umbrella, rain, walking, from_side, looking_to_the_side, long_hair, hair_ornament, hanfu, wide_sleeves, wet_pavement, stone_path, lantern, reflection, mist, depth_of_field, soft_lighting, backlighting, cinematic_composition, detailed_background"
 """
+
+ANIMA_DESCRIBE_PROMPT_ADAPTER = """
+Anima prompt skill adapter for SimpAI Web Describe Image chat:
+- Use the Anima rules below to format only `actions[0].prompt`.
+- The Web chat output JSON still must be `{"reply":"short reply","actions":[{"type":"set_prompt","prompt":"final Anima positive prompt"}]}`.
+- Do not output top-level `generate_image`, `subject_counts`, `draft_prompt`, or canvas confirmation-card payloads in this Web prompt helper.
+- The final prompt must be an English Anima positive prompt, not a generic natural-language paragraph and not Chinese prose.
+"""
+PROMPT_TARGET_OPTION_KEYS = (
+    "preset",
+    "preset_name",
+    "selected_preset",
+    "backend_engine",
+    "engine",
+    "engine_type",
+    "task_method",
+    "method",
+    "prompt_format",
+    "target_key",
+    "prompt_target",
+    "text_encoder",
+    "clip_model",
+    "clip",
+    "base_model",
+    "model",
+    "checkpoint",
+    "workflow",
+    "workflow_name",
+)
 
 PROMPT_INTENT_RE = re.compile(
     r"("
@@ -178,8 +212,6 @@ PROMPT_INTENT_RE = re.compile(
     r")",
     re.I,
 )
-
-
 def _clean_text(value):
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
@@ -217,6 +249,15 @@ def _describe_read_vlm_skill_file(filename, max_chars=24000):
 
 def _describe_preset_guide_skill():
     return _describe_read_vlm_skill_file(SIMPAI_PRESET_GUIDE_SKILL_FILE) or GUIDE_MODE_SYSTEM.strip()
+
+
+def _describe_anima_prompt_skill():
+    content = _describe_read_vlm_skill_file(ANIMA_PROMPT_SKILL_FILE, 16000)
+    if content and "## Output Contract" in content and "## Positive Prompt Shape" in content:
+        intro = content.split("## Output Contract", 1)[0].strip()
+        body = "## Positive Prompt Shape\n" + content.split("## Positive Prompt Shape", 1)[1].strip()
+        content = f"{intro}\n\n{body}".strip()
+    return "\n\n".join(part for part in (ANIMA_DESCRIBE_PROMPT_ADAPTER.strip(), content) if part).strip()
 
 
 def _normalize_chat_mode(value):
@@ -355,21 +396,136 @@ def _truthy(value, default=False):
     return str(value).strip().lower() in {"1", "true", "yes", "on", "支持", "是"}
 
 
+def _runtime_default_prompt_target_options():
+    try:
+        import modules.config as config
+    except (Exception, SystemExit):
+        return {}
+
+    preset = str(getattr(config, "preset", "") or "").strip()
+    preset_content = {}
+    if preset:
+        try:
+            preset_content = config.try_get_preset_content(preset) or {}
+        except (Exception, SystemExit):
+            preset_content = {}
+    if not isinstance(preset_content, dict):
+        preset_content = {}
+
+    default_engine = preset_content.get("default_engine")
+    if not isinstance(default_engine, dict):
+        default_engine = getattr(config, "default_engine", {})
+    if not isinstance(default_engine, dict):
+        default_engine = {}
+    backend_params = default_engine.get("backend_params", {})
+    if not isinstance(backend_params, dict):
+        backend_params = {}
+
+    return {
+        "preset": preset,
+        "backend_engine": default_engine.get("backend_engine") or getattr(config, "backend_engine", ""),
+        "task_method": backend_params.get("task_method") or "",
+        "prompt_format": backend_params.get("prompt_format") or "",
+        "text_encoder": (
+            backend_params.get("text_encoder")
+            or backend_params.get("clip_model")
+            or preset_content.get("default_clip_model")
+            or getattr(config, "default_clip_model", "")
+        ),
+        "base_model": (
+            preset_content.get("default_model")
+            or getattr(config, "default_base_model_name", "")
+            or getattr(config, "default_model", "")
+        ),
+    }
+
+
+def _has_prompt_target_options(options):
+    if not isinstance(options, dict):
+        return False
+    return any(str(options.get(key) or "").strip() for key in PROMPT_TARGET_OPTION_KEYS)
+
+
+def _merge_prompt_target_options(options, use_runtime_defaults=False):
+    merged = _runtime_default_prompt_target_options() if use_runtime_defaults and not _has_prompt_target_options(options) else {}
+    for key, value in (options if isinstance(options, dict) else {}).items():
+        if value is None:
+            continue
+        if isinstance(value, bool):
+            merged[key] = value
+            continue
+        if str(value or "").strip():
+            merged[key] = value
+    return merged
+
+
+def _prompt_target_field(options, *names):
+    for name in names:
+        value = options.get(name) if isinstance(options, dict) else None
+        if value is None:
+            continue
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _prompt_target_haystack(options):
+    options = options if isinstance(options, dict) else {}
+    fields = [
+        _prompt_target_field(options, "preset", "preset_name", "selected_preset"),
+        _prompt_target_field(options, "backend_engine", "engine", "engine_type"),
+        _prompt_target_field(options, "task_method", "method"),
+        _prompt_target_field(options, "prompt_format", "target_key", "prompt_target"),
+        _prompt_target_field(options, "text_encoder", "clip_model", "clip"),
+        _prompt_target_field(options, "base_model", "model", "checkpoint", "workflow", "workflow_name"),
+    ]
+    return " ".join(field for field in fields if field).lower()
+
+
+def _is_anima_prompt_target(options):
+    haystack = _prompt_target_haystack(options)
+    if not haystack:
+        return False
+    return bool(
+        re.search(r"(^|[^a-z0-9])anima([^a-z0-9]|$)", haystack)
+        or "anima_aio" in haystack
+        or "anima-base" in haystack
+        or "anima_base" in haystack
+    )
+
+
+def _prompt_mode_from_options(options):
+    options = options if isinstance(options, dict) else {}
+    if _is_anima_prompt_target(options):
+        return "anima"
+    return "danbooru_tags" if options.get("output_tags") else "natural"
+
+
 def _prompt_options_from_payload(payload, lang):
-    options = payload.get("prompt_options") if isinstance(payload.get("prompt_options"), dict) else {}
+    raw_options = payload.get("prompt_options") if isinstance(payload.get("prompt_options"), dict) else {}
+    chat_mode = _normalize_chat_mode(payload.get("chat_mode") or payload.get("describe_chat_mode"))
+    options = _merge_prompt_target_options(raw_options, use_runtime_defaults=chat_mode == "prompt")
     output_tags = _truthy(options.get("output_tags", payload.get("output_tags")), False)
     output_chinese = _truthy(options.get("output_chinese", payload.get("output_chinese")), _normalize_lang(lang) != "en")
     output_artist = _truthy(options.get("output_artist", payload.get("output_artist")), False)
     message = str(payload.get("message") or payload.get("prompt") or "")
-    chat_mode = _normalize_chat_mode(payload.get("chat_mode") or payload.get("describe_chat_mode"))
     prompt_intent = _truthy(payload.get("prompt_intent"), False) or bool(PROMPT_INTENT_RE.search(message))
     include_current_prompt = chat_mode == "prompt"
+    normalized_options = dict(options)
+    normalized_options.update({"output_tags": output_tags, "output_chinese": output_chinese, "output_artist": output_artist})
+    mode = _prompt_mode_from_options(normalized_options)
     return {
         "chat_mode": chat_mode,
-        "mode": "danbooru_tags" if output_tags else "natural",
+        "mode": mode,
         "output_tags": output_tags,
         "output_chinese": output_chinese,
         "output_artist": output_artist,
+        "target_preset": _prompt_target_field(options, "preset", "preset_name", "selected_preset"),
+        "target_backend_engine": _prompt_target_field(options, "backend_engine", "engine", "engine_type"),
+        "target_task_method": _prompt_target_field(options, "task_method", "method"),
+        "target_text_encoder": _prompt_target_field(options, "text_encoder", "clip_model", "clip"),
+        "target_base_model": _prompt_target_field(options, "base_model", "model", "checkpoint"),
         "custom_system_prompt": _clean_multiline_text(
             payload.get("custom_system_prompt")
             or payload.get("user_system_prompt")
@@ -384,22 +540,38 @@ def _prompt_options_from_payload(payload, lang):
 
 def _prompt_skill_section(options, lang):
     options = options if isinstance(options, dict) else {}
-    mode = options.get("mode") or ("danbooru_tags" if options.get("output_tags") else "natural")
+    mode = options.get("mode") or _prompt_mode_from_options(options)
     prompt_lang = "Chinese" if options.get("output_chinese") else "English"
-    target = (
-        "Prompt target: Danbooru tags. The action prompt must be English comma-separated tags."
-        if mode == "danbooru_tags"
-        else f"Prompt target: natural-language image prompt. The action prompt should use {prompt_lang} unless the user explicitly asks otherwise."
-    )
-    skill = DANBOORU_TAG_PROMPT_SKILL if mode == "danbooru_tags" else NATURAL_PROMPT_SKILL
+    if mode == "anima":
+        target = (
+            "Prompt target: Anima hybrid prompt for the active SimpAI preset. "
+            "The action prompt must be English Anima-compatible positive prompt text with compact Danbooru/Anima anchors and short `nltags` when useful."
+        )
+        skill = _describe_anima_prompt_skill()
+    elif mode == "danbooru_tags":
+        target = "Prompt target: Danbooru tags. The action prompt must be English comma-separated tags."
+        skill = DANBOORU_TAG_PROMPT_SKILL
+    else:
+        target = f"Prompt target: natural-language image prompt. The action prompt should use {prompt_lang} unless the user explicitly asks otherwise."
+        skill = NATURAL_PROMPT_SKILL
     artist_note = (
         "If Artist is enabled, include a few style/artist-direction cues only when they help the prompt; never invent a specific living artist name. "
         if options.get("output_artist")
         else ""
     )
+    target_context = (
+        f"Active target context: preset={options.get('target_preset') or 'unknown'}, "
+        f"backend_engine={options.get('target_backend_engine') or 'unknown'}, "
+        f"task_method={options.get('target_task_method') or 'unknown'}, "
+        f"text_encoder={options.get('target_text_encoder') or 'unknown'}, "
+        f"base_model={options.get('target_base_model') or 'unknown'}.\n"
+        if any(options.get(key) for key in ("target_preset", "target_backend_engine", "target_task_method", "target_text_encoder", "target_base_model"))
+        else ""
+    )
     return (
         f"{PROMPT_ASSISTANT_SYSTEM}\n"
         f"{target}\n"
+        f"{target_context}"
         f"{artist_note}"
         "Do not hide the real prompt in prose, and do not return only a completion notice.\n\n"
         f"{skill.strip()}"
@@ -535,6 +707,11 @@ def build_runtime_payload(payload):
         "describe_prompt_mode": prompt_options["mode"],
         "describe_prompt_intent": prompt_options["prompt_intent"],
         "describe_prompt_actions_enabled": prompt_actions_enabled,
+        "describe_prompt_target_preset": prompt_options["target_preset"],
+        "describe_prompt_target_backend_engine": prompt_options["target_backend_engine"],
+        "describe_prompt_target_task_method": prompt_options["target_task_method"],
+        "describe_prompt_target_text_encoder": prompt_options["target_text_encoder"],
+        "describe_prompt_target_base_model": prompt_options["target_base_model"],
         "describe_current_prompt_included": bool(prompt_options["include_current_prompt"] and str(current_prompt or "").strip()),
         "describe_custom_system_prompt": bool(prompt_options["custom_system_prompt"]),
         "describe_output_tags": prompt_options["output_tags"],
@@ -598,13 +775,66 @@ def _extract_json_object(text):
     return None
 
 
+_DANBOORU_CHARACTER_TAG_RE = re.compile(r"^(?P<name>[a-z0-9][a-z0-9_]*?)_\((?P<context>[^)]*)\)$", re.I)
+
+
+def sanitize_danbooru_character_outfit_tags(prompt_text):
+    source = str(prompt_text or "").strip()
+    if "," not in source:
+        return source
+
+    tags = [tag.strip() for tag in source.split(",")]
+    character_prefixes = set()
+    for tag in tags:
+        match = _DANBOORU_CHARACTER_TAG_RE.match(tag)
+        if not match:
+            continue
+        context = match.group("context").lower()
+        if "outfit" in context:
+            continue
+        character_prefixes.add(match.group("name").lower())
+
+    if not character_prefixes:
+        return source
+
+    cleaned = []
+    changed = False
+    seen = set()
+    for tag in tags:
+        if not tag:
+            continue
+        match = _DANBOORU_CHARACTER_TAG_RE.match(tag)
+        if match and match.group("name").lower() in character_prefixes and "outfit" in match.group("context").lower():
+            changed = True
+            continue
+        tag_key = tag.lower()
+        if tag_key in seen:
+            changed = True
+            continue
+        seen.add(tag_key)
+        cleaned.append(tag)
+
+    return ", ".join(cleaned) if changed else source
+
+
 def normalize_limited_actions(actions):
     normalized = []
     for item in actions if isinstance(actions, list) else []:
         if not isinstance(item, dict):
             continue
         action_type = str(item.get("type") or item.get("action") or "").strip().lower().replace("-", "_")
-        if action_type in {"replace_prompt", "fill_prompt", "send_prompt"}:
+        if action_type in {
+            "replace_prompt",
+            "fill_prompt",
+            "send_prompt",
+            "write_prompt",
+            "text_to_image",
+            "generate_image",
+            "image_generation",
+            "create_image",
+            "make_image",
+            "draw_image",
+        }:
             action_type = "set_prompt"
         if action_type not in ALLOWED_PROMPT_ACTIONS:
             continue
@@ -617,6 +847,7 @@ def normalize_limited_actions(actions):
         ).strip()
         if not prompt_text:
             continue
+        prompt_text = sanitize_danbooru_character_outfit_tags(prompt_text)
         if action_type in {"refine_prompt", "describe_image_to_prompt", "text_to_prompt"}:
             action_type = "set_prompt"
         normalized.append(
