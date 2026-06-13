@@ -659,7 +659,7 @@ def print_instructions():
     time.sleep(0.1)
     print(f"{Fore.GREEN}★{Style.RESET_ALL}打开默认浏览器设置，关闭GPU加速、或图形加速的选项。{Fore.GREEN}★{Style.RESET_ALL}大内存(64+)与固态硬盘存放模型有助于减少模型加载时间。{Fore.GREEN}★{Style.RESET_ALL}")
     time.sleep(0.1)
-    print(f"{Fore.GREEN}★{Style.RESET_ALL}疑难杂症进QQ群求助：1005085136{Fore.GREEN}★{Style.RESET_ALL}脚本：✿   冰華 |版本:26.04.06{Fore.GREEN}★{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}★{Style.RESET_ALL}疑难杂症进QQ群求助：1005085136{Fore.GREEN}★{Style.RESET_ALL}脚本：✿   冰華 |版本:26.06.13{Fore.GREEN}★{Style.RESET_ALL}")
     print()
     time.sleep(0.1)
 
@@ -2315,8 +2315,8 @@ packages = {'base_package': {'id': 1,
                          'info_links': ['https://modelscope.cn/models/Phr00t/Qwen-Rapid-AIO'],
                          'preset_sample': []},
  'anima_package': {'id': 10,
-                             'name': '[10]Anima动漫Preview3预置包',
-                            'note': 'Anima动漫Preview3-默认模型[anima-base-v1.0.safetensors]|显存需求：★★★ 速度：★★',
+                             'name': '[10]Anima动漫-base-v1.0预置包',
+                            'note': 'Anima动漫-base-v1.0-默认模型[anima-base-v1.0.safetensors]|显存需求：★★★ 速度：★★',
                             'files': ['diffusion_models,anima-base-v1.0.safetensors,4182218328,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/diffusion_models/anima-base-v1.0.safetensors,https://huggingface.co/circlestone-labs/Anima/resolve/main/split_files/diffusion_models/anima-base-v1.0.safetensors',
                                         'text_encoders,qwen_3_06b_base.safetensors,1192135096,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/text_encoders/qwen_3_06b_base.safetensors,https://huggingface.co/circlestone-labs/Anima/resolve/main/split_files/text_encoders/qwen_3_06b_base.safetensors',
                                         'vae,qwen_image_vae.safetensors,253806246,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/vae/qwen_image_vae.safetensors,https://huggingface.co/metercai/SimpleSDXL2/resolve/main/SimpleModels/vae/qwen_image_vae.safetensors',],
@@ -2603,7 +2603,7 @@ packages = {'base_package': {'id': 1,
                                      'controlnet,lllyasviel/Annotators/sk_model.pth,17173511,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/controlnet/lllyasviel/Annotators/sk_model.pth,https://huggingface.co/metercai/SimpleSDXL2/resolve/main/SimpleModels/controlnet/lllyasviel/Annotators/sk_model.pth',
                                      'controlnet,lllyasviel/Annotators/sk_model2.pth,17173511,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/controlnet/lllyasviel/Annotators/sk_model2.pth,https://huggingface.co/metercai/SimpleSDXL2/resolve/main/SimpleModels/controlnet/lllyasviel/Annotators/sk_model2.pth',
                                      'clip_vision,clip_vision_h.safetensors,1264219396,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/clip_vision/clip_vision_h.safetensors,https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors',
-                                     'ipadapter,ip-adapter-plus_sdxl_vit-h.bin,1013454427,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/ipadapter/ip-adapter-plus_sdxl_vit-h.bin,https://huggingface.co/metercai/SimpleSDXL2/resolve/main/SimpleModels/ipadapter/ip-adapter-plus_sdxl_vit-h.bin'],
+                                     'ipadapter,ip-adapter-plus_sdxl_vit-h.bin,1013454427,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/controlnet/ip-adapter-plus_sdxl_vit-h.bin,https://huggingface.co/metercai/SimpleSDXL2/resolve/main/SimpleModels/controlnet/ip-adapter-plus_sdxl_vit-h.bin'],
                            'info_links': ['https://modelscope.cn/models/depth-anything/Depth-Anything-V2-Large'],
                            'preset_sample': []},
  'one_key_pose_package': {'id': 27,
