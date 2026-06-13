@@ -1770,6 +1770,199 @@ def _encode_controlnet_result_image(value: object) -> str:
     return "Detect result is not image"
 
 
+_SOURCE_BASIC_UPSCALERS = {"", "none", "nearest", "bilinear", "bicubic", "lanczos"}
+
+
+def _decode_source_image(value: object):
+    from PIL import Image
+
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError("Invalid encoded image")
+    if text.startswith("data:image/") and "," in text:
+        text = text.split(",", 1)[1]
+    raw = base64.b64decode(text, validate=False)
+    return Image.open(io.BytesIO(raw)).convert("RGB")
+
+
+def _source_resample_filter(name: str):
+    from PIL import Image
+
+    key = str(name or "").casefold()
+    if "nearest" in key:
+        return Image.Resampling.NEAREST
+    if "bilinear" in key:
+        return Image.Resampling.BILINEAR
+    if "bicubic" in key:
+        return Image.Resampling.BICUBIC
+    return Image.Resampling.LANCZOS
+
+
+def _source_upscale_target(image, payload: dict[str, Any]) -> tuple[int, int]:
+    if str(payload.get("resize_mode") or "Scale by") == "Scale to":
+        return (
+            max(1, _as_int(payload.get("resize_width"), image.width)),
+            max(1, _as_int(payload.get("resize_height"), image.height)),
+        )
+    scale = max(0.05, _as_float(payload.get("resize_scale"), 1.0))
+    target_width = max(1, round(image.width * scale))
+    target_height = max(1, round(image.height * scale))
+    max_side_length = max(0, _as_int(payload.get("max_side_length"), 0))
+    if max_side_length > 0 and max(target_width, target_height) > max_side_length:
+        ratio = max_side_length / max(target_width, target_height)
+        target_width = max(1, round(target_width * ratio))
+        target_height = max(1, round(target_height * ratio))
+    return target_width, target_height
+
+
+def _source_basic_upscale(image, payload: dict[str, Any], upscaler_name: str):
+    source = image.convert("RGBA")
+    target_width, target_height = _source_upscale_target(source, payload)
+    if str(payload.get("resize_mode") or "Scale by") == "Scale to" and bool(payload.get("crop_to_fit", True)):
+        ratio = max(target_width / source.width, target_height / source.height)
+        intermediate = source.resize(
+            (max(1, round(source.width * ratio)), max(1, round(source.height * ratio))),
+            _source_resample_filter(upscaler_name),
+        )
+        left = max(0, (intermediate.width - target_width) // 2)
+        top = max(0, (intermediate.height - target_height) // 2)
+        return intermediate.crop((left, top, left + target_width, top + target_height)).convert("RGB")
+    return source.resize((target_width, target_height), _source_resample_filter(upscaler_name)).convert("RGB")
+
+
+def _limit_size_by_one_dimension(width: float, height: float, limit: int) -> tuple[int, int]:
+    if limit <= 0:
+        return int(width), int(height)
+    if height > width and height > limit:
+        width = limit * width // height
+        height = limit
+    elif width > limit:
+        height = limit * height // width
+        width = limit
+    return int(width), int(height)
+
+
+def _source_model_upscale_args(image, payload: dict[str, Any]) -> tuple[int, float, int, int, bool]:
+    resize_mode = str(payload.get("resize_mode") or "Scale by")
+    resize_width = max(1, _as_int(payload.get("resize_width"), image.width))
+    resize_height = max(1, _as_int(payload.get("resize_height"), image.height))
+    crop_to_fit = bool(payload.get("crop_to_fit", True))
+    if resize_mode == "Scale to":
+        upscale_by = max(resize_width / image.width, resize_height / image.height)
+        return 1, max(0.05, upscale_by), resize_width, resize_height, crop_to_fit
+
+    upscale_by = max(0.05, _as_float(payload.get("resize_scale"), 1.0))
+    max_side_length = max(0, _as_int(payload.get("max_side_length"), 0))
+    if max_side_length and max(*image.size) * upscale_by > max_side_length:
+        resize_width, resize_height = _limit_size_by_one_dimension(image.width * upscale_by, image.height * upscale_by, max_side_length)
+        upscale_by = max(resize_width / image.width, resize_height / image.height)
+        return 1, max(0.05, upscale_by), resize_width, resize_height, False
+    return 0, upscale_by, resize_width, resize_height, False
+
+
+def _source_refresh_upscalers() -> list:
+    from modules import modelloader, shared
+
+    modelloader.load_upscalers()
+    return list(getattr(shared, "sd_upscalers", []) or [])
+
+
+def _source_named_upscaler(name: str):
+    selected = str(name or "").strip()
+    if not selected or selected.casefold() == "none":
+        return None
+    scalers = _source_refresh_upscalers()
+    for scaler in scalers:
+        if str(getattr(scaler, "name", "") or "") == selected:
+            return scaler
+    selected_key = selected.casefold()
+    for scaler in scalers:
+        if str(getattr(scaler, "name", "") or "").casefold() == selected_key:
+            return scaler
+    available = ", ".join(str(getattr(scaler, "name", "") or "") for scaler in scalers)
+    raise ValueError(f"could not find upscaler named {selected!r}; available: {available}")
+
+
+def _source_model_upscale(image, payload: dict[str, Any], upscaler_name: str):
+    from PIL import Image
+
+    upscaler = _source_named_upscaler(upscaler_name)
+    if upscaler is None:
+        return _source_basic_upscale(image, payload, upscaler_name)
+    upscale_mode, upscale_by, resize_width, resize_height, crop_to_fit = _source_model_upscale_args(image, payload)
+    output = upscaler.scaler.upscale(image.convert("RGB"), upscale_by, upscaler.data_path)
+    if upscale_mode == 1 and crop_to_fit:
+        cropped = Image.new("RGB", (resize_width, resize_height))
+        cropped.paste(output, box=(resize_width // 2 - output.width // 2, resize_height // 2 - output.height // 2))
+        output = cropped
+    return output.convert("RGB")
+
+
+def _source_upscale_one(image, payload: dict[str, Any], upscaler_name: str):
+    name = str(upscaler_name or "").strip()
+    if name.casefold() in _SOURCE_BASIC_UPSCALERS:
+        return _source_basic_upscale(image, payload, name)
+    return _source_model_upscale(image, payload, name)
+
+
+def _run_upscale(payload: dict[str, Any], data_root: Path) -> dict[str, Any]:
+    from PIL import Image
+
+    started = time.monotonic()
+    _get_source_context(data_root)
+    control_path = _payload_control_path(payload)
+    control_action = _source_control_action(control_path)
+    if control_action:
+        return {"ok": False, "error": f"Source backend upscaler was {control_action}.", "status": control_action}
+
+    image = _decode_source_image(payload.get("image"))
+    upscaler_1 = str(payload.get("upscaler_1") or "None")
+    upscaler_2 = str(payload.get("upscaler_2") or "None")
+    upscaler_2_visibility = max(0.0, min(1.0, _as_float(payload.get("upscaler_2_visibility"), 0.0)))
+
+    _emit_event(_stage_event(0.2, f"Source upscaler loading {upscaler_1}", f"源后端放大器加载 {upscaler_1}"))
+    output = _source_upscale_one(image, payload, upscaler_1)
+    if upscaler_2_visibility > 0 and upscaler_2.strip().casefold() != "none":
+        control_action = _source_control_action(control_path)
+        if control_action:
+            return {"ok": False, "error": f"Source backend upscaler was {control_action}.", "status": control_action}
+        _emit_event(_stage_event(0.62, f"Source upscaler loading {upscaler_2}", f"源后端放大器加载 {upscaler_2}"))
+        second = _source_upscale_one(image, payload, upscaler_2)
+        if second.mode != output.mode:
+            second = second.convert(output.mode)
+        if second.size != output.size:
+            second = second.resize(output.size, _source_resample_filter("Lanczos"))
+        output = Image.blend(output, second, upscaler_2_visibility)
+
+    if bool(payload.get("color_correction", False)):
+        try:
+            from modules.processing import apply_color_correction, setup_color_correction
+
+            output = apply_color_correction(setup_color_correction(image), output)
+        except Exception as exc:
+            _emit_event(_stage_event(0.88, f"Source upscaler color correction skipped: {type(exc).__name__}: {exc}", f"源后端颜色校正已跳过：{type(exc).__name__}: {exc}"))
+
+    try:
+        from modules import devices
+
+        devices.torch_gc()
+    except Exception:
+        pass
+    _emit_event(_stage_event(1.0, "Source upscaler finished", "源后端放大器完成"))
+    return {
+        "ok": True,
+        "images": [_to_text_image(output)],
+        "info": f"Source upscaler: {upscaler_1}, upscaler 2: {upscaler_2}, visibility: {upscaler_2_visibility}",
+        "parameters": {
+            "upscaler_1": upscaler_1,
+            "upscaler_2": upscaler_2,
+            "upscaler_2_visibility": upscaler_2_visibility,
+            "size": [output.width, output.height],
+        },
+        "elapsed_seconds": round(time.monotonic() - started, 3),
+    }
+
+
 def _run_controlnet_detect(payload: dict[str, Any], data_root: Path, source_root: Path) -> dict[str, Any]:
     import numpy as np
 
@@ -2810,6 +3003,8 @@ def _serve_loop(data_root: Path, source_root: Path) -> int:
             _CURRENT_JOB_ID = job_id
             if mode == "controlnet_detect":
                 result = _run_controlnet_detect(payload, data_root, source_root)
+            elif mode == "upscale":
+                result = _run_upscale(payload, data_root)
             elif mode == "txt2img":
                 result = _run_txt2img(payload, data_root)
             elif mode == "img2img":
@@ -2872,6 +3067,8 @@ def main() -> int:
         source_root = _setup_source_imports(backend_root, data_root, model_ref)
         if mode == "controlnet_detect":
             result = _run_controlnet_detect(payload, data_root, source_root)
+        elif mode == "upscale":
+            result = _run_upscale(payload, data_root)
         elif mode == "txt2img":
             result = _run_txt2img(payload, data_root)
         elif mode == "img2img":

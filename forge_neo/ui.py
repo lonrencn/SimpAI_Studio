@@ -5,7 +5,9 @@ import csv
 import html as html_lib
 import io
 import json
+import os
 import random
+import subprocess
 import sys
 import urllib.parse
 from collections.abc import Mapping
@@ -189,7 +191,7 @@ from forge_neo.storyboard import (
     update_storyboard_cell_description,
     update_storyboard_cell_image,
 )
-from forge_neo.styles import apply_style_names, delete_style, get_style, save_style, style_choices
+from forge_neo.styles import apply_style_names, apply_styles_to_prompt, delete_style, get_style, save_style, style_choices
 from forge_neo.ui_components import InputAccordion
 from forge_neo.worker import skip_current, stop_current, unload_runtime_state, worker
 from ui.bootstrap import create_root_blocks
@@ -1111,10 +1113,12 @@ class StyleControls:
     negative_prompt: gr.Textbox
     edit: gr.Button
     close: gr.Button
+    close_top: gr.Button
     refresh: gr.Button
     save: gr.Button
     delete: gr.Button
     apply: gr.Button
+    materialize: gr.Button
     copy: gr.Button
 
 
@@ -3738,10 +3742,20 @@ def _extras_upscaler_choices(include_none: bool = False) -> list[tuple[str, str]
         ("Bilinear", "双线性"),
         ("Bicubic", "双三次"),
         ("Lanczos", "兰索斯"),
+        ("ESRGAN", "ESRGAN"),
     ]
+    items.extend((name, name) for name in upscale_model_names())
     if include_none:
         items.insert(0, ("None", "无"))
-    return _localized_value_choices(items)
+    choices: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for value, label in items:
+        value = str(value or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        choices.append((value, label))
+    return _localized_value_choices(choices)
 
 
 def _low_bit_choices() -> list[object]:
@@ -4299,7 +4313,7 @@ def _xyz_model_choices() -> object:
 def _unique_text_choices(values: list[object]) -> list[str]:
     choices: list[str] = []
     for value in values:
-        text = str(value or "").strip()
+        text = str(value or "").strip().strip('"')
         if text and text not in choices:
             choices.append(text)
     return choices
@@ -5075,7 +5089,8 @@ def _extras_clicked(*values):
         status = f"{status}\n{_status(state, 'Saved:', '已保存：')} {result.output_paths[0]}"
     if len(result.output_paths) > 1:
         status = f"{status}\n+{len(result.output_paths) - 1}"
-    return _gallery_update(result.images), _infotext_html(result.infotext), _extras_status_update(status)
+    output_folder = _output_folder_from_paths(result.output_paths, request.output_dir or outputs_dir())
+    return _gallery_update(result.images), _infotext_html(result.infotext), _extras_status_update(status), output_folder
 
 
 def _extras_status_html(message: str) -> str:
@@ -5418,7 +5433,7 @@ def _settings_loaded_models_html(state, checkpoint_name, vae_name, text_encoders
     none_text = _label_for_lang(lang, "None", "无")
 
     def value_or_none(value: object) -> str:
-        text = str(value or "").strip()
+        text = str(value or "").strip().strip('"')
         return text if text else none_text
 
     if isinstance(text_encoders, (list, tuple, set)):
@@ -7138,8 +7153,58 @@ def _save_output_clicked(gallery, text: str, state, make_zip: bool, selected_ind
     return _output_status_update(f"{label} {paths[0]}")
 
 
-def _open_output_folder_clicked(state):
-    return _output_status_update(f"{_status(state, 'Output folder:', '输出目录：')} {outputs_dir()}")
+def _output_folder_from_paths(paths: list[object] | tuple[object, ...] | None, fallback: object = "") -> str:
+    for value in paths or []:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        path = Path(text).expanduser()
+        if path.is_dir():
+            return str(path)
+        if path.is_file() or path.suffix:
+            return str(path.parent)
+        return str(path)
+    return str(fallback or outputs_dir())
+
+
+def _open_folder_in_file_manager(path: str, opener=None) -> None:
+    if opener is not None:
+        opener(path)
+        return
+    if os.name == "nt":
+        os.startfile(path)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
+
+
+def _open_output_folder_clicked(state, folder_path: object = "", opener=None):
+    if isinstance(state, Mapping) and "local_access" in state and not state.get("local_access"):
+        message = _status(state, "This feature is only available on the local machine.", "此功能仅限本机使用。")
+        gr.Info(message)
+        return _output_status_update(message)
+
+    target_text = str(folder_path or outputs_dir()).strip().strip('"')
+    target = Path(target_text or outputs_dir()).expanduser()
+    if target.is_file():
+        target = target.parent
+    if not target.is_dir():
+        message = _status(state, "Output folder not found.", "未找到输出文件夹。")
+        gr.Warning(message)
+        return _output_status_update(message)
+
+    target_text = str(target)
+    try:
+        _open_folder_in_file_manager(target_text, opener=opener)
+    except Exception as exc:
+        message = _status(state, f"Could not open folder: {exc}", f"无法打开文件夹：{exc}")
+        gr.Warning(message)
+        return _output_status_update(message)
+
+    message = f"{_status(state, 'Opened:', '已打开：')} {target_text}"
+    gr.Info(message)
+    return _output_status_update(message)
 
 
 def _style_selected(name: str):
@@ -7152,9 +7217,53 @@ def _style_selected(name: str):
     return style.prompt, style.negative_prompt, gr.update(visible=True), gr.update(visible=True)
 
 
+def _style_editor_default_name(selected_styles: object = None) -> str:
+    selected_names: list[str] = []
+    if isinstance(selected_styles, (list, tuple, set)):
+        selected_names = [str(item or "").strip() for item in selected_styles]
+    else:
+        selected_names = [str(selected_styles or "").strip()]
+
+    for name in selected_names:
+        if name and name.lower() != "none" and get_style(name) is not None:
+            return name
+    for name in selected_names:
+        if name and get_style(name) is not None:
+            return name
+
+    for name in style_choices():
+        style = get_style(name)
+        if style is not None and str(name or "").strip().lower() != "none" and (style.prompt or style.negative_prompt):
+            return name
+    for name in style_choices():
+        if get_style(name) is not None:
+            return str(name or "").strip()
+    return ""
+
+
+def _open_style_editor_clicked(selected_styles: object = None):
+    choices = style_choices()
+    name = _style_editor_default_name(selected_styles)
+    prompt, negative_prompt, delete_update, save_update = _style_selected(name)
+    return (
+        gr.update(visible=True),
+        gr.update(choices=choices, value=name or None),
+        prompt,
+        negative_prompt,
+        delete_update,
+        save_update,
+    )
+
+
 def _apply_selected_styles(prompt: str, negative_prompt: str, selected_styles: list[str] | None):
     styled_prompt, styled_negative = apply_style_names(prompt, negative_prompt, list(selected_styles or []))
     return styled_prompt, styled_negative, []
+
+
+def _materialize_style_editor_clicked(prompt: str, negative_prompt: str, style_prompt: str, style_negative_prompt: str):
+    styled_prompt = apply_styles_to_prompt(prompt, [style_prompt])
+    styled_negative = apply_styles_to_prompt(negative_prompt, [style_negative_prompt])
+    return styled_prompt, styled_negative, [], gr.update(visible=False)
 
 
 def _copy_prompt_to_style(prompt: str, negative_prompt: str):
@@ -9377,6 +9486,9 @@ def _create_integrated_controls(prefix: str, *, is_img2img: bool) -> dict[str, g
     spectrum_visible = _builtin_ui_available(BUILTIN_SPECTRUM_EXTENSION, "scripts/spectrum.py")
     torch_compile_visible = _builtin_ui_available(BUILTIN_TORCH_COMPILE_EXTENSION)
     modulated_guidance_visible = _builtin_ui_available(BUILTIN_MODULATED_GUIDANCE_EXTENSION)
+    _create_adetailer_controls(controls, prefix, is_img2img=is_img2img, model_choices=model_choices)
+    _create_dynamic_prompts_controls(controls, prefix)
+    _create_regional_prompter_controls(controls, prefix)
     with gr.Accordion(_label("ControlNet Integrated", "ControlNet 集成"), open=False, visible=controlnet_visible, elem_id=_forge_elem(prefix, "controlnet"), elem_classes=["forge-neo-integrated-accordion"]):
         with gr.Tabs(elem_id=_forge_elem(prefix, "controlnet_tabs"), elem_classes=["forge-neo-mode-tabs", "forge-neo-controlnet-tabs"]):
             controlnet_units = []
@@ -10026,9 +10138,6 @@ def _create_integrated_controls(prefix: str, *, is_img2img: bool) -> dict[str, g
                 label=_label("End Layer", "结束层"),
                 elem_id=_forge_elem(prefix, "modulated_guidance_end_layer"),
             )
-    _create_adetailer_controls(controls, prefix, is_img2img=is_img2img, model_choices=model_choices)
-    _create_dynamic_prompts_controls(controls, prefix)
-    _create_regional_prompter_controls(controls, prefix)
     with InputAccordion(
         False,
         label=_label("SeedVarianceEnhancer Integrated", "种子变化增强集成"),
@@ -10084,46 +10193,66 @@ def _create_style_controls(prefix: str, styles: list[str], apply_button: gr.Butt
             elem_id=_forge_elem(prefix, "styles"),
         )
         edit_style_btn = _tool_button("🖌️", elem_id=_forge_elem(prefix, "style_edit"))
-    with gr.Accordion(
-        _label("styles.csv", "样式 CSV"),
-        open=True,
+    with gr.Group(
         visible=False,
         elem_id=_forge_elem(prefix, "style_editor"),
-        elem_classes=["forge-neo-style-editor-panel"],
+        elem_classes=["forge-neo-profile-modal", "forge-neo-style-modal"],
     ) as style_editor:
-        with gr.Row(elem_classes=["forge-neo-style-editor-row"]):
-            style_edit_select = gr.Dropdown(
-                styles,
-                value=None,
-                label=_label("Styles", "样式"),
-                allow_custom_value=True,
-                elem_id=_forge_elem(prefix, "style_edit_select"),
-            )
-            style_refresh = _tool_button("↻", elem_id=_forge_elem(prefix, "style_refresh"))
-            copy_style_btn = _tool_button("📝", elem_id=_forge_elem(prefix, "style_copy"))
-        style_prompt = gr.Textbox(label=_label("Prompt", "提示词"), lines=4, elem_id=_forge_elem(prefix, "edit_style_prompt"))
-        style_negative = gr.Textbox(
-            label=_label("Negative prompt", "反向提示词"),
-            lines=3,
-            elem_id=_forge_elem(prefix, "edit_style_negative"),
+        gr.HTML(
+            '<div class="forge-neo-style-modal-backdrop"></div>',
+            elem_id=_forge_elem(prefix, "style_modal_backdrop"),
+            elem_classes=["forge-neo-style-modal-backdrop-host"],
         )
-        with gr.Row():
-            style_save = gr.Button(
-                _label("Save", "保存"),
-                variant="primary",
-                visible=False,
-                elem_id=_forge_elem(prefix, "edit_style_save"),
+        with gr.Column(elem_classes=["forge-neo-profile-card", "forge-neo-style-modal-card"]):
+            with gr.Row(elem_classes=["forge-neo-style-modal-heading"]):
+                gr.Markdown(
+                    _label(
+                        "### Prompt Styles\nPrompt styles can insert reusable text into the prompt. Use `[prompt]` inside a style to replace it with the user's prompt; otherwise the style text is appended.",
+                        "### 预设样式\n预设样式允许将整段自定义文本添加到提示词中。在文本框中使用 `[prompt]` 来调用预设样式中同名预设，在应用预设样式时，它将被用户的提示词所替代。否则预设样式文本会被添加到提示词末尾。",
+                    ),
+                    elem_classes=["forge-neo-style-modal-intro"],
+                )
+                style_close_top = gr.Button(
+                    "×",
+                    elem_id=_forge_elem(prefix, "style_close_top"),
+                    elem_classes=["forge-neo-tool-button", "forge-neo-style-modal-close"],
+                    min_width=34,
+                )
+            with gr.Row(elem_classes=["forge-neo-style-editor-row"]):
+                style_edit_select = gr.Dropdown(
+                    styles,
+                    value=None,
+                    label=_label("Styles", "样式"),
+                    allow_custom_value=True,
+                    elem_id=_forge_elem(prefix, "style_edit_select"),
+                )
+                style_refresh = _tool_button("↻", elem_id=_forge_elem(prefix, "style_refresh"))
+                materialize_style_btn = _tool_button("📋", elem_id=_forge_elem(prefix, "style_apply_dialog"))
+                copy_style_btn = _tool_button("📝", elem_id=_forge_elem(prefix, "style_copy"))
+            style_prompt = gr.Textbox(label=_label("Prompt", "提示词"), lines=5, elem_id=_forge_elem(prefix, "edit_style_prompt"))
+            style_negative = gr.Textbox(
+                label=_label("Negative prompt", "反向提示词"),
+                lines=4,
+                elem_id=_forge_elem(prefix, "edit_style_negative"),
             )
-            style_delete = gr.Button(
-                _label("Delete", "删除"),
-                visible=False,
-                elem_id=_forge_elem(prefix, "edit_style_delete"),
-            )
-            style_close = gr.Button(
-                _label("Close", "关闭"),
-                variant="secondary",
-                elem_id=_forge_elem(prefix, "edit_style_close"),
-            )
+            with gr.Row(elem_classes=["forge-neo-style-modal-actions"]):
+                style_save = gr.Button(
+                    _label("Save", "保存"),
+                    variant="primary",
+                    visible=False,
+                    elem_id=_forge_elem(prefix, "edit_style_save"),
+                )
+                style_delete = gr.Button(
+                    _label("Delete", "删除"),
+                    variant="primary",
+                    visible=False,
+                    elem_id=_forge_elem(prefix, "edit_style_delete"),
+                )
+                style_close = gr.Button(
+                    _label("Close", "关闭"),
+                    variant="secondary",
+                    elem_id=_forge_elem(prefix, "edit_style_close"),
+                )
     return StyleControls(
         editor=style_editor,
         dropdown=style_dropdown,
@@ -10132,10 +10261,12 @@ def _create_style_controls(prefix: str, styles: list[str], apply_button: gr.Butt
         negative_prompt=style_negative,
         edit=edit_style_btn,
         close=style_close,
+        close_top=style_close_top,
         refresh=style_refresh,
         save=style_save,
         delete=style_delete,
         apply=apply_style_btn,
+        materialize=materialize_style_btn,
         copy=copy_style_btn,
     )
 
@@ -10171,8 +10302,9 @@ def _create_style_grid_bridge(prefix: str) -> StyleGridBridgeControls:
 
 def _wire_style_controls(controls: StyleControls, prompt: gr.Textbox, negative_prompt: gr.Textbox, state: gr.State, status: gr.HTML) -> None:
     controls.edit.click(
-        lambda: gr.update(visible=True),
-        outputs=[controls.editor],
+        _open_style_editor_clicked,
+        inputs=[controls.dropdown],
+        outputs=[controls.editor, controls.edit_select, controls.prompt, controls.negative_prompt, controls.delete, controls.save],
         show_progress=False,
         queue=False,
     )
@@ -10182,10 +10314,21 @@ def _wire_style_controls(controls: StyleControls, prompt: gr.Textbox, negative_p
         show_progress=False,
         queue=False,
     )
+    controls.close_top.click(
+        lambda: gr.update(visible=False),
+        outputs=[controls.editor],
+        show_progress=False,
+        queue=False,
+    )
     controls.apply.click(
         _apply_selected_styles,
         inputs=[prompt, negative_prompt, controls.dropdown],
         outputs=[prompt, negative_prompt, controls.dropdown],
+    )
+    controls.materialize.click(
+        _materialize_style_editor_clicked,
+        inputs=[prompt, negative_prompt, controls.prompt, controls.negative_prompt],
+        outputs=[prompt, negative_prompt, controls.dropdown, controls.editor],
     )
     controls.copy.click(
         _copy_prompt_to_style,
@@ -11715,6 +11858,7 @@ def create_app() -> gr.Blocks:
                                 extras_send_extras = _tool_button("📐", elem_id="forge_neo_extras_send_to_extras")
                             extras_infotext = gr.HTML(_infotext_html(""), elem_id="forge_neo_extras_infotext")
                             extras_infotext_raw = gr.State("")
+                            extras_output_folder = gr.State(str(outputs_dir()))
                             extras_status = gr.HTML(
                                 elem_id="forge_neo_extras_status",
                                 visible=False,
@@ -11749,7 +11893,7 @@ def create_app() -> gr.Blocks:
                             extras_codeformer_weight,
                             extras_video_input,
                         ],
-                        outputs=[extras_gallery, extras_infotext, extras_status],
+                        outputs=[extras_gallery, extras_infotext, extras_status, extras_output_folder],
                     )
                     extras_gallery.select(
                         _gallery_selected_index,
@@ -15613,7 +15757,7 @@ def create_app() -> gr.Blocks:
                 outputs=[img_status, *storyboard_outputs],
             )
 
-            extras_open_folder.click(_open_output_folder_clicked, inputs=[state], outputs=[extras_status])
+            extras_open_folder.click(_open_output_folder_clicked, inputs=[state, extras_output_folder], outputs=[extras_status])
             extras_send_img2img.click(
                 _send_output_to_img2img,
                 inputs=[extras_gallery, extras_infotext_raw, state, extras_gallery_selected_index],

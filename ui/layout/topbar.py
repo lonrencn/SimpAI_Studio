@@ -54,7 +54,7 @@ def create_topbar_layout(
             )
             if i == 5:
                 gr.HTML(value="", elem_classes="topbar_line_break")
-        root_blocks.load(get_start_timestamp, outputs=start_timestamp, queue=False)
+        root_blocks.load(get_start_timestamp, outputs=start_timestamp, queue=False, api_name="get_start_timestamp")
         root_blocks.load(get_wildcards_list, outputs=start_timestamp, queue=False)
 
     with gr.Row(visible=False, elem_classes="preset_store") as preset_store:

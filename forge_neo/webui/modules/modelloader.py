@@ -95,7 +95,7 @@ def _source_esrgan_scalers(commandline_model_path: str | None):
                 fallback_scalers.append(scaler)
             else:
                 local_scalers.append(scaler)
-    scalers = local_scalers or fallback_scalers
+    scalers = [*local_scalers, *fallback_scalers]
     return sorted(_unique_upscaler_scalers(scalers), key=lambda s: str(getattr(s, "name", "") or "").lower())
 
 

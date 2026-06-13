@@ -1744,14 +1744,24 @@
     // ==================== 核心功能 ====================
     async function fetchAppStatus() {
         try {
-            const response = await fetch('/gradio_api/run/predict', {
+            const headers = { 'Content-Type': 'application/json' };
+            let response = await fetch('/gradio_api/run/get_start_timestamp', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    fn_index: 0,
-                    data: []
-                })
+                credentials: 'same-origin',
+                headers,
+                body: JSON.stringify({ data: [] })
             });
+            if (!response.ok) {
+                response = await fetch('/gradio_api/run/predict', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers,
+                    body: JSON.stringify({
+                        fn_index: 0,
+                        data: []
+                    })
+                });
+            }
 
             if (!response.ok) throw new Error(t('Request failed', '请求失败'));
 

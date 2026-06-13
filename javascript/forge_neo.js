@@ -168,6 +168,153 @@
         return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
     }
 
+    const forgeNeoRepeatGenerationTargets = {
+        txt2img: {
+            generate: "#forge_neo_generate",
+            stop: "#forge_neo_stop"
+        },
+        img2img: {
+            generate: "#forge_neo_img2img_generate",
+            stop: "#forge_neo_img2img_stop"
+        },
+        extras: {
+            generate: "#forge_neo_extras_generate",
+            stop: "#forge_neo_extras_stop"
+        }
+    };
+    let forgeNeoRepeatGenerationTimer = null;
+    let forgeNeoRepeatLastTriggerAt = 0;
+
+    function forgeNeoContextMenuRoot() {
+        if (typeof window.gradioApp === "function") {
+            const root = window.gradioApp();
+            if (root) return root;
+        }
+        return document.body;
+    }
+
+    function removeForgeNeoContextMenu() {
+        const oldMenu = document.querySelector("#context-menu.forge-neo-context-menu");
+        if (oldMenu) oldMenu.remove();
+    }
+
+    function forgeNeoContextMenuPosition(event) {
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        const pageX = Number.isFinite(event.pageX) ? event.pageX : Number(event.clientX || 0) + scrollLeft;
+        const pageY = Number.isFinite(event.pageY) ? event.pageY : Number(event.clientY || 0) + scrollTop;
+        return { left: pageX, top: pageY, scrollLeft: scrollLeft, scrollTop: scrollTop };
+    }
+
+    function clampForgeNeoContextMenu(contextMenu, position) {
+        const margin = 4;
+        const width = contextMenu.offsetWidth + margin;
+        const height = contextMenu.offsetHeight + margin;
+        const maxLeft = position.scrollLeft + window.innerWidth - width;
+        const maxTop = position.scrollTop + window.innerHeight - height;
+        const left = Math.max(position.scrollLeft + margin, Math.min(position.left, maxLeft));
+        const top = Math.max(position.scrollTop + margin, Math.min(position.top, maxTop));
+        contextMenu.style.left = left + "px";
+        contextMenu.style.top = top + "px";
+    }
+
+    function showForgeNeoContextMenu(event, entries) {
+        removeForgeNeoContextMenu();
+        const contextMenu = document.createElement("nav");
+        contextMenu.id = "context-menu";
+        contextMenu.className = "forge-neo-context-menu";
+        const position = forgeNeoContextMenuPosition(event);
+        contextMenu.style.left = position.left + "px";
+        contextMenu.style.top = position.top + "px";
+
+        const contextMenuList = document.createElement("ul");
+        contextMenuList.className = "context-menu-items";
+        entries.forEach(function (entry) {
+            const item = document.createElement("a");
+            item.textContent = entry.name;
+            item.href = "#";
+            item.addEventListener("click", function (clickEvent) {
+                clickEvent.preventDefault();
+                removeForgeNeoContextMenu();
+                entry.func();
+            });
+            contextMenuList.appendChild(item);
+        });
+        contextMenu.appendChild(contextMenuList);
+        forgeNeoContextMenuRoot().appendChild(contextMenu);
+        clampForgeNeoContextMenu(contextMenu, position);
+    }
+
+    function stopForgeNeoRepeatGeneration() {
+        if (forgeNeoRepeatGenerationTimer) {
+            window.clearInterval(forgeNeoRepeatGenerationTimer);
+            forgeNeoRepeatGenerationTimer = null;
+        }
+        forgeNeoRepeatLastTriggerAt = 0;
+    }
+
+    function forgeNeoGenerateIsRunning(target) {
+        const generate = document.querySelector(target.generate);
+        const stop = document.querySelector(target.stop);
+        const box = generate ? generate.closest(".forge-neo-generate-box") : null;
+        return Boolean((box && box.classList.contains("is-running")) || isVisibleElement(stop));
+    }
+
+    function forgeNeoGenerateIsDisabled(generate) {
+        return Boolean(generate && (generate.disabled || generate.getAttribute("aria-disabled") === "true"));
+    }
+
+    function startForgeNeoRepeatGeneration(target) {
+        const forceTriggerAfterMs = 45000;
+        const tryGenerate = function () {
+            const generate = document.querySelector(target.generate);
+            if (!generate) return;
+            const now = Date.now();
+            if (!forgeNeoRepeatLastTriggerAt) forgeNeoRepeatLastTriggerAt = now;
+            if (forgeNeoGenerateIsRunning(target)) return;
+            const blockedMs = now - forgeNeoRepeatLastTriggerAt;
+            if (forgeNeoGenerateIsDisabled(generate) && blockedMs < forceTriggerAfterMs) return;
+            if (forgeNeoGenerateIsDisabled(generate)) {
+                generate.disabled = false;
+                generate.setAttribute("aria-disabled", "false");
+            }
+            generate.click();
+            forgeNeoRepeatLastTriggerAt = now;
+        };
+
+        stopForgeNeoRepeatGeneration();
+        tryGenerate();
+        forgeNeoRepeatGenerationTimer = window.setInterval(tryGenerate, 500);
+    }
+
+    function forgeNeoRepeatTargetForElement(element) {
+        if (!element || !element.closest) return null;
+        for (const target of Object.values(forgeNeoRepeatGenerationTargets)) {
+            if (element.closest(target.generate) || element.closest(target.stop)) return target;
+        }
+        return null;
+    }
+
+    function openForgeNeoGenerateContextMenu(event) {
+        const target = forgeNeoRepeatTargetForElement(event.target);
+        if (!target) return false;
+        showForgeNeoContextMenu(event, [
+            {
+                name: t("Generate forever", "无限生成"),
+                func: function () {
+                    startForgeNeoRepeatGeneration(target);
+                }
+            },
+            {
+                name: t("Cancel generate forever", "停止无限生成"),
+                func: stopForgeNeoRepeatGeneration
+            }
+        ]);
+        event.preventDefault();
+        event.stopPropagation();
+        return true;
+    }
+
     function populateForgeNeoLicenses() {
         const root = document.querySelector("#forge_neo_settings_licenses_html .forge-neo-source-licenses");
         if (!root || !isVisibleElement(root)) return;
@@ -1171,6 +1318,44 @@
         document.body.appendChild(overlay);
     }
 
+    const styleEditorModalSelector = ".forge-neo-style-modal-card";
+    const styleEditorBackdropSelector = "#forge_neo_style_modal_backdrop, #forge_neo_img2img_style_modal_backdrop";
+
+    function isStyleEditorModalVisible(modal) {
+        if (!modal) return false;
+        const style = window.getComputedStyle(modal);
+        return style.display !== "none" && style.visibility !== "hidden";
+    }
+
+    function closeStyleEditorModal(modal) {
+        const closeButton = modal && modal.querySelector("[id$='style_close_top'], [id$='style_close_top'] button, [id$='edit_style_close'], [id$='edit_style_close'] button");
+        if (closeButton) closeButton.click();
+    }
+
+    function closeStyleEditorFromBackdrop(backdrop) {
+        const id = String((backdrop && backdrop.id) || "");
+        const closeButton = document.querySelector(id.indexOf("img2img") >= 0 ? "#forge_neo_img2img_style_close_top" : "#forge_neo_style_close_top");
+        if (closeButton) closeButton.click();
+    }
+
+    function initStyleEditorModals() {
+        document.querySelectorAll(styleEditorBackdropSelector).forEach(function (backdrop) {
+            if (backdrop.dataset.forgeNeoStyleBackdropReady === "1") return;
+            backdrop.dataset.forgeNeoStyleBackdropReady = "1";
+            backdrop.addEventListener("click", function () {
+                closeStyleEditorFromBackdrop(backdrop);
+            });
+        });
+    }
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        const modal = Array.from(document.querySelectorAll(styleEditorModalSelector)).find(isStyleEditorModalVisible);
+        if (!modal) return;
+        closeStyleEditorModal(modal);
+        event.preventDefault();
+    });
+
     async function footerReload() {
         try {
             await fetch(appRoot() + "/forge-neo/api/reload-ui", { method: "POST", cache: "no-store" });
@@ -1195,10 +1380,14 @@
             ["#forge_neo_img2img_clear_prompt", "Clear prompt", "清空提示词"],
             ["#forge_neo_style_apply", "Apply selected styles", "应用所选样式"],
             ["#forge_neo_img2img_style_apply", "Apply selected styles", "应用所选样式"],
+            ["#forge_neo_style_apply_dialog", "Apply selected styles to prompt", "发送所选样式到提示词"],
+            ["#forge_neo_img2img_style_apply_dialog", "Apply selected styles to prompt", "发送所选样式到提示词"],
             ["#forge_neo_style_copy", "Copy prompt to style", "复制提示词到样式"],
             ["#forge_neo_img2img_style_copy", "Copy prompt to style", "复制提示词到样式"],
             ["#forge_neo_style_edit", "Edit styles.csv", "编辑 styles.csv"],
             ["#forge_neo_img2img_style_edit", "Edit styles.csv", "编辑 styles.csv"],
+            ["#forge_neo_style_close_top", "Close", "关闭"],
+            ["#forge_neo_img2img_style_close_top", "Close", "关闭"],
             ["#forge_neo_res_switch_btn", "Switch width and height", "互换宽高"],
             ["#forge_neo_img2img_res_switch_btn", "Switch width and height", "互换宽高"],
             ["#forge_neo_img2img_detect_image_size_btn", "Read size from input image", "读取输入图尺寸"],
@@ -1904,6 +2093,9 @@
     }
 
     document.addEventListener("click", function (event) {
+        if (!event.target.closest("#context-menu.forge-neo-context-menu")) {
+            removeForgeNeoContextMenu();
+        }
         const modeButton = event.target.closest("#forge_neo_img2img_mode_tabs button[role='tab']");
         const batchButton = event.target.closest("#forge_neo_img2img_batch_source button[role='tab']");
         const controlnetTabButton = event.target.closest(".forge-neo-controlnet-tabs button[role='tab']");
@@ -1958,6 +2150,8 @@
         scheduleSendTargetSwitch(sendTargetForClick(event.target));
     });
 
+    document.addEventListener("contextmenu", openForgeNeoGenerateContextMenu, true);
+
     document.addEventListener("change", function (event) {
         const master = event.target.closest(".forge-neo-extension-master-toggle");
         if (master) {
@@ -1994,6 +2188,7 @@
         ensureProgressPolling();
         populateForgeNeoLicenses();
         decorateExtraNetworkBrowsers();
+        initStyleEditorModals();
         if (document.body && !document.body.dataset.forgeNeoProgressCleanupObserver) {
             document.body.dataset.forgeNeoProgressCleanupObserver = "1";
             progressCleanupObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
@@ -2010,6 +2205,7 @@
     window.setInterval(syncControlNetPixelPerfectProcessor, 1200);
     window.setInterval(syncExtensionMasterToggle, 1200);
     window.setInterval(decorateExtraNetworkBrowsers, 1200);
+    window.setInterval(initStyleEditorModals, 1200);
     window.setInterval(populateForgeNeoLicenses, 1800);
     window.forgeNeoRequestNotifications = requestNotifications;
     window.forgeNeoExtensionsApply = collectExtensionApplyInputs;

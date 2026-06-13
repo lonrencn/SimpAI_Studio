@@ -25,6 +25,7 @@ from forge_neo.settings import load_settings
 
 ProgressCallback = Callable[[dict[str, object]], None]
 ControlCallback = Callable[[], str | None]
+LOCAL_EXTRAS_UPSCALERS = {"", "none", "nearest", "bilinear", "bicubic", "lanczos"}
 SAVE_LOG_FIELDS = [
     "prompt",
     "seed",
@@ -1486,7 +1487,50 @@ def _resample_filter(name: str):
     return Image.Resampling.LANCZOS
 
 
-def _resize_image(image: Image.Image, request: ForgeNeoExtrasRequest) -> Image.Image:
+def _extras_model_upscaler_requested(request: ForgeNeoExtrasRequest) -> bool:
+    primary = str(request.upscaler_1 or "").strip().casefold()
+    secondary = str(request.upscaler_2 or "").strip().casefold()
+    if primary not in LOCAL_EXTRAS_UPSCALERS:
+        return True
+    return float(request.upscaler_2_visibility or 0.0) > 0 and secondary not in LOCAL_EXTRAS_UPSCALERS
+
+
+def _run_source_backend_upscale(
+    image: Image.Image,
+    request: ForgeNeoExtrasRequest,
+    progress_callback: ProgressCallback | None,
+    control_callback: ControlCallback | None,
+) -> ForgeNeoResult:
+    from forge_neo.runtime_backend.source_runtime import run_source_backend_upscale
+
+    return run_source_backend_upscale(image, request, progress_callback=progress_callback, control_callback=control_callback)
+
+
+def _resize_image_with_source_backend(
+    image: Image.Image,
+    request: ForgeNeoExtrasRequest,
+    progress_callback: ProgressCallback | None,
+    control_callback: ControlCallback | None,
+) -> Image.Image:
+    result = _run_source_backend_upscale(image, request, progress_callback, control_callback)
+    if result.status != "finished" or not result.images:
+        detail = str(result.error or result.infotext or "Source backend upscaler returned no image.").strip()
+        raise RuntimeError(detail)
+    output = result.images[0]
+    if not isinstance(output, Image.Image):
+        raise RuntimeError("Source backend upscaler returned invalid image.")
+    return output
+
+
+def _resize_image(
+    image: Image.Image,
+    request: ForgeNeoExtrasRequest,
+    progress_callback: ProgressCallback | None = None,
+    control_callback: ControlCallback | None = None,
+) -> Image.Image:
+    if _extras_model_upscaler_requested(request):
+        return _resize_image_with_source_backend(image, request, progress_callback, control_callback)
+
     source = image.convert("RGBA")
     if request.resize_mode == "Scale to":
         target_width = max(1, int(request.resize_width or source.width))
@@ -1626,7 +1670,7 @@ def _run_extras_video(
                     elapsed_seconds=time.time() - start,
                 )
 
-            image = _video_frame_image(_resize_image(frame.to_image(), request))
+            image = _video_frame_image(_resize_image(frame.to_image(), request, progress_callback, control_callback))
             if output_stream is None:
                 output_stream = output_container.add_stream("mpeg4", rate=fps)
                 output_stream.width = image.width
@@ -1727,7 +1771,19 @@ def run_extras(
         image = _image_from_value(value)
         if image is None:
             continue
-        images.append(_resize_image(image, request))
+        try:
+            images.append(_resize_image(image, request, progress_callback, control_callback))
+        except Exception as exc:
+            _emit(progress_callback, "finish", index / total, "error")
+            return ForgeNeoResult(
+                images=images if request.show_results else [],
+                infotext=build_extras_infotext(request, len(images)),
+                seed=-1,
+                status="error",
+                error=f"Upscale failed: {type(exc).__name__}: {exc}",
+                output_paths=[],
+                elapsed_seconds=time.time() - start,
+            )
         path_labels.append(_file_label(value, f"extras-{index}"))
         _emit(progress_callback, "progress", (index + 1) / total, f"extras {index + 1}")
 

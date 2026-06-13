@@ -197,3 +197,11 @@ javascript/canvas_workbench/templates/perf/perf-vlm-timeline-200.canvas.json
 /forge_neo/webui/webui.settings.bat
 /forge_neo/webui/config_states/
 /forge_neo/webui/extensions/*
+comfy/user/__manager/channels.list
+comfy/user/__manager/config.ini
+comfy/user/default/ComfyUI-Impact-Subpack/model-whitelist.txt
+comfy/user/default/prompt-assistant/config/active_prompts.json
+comfy/user/default/prompt-assistant/config/config.json
+comfy/user/default/prompt-assistant/config/tags_user.json
+comfy/user/default/prompt-assistant/rules/kontext_presets.json
+comfy/user/default/prompt-assistant/rules/system_prompts.json

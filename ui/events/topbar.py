@@ -849,6 +849,9 @@ def bind_topbar_load_chain(
     scene_control_visibility_fn=None,
     scene_control_visibility_outputs=None,
     reset_layout_ui_fn=None,
+    admin_access_refresh_fn=None,
+    admin_access_user_select=None,
+    admin_access_outputs=None,
 ) -> None:
     def _debug_load_trace(event_name, *values):
         if not _simpai_ui_trace_enabled():
@@ -961,6 +964,7 @@ def bind_topbar_load_chain(
         return updates
 
     scene_visibility_output_count = len(scene_control_visibility_outputs or [])
+    admin_access_refresh_outputs = list(admin_access_outputs or [])
 
     def _load_scene_control_visibility(sp):
         if not _is_scene_state(sp) or not scene_control_visibility_fn or not scene_visibility_output_count:
@@ -980,7 +984,7 @@ def bind_topbar_load_chain(
 
     load_reset_layout_ui_fn = reset_layout_ui_fn or topbar_module.reset_layout_ui
 
-    root_blocks.load(
+    load_chain = root_blocks.load(
         fn=lambda x: x,
         inputs=system_params,
         outputs=state_topbar,
@@ -1236,6 +1240,15 @@ def bind_topbar_load_chain(
         show_progress=False,
     )
 
+    if admin_access_refresh_fn is not None and admin_access_user_select is not None and admin_access_refresh_outputs:
+        load_chain.then(
+            admin_access_refresh_fn,
+            inputs=[admin_access_user_select, state_topbar],
+            outputs=admin_access_refresh_outputs,
+            queue=False,
+            show_progress=False,
+        )
+
 
 def bind_topbar_identity_events(
     *,
@@ -1305,8 +1318,13 @@ def bind_topbar_identity_events(
         )
         return [stage, gr_update(visible=vcode_visible), gr_update(visible=phrase_visible)] + base[:10] + base[10:]
 
+    def _identity_state_update(state):
+        if isinstance(state, dict):
+            return dict(state)
+        return state
+
     def _identity_flow_row_updates_with_state(result, state):
-        return _identity_flow_row_updates(result) + [state]
+        return _identity_flow_row_updates(result) + [_identity_state_update(state)]
 
     def _after_identity_event_chain(chain):
         chain = chain.then(

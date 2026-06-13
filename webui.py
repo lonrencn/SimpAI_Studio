@@ -12,6 +12,7 @@ import tempfile
 import wave
 import functools
 import mimetypes
+from urllib.parse import unquote
 
 try:
     from extras.media_normalize import patch_gradio_processing_utils_for_missing_ffprobe as _patch_gradio_processing_utils_for_missing_ffprobe
@@ -349,20 +350,34 @@ def build_resolution_video_meta(video_path, source_id, active_source):
         return "{}"
 
 def get_cookie_value(cookie_string, key):
-    pattern = rf'{key}=([^;]+)'
+    pattern = rf'{re.escape(key)}=([^;]+)'
     match = re.search(pattern, cookie_string)
     if match:
-        return match.group(1)
+        return unquote(match.group(1))
     return None
+
+def _get_request_header(request, key, default=""):
+    headers = getattr(request, "headers", {}) or {}
+    try:
+        if hasattr(headers, "get"):
+            return headers.get(key) or headers.get(key.lower()) or headers.get(key.title()) or default
+    except Exception:
+        pass
+    return default
+
+def _get_request_aitoken(request):
+    try:
+        sid = get_cookie_value(_get_request_header(request, "cookie", ""), "aitoken")
+        return sid or ""
+    except Exception:
+        return ""
 
 def _get_request_identity_did(request):
     try:
-        headers = getattr(request, "headers", {}) or {}
-        if "cookie" not in headers:
-            return ""
-        sid = get_cookie_value(headers["cookie"], "aitoken")
+        sid = _get_request_aitoken(request)
         if not sid or not hasattr(shared.token, "check_sstoken_and_get_did"):
             return ""
+        headers = getattr(request, "headers", {}) or {}
         user_agent = headers.get("user-agent", "") if hasattr(headers, "get") else ""
         ua_hash = hashlib.sha256(user_agent.encode("utf-8")).hexdigest()
         did = shared.token.check_sstoken_and_get_did(sid, ua_hash)
@@ -371,10 +386,10 @@ def _get_request_identity_did(request):
         logger.debug(f"[IdentityAccess] status monitor did check failed: {e}")
         return ""
 
-def _pending_user_access_count_for_admin(user_did):
+def _pending_user_access_count():
     try:
         token = getattr(shared, "token", None)
-        if token is None or not user_did or not token.is_admin(user_did):
+        if token is None:
             return 0
         return sum(
             1 for record in identity_access.access_records(token)
@@ -388,11 +403,10 @@ def get_start_timestamp(request: gr.Request):
     global START_TIMESTAMP
 
     online_users, domain_online_nodes, domain_online_users, new_msg_number = 0, 0, 0, 0
-    if "cookie" in request.headers:
-        sid = get_cookie_value(request.headers["cookie"], "aitoken")
-        if sid:
-            online_users, domain_online_nodes, domain_online_users, new_msg_number = shared.token.log_access(sid)
-            #node_all, usesr_all, new_msg = shared.token.get_global_status(sid,0)
+    sid = _get_request_aitoken(request)
+    if sid:
+        online_users, domain_online_nodes, domain_online_users, new_msg_number = shared.token.log_access(sid)
+        #node_all, usesr_all, new_msg = shared.token.get_global_status(sid,0)
         
     qsize = worker.get_task_size()
     vram_ram_info = model_management.get_vram_ram_used()
@@ -400,7 +414,7 @@ def get_start_timestamp(request: gr.Request):
         logger.info(f'new messages: {shared.token.get_global_msg_all()}')
     user_did = _get_request_identity_did(request)
     is_admin = bool(user_did and getattr(shared, "token", None) is not None and shared.token.is_admin(user_did))
-    pending_access_count = _pending_user_access_count_for_admin(user_did) if is_admin else 0
+    pending_access_count = _pending_user_access_count()
     return f'{START_TIMESTAMP},{qsize},{vram_ram_info[0]},{vram_ram_info[1]},{vram_ram_info[2]},{vram_ram_info[3]},{online_users},{domain_online_users},{domain_online_nodes},{pending_access_count},{1 if is_admin else 0}'
 
 def get_wildcards_list(request: gr.Request):
@@ -430,7 +444,7 @@ def _normalize_model_bridge_value(value, default=""):
 def _is_default_upscale_model(value):
     return str(value or "").strip().lower() in ("", "auto", "default")
 
-def _apply_live_model_bridge_to_task_args(args, clip_model=None, upscale_model=None):
+def _apply_live_model_bridge_to_task_args(args, clip_model=None, upscale_model=None, prefer_existing_models=False):
     args = list(args)
     params_index = _raw_task_arg_index("params_backend")
     if not (0 <= params_index < len(args)):
@@ -440,17 +454,22 @@ def _apply_live_model_bridge_to_task_args(args, clip_model=None, upscale_model=N
     if clip_model is not None:
         existing_clip = _normalize_model_bridge_value(params.get("clip_model"))
         live_clip = _normalize_model_bridge_value(clip_model)
-        if live_clip and live_clip not in (modules.flags.default_clip, modules.flags.default_vae, "auto"):
-            params["clip_model"] = live_clip
-        elif existing_clip and existing_clip not in (modules.flags.default_clip, modules.flags.default_vae, "auto"):
+        existing_clip_is_custom = existing_clip and existing_clip not in (modules.flags.default_clip, modules.flags.default_vae, "auto")
+        live_clip_is_custom = live_clip and live_clip not in (modules.flags.default_clip, modules.flags.default_vae, "auto")
+        # model_params_state is updated on preset nav; hidden bridge controls can lag behind when Models tab is inactive.
+        if existing_clip_is_custom:
             params["clip_model"] = existing_clip
+        elif live_clip_is_custom and not prefer_existing_models:
+            params["clip_model"] = live_clip
         else:
             params.pop("clip_model", None)
 
     if upscale_model is not None:
         existing_upscale_model = _normalize_model_bridge_value(params.get("upscale_model"), "default")
         live_upscale_model = _normalize_model_bridge_value(upscale_model, "default")
-        if _is_default_upscale_model(live_upscale_model) and not _is_default_upscale_model(existing_upscale_model):
+        if prefer_existing_models:
+            params["upscale_model"] = existing_upscale_model or "default"
+        elif _is_default_upscale_model(live_upscale_model) and not _is_default_upscale_model(existing_upscale_model):
             params["upscale_model"] = existing_upscale_model
         else:
             params["upscale_model"] = live_upscale_model or "default"
@@ -582,7 +601,7 @@ def get_task_with_resolution_multiplier_and_model_state(*args):
         live_clip_model = args.pop()
     model_state = args.pop()
     args = _apply_model_params_state_to_task_args(args, model_state)
-    args = _apply_live_model_bridge_to_task_args(args, live_clip_model, live_upscale_model)
+    args = _apply_live_model_bridge_to_task_args(args, live_clip_model, live_upscale_model, prefer_existing_models=True)
     return get_task_with_resolution_multiplier(*(args + [resolution_multiplier, resolution_quantize_step]))
 
 def _minimal_dropdown_choices(*values):
@@ -7180,13 +7199,6 @@ with shared.gradio_root:
                 cache_ram.change(lambda x,y: ads.set_admin_default_value('cache_ram',x,y), inputs=[cache_ram, state_topbar])
                 wavespeed_strength.change(lambda x,y: ads.set_admin_default_value('wavespeed_strength',x,y), inputs=[wavespeed_strength, state_topbar])
                 admin_sync_button.click(topbar.admin_sync_to_guest, inputs=[state_topbar], outputs=admin_sync_button, queue=False, show_progress=False)
-                shared.gradio_root.load(
-                    _admin_access_refresh,
-                    inputs=[admin_access_user_select, state_topbar],
-                    outputs=admin_access_outputs,
-                    queue=False,
-                    show_progress=False,
-                )
                 admin_access_refresh_btn.click(
                     _admin_access_refresh_clicked,
                     inputs=[admin_access_user_select, state_topbar],
@@ -9565,6 +9577,9 @@ with shared.gradio_root:
         aspect_ratios_selections=aspect_ratios_selections,
         aspect_ratios_selection=aspect_ratios_selection,
         reset_layout_ui_fn=reset_layout_ui_model_bridge_safe,
+        admin_access_refresh_fn=_admin_access_refresh,
+        admin_access_user_select=admin_access_user_select,
+        admin_access_outputs=admin_access_outputs,
     )
 
 def dump_default_english_config():

@@ -21,13 +21,14 @@ class PromptStyle:
 
 
 def _csv_candidates() -> list[Path]:
-    candidates = [BUNDLED_STYLES_PATH, ROOT / "styles.csv"]
+    candidates: list[Path] = []
     try:
         config = ensure_config()
         user_style = Path(config.path_userhome) / "forge_neo" / "styles.csv"
         candidates.append(user_style)
     except Exception:
         pass
+    candidates.extend([ROOT / "styles.csv", BUNDLED_STYLES_PATH])
     return candidates
 
 
@@ -66,7 +67,9 @@ def load_styles() -> dict[str, PromptStyle]:
     styles: dict[str, PromptStyle] = {}
     for path in _csv_candidates():
         try:
-            styles.update(_load_csv(path))
+            for name, style in _load_csv(path).items():
+                if name not in styles:
+                    styles[name] = style
         except Exception:
             continue
     return styles

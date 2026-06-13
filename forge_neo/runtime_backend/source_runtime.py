@@ -317,6 +317,11 @@ def _source_job_console_line(job_id: str, mode: str, payload: dict[str, Any]) ->
             images = [images]
         module = str(payload.get("controlnet_module") or payload.get("module") or "None")
         return f"job {job_id[-8:]} queued mode=controlnet_detect module={module} images={len(images)}"
+    if mode == "upscale":
+        upscaler_1 = str(payload.get("upscaler_1") or "None")
+        upscaler_2 = str(payload.get("upscaler_2") or "None")
+        resize_mode = str(payload.get("resize_mode") or "Scale by")
+        return f"job {job_id[-8:]} queued mode=upscale upscaler={upscaler_1}/{upscaler_2} resize={resize_mode}"
     settings = payload.get("override_settings") if isinstance(payload.get("override_settings"), dict) else {}
     preset = str(settings.get("forge_preset") or payload.get("forge_preset") or "")
     checkpoint = str(payload.get("override_settings_checkpoint") or settings.get("sd_model_checkpoint") or "")
@@ -1431,6 +1436,61 @@ def run_source_backend_processing(request: object, progress_callback=None, contr
     return _SOURCE_BACKEND_SESSION.run(
         request=request,
         mode=mode,
+        payload=payload,
+        data_root=data_root,
+        model_ref=model_ref,
+        timeout=timeout,
+        started=started,
+        progress_callback=progress_callback,
+        control_callback=control_callback,
+    )
+
+
+def run_source_backend_upscale(image: object, request: object, progress_callback=None, control_callback=None):
+    from forge_neo.runtime import ForgeNeoResult
+
+    started = time.monotonic()
+    if control_callback is not None and control_callback() in {"stopped", "skipped"}:
+        return ForgeNeoResult(status="stopped", error="Source backend upscaler was interrupted before start.")
+
+    payload = {
+        "mode": "upscale",
+        "payload": {
+            "image": _encode_api_image(image),
+            "resize_mode": str(getattr(request, "resize_mode", "") or "Scale by"),
+            "resize_scale": float(getattr(request, "resize_scale", 4.0) or 4.0),
+            "max_side_length": int(getattr(request, "max_side_length", 0) or 0),
+            "resize_width": int(getattr(request, "resize_width", 1024) or 1024),
+            "resize_height": int(getattr(request, "resize_height", 1024) or 1024),
+            "crop_to_fit": bool(getattr(request, "crop_to_fit", True)),
+            "upscaler_1": str(getattr(request, "upscaler_1", "") or "None"),
+            "upscaler_2": str(getattr(request, "upscaler_2", "") or "None"),
+            "upscaler_2_visibility": float(getattr(request, "upscaler_2_visibility", 0.0) or 0.0),
+            "color_correction": bool(getattr(request, "color_correction", False)),
+        },
+    }
+    if not payload["payload"]["image"]:
+        return ForgeNeoResult(status="error", error="Source backend upscaler has no input image.")
+
+    data_root = _default_data_root().resolve()
+    model_ref_value = str(os.environ.get("FORGE_NEO_SOURCE_BACKEND_MODEL_REF", "") or "").strip()
+    model_ref = Path(model_ref_value).resolve() if model_ref_value else None
+    timeout = float(os.environ.get("FORGE_NEO_SOURCE_BACKEND_UPSCALE_TIMEOUT", os.environ.get("FORGE_NEO_SOURCE_BACKEND_TIMEOUT", "1800")) or 1800)
+
+    if progress_callback is not None:
+        progress_callback(
+            {
+                "event": "progress",
+                "progress": 0.04,
+                "message": "Source backend upscaler queued",
+                "message_en": "Source backend upscaler queued",
+                "message_cn": "源后端放大器排队中",
+            }
+        )
+
+    return _SOURCE_BACKEND_SESSION.run(
+        request=request,
+        mode="upscale",
         payload=payload,
         data_root=data_root,
         model_ref=model_ref,
