@@ -76,7 +76,7 @@ function simpleaiMediaSrc(elem) {
     return elem.currentSrc || elem.src || elem.getAttribute?.('src') || '';
 }
 
-const SIMPLEAI_IMAGE_DRAG_OUT_SELECTOR = [
+const SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR = [
     '#finished_gallery .gallery-container img',
     '#final_gallery .gallery-container img',
     '#scene_input_images img',
@@ -96,138 +96,46 @@ const SIMPLEAI_IMAGE_DRAG_OUT_SELECTOR = [
     '#ip_image_4 img'
 ].join(', ');
 
-function simpleaiImageDragOutSrc(img) {
-    const src = simpleaiMediaSrc(img);
-    return src ? simpleaiAbsoluteMediaSrc(src) : '';
-}
+const SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_LIMIT = 2048;
 
-function simpleaiIsImageDragOutCandidate(img) {
-    if (!img || img.tagName !== 'IMG') return false;
-    const src = simpleaiMediaSrc(img);
-    if (!src || src.startsWith('data:image/svg+xml')) return false;
-    const naturalWidth = Number(img.naturalWidth || 0);
-    const naturalHeight = Number(img.naturalHeight || 0);
-    if (naturalWidth && naturalHeight && (naturalWidth < 48 || naturalHeight < 48)) return false;
-    return true;
-}
-
-function simpleaiImageDragOutImages() {
-    return Array.from(gradioApp().querySelectorAll(SIMPLEAI_IMAGE_DRAG_OUT_SELECTOR)).filter(simpleaiIsImageDragOutCandidate);
-}
-
-function simpleaiIsVisibleImageDragOutCandidate(img) {
-    if (!simpleaiIsImageDragOutCandidate(img)) return false;
-    const rect = img.getBoundingClientRect();
-    return rect.width > 32 && rect.height > 32 && rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
-}
-
-function simpleaiEnableImageDragOutImage(img) {
-    if (!simpleaiIsImageDragOutCandidate(img)) return;
-    img.draggable = true;
-    img.dataset.simpleaiImageDragOut = "1";
-    img.dataset.simpleaiGalleryDragOut = "1";
-}
-
-function simpleaiBindImageDragOut() {
-    simpleaiImageDragOutImages().forEach(simpleaiEnableImageDragOutImage);
-}
-
-function simpleaiImageDragOutImageFromEvent(event) {
+function simpleaiLargeNativeImageDragPreviewImageFromEvent(event) {
     const target = event?.target;
     if (!target || !target.closest) return null;
-    const img = target.closest(SIMPLEAI_IMAGE_DRAG_OUT_SELECTOR);
-    if (!simpleaiIsImageDragOutCandidate(img)) return null;
+    const img = target.closest(SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR);
+    if (!img || img.tagName !== 'IMG') return null;
+    const src = simpleaiMediaSrc(img);
+    if (!src || src.startsWith('data:image/svg+xml')) return null;
     return img;
 }
 
-function simpleaiShouldStopImageDragPropagation(img) {
-    if (!img || !img.closest) return false;
-    if (img.closest('#finished_gallery, #final_gallery')) return false;
-    return true;
+function simpleaiShouldUseLargeNativeImageDragPreview(img) {
+    const width = Number(img?.naturalWidth || 0);
+    const height = Number(img?.naturalHeight || 0);
+    return width > SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_LIMIT || height > SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_LIMIT;
 }
 
-function simpleaiAbsoluteMediaSrc(src) {
-    try {
-        return new URL(src, document.baseURI).href;
-    } catch (e) {
-        return src;
-    }
+function simpleaiRemoveLargeNativeImageDragPreview() {
+    document.getElementById('simpleai-large-native-image-drag-preview')?.remove();
 }
 
-function simpleaiCanUseExternalImageDownloadDrag(src) {
-    try {
-        const url = new URL(src, document.baseURI);
-        return !['data:', 'blob:', 'javascript:'].includes(url.protocol);
-    } catch (e) {
-        return !/^(data|blob|javascript):/i.test(String(src || ''));
-    }
-}
-
-function simpleaiSafeDecodeUriPart(value) {
-    try {
-        return decodeURIComponent(value);
-    } catch (e) {
-        return value;
-    }
-}
-
-function simpleaiImageDragOutFileName(src) {
-    let path = '';
-    try {
-        path = new URL(src, document.baseURI).pathname || '';
-    } catch (e) {
-        path = String(src || '').split(/[?#]/, 1)[0];
-    }
-    const name = simpleaiSafeDecodeUriPart(path)
-        .replace(/\\/g, '/')
-        .split('/')
-        .filter(Boolean)
-        .pop() || '';
-    const cleanName = name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
-    return cleanName && cleanName !== '.' && cleanName !== '..' ? cleanName : 'simpai-image.png';
-}
-
-function simpleaiImageDragOutMimeType(filename) {
-    const name = String(filename || '').toLowerCase();
-    if (name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.jfif')) return 'image/jpeg';
-    if (name.endsWith('.webp')) return 'image/webp';
-    if (name.endsWith('.gif')) return 'image/gif';
-    if (name.endsWith('.bmp')) return 'image/bmp';
-    if (name.endsWith('.avif')) return 'image/avif';
-    if (name.endsWith('.tif') || name.endsWith('.tiff')) return 'image/tiff';
-    return 'image/png';
-}
-
-function simpleaiSetExternalImageDownloadDragData(transfer, src) {
-    if (!transfer?.setData || !simpleaiCanUseExternalImageDownloadDrag(src)) return;
-    const filename = simpleaiImageDragOutFileName(src);
-    const mime = simpleaiImageDragOutMimeType(filename);
-    try {
-        transfer.setData('DownloadURL', `${mime}:${filename}:${src}`);
-    } catch (e) {}
-}
-
-function simpleaiRemoveGalleryDragPreview() {
-    document.getElementById('simpleai-gallery-drag-preview')?.remove();
-}
-
-function simpleaiCreateImageDragPreview(img, src) {
-    simpleaiRemoveGalleryDragPreview();
+function simpleaiCreateLargeNativeImageDragPreview(img) {
+    simpleaiRemoveLargeNativeImageDragPreview();
+    const src = simpleaiMediaSrc(img);
+    if (!src) return null;
     const preview = document.createElement('div');
-    preview.id = 'simpleai-gallery-drag-preview';
+    preview.id = 'simpleai-large-native-image-drag-preview';
     const width = 120;
     const naturalWidth = Number(img?.naturalWidth || 0);
     const naturalHeight = Number(img?.naturalHeight || 0);
     const ratio = naturalWidth > 0 && naturalHeight > 0 ? naturalHeight / naturalWidth : 1;
     const height = Math.max(48, Math.min(160, Math.round(width * ratio)));
     preview.style.position = 'fixed';
-    preview.style.left = '0';
-    preview.style.top = '0';
+    preview.style.left = '-10000px';
+    preview.style.top = '-10000px';
     preview.style.width = `${width}px`;
     preview.style.height = `${height}px`;
-    preview.style.transform = 'translate(-220px, -220px)';
     preview.style.pointerEvents = 'none';
-    preview.style.opacity = '0.92';
+    preview.style.opacity = '0.95';
     preview.style.borderRadius = '8px';
     preview.style.backgroundColor = '#111827';
     preview.style.backgroundImage = `url("${String(src).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}")`;
@@ -235,28 +143,21 @@ function simpleaiCreateImageDragPreview(img, src) {
     preview.style.backgroundRepeat = 'no-repeat';
     preview.style.backgroundSize = 'cover';
     preview.style.boxShadow = '0 10px 28px rgba(0, 0, 0, 0.35)';
-    preview.style.zIndex = '-1';
+    preview.style.zIndex = '2147483647';
     document.body.appendChild(preview);
     return preview;
 }
 
-function simpleaiHandleImageDragStart(event) {
-    const img = simpleaiImageDragOutImageFromEvent(event);
+function simpleaiHandleLargeNativeImageDragStart(event) {
+    const img = simpleaiLargeNativeImageDragPreviewImageFromEvent(event);
     const transfer = event?.dataTransfer;
-    if (!img || !transfer) return;
-    const src = simpleaiImageDragOutSrc(img);
-    if (!src) return;
-    simpleaiEnableImageDragOutImage(img);
-    try {
-        transfer.effectAllowed = 'copy';
-    } catch (e) {}
-    simpleaiSetExternalImageDownloadDragData(transfer, src);
-    if (simpleaiShouldStopImageDragPropagation(img)) event.stopPropagation();
-    const preview = simpleaiCreateImageDragPreview(img, src);
+    if (!img || !transfer || !simpleaiShouldUseLargeNativeImageDragPreview(img)) return;
+    const preview = simpleaiCreateLargeNativeImageDragPreview(img);
+    if (!preview) return;
     try {
         transfer.setDragImage(preview, Math.round(preview.offsetWidth / 2), Math.round(preview.offsetHeight / 2));
     } catch (e) {}
-    setTimeout(simpleaiRemoveGalleryDragPreview, 0);
+    setTimeout(simpleaiRemoveLargeNativeImageDragPreview, 0);
 }
 
 function modalImageSwitch(offset) {
@@ -923,8 +824,8 @@ function simpleaiSyncComparisonSliders() {
 
 document.addEventListener("mousemove", simpleaiComparisonDocumentMouseMove, true);
 document.addEventListener("mouseup", simpleaiComparisonDocumentMouseUp, true);
-document.addEventListener('dragstart', simpleaiHandleImageDragStart, true);
-document.addEventListener('dragend', simpleaiRemoveGalleryDragPreview, true);
+document.addEventListener('dragstart', simpleaiHandleLargeNativeImageDragStart, true);
+document.addEventListener('dragend', simpleaiRemoveLargeNativeImageDragPreview, true);
 window.addEventListener("resize", () => {
     const scope = simpleaiComparisonSliderScope();
     scope.querySelectorAll?.("#comparison_box").forEach((root) => simpleaiScheduleComparisonSliderSync(root, "window_resize"));
@@ -1005,7 +906,6 @@ function modalTileImageToggle(event) {
 
 onAfterUiUpdate(function() {
     simpleaiBindGalleryLightbox();
-    simpleaiBindImageDragOut();
     simpleaiSyncGalleryFullscreenState();
     simpleaiSyncGalleryToolboxState();
     updateOnBackgroundChange();
