@@ -25,6 +25,7 @@ DEFAULT_REPO_URL = "https://github.com/Windecay/SimpAI_Studio"
 DEFAULT_BRANCH = "main"
 BACKUP_DIR_NAME = "update_backups"
 MANAGED_STATE_NAME = "managed_files.json"
+DEFAULT_LOG_COUNT = 20
 
 PROTECTED_TOP_LEVEL_DIRS = {
     ".cache",
@@ -350,15 +351,6 @@ def remote_branch_exists(name: str) -> bool:
     return result.returncode == 0
 
 
-def local_branch_exists(name: str) -> bool:
-    result = run_git(
-        ["git", "rev-parse", "--verify", f"refs/heads/{name}"],
-        capture=True,
-        check=False,
-    )
-    return result.returncode == 0
-
-
 def resolve_commit(ref: str) -> str | None:
     candidates = [ref, f"refs/tags/{ref}", f"origin/{ref}"]
     for candidate in candidates:
@@ -372,51 +364,62 @@ def resolve_commit(ref: str) -> str | None:
     return None
 
 
+def warn_force_sync_dirty_tree(dirty: str) -> None:
+    if not dirty:
+        return
+
+    print("发现本地改动，Git 更新会按远端版本强制同步。 / Local changes found; Git update will force-sync to the remote version.")
+    print("当前改动如下：")
+    print(dirty)
+    print("已跟踪文件的本地改动会被远端版本替换；未跟踪文件通常保留。")
+    print("Tracked local changes will be replaced by the remote version; untracked files are usually kept.")
+
+
+def force_sync_branch(target_branch: str) -> bool:
+    if not remote_branch_exists(target_branch):
+        print(f"找不到分支: {target_branch}")
+        return False
+
+    print(f"目标分支: {target_branch}")
+    run_git(["git", "checkout", "--force", "-B", target_branch, f"origin/{target_branch}"])
+    upstream_result = run_git(
+        ["git", "branch", "--set-upstream-to", f"origin/{target_branch}", target_branch],
+        capture=True,
+        check=False,
+    )
+    if upstream_result.stdout:
+        print(upstream_result.stdout.strip())
+    run_git(["git", "reset", "--hard", f"origin/{target_branch}"])
+    return True
+
+
 def update_with_git(args: argparse.Namespace, ref: str | None = None) -> int:
     print_header("Git 更新")
     if not ensure_git_ready():
         return 2
 
     dirty = working_tree_dirty()
-    if dirty and not args.allow_dirty:
-        print("发现未提交改动，Git 模式已停止。")
-        print("当前改动如下：")
-        print(dirty)
-        print("请先处理这些改动，再使用 Git 更新。")
-        return 3
+    warn_force_sync_dirty_tree(dirty)
 
     run_git(["git", "fetch", "origin", "--tags"])
 
     target_ref = (ref or args.ref or "").strip()
     if not target_ref:
         current_branch = branch_name()
-        target_branch = current_branch or args.branch
-        if not target_branch:
-            target_branch = DEFAULT_BRANCH
-        print(f"目标分支: {target_branch}")
-        if current_branch != target_branch:
-            if local_branch_exists(target_branch):
-                run_git(["git", "checkout", target_branch])
-            elif remote_branch_exists(target_branch):
-                run_git(["git", "checkout", "-b", target_branch, "--track", f"origin/{target_branch}"])
-            else:
-                print(f"找不到分支: {target_branch}")
-                return 4
-        run_git(["git", "pull", "--ff-only", "origin", target_branch])
+        target_branch = current_branch or args.branch or DEFAULT_BRANCH
+        if not force_sync_branch(target_branch):
+            return 4
     elif remote_branch_exists(target_ref):
-        print(f"目标分支: {target_ref}")
-        if local_branch_exists(target_ref):
-            run_git(["git", "checkout", target_ref])
-        else:
-            run_git(["git", "checkout", "-b", target_ref, "--track", f"origin/{target_ref}"])
-        run_git(["git", "pull", "--ff-only", "origin", target_ref])
+        if not force_sync_branch(target_ref):
+            return 4
     else:
         commit = resolve_commit(target_ref)
         if not commit:
             print(f"找不到 Git 版本: {target_ref}")
             return 4
         print(f"目标版本: {target_ref} ({commit[:12]})")
-        run_git(["git", "checkout", "--detach", commit])
+        run_git(["git", "checkout", "--force", "--detach", commit])
+        run_git(["git", "reset", "--hard", commit])
 
     print("Git 更新完成。")
     show_status()
@@ -482,14 +485,55 @@ def show_status() -> int:
     return 0
 
 
+def normalize_log_count(value: int | str | None) -> int:
+    try:
+        count = int(value) if value is not None else DEFAULT_LOG_COUNT
+    except (TypeError, ValueError):
+        return DEFAULT_LOG_COUNT
+    return max(1, min(count, 200))
+
+
+def show_commit_log(args: argparse.Namespace) -> int:
+    print_header("最近提交 / Recent commits")
+    if not ensure_git_ready():
+        return 2
+
+    target_ref = (getattr(args, "ref", "") or "HEAD").strip() or "HEAD"
+    count = normalize_log_count(getattr(args, "log_count", DEFAULT_LOG_COUNT))
+    print(f"版本范围: {target_ref}")
+    print(f"显示数量: {count}")
+
+    result = run_git(
+        [
+            "git",
+            "log",
+            f"--max-count={count}",
+            "--date=short",
+            "--pretty=format:%h %ad %d %s",
+            target_ref,
+        ],
+        capture=True,
+        check=False,
+    )
+    if result.stdout:
+        print(result.stdout.strip())
+    if result.returncode != 0:
+        print("读取 commit 列表失败。 / Failed to read commit list.")
+        return 2
+    if not result.stdout:
+        print("没有找到 commit。 / No commits found.")
+    return 0
+
+
 def run_menu(args: argparse.Namespace) -> int:
     while True:
         print_header("SimpAI Studio 更新工具")
         print("1. 使用 Git 更新当前分支")
         print("2. 使用 Git 更新到指定版本 / tag / commit")
         print("3. 查看当前版本")
+        print(f"4. 查看最近 {DEFAULT_LOG_COUNT} 个提交 / git log")
         print("0. 退出")
-        choice = input("请选择 0-3: ").strip()
+        choice = input("请选择 0-4: ").strip()
 
         if choice == "1":
             return run_git_mode(args, prompt_backup=True)
@@ -503,17 +547,21 @@ def run_menu(args: argparse.Namespace) -> int:
             show_status()
             input("按回车返回菜单。")
             continue
+        if choice == "4":
+            show_commit_log(args)
+            input("按回车返回菜单。")
+            continue
         if choice == "0":
             return 0
 
-        print("请选择 0 到 3。")
+        print("请选择 0 到 4。")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Update a portable SimpAI_Studio package.")
     parser.add_argument(
         "--mode",
-        choices=["menu", "latest", "git", "status"],
+        choices=["menu", "latest", "git", "status", "log"],
         default="menu",
         help="Update mode. Default opens the interactive menu.",
     )
@@ -521,9 +569,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--branch", default=os.environ.get("SIMPAI_UPDATE_BRANCH", DEFAULT_BRANCH))
     parser.add_argument("--zip-url", default=os.environ.get("SIMPAI_UPDATE_ZIP_URL", ""))
     parser.add_argument("--ref", default="", help="Git branch, tag, or commit used by --mode git.")
+    parser.add_argument("--log-count", type=int, default=DEFAULT_LOG_COUNT, help="Number of commits shown by --mode log.")
     parser.add_argument("--dry-run", action="store_true", help="Preview latest-zip file changes.")
     parser.add_argument("--no-backup", action="store_true", help="Do not back up overwritten files in latest mode.")
-    parser.add_argument("--allow-dirty", action="store_true", help="Allow Git mode with local changes.")
+    parser.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="Compatibility option. Git mode force-syncs tracked files by default.",
+    )
     return parser.parse_args(argv)
 
 
@@ -536,6 +589,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_git_mode(args, prompt_backup=sys.stdin.isatty())
     if args.mode == "status":
         return show_status()
+    if args.mode == "log":
+        return show_commit_log(args)
     return run_menu(args)
 
 

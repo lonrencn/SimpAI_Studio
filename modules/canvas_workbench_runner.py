@@ -354,12 +354,16 @@ def _bool_value(value, default=False):
         return default
     if isinstance(value, bool):
         return value
-    text = str(value).strip().lower()
-    if text in ("1", "true", "yes", "on"):
-        return True
-    if text in ("0", "false", "no", "off"):
-        return False
-    return default
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in ("1", "true", "yes", "on", "enabled"):
+            return True
+        if text in ("0", "false", "no", "off", "disabled"):
+            return False
+        return default
+    return bool(value)
 
 
 def _float_value(value, default=0.0):
@@ -728,16 +732,6 @@ def _has_preprocessor_method(methods, name):
         if item == name:
             return True
     return False
-
-
-def _bool_value(value):
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        return value.strip().lower() in ("1", "true", "yes", "on", "enabled")
-    return bool(value)
 
 
 def _schema_value_for_theme(schema, key, theme=None, default=None):

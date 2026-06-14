@@ -4,7 +4,13 @@ import re
 import torch
 import tarfile
 import time
-import translators as ts
+try:
+    import translators as ts
+except Exception as exc:
+    ts = None
+    TRANSLATORS_IMPORT_ERROR = exc
+else:
+    TRANSLATORS_IMPORT_ERROR = None
 
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 from modules.config import paths_llms
@@ -15,6 +21,7 @@ from modules.util import is_chinese
 import logging
 from enhanced.logger import format_name
 logger = logging.getLogger(format_name(__name__))
+_translation_api_dependency_warning_shown = False
 
 Q_punct = '｀～！＠＃＄％＾＆＊（）＿＋＝－｛｝［］：＂；｜＜＞？，．／。　１２３４５６７８９０'
 B_punct = '`~!@#$%^&*()_+=-{}[]:";|<>?,./. 1234567890'
@@ -140,10 +147,25 @@ def translate2zh_model(model, tokenizer, text_en):
     return tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0].lower()
 
 
+def _translation_api_available():
+    global _translation_api_dependency_warning_shown
+    if ts is not None:
+        return True
+    if not _translation_api_dependency_warning_shown:
+        _translation_api_dependency_warning_shown = True
+        logger.warning(
+            "Online translation APIs are unavailable; returning the original text. Import error: %s",
+            TRANSLATORS_IMPORT_ERROR,
+        )
+    return False
+
+
 @lru_cache(maxsize=32, typed=False)
 def translate2zh_apis(text):
     global translator_default
     if not text:
+        return text
+    if not _translation_api_available():
         return text
     try:
         return ts.translate_text(text, translator=translator_default, from_language='en', to_language='zh')
@@ -158,6 +180,8 @@ def translate2zh_apis(text):
 def translate2en_apis(text):
     global translator_default
     if not text:
+        return text
+    if not _translation_api_available():
         return text
     try:
         return ts.translate_text(text, translator=translator_default, to_language='en')
