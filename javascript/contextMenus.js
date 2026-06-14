@@ -1,5 +1,24 @@
 // based on https://github.com/AUTOMATIC1111/stable-diffusion-webui/blob/v1.6.0/javascript/contextMenus.js
 
+function isContextMenuElementVisible(element) {
+    if (!element) {
+        return false;
+    }
+    let current = element;
+    while (current && current.nodeType === 1) {
+        if (current.hidden || current.getAttribute("aria-hidden") === "true") {
+            return false;
+        }
+        const style = window.getComputedStyle(current);
+        if (style.display === "none" || style.visibility === "hidden") {
+            return false;
+        }
+        current = current.parentElement;
+    }
+    const rect = element.getBoundingClientRect ? element.getBoundingClientRect() : null;
+    return !!(element.offsetParent || (rect && (rect.width > 0 || rect.height > 0)));
+}
+
 var contextMenuInit = function() {
     let eventListenerApplied = false;
     let menuSpecs = new Map();
@@ -144,8 +163,8 @@ let cancelGenerateForever = function() {
         let getTriggerState = function() {
             let genbutton = gradioApp().querySelector(genbuttonid);
             let interruptbutton = gradioApp().querySelector(interruptbuttonid);
-            let interruptVisible = !!(interruptbutton && interruptbutton.offsetParent);
-            if (!genbutton || !interruptbutton) {
+            let interruptVisible = isContextMenuElementVisible(interruptbutton);
+            if (!genbutton) {
                 return {
                     strictReady: false,
                     relaxedReady: false,
@@ -167,9 +186,9 @@ let cancelGenerateForever = function() {
             }
 
             let sceneVideoPlaceholder = gradioApp().querySelector("#scene_video_placeholder");
-            let sceneVideoBusy = !!(sceneVideoPlaceholder && sceneVideoPlaceholder.offsetParent);
+            let sceneVideoBusy = isContextMenuElementVisible(sceneVideoPlaceholder);
             let sceneAudioPlaceholder = gradioApp().querySelector("#scene_audio_placeholder");
-            let sceneAudioBusy = !!(sceneAudioPlaceholder && sceneAudioPlaceholder.offsetParent);
+            let sceneAudioBusy = isContextMenuElementVisible(sceneAudioPlaceholder);
             if (interruptVisible) {
                 return {
                     strictReady: false,

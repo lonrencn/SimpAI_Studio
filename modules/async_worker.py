@@ -101,6 +101,9 @@ class AsyncTask:
         self.remote_task = None
         self.img_paths = []
         self.lasttime = time.time()
+        self.simpleai_comfy_prompt_accepted = False
+        self.simpleai_comfy_prompt_id = None
+        self.simpleai_comfy_prompt_accepted_at = None
         self.final_prompts = []
         self.performance_loras = []
 
@@ -669,6 +672,20 @@ def worker():
                 if async_task.remote_task is not None:
                     client_id = async_task.remote_task
 
+                async_task.simpleai_comfy_prompt_accepted = False
+                async_task.simpleai_comfy_prompt_id = None
+                async_task.simpleai_comfy_prompt_accepted_at = None
+
+                def mark_comfy_prompt_accepted(prompt_id, _result=None):
+                    async_task.simpleai_comfy_prompt_id = prompt_id
+                    async_task.simpleai_comfy_prompt_accepted = True
+                    async_task.simpleai_comfy_prompt_accepted_at = time.time()
+                    logger.info(
+                        "[Generate] comfy_prompt_accepted: task_id=%s, prompt_id=%s",
+                        async_task.task_id,
+                        prompt_id,
+                    )
+
                 extra_data = {
                     "extra_pnginfo": {
                         "workflow": {
@@ -682,8 +699,17 @@ def worker():
                 logger.info(f'Task Type == {async_task.content_type}')
                 if async_task.content_type == 'video':
                     extra_data['is_vhs'] = True
-                
-                imgs = comfypipeline.process_flow(client_id, comfy_task.name, comfy_task.params, comfy_task.images, callback=callback, total_steps=comfy_task.steps, extra_data=extra_data)
+
+                imgs = comfypipeline.process_flow(
+                    client_id,
+                    comfy_task.name,
+                    comfy_task.params,
+                    comfy_task.images,
+                    callback=callback,
+                    total_steps=comfy_task.steps,
+                    extra_data=extra_data,
+                    prompt_accepted_callback=mark_comfy_prompt_accepted,
+                )
                 
                 if inpaint_worker.current_task is not None:
                     imgs = [inpaint_worker.current_task.post_process(x) for x in imgs]

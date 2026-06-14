@@ -76,7 +76,7 @@ function simpleaiMediaSrc(elem) {
     return elem.currentSrc || elem.src || elem.getAttribute?.('src') || '';
 }
 
-const SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR = [
+const SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR = [
     '#finished_gallery .gallery-container img',
     '#final_gallery .gallery-container img',
     '#scene_input_images img',
@@ -96,34 +96,29 @@ const SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR = [
     '#ip_image_4 img'
 ].join(', ');
 
-const SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_LIMIT = 2048;
-
-function simpleaiLargeNativeImageDragPreviewImageFromEvent(event) {
+function simpleaiNativeImageDragPreviewImageFromEvent(event) {
     const target = event?.target;
     if (!target || !target.closest) return null;
-    const img = target.closest(SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR);
+    const img = target.closest(SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR);
     if (!img || img.tagName !== 'IMG') return null;
     const src = simpleaiMediaSrc(img);
     if (!src || src.startsWith('data:image/svg+xml')) return null;
+    const naturalWidth = Number(img.naturalWidth || 0);
+    const naturalHeight = Number(img.naturalHeight || 0);
+    if (naturalWidth && naturalHeight && (naturalWidth < 48 || naturalHeight < 48)) return null;
     return img;
 }
 
-function simpleaiShouldUseLargeNativeImageDragPreview(img) {
-    const width = Number(img?.naturalWidth || 0);
-    const height = Number(img?.naturalHeight || 0);
-    return width > SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_LIMIT || height > SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PREVIEW_LIMIT;
+function simpleaiRemoveNativeImageDragPreview() {
+    document.getElementById('simpleai-native-image-drag-preview')?.remove();
 }
 
-function simpleaiRemoveLargeNativeImageDragPreview() {
-    document.getElementById('simpleai-large-native-image-drag-preview')?.remove();
-}
-
-function simpleaiCreateLargeNativeImageDragPreview(img) {
-    simpleaiRemoveLargeNativeImageDragPreview();
+function simpleaiCreateNativeImageDragPreview(img) {
+    simpleaiRemoveNativeImageDragPreview();
     const src = simpleaiMediaSrc(img);
     if (!src) return null;
     const preview = document.createElement('div');
-    preview.id = 'simpleai-large-native-image-drag-preview';
+    preview.id = 'simpleai-native-image-drag-preview';
     const width = 120;
     const naturalWidth = Number(img?.naturalWidth || 0);
     const naturalHeight = Number(img?.naturalHeight || 0);
@@ -148,16 +143,16 @@ function simpleaiCreateLargeNativeImageDragPreview(img) {
     return preview;
 }
 
-function simpleaiHandleLargeNativeImageDragStart(event) {
-    const img = simpleaiLargeNativeImageDragPreviewImageFromEvent(event);
+function simpleaiHandleNativeImageDragStart(event) {
+    const img = simpleaiNativeImageDragPreviewImageFromEvent(event);
     const transfer = event?.dataTransfer;
-    if (!img || !transfer || !simpleaiShouldUseLargeNativeImageDragPreview(img)) return;
-    const preview = simpleaiCreateLargeNativeImageDragPreview(img);
+    if (!img || !transfer) return;
+    const preview = simpleaiCreateNativeImageDragPreview(img);
     if (!preview) return;
     try {
         transfer.setDragImage(preview, Math.round(preview.offsetWidth / 2), Math.round(preview.offsetHeight / 2));
     } catch (e) {}
-    setTimeout(simpleaiRemoveLargeNativeImageDragPreview, 0);
+    setTimeout(simpleaiRemoveNativeImageDragPreview, 0);
 }
 
 function modalImageSwitch(offset) {
@@ -824,8 +819,8 @@ function simpleaiSyncComparisonSliders() {
 
 document.addEventListener("mousemove", simpleaiComparisonDocumentMouseMove, true);
 document.addEventListener("mouseup", simpleaiComparisonDocumentMouseUp, true);
-document.addEventListener('dragstart', simpleaiHandleLargeNativeImageDragStart, true);
-document.addEventListener('dragend', simpleaiRemoveLargeNativeImageDragPreview, true);
+document.addEventListener('dragstart', simpleaiHandleNativeImageDragStart, true);
+document.addEventListener('dragend', simpleaiRemoveNativeImageDragPreview, true);
 window.addEventListener("resize", () => {
     const scope = simpleaiComparisonSliderScope();
     scope.querySelectorAll?.("#comparison_box").forEach((root) => simpleaiScheduleComparisonSliderSync(root, "window_resize"));

@@ -892,6 +892,9 @@ def generate_clicked(task: worker.AsyncTask, state):
     is_fooocus = state["engine"] == 'Fooocus'
     task_meta = f"task_id={getattr(task, 'task_id', None)}, user_did={user_did}, task_class={getattr(task, 'task_class', None)}, task_name={getattr(task, 'task_name', None)}, task_method={getattr(task, 'task_method', None)}"
     task.simpleai_generation_had_output = False
+    task.simpleai_comfy_prompt_accepted = False
+    task.simpleai_comfy_prompt_id = None
+    task.simpleai_comfy_prompt_accepted_at = None
 
     MAX_WAIT_TIME = 1800
     POLL_INTERVAL = 0.1
@@ -1016,6 +1019,11 @@ def generate_clicked(task: worker.AsyncTask, state):
                 updates.append(gr_update(interactive=interactive))
         return tuple(updates)
 
+    def generation_controls_unlocked():
+        if getattr(task, "task_class", None) in flags.comfy_classes:
+            return bool(getattr(task, "simpleai_comfy_prompt_accepted", False))
+        return bool(getattr(task, "processing", False) or len(task.yields) > 0 or len(task.results) > 0)
+
     worker.add_task(task)
     qsize = worker.get_task_size()
     MAX_LOOP_NUM = qsize
@@ -1075,7 +1083,6 @@ def generate_clicked(task: worker.AsyncTask, state):
     local_start_time = time.time()
     last_heartbeat_time = local_start_time
     HEARTBEAT_INTERVAL = 1.0
-    UNLOCK_CONTROLS_AFTER = 5.0
     logged_controls_unlock = False
     logged_first_yield = False
     yields_processed = 0
@@ -1181,10 +1188,10 @@ def generate_clicked(task: worker.AsyncTask, state):
             if len(task.yields) == 0:
                 time.sleep(POLL_INTERVAL)
 
-            controls_unlocked = (current_time - local_start_time) >= UNLOCK_CONTROLS_AFTER
+            controls_unlocked = generation_controls_unlocked()
             if controls_unlocked and (not logged_controls_unlock):
                 logged_controls_unlock = True
-                logger.info(f"[Generate] controls_unlocked: unlock_after={UNLOCK_CONTROLS_AFTER}s, {task_meta}")
+                logger.info(f"[Generate] controls_unlocked: prompt_id={getattr(task, 'simpleai_comfy_prompt_id', None)}, {task_meta}")
                 force_unlock_update = True
 
             if task.content_type == 'video' and len(preview_cache) > 1 and current_time >= next_preview_ui_time:
