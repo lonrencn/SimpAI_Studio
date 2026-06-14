@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shlex
 import sys
 import threading
@@ -44,6 +45,7 @@ _SOURCE_BACKEND_PROGRESS_POLL_SECONDS = 1.0
 _SOURCE_BACKEND_PREVIEW_INTERVAL_SECONDS = 2.0
 _SOURCE_ADETAILER_PREVIEW_LIMIT = 8
 _SOURCE_BACKEND_CONTROL_PAYLOAD_KEY = "__forge_neo_source_control_path"
+_SOURCE_LORA_TOKEN_RE = re.compile(r"<lora:([^:>]+):([^>]*)>", re.IGNORECASE)
 
 
 def _source_backend_progress_worker_enabled() -> bool:
@@ -198,6 +200,157 @@ def _as_float(value: object, default: float = 0.0) -> float:
 def _payload_control_path(payload: dict[str, Any]) -> Path | None:
     value = str(payload.pop(_SOURCE_BACKEND_CONTROL_PAYLOAD_KEY, "") or "").strip()
     return Path(value) if value else None
+
+
+def _source_lora_prompt_values(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(item or "") for item in value]
+    return [str(value or "")]
+
+
+def _source_lora_token_names(payload: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+    seen: set[str] = set()
+    for key in ("prompt", "negative_prompt"):
+        for text in _source_lora_prompt_values(payload.get(key)):
+            for match in _SOURCE_LORA_TOKEN_RE.finditer(text):
+                name = str(match.group(1) or "").strip()
+                if not name:
+                    continue
+                normalized = name.casefold()
+                if normalized in seen:
+                    continue
+                seen.add(normalized)
+                names.append(name)
+    return names
+
+
+def _source_lora_entry(networks_module: object, name: str) -> object | None:
+    available = getattr(networks_module, "available_networks", {}) or {}
+    aliases = getattr(networks_module, "available_network_aliases", {}) or {}
+    forbidden = {str(item).casefold() for item in (getattr(networks_module, "forbidden_network_aliases", set()) or set())}
+    if name.casefold() in forbidden:
+        return available.get(name)
+    return aliases.get(name) or available.get(name)
+
+
+def _source_lora_entry_info(name: str, entry: object | None) -> dict[str, Any] | None:
+    if entry is None:
+        return None
+    filename = str(getattr(entry, "filename", "") or "")
+    return {
+        "token": name,
+        "name": str(getattr(entry, "name", "") or name),
+        "alias": str(getattr(entry, "alias", "") or ""),
+        "filename": filename,
+        "basename": os.path.basename(filename) if filename else "",
+    }
+
+
+def _source_extra_network_registry_state() -> dict[str, Any]:
+    try:
+        from modules import extra_networks
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    registry = getattr(extra_networks, "extra_network_registry", {}) or {}
+    names = sorted(str(name) for name in registry)
+    return {
+        "ok": True,
+        "registered": names,
+        "count": len(names),
+        "lora_registered": "lora" in registry,
+    }
+
+
+def _ensure_source_lora_extra_network_registered() -> dict[str, Any]:
+    state = _source_extra_network_registry_state()
+    if state.get("lora_registered"):
+        state["changed"] = False
+        return state
+    try:
+        from modules import extra_networks
+        import extra_networks_lora
+        import networks
+
+        networks.extra_network_lora = extra_networks_lora.ExtraNetworkLora()
+        extra_networks.register_extra_network(networks.extra_network_lora)
+    except Exception as exc:
+        state["changed"] = False
+        state["error"] = f"{type(exc).__name__}: {exc}"
+        return state
+    updated = _source_extra_network_registry_state()
+    updated["changed"] = True
+    return updated
+
+
+def _refresh_source_loras_for_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    requested = _source_lora_token_names(payload)
+    result: dict[str, Any] = {
+        "requested": requested,
+        "resolved": [],
+        "missing": [],
+        "refreshed_by_name": False,
+        "refreshed_full_list": False,
+        "extra_networks": _source_extra_network_registry_state(),
+    }
+    if not requested:
+        return result
+
+    try:
+        import networks
+    except Exception as exc:
+        result["missing"] = requested
+        result["error"] = f"{type(exc).__name__}: {exc}"
+        _emit_event(
+            _stage_event(
+                0.18,
+                "Source LoRA registry check failed",
+                "源后端 LoRA 注册表检查失败",
+                source_lora_registry=result,
+            )
+        )
+        return result
+
+    def collect() -> tuple[list[dict[str, Any]], list[str]]:
+        resolved: list[dict[str, Any]] = []
+        missing: list[str] = []
+        for name in requested:
+            info = _source_lora_entry_info(name, _source_lora_entry(networks, name))
+            if info is None:
+                missing.append(name)
+            else:
+                resolved.append(info)
+        return resolved, missing
+
+    resolved, missing = collect()
+    if missing and hasattr(networks, "update_available_networks_by_names"):
+        try:
+            networks.update_available_networks_by_names(missing)
+            result["refreshed_by_name"] = True
+        except Exception as exc:
+            result["refresh_by_name_error"] = f"{type(exc).__name__}: {exc}"
+        resolved, missing = collect()
+    if missing and hasattr(networks, "list_available_networks"):
+        try:
+            networks.list_available_networks()
+            result["refreshed_full_list"] = True
+        except Exception as exc:
+            result["refresh_full_list_error"] = f"{type(exc).__name__}: {exc}"
+        resolved, missing = collect()
+
+    result["resolved"] = resolved
+    result["missing"] = missing
+    _emit_event(
+        _stage_event(
+            0.18,
+            "Source LoRA registry checked",
+            "源后端 LoRA 注册表已检查",
+            source_lora_registry=result,
+        )
+    )
+    return result
 
 
 def _source_preview_interval_seconds() -> float:
@@ -2744,7 +2897,16 @@ def _get_source_context(data_root: Path) -> dict[str, Any]:
     _ensure_gradio_rangeslider_compat()
     initialize.initialize()
     _stage_finished(0.12, "Source initialize.initialize", "源后端 initialize.initialize", stage_started)
-    _emit_event(_stage_event(0.12, "Source backend initialized", "源后端已初始化"))
+    source_extra_networks = _ensure_source_lora_extra_network_registered()
+    _emit_event(
+        _stage_event(
+            0.122,
+            "Source extra networks registered",
+            "源后端 Extra Networks 已注册",
+            source_extra_networks=source_extra_networks,
+        )
+    )
+    _emit_event(_stage_event(0.123, "Source backend initialized", "源后端已初始化"))
 
     stage_started = _stage_started(0.125, "Source API context import", "源后端 API 上下文导入")
     from modules.api import models
@@ -2768,6 +2930,7 @@ def _get_source_context(data_root: Path) -> dict[str, Any]:
         "main_entry": main_entry,
         "paste_field_counts": paste_field_counts,
         "script_name_aliases": script_name_aliases,
+        "source_extra_networks": source_extra_networks,
     }
     return _SOURCE_CONTEXT
 
@@ -2804,6 +2967,9 @@ def _run_txt2img(payload: dict[str, Any], data_root: Path) -> dict[str, Any]:
     payload.setdefault("script_args", [])
     controlnet_normalization = _normalize_source_controlnet_payload(payload)
     script_setup = _ensure_source_api_script_defaults(api, mode="txt2img", payload=payload)
+    lora_registry = _refresh_source_loras_for_payload(payload)
+    if lora_registry.get("requested"):
+        script_setup["source_lora_registry"] = lora_registry
     if _source_debug_should_record_dynamic_prompts(source_debug_initial_payload, script_setup):
         _write_source_dynamic_prompts_debug(
             {
@@ -2874,6 +3040,8 @@ def _run_txt2img(payload: dict[str, Any], data_root: Path) -> dict[str, Any]:
         "resolved_source_modules": resolved_modules,
         "source_model_settings": model_settings,
         "source_script_setup": script_setup,
+        "source_lora_registry": lora_registry,
+        "source_extra_networks": context.get("source_extra_networks"),
         "elapsed_seconds": round(time.monotonic() - started, 3),
     }
 
@@ -2911,6 +3079,9 @@ def _run_img2img(payload: dict[str, Any], data_root: Path) -> dict[str, Any]:
     payload.setdefault("include_init_images", False)
     controlnet_normalization = _normalize_source_controlnet_payload(payload)
     script_setup = _ensure_source_api_script_defaults(api, mode="img2img", payload=payload)
+    lora_registry = _refresh_source_loras_for_payload(payload)
+    if lora_registry.get("requested"):
+        script_setup["source_lora_registry"] = lora_registry
     if _source_debug_should_record_dynamic_prompts(source_debug_initial_payload, script_setup):
         _write_source_dynamic_prompts_debug(
             {
@@ -2981,6 +3152,8 @@ def _run_img2img(payload: dict[str, Any], data_root: Path) -> dict[str, Any]:
         "resolved_source_modules": resolved_modules,
         "source_model_settings": model_settings,
         "source_script_setup": script_setup,
+        "source_lora_registry": lora_registry,
+        "source_extra_networks": context.get("source_extra_networks"),
         "elapsed_seconds": round(time.monotonic() - started, 3),
     }
 

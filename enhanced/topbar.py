@@ -1037,7 +1037,7 @@ def refresh_nav_bars(state_params):
             total_count += 1
             if name.endswith(PRESET_MISSING_MARKER):
                 missing_count += 1
-        visible_flag = i < (7 if state_params["__is_mobile"] else shared.BUTTON_NUM)
+        visible_flag = i < shared.BUTTON_NUM
         if name:
             results += [gr.update(value=name, interactive=True, visible=visible_flag)]
         else: 

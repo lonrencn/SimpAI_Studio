@@ -1728,6 +1728,77 @@
         .status-indicator.dark .transfer-paste-close {
             border-color: rgba(255, 255, 255, 0.18);
         }
+
+        @media (max-width: 640px), (pointer: coarse) and (max-width: 900px) {
+            #gradio-status-monitor {
+                top: auto;
+                right: max(8px, env(safe-area-inset-right));
+                bottom: max(10px, env(safe-area-inset-bottom));
+                max-width: min(88px, calc(100vw - 16px));
+            }
+
+            body.simpleai-preset-store-open-mobile #gradio-status-monitor,
+            body.simpleai-mobile-prompt-actions-visible #gradio-status-monitor {
+                display: none !important;
+                pointer-events: none !important;
+            }
+
+            .status-indicator.light,
+            .status-indicator.dark,
+            .status-monitor-tiles {
+                width: 88px;
+                gap: 0;
+            }
+
+            .status-monitor-tile {
+                width: 88px;
+                flex: 0 0 88px;
+                border-radius: 999px;
+            }
+
+            .work-entry-tile,
+            .vram-usage,
+            .ram-usage,
+            .online-users-badge,
+            .online-nodes-badge,
+            .admin-access-pending-badge {
+                display: none !important;
+            }
+
+            .status-indicator .status-content {
+                min-height: 30px;
+                height: 30px;
+                padding: 3px 5px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+
+            .status-row {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                width: 100%;
+            }
+
+            .status-connection {
+                flex: 1 1 auto;
+                min-width: 0;
+                padding: 0;
+                font-size: 11px;
+                line-height: 16px;
+            }
+
+            .queue-badge,
+            .status-row .queue-badge {
+                flex: 0 0 auto;
+                width: auto;
+                min-width: 30px;
+                padding: 1px 4px;
+                font-size: 9px;
+                line-height: 16px;
+            }
+        }
     `;
 
     // ==================== 主题管理 ====================
@@ -3046,6 +3117,66 @@
         return api;
     }
 
+    function isMobileStatusLayout() {
+        return window.matchMedia('(max-width: 640px), (pointer: coarse) and (max-width: 900px)').matches;
+    }
+
+    function isPresetStoreVisible(element) {
+        if (!element || element.hidden || element.classList.contains('hidden') || element.classList.contains('hide')) {
+            return false;
+        }
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && rect.width > 2
+            && rect.height > 2;
+    }
+
+    function isElementVisibleInViewport(element) {
+        if (!element || element.hidden || element.classList.contains('hidden') || element.classList.contains('hide')) {
+            return false;
+        }
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        if (style.display === 'none' || style.visibility === 'hidden' || rect.width <= 2 || rect.height <= 2) {
+            return false;
+        }
+        return rect.bottom > 0
+            && rect.right > 0
+            && rect.top < (window.innerHeight || document.documentElement.clientHeight || 0)
+            && rect.left < (window.innerWidth || document.documentElement.clientWidth || 0);
+    }
+
+    function syncMobileStatusPresetStoreVisibility() {
+        const mobileStatus = isMobileStatusLayout();
+        const openPresetStore = Array.from(document.querySelectorAll('.simpleai-floating-host > .preset_store'))
+            .some(isPresetStoreVisible);
+        const promptActionsVisible = isElementVisibleInViewport(document.querySelector('#prompt_action_row'));
+        if (document.body) {
+            document.body.classList.toggle('simpleai-preset-store-open-mobile', mobileStatus && openPresetStore);
+            document.body.classList.toggle('simpleai-mobile-prompt-actions-visible', mobileStatus && promptActionsVisible);
+        }
+    }
+
+    function initMobileStatusPresetStoreVisibility() {
+        syncMobileStatusPresetStoreVisibility();
+        const observerRoot = document.body || document.documentElement;
+        if (observerRoot && typeof MutationObserver !== 'undefined') {
+            const observer = new MutationObserver(syncMobileStatusPresetStoreVisibility);
+            observer.observe(observerRoot, {
+                subtree: true,
+                childList: true,
+                attributes: true,
+                attributeFilter: ['class', 'hidden', 'style']
+            });
+        }
+        window.addEventListener('resize', syncMobileStatusPresetStoreVisibility);
+        window.addEventListener('scroll', syncMobileStatusPresetStoreVisibility, { passive: true });
+        window.addEventListener('simpai:preset-store-opened', syncMobileStatusPresetStoreVisibility);
+        window.addEventListener('simpai:preset-store-closed', syncMobileStatusPresetStoreVisibility);
+    }
+
     function initImageTransferStation() {
         rememberCanvasWorkbenchSystemParams();
         transferPanelActions.appendChild(transferPasteBtn);
@@ -3098,13 +3229,14 @@
         statusIndicator.classList.toggle('transfer-expanded', !!transferState.expanded);
         // 新增resize事件监听
         window.addEventListener('resize', () => {
-            // 复位到初始位置
+            const mobileStatus = isMobileStatusLayout();
             statusContainer.style.left = 'auto';
-            statusContainer.style.top = '0px';
-            statusContainer.style.right = '12px';
-            statusContainer.style.bottom = 'auto';
+            statusContainer.style.top = mobileStatus ? 'auto' : '0px';
+            statusContainer.style.right = mobileStatus ? 'max(8px, env(safe-area-inset-right))' : '12px';
+            statusContainer.style.bottom = mobileStatus ? 'max(10px, env(safe-area-inset-bottom))' : 'auto';
             state.initialPositionMoved = false; // 重置位置标记
             if (transferState && transferState.expanded) requestAnimationFrame(updateTransferPanelLayout);
+            syncMobileStatusPresetStoreVisibility();
         });
         // 集成到 Gradio
         const gradioContainer = gradioApp();
@@ -3117,6 +3249,7 @@
             if (enableTransferStation) {
                 initImageTransferStation();
             }
+            initMobileStatusPresetStoreVisibility();
         }
         // 启动检测
         setInterval(performHealthCheck, CHECK_INTERVAL);

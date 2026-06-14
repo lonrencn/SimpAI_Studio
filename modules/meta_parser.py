@@ -1,5 +1,6 @@
 import os
 import ast
+import copy
 import json
 import re
 from abc import ABC, abstractmethod
@@ -8,6 +9,11 @@ import random
 
 import gradio as gr
 from PIL import Image
+try:
+    import piexif
+    import piexif.helper
+except Exception:
+    piexif = None
 
 import modules.config
 import modules.sdxl_styles
@@ -1743,8 +1749,9 @@ class A1111MetadataParser(MetadataParser):
         'performance': 'Performance',
         'steps': 'Steps',
         'sampler': 'Sampler',
-        'scheduler': 'Scheduler',
+        'scheduler': 'Schedule type',
         'vae': 'VAE',
+        'clip_model': 'Text Encoder',
         'guidance_scale': 'CFG scale',
         'seed': 'Seed',
         'resolution': 'Size',
@@ -1765,8 +1772,80 @@ class A1111MetadataParser(MetadataParser):
         'version': 'Version',
         'backend_engine': 'Backend Engine'
     }
+    a1111_to_fooocus_aliases = {
+        'Scheduler': 'scheduler',
+        'Schedule type': 'scheduler',
+        'VAE': 'vae',
+        'Text Encoder': 'clip_model',
+        'Module 1': 'vae',
+        'Module 2': 'clip_model',
+    }
+    scheduler_display_names = {
+        'normal': 'Normal',
+        'karras': 'Karras',
+        'exponential': 'Exponential',
+        'sgm_uniform': 'SGM Uniform',
+        'simple': 'Simple',
+        'ddim_uniform': 'DDIM',
+        'lcm': 'LCM',
+        'turbo': 'Turbo',
+        'align_your_steps': 'Align Your Steps',
+        'tcd': 'TCD',
+        'edm_playground_v2.5': 'EDM Playground v2.5',
+        'beta': 'Beta',
+        'linear_quadratic': 'Linear Quadratic',
+        'kl_optimal': 'KL Optimal',
+        'bong_tangent': 'Bong Tangent',
+    }
+    scheduler_internal_names = {v: k for k, v in scheduler_display_names.items()}
 
-    def to_json(self, metadata: str) -> dict:
+    @classmethod
+    def _a1111_key_to_internal(cls, key):
+        if key in cls.a1111_to_fooocus_aliases:
+            return cls.a1111_to_fooocus_aliases[key]
+        values = list(cls.fooocus_to_a1111.values())
+        if key in values:
+            return list(cls.fooocus_to_a1111.keys())[values.index(key)]
+        return None
+
+    @classmethod
+    def _scheduler_to_a1111(cls, scheduler):
+        scheduler = str(scheduler or '').strip()
+        return cls.scheduler_display_names.get(scheduler, scheduler)
+
+    @classmethod
+    def _scheduler_to_internal(cls, scheduler):
+        scheduler = str(scheduler or '').strip()
+        if scheduler in cls.scheduler_internal_names:
+            return cls.scheduler_internal_names[scheduler]
+        return scheduler
+
+    @staticmethod
+    def _filename_stem(value):
+        text = str(value or '').strip()
+        if text in ['', 'None']:
+            return ''
+        return Path(text).stem
+
+    @staticmethod
+    def _normalize_inline_a1111_sections(metadata):
+        text = str(metadata or "")
+        if "\nNegative prompt:" not in text:
+            text = re.sub(r",\s*Negative prompt:\s*", "\nNegative prompt: ", text, count=1)
+            text = re.sub(r"\s+Negative prompt:\s*", "\nNegative prompt: ", text, count=1)
+        if "\nSteps:" not in text:
+            text = re.sub(r",\s*Steps:\s*(?=\d)", "\nSteps: ", text, count=1)
+            text = re.sub(r"\s+Steps:\s*(?=\d)", "\nSteps: ", text, count=1)
+        return text
+
+    def to_json(self, metadata: dict | str) -> dict:
+        if isinstance(metadata, dict):
+            wrapper_scheme = metadata.get("metadata_scheme") or metadata.get("fooocus_scheme")
+            if "parameters" in metadata and (wrapper_scheme or isinstance(metadata.get("parameters"), str)):
+                metadata = metadata.get("parameters") or ""
+            else:
+                return dict(metadata)
+        metadata = self._normalize_inline_a1111_sections(metadata)
         metadata_prompt = ''
         metadata_negative_prompt = ''
 
@@ -1787,7 +1866,13 @@ class A1111MetadataParser(MetadataParser):
             else:
                 metadata_prompt += ('' if metadata_prompt == '' else "\n") + line
 
+        metadata_prompt_raw = metadata_prompt
+        metadata_negative_prompt_raw = metadata_negative_prompt
         found_styles, prompt, negative_prompt = extract_styles_from_prompt(metadata_prompt, metadata_negative_prompt)
+        if not str(prompt or '').strip() and str(metadata_prompt_raw or '').strip():
+            prompt = metadata_prompt_raw
+        if not str(negative_prompt or '').strip() and str(metadata_negative_prompt_raw or '').strip():
+            negative_prompt = metadata_negative_prompt_raw
 
         data = {
             'prompt': prompt,
@@ -1803,7 +1888,9 @@ class A1111MetadataParser(MetadataParser):
                 if m is not None:
                     data['resolution'] = str((m.group(1), m.group(2)))
                 else:
-                    data[list(self.fooocus_to_a1111.keys())[list(self.fooocus_to_a1111.values()).index(k)]] = v
+                    internal_key = self._a1111_key_to_internal(k)
+                    if internal_key is not None:
+                        data[internal_key] = v
             except Exception:
                 logger.info(f"Error parsing \"{k}: {v}\"")
 
@@ -1820,10 +1907,10 @@ class A1111MetadataParser(MetadataParser):
         data['styles'] = str(found_styles)
 
         # try to load performance based on steps, fallback for direct A1111 imports
-        if 'steps' in data and 'performance' in data is None:
+        if 'steps' in data and 'performance' not in data:
             try:
                 data['performance'] = Performance.by_steps(data['steps']).value
-            except ValueError | KeyError:
+            except (ValueError, KeyError):
                 pass
 
         if 'sampler' in data:
@@ -1833,11 +1920,15 @@ class A1111MetadataParser(MetadataParser):
                 if v == data['sampler']:
                     data['sampler'] = k
                     break
+        if 'scheduler' in data:
+            data['scheduler'] = self._scheduler_to_internal(data['scheduler'])
 
-        for key in ['base_model', 'refiner_model', 'vae']:
+        for key in ['base_model', 'refiner_model', 'vae', 'clip_model']:
             if key in data:
                 if key == 'vae':
                     self.add_extension_to_filename(data, modules.config.vae_filenames, 'vae')
+                elif key == 'clip_model':
+                    self.add_extension_to_filename(data, modules.config.clip_filenames, 'clip_model')
                 else:
                     self.add_extension_to_filename(data, modules.config.model_filenames, key)
 
@@ -1867,6 +1958,7 @@ class A1111MetadataParser(MetadataParser):
 
         sampler = data['sampler']
         scheduler = data['scheduler']
+        scheduler_text = self._scheduler_to_a1111(scheduler)
 
         if sampler in SAMPLERS and SAMPLERS[sampler] != '':
             sampler = SAMPLERS[sampler]
@@ -1876,6 +1968,7 @@ class A1111MetadataParser(MetadataParser):
         generation_params = {
             self.fooocus_to_a1111['steps']: self.steps,
             self.fooocus_to_a1111['sampler']: sampler,
+            self.fooocus_to_a1111['scheduler']: scheduler_text,
             self.fooocus_to_a1111['seed']: data['seed'],
             self.fooocus_to_a1111['resolution']: f'{width}x{height}',
             self.fooocus_to_a1111['guidance_scale']: data['guidance_scale'],
@@ -1883,14 +1976,22 @@ class A1111MetadataParser(MetadataParser):
             self.fooocus_to_a1111['adm_guidance']: data['adm_guidance'],
             self.fooocus_to_a1111['base_model']: Path(data['base_model']).stem,
             self.fooocus_to_a1111['base_model_hash']: self.base_model_hash,
-
-            self.fooocus_to_a1111['performance']: data['performance'],
-            self.fooocus_to_a1111['scheduler']: scheduler,
-            self.fooocus_to_a1111['vae']: Path(data['vae']).stem,
-            # workaround for multiline prompts
-            self.fooocus_to_a1111['raw_prompt']: self.raw_prompt,
-            self.fooocus_to_a1111['raw_negative_prompt']: self.raw_negative_prompt,
         }
+
+        clip_model = data.get('clip_model', data.get('CLIP Model'))
+        vae_name = self._filename_stem(data.get('vae'))
+        clip_name = self._filename_stem(clip_model)
+        if clip_name and clip_name not in {default_clip, 'Default (model)', 'auto'}:
+            if vae_name:
+                generation_params['Module 1'] = vae_name
+            generation_params['Module 2'] = clip_name
+        elif vae_name:
+            generation_params[self.fooocus_to_a1111['vae']] = vae_name
+
+        generation_params[self.fooocus_to_a1111['performance']] = data['performance']
+        # workaround for multiline prompts
+        generation_params[self.fooocus_to_a1111['raw_prompt']] = self.raw_prompt
+        generation_params[self.fooocus_to_a1111['raw_negative_prompt']] = self.raw_negative_prompt
 
         if self.refiner_model_name not in ['', 'None']:
             generation_params |= {
@@ -1921,7 +2022,7 @@ class A1111MetadataParser(MetadataParser):
 
         generation_params_text = ", ".join(
             [k if k == v else f'{k}: {quote(v)}' for k, v in generation_params.items() if
-             v is not None])
+             v not in [None, '']])
         positive_prompt_resolved = ', '.join(self.full_prompt)
         negative_prompt_resolved = ', '.join(self.full_negative_prompt)
         negative_prompt_text = f"\nNegative prompt: {negative_prompt_resolved}" if negative_prompt_resolved else ""
@@ -2087,34 +2188,128 @@ def get_metadata_parser(metadata_scheme: MetadataScheme) -> MetadataParser:
             raise NotImplementedError
 
 
+def _metadata_scheme_from_value(value):
+    if isinstance(value, MetadataScheme):
+        return value
+    if value is None:
+        return None
+    try:
+        return MetadataScheme(value)
+    except ValueError:
+        return None
+
+
+def normalize_metadata_parameters(parameters, metadata_scheme=None) -> dict | None:
+    if parameters is None:
+        return None
+
+    scheme = _metadata_scheme_from_value(metadata_scheme)
+    parsed = copy.deepcopy(parameters) if isinstance(parameters, dict) else parameters
+
+    if isinstance(parsed, str) and is_json(parsed):
+        parsed = json.loads(parsed)
+        parsed = params_lora_fixed(parsed)
+
+    if isinstance(parsed, dict):
+        wrapper_scheme = parsed.get("metadata_scheme") or parsed.get("fooocus_scheme")
+        if "parameters" in parsed and wrapper_scheme:
+            scheme = _metadata_scheme_from_value(wrapper_scheme) or scheme
+            parsed = parsed.get("parameters")
+            if isinstance(parsed, str) and is_json(parsed):
+                parsed = json.loads(parsed)
+                parsed = params_lora_fixed(parsed)
+
+    if scheme is None:
+        if isinstance(parsed, str):
+            scheme = MetadataScheme.A1111
+        elif isinstance(parsed, dict):
+            return parsed
+        else:
+            return None
+
+    if scheme == MetadataScheme.FOOOCUS:
+        scheme = MetadataScheme.SIMPLE
+
+    try:
+        normalized = get_metadata_parser(scheme).to_json(parsed)
+    except Exception:
+        logger.exception("Failed to normalize metadata parameters with scheme=%s", scheme)
+        return parsed if isinstance(parsed, dict) else None
+    return normalized if isinstance(normalized, dict) else None
+
+
+def _exif_bytes_to_text(value, *, user_comment=False):
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, tuple) and all(isinstance(item, int) for item in value):
+        value = bytes(value)
+    if isinstance(value, bytes):
+        if user_comment and piexif is not None:
+            try:
+                return piexif.helper.UserComment.load(value)
+            except Exception:
+                pass
+        for prefix, encoding in (
+            (b"ASCII\x00\x00\x00", "utf-8"),
+            (b"UNICODE\x00", "utf-16-be"),
+            (b"JIS\x00\x00\x00\x00\x00", "shift_jis"),
+        ):
+            if value.startswith(prefix):
+                return value[len(prefix):].decode(encoding, "replace").strip("\x00")
+        for encoding in ("utf-8", "utf-16-be", "utf-16", "latin-1"):
+            try:
+                return value.decode(encoding).strip("\x00")
+            except Exception:
+                pass
+        return value.decode("utf-8", "replace").strip("\x00")
+    return str(value)
+
+
+def _read_exif_ifd(exif):
+    if hasattr(exif, "get_ifd"):
+        try:
+            exif_ifd = exif.get_ifd(0x8769)
+            if isinstance(exif_ifd, dict):
+                return exif_ifd
+        except Exception:
+            pass
+    return {}
+
+
 def read_info_from_image(file) -> tuple[str | None, MetadataScheme | None]:
     items = (file.info or {}).copy()
 
     parameters = items.pop('parameters', None)
-    metadata_scheme = items.pop('fooocus_scheme', None)
+    metadata_scheme = items.pop('metadata_scheme', None)
+    if metadata_scheme is None:
+        metadata_scheme = items.pop('fooocus_scheme', None)
     exif = items.pop('exif', None)
     if not parameters and 'Comment' in items:
         metadata_scheme = 'simple'
         parameters = items.pop('Comment', None)
 
-    if parameters is not None and is_json(parameters):
+    if isinstance(parameters, str) and is_json(parameters):
         parameters = json.loads(parameters)
         parameters = params_lora_fixed(parameters)
     elif exif is not None:
         exif = file.getexif()
+        exif_ifd = _read_exif_ifd(exif)
         # 0x9286 = UserComment
-        parameters = exif.get(0x9286, None)
+        parameters = exif_ifd.get(0x9286, exif.get(0x9286, None))
         # 0x927C = MakerNote
-        metadata_scheme = exif.get(0x927C, None)
+        metadata_scheme = exif_ifd.get(0x927C, exif.get(0x927C, None))
+        parameters = _exif_bytes_to_text(parameters, user_comment=True)
+        metadata_scheme = _exif_bytes_to_text(metadata_scheme)
         
-        if parameters and is_json(parameters):
+        if isinstance(parameters, str) and is_json(parameters):
             parameters = json.loads(parameters)
             parameters = params_lora_fixed(parameters)
 
     try:
         if metadata_scheme == 'fooocus':
             metadata_scheme = 'simple'
-            parameters.update({'metadata_scheme': 'simple'})
+            if isinstance(parameters, dict):
+                parameters.update({'metadata_scheme': 'simple'})
         metadata_scheme = MetadataScheme(metadata_scheme)
     except ValueError:
         metadata_scheme = None
@@ -2137,13 +2332,28 @@ def params_lora_fixed(parameters):
     return parameters
 
 def get_exif(metadata: str | None, metadata_scheme: str):
+    import enhanced.version as version
+    software = f'{version.branch}_{version.get_simpai_ver()}'
+    if piexif is not None:
+        exif_ifd = {
+            piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(str(metadata or ""), encoding="unicode")
+        }
+        if metadata_scheme:
+            exif_ifd[piexif.ExifIFD.MakerNote] = str(metadata_scheme).encode("utf-8")
+        return piexif.dump({
+            "0th": {piexif.ImageIFD.Software: software},
+            "Exif": exif_ifd,
+            "GPS": {},
+            "1st": {},
+            "thumbnail": None,
+        })
+
     exif = Image.Exif()
     # tags see see https://github.com/python-pillow/Pillow/blob/9.2.x/src/PIL/ExifTags.py
     # 0x9286 = UserComment
     exif[0x9286] = metadata
     # 0x0131 = Software
-    import enhanced.version as version
-    exif[0x0131] = f'{version.branch}_{version.get_simpai_ver()}'
+    exif[0x0131] = software
     # 0x927C = MakerNote
     exif[0x927C] = metadata_scheme
     return exif

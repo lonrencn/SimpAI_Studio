@@ -3914,21 +3914,36 @@ def _extra_network_parent_dirs(names: list[str]) -> list[str]:
     return dirs[:36]
 
 
-def _extra_network_dir_buttons(names: list[str]) -> str:
+def _extra_network_active_dir(query: str | None) -> str:
+    raw = str(query or "").strip()
+    if not raw.endswith(("/", "\\")):
+        return ""
+    normalized = raw.replace("\\", "/").strip("/")
+    return f"{normalized}/" if normalized else ""
+
+
+def _extra_network_dir_buttons(names: list[str], active_dir: str | None = "") -> str:
     dirs = _extra_network_parent_dirs(names)
+    normalized_active_dir = str(active_dir or "").replace("\\", "/").strip("/")
+    normalized_active_dir = f"{normalized_active_dir}/" if normalized_active_dir else ""
     all_label = html_lib.escape(_label("all", "全部"))
+    all_class = "forge-neo-extra-dir" + ("" if normalized_active_dir else " is-active")
+    all_pressed = "false" if normalized_active_dir else "true"
     buttons = [
-        '<button type="button" class="forge-neo-extra-dir is-active" data-dir="" aria-pressed="true">'
+        f'<button type="button" class="{all_class}" data-dir="" aria-pressed="{all_pressed}">'
         f"{all_label}</button>"
     ]
     for directory in dirs:
         safe_dir = html_lib.escape(directory, quote=True)
         safe_label = html_lib.escape(directory.replace("/", "\\"))
-        buttons.append(f'<button type="button" class="forge-neo-extra-dir" data-dir="{safe_dir}" aria-pressed="false">{safe_label}</button>')
+        active = directory.casefold() == normalized_active_dir.casefold()
+        active_class = " is-active" if active else ""
+        pressed = "true" if active else "false"
+        buttons.append(f'<button type="button" class="forge-neo-extra-dir{active_class}" data-dir="{safe_dir}" aria-pressed="{pressed}">{safe_label}</button>')
     return f'<div class="forge-neo-extra-dir-row">{"".join(buttons)}</div>'
 
 
-def _extra_network_cards(kind: str, names: list[str], weights: dict[str, float] | None = None) -> str:
+def _extra_network_cards(kind: str, names: list[str], weights: dict[str, float] | None = None, active_dir: str | None = "") -> str:
     safe_kind = html_lib.escape(str(kind or ""), quote=True)
     if not names:
         empty = html_lib.escape(_label("No items.", "暂无项目。"))
@@ -4003,7 +4018,7 @@ def _extra_network_cards(kind: str, names: list[str], weights: dict[str, float] 
         more = f'<div class="forge-neo-extra-more">{html_lib.escape(_label(f"+{remaining} more", f"另有 {remaining} 项"))}</div>'
     return (
         f'<div class="forge-neo-extra-pane" data-kind="{safe_kind}">'
-        f"{_extra_network_dir_buttons(names)}"
+        f"{_extra_network_dir_buttons(names, active_dir)}"
         f'<div class="forge-neo-extra-grid">{"".join(cards)}{more}</div>'
         "</div>"
     )
@@ -4011,7 +4026,7 @@ def _extra_network_cards(kind: str, names: list[str], weights: dict[str, float] 
 
 def _extra_browser_update(kind: str, choices, query: str | None = "", weights: dict[str, float] | None = None):
     names = _filter_names(_names_for_extra_kind(choices, kind), query)
-    return gr.update(choices=names, value=first_or_none(names) if names else None), _extra_network_cards(kind, names, weights)
+    return gr.update(choices=names, value=first_or_none(names) if names else None), _extra_network_cards(kind, names, weights, active_dir=_extra_network_active_dir(query))
 
 
 def _extra_browser_updates(preset: str, choices) -> list[object]:

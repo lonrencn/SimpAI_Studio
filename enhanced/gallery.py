@@ -1414,8 +1414,10 @@ def select_gallery(choice, image_tools_checkbox, state_params, backfill_prompt, 
     state_params.update({"prompt_info": [choice, selected_index]})
     remember_selected_gallery_media_path(choice, selected_index, state_params)
     result = get_images_prompt(choice, selected_index, state_params["__max_per_page"], True, state_params["user"].get_did(), media_type="image")
-    if backfill_prompt and 'Prompt' in result:
-        gr_prompt_results =  [gr_update(value=result["Prompt"]), gr_update(value=result["Negative Prompt"])]
+    prompt_value = _metadata_prompt_value(result, "Prompt", "prompt")
+    negative_value = _metadata_prompt_value(result, "Negative Prompt", "negative_prompt")
+    if backfill_prompt and prompt_value is not None:
+        gr_prompt_results =  [gr_update(value=prompt_value), gr_update(value=negative_value or "")]
     else:
         gr_prompt_results = [skip_update(), skip_update()]
 
@@ -1429,9 +1431,25 @@ def select_gallery(choice, image_tools_checkbox, state_params, backfill_prompt, 
     return infobox_updates + gr_prompt_results + [gr_update(visible="hidden")] * 7 + [toolbox_update, state_params]
 
 def _prompt_backfill_updates(result, backfill_prompt, allow_backfill=True):
-    if allow_backfill and backfill_prompt and isinstance(result, dict) and 'Prompt' in result:
-        return [gr_update(value=result.get("Prompt", "")), gr_update(value=result.get("Negative Prompt", ""))]
+    prompt_value = _metadata_prompt_value(result, "Prompt", "prompt")
+    negative_value = _metadata_prompt_value(result, "Negative Prompt", "negative_prompt")
+    if allow_backfill and backfill_prompt and prompt_value is not None:
+        return [gr_update(value=prompt_value), gr_update(value=negative_value or "")]
     return [skip_update(), skip_update()]
+
+
+def _metadata_prompt_value(result, *keys):
+    if not isinstance(result, dict):
+        return None
+    empty_value = None
+    for key in keys:
+        value = result.get(key)
+        if isinstance(value, str):
+            if value.strip():
+                return value
+            if empty_value is None:
+                empty_value = value
+    return empty_value
 
 
 def select_gallery_progress(image_tools_checkbox, state_params, backfill_prompt, evt: gr.EventData):
@@ -1588,34 +1606,15 @@ def _read_video_ffmetadata(file_path):
     return fields
 
 
-def _metadata_scheme_from_value(value):
-    if not value:
-        return None
-    try:
-        return meta_parser.MetadataScheme(value)
-    except Exception:
-        return None
-
-
 def _normalize_embedded_parameters(parameters, metadata_scheme, file_path):
     if parameters is None:
         return None
 
-    parsed = None
-    if isinstance(parameters, dict):
-        parsed = copy.deepcopy(parameters)
-    elif isinstance(parameters, str):
-        try:
-            parsed = json.loads(parameters)
-        except Exception:
-            parsed = parameters
-
-    scheme = _metadata_scheme_from_value(metadata_scheme)
-    if scheme is not None:
-        try:
-            parsed = meta_parser.get_metadata_parser(scheme).to_json(parsed)
-        except Exception as e:
-            logger.info("Read embedded metadata parser fallback: file=%s scheme=%s err=%s", file_path, metadata_scheme, e)
+    try:
+        parsed = meta_parser.normalize_metadata_parameters(parameters, metadata_scheme)
+    except Exception as e:
+        logger.info("Read embedded metadata parser fallback: file=%s scheme=%s err=%s", file_path, metadata_scheme, e)
+        parsed = copy.deepcopy(parameters) if isinstance(parameters, dict) else None
 
     if not isinstance(parsed, dict):
         return None
@@ -1637,7 +1636,7 @@ def _read_video_embedded_metadata(file_path):
     fields = _read_video_ffmetadata(file_path)
     if not fields:
         return None
-    metadata_scheme = fields.get("fooocus_scheme") or fields.get("metadata_scheme")
+    metadata_scheme = fields.get("metadata_scheme") or fields.get("fooocus_scheme")
     for key in ("simpleai_metadata", "prompt", "comment"):
         raw = fields.get(key)
         if not raw:

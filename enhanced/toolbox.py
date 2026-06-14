@@ -845,9 +845,7 @@ def reset_params_by_image_meta(metadata, state_params, is_generating, inpaint_mo
     if metadata is None:
         metadata = {}
     manifest = regen_manifest.extract(metadata)
-    metadata_scheme = meta_parser.MetadataScheme('simple')
-    metadata_parser = meta_parser.get_metadata_parser(metadata_scheme)
-    parsed_parameters = metadata_parser.to_json(metadata)
+    parsed_parameters = meta_parser.normalize_metadata_parameters(metadata) or {}
     if manifest is not None:
         logger.info(
             "Regen metadata path: embedded manifest found preset=%s theme=%s schema=%s",
@@ -860,7 +858,7 @@ def reset_params_by_image_meta(metadata, state_params, is_generating, inpaint_mo
         embedded_manifest = regen_manifest.extract(embedded_metadata)
         if embedded_manifest is not None:
             manifest = embedded_manifest
-            parsed_parameters = metadata_parser.to_json(embedded_metadata)
+            parsed_parameters = meta_parser.normalize_metadata_parameters(embedded_metadata) or {}
             logger.info(
                 "Regen metadata path: embedded manifest found in gallery file preset=%s theme=%s schema=%s",
                 manifest.get("preset_name"),

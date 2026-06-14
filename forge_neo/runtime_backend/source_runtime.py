@@ -1172,6 +1172,8 @@ class _SourceBackendSession:
                         "source_info": result.get("info"),
                         "child_elapsed_seconds": result.get("elapsed_seconds"),
                         "source_script_setup": result.get("source_script_setup"),
+                        "source_lora_registry": result.get("source_lora_registry"),
+                        "source_extra_networks": result.get("source_extra_networks"),
                         "source_model_settings": result.get("source_model_settings"),
                         "resolved_source_modules": result.get("resolved_source_modules"),
                         "stdout_tail": _tail_lines(self._stdout_lines),

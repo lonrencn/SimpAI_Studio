@@ -556,19 +556,27 @@
         card.setAttribute("aria-pressed", "true");
     }
 
+    function normalizeExtraNetworkPath(value) {
+        return String(value || "").replace(/\\/g, "/").replace(/^\/+/, "");
+    }
+
     function handleExtraNetworkDirButton(button) {
         const pane = button && button.closest(".forge-neo-extra-pane");
         if (!pane) return false;
-        const dir = button.getAttribute("data-dir") || "";
+        const dir = normalizeExtraNetworkPath(button.getAttribute("data-dir") || "");
+        const dirKey = dir.toLocaleLowerCase();
+        const browser = pane.closest(".forge-neo-extra-browser");
+        const searchRoot = browser && browser.querySelector(".forge-neo-extra-search");
         pane.querySelectorAll(".forge-neo-extra-dir").forEach(function (item) {
             const active = item === button;
             item.classList.toggle("is-active", active);
             item.setAttribute("aria-pressed", active ? "true" : "false");
         });
         pane.querySelectorAll(".forge-neo-extra-card[data-path]").forEach(function (card) {
-            const path = card.getAttribute("data-path") || "";
-            card.hidden = Boolean(dir) && !path.startsWith(dir);
+            const path = normalizeExtraNetworkPath(card.getAttribute("data-path") || "").toLocaleLowerCase();
+            card.hidden = Boolean(dirKey) && !path.startsWith(dirKey);
         });
+        setComponentValue(searchRoot, dir);
         return true;
     }
 

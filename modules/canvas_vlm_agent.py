@@ -4250,21 +4250,23 @@ def _canvas_build_vlm_agent_system_prompt(params, payload, prompt):
             and _canvas_vlm_preset_guide_intent(effective_prompt)
         )
         required_docs = []
+        if anima_prompt_required:
+            required_docs.append(VLM_ANIMA_PROMPT_SKILL_FILE)
         if preset_guide_required:
             required_docs.append(VLM_SIMPAI_PRESET_GUIDE_SKILL_FILE)
         if not prompt_rewrite_request and (prompt_skill_intent or preset_guide_required):
             required_docs.append(VLM_PRESET_TOOL_CALLING_SKILL_FILE)
         if not prompt_rewrite_request and agent_mode == "canvas_agent":
             required_docs.append(VLM_AGENT_COMPANION_SKILL_FILE)
-        if anima_prompt_required:
-            required_docs.append(VLM_ANIMA_PROMPT_SKILL_FILE)
-        elif danbooru_prompt_required:
+        if not anima_prompt_required and danbooru_prompt_required:
             required_docs.append(VLM_DANBOORU_TAG_PROMPT_SKILL_FILE)
-        elif prompt_skill_intent and _canvas_is_natural_prompt_target_key(target_key):
+        elif not anima_prompt_required and prompt_skill_intent and _canvas_is_natural_prompt_target_key(target_key):
             required_docs.append(VLM_NATURAL_PROMPT_ACTION_SKILL_FILE)
-        elif prompt_skill_intent:
+        elif not anima_prompt_required and prompt_skill_intent:
             required_docs.append(VLM_IMAGE_PROMPT_SKILL_FILE)
         doc_budget = 1400 if prompt_rewrite_request else (2200 if compact_prompt else 9000)
+        if anima_prompt_required:
+            doc_budget = max(doc_budget, 18000 if compact_prompt else 20000)
         if preset_guide_required:
             doc_budget = max(doc_budget, 18000 if compact_prompt else 24000)
         elif not prompt_rewrite_request and VLM_PRESET_TOOL_CALLING_SKILL_FILE in required_docs:

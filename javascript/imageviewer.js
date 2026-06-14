@@ -76,6 +76,129 @@ function simpleaiMediaSrc(elem) {
     return elem.currentSrc || elem.src || elem.getAttribute?.('src') || '';
 }
 
+const SIMPLEAI_IMAGE_DRAG_OUT_SELECTOR = [
+    '#finished_gallery .gallery-container img',
+    '#final_gallery .gallery-container img',
+    '#scene_input_images img',
+    '#scene_input_image1 img',
+    '#scene_input_image2 img',
+    '#scene_input_image3 img',
+    '#scene_input_image4 img',
+    '#describe_input_image img',
+    '#image_input_panel img',
+    '#input_image img',
+    '#uov_input_image img',
+    '#inpaint_input_image img',
+    '#ip_image_grid img',
+    '#ip_image_1 img',
+    '#ip_image_2 img',
+    '#ip_image_3 img',
+    '#ip_image_4 img'
+].join(', ');
+
+function simpleaiImageDragOutSrc(img) {
+    const src = simpleaiMediaSrc(img);
+    return src ? simpleaiAbsoluteMediaSrc(src) : '';
+}
+
+function simpleaiIsImageDragOutCandidate(img) {
+    if (!img || img.tagName !== 'IMG') return false;
+    const src = simpleaiMediaSrc(img);
+    if (!src || src.startsWith('data:image/svg+xml')) return false;
+    const naturalWidth = Number(img.naturalWidth || 0);
+    const naturalHeight = Number(img.naturalHeight || 0);
+    if (naturalWidth && naturalHeight && (naturalWidth < 48 || naturalHeight < 48)) return false;
+    return true;
+}
+
+function simpleaiImageDragOutImages() {
+    return Array.from(gradioApp().querySelectorAll(SIMPLEAI_IMAGE_DRAG_OUT_SELECTOR)).filter(simpleaiIsImageDragOutCandidate);
+}
+
+function simpleaiIsVisibleImageDragOutCandidate(img) {
+    if (!simpleaiIsImageDragOutCandidate(img)) return false;
+    const rect = img.getBoundingClientRect();
+    return rect.width > 32 && rect.height > 32 && rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
+}
+
+function simpleaiEnableImageDragOutImage(img) {
+    if (!simpleaiIsImageDragOutCandidate(img)) return;
+    img.draggable = true;
+    img.dataset.simpleaiImageDragOut = "1";
+    img.dataset.simpleaiGalleryDragOut = "1";
+}
+
+function simpleaiBindImageDragOut() {
+    simpleaiImageDragOutImages().forEach(simpleaiEnableImageDragOutImage);
+}
+
+function simpleaiImageDragOutImageFromEvent(event) {
+    const target = event?.target;
+    if (!target || !target.closest) return null;
+    const img = target.closest(SIMPLEAI_IMAGE_DRAG_OUT_SELECTOR);
+    if (!simpleaiIsImageDragOutCandidate(img)) return null;
+    return img;
+}
+
+function simpleaiAbsoluteMediaSrc(src) {
+    try {
+        return new URL(src, document.baseURI).href;
+    } catch (e) {
+        return src;
+    }
+}
+
+function simpleaiRemoveGalleryDragPreview() {
+    document.getElementById('simpleai-gallery-drag-preview')?.remove();
+}
+
+function simpleaiCreateImageDragPreview(img, src) {
+    simpleaiRemoveGalleryDragPreview();
+    const preview = document.createElement('div');
+    preview.id = 'simpleai-gallery-drag-preview';
+    const width = 120;
+    const naturalWidth = Number(img?.naturalWidth || 0);
+    const naturalHeight = Number(img?.naturalHeight || 0);
+    const ratio = naturalWidth > 0 && naturalHeight > 0 ? naturalHeight / naturalWidth : 1;
+    const height = Math.max(48, Math.min(160, Math.round(width * ratio)));
+    preview.style.position = 'fixed';
+    preview.style.left = '0';
+    preview.style.top = '0';
+    preview.style.width = `${width}px`;
+    preview.style.height = `${height}px`;
+    preview.style.transform = 'translate(-220px, -220px)';
+    preview.style.pointerEvents = 'none';
+    preview.style.opacity = '0.92';
+    preview.style.borderRadius = '8px';
+    preview.style.backgroundColor = '#111827';
+    preview.style.backgroundImage = `url("${String(src).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}")`;
+    preview.style.backgroundPosition = 'center';
+    preview.style.backgroundRepeat = 'no-repeat';
+    preview.style.backgroundSize = 'cover';
+    preview.style.boxShadow = '0 10px 28px rgba(0, 0, 0, 0.35)';
+    preview.style.zIndex = '-1';
+    document.body.appendChild(preview);
+    return preview;
+}
+
+function simpleaiHandleImageDragStart(event) {
+    const img = simpleaiImageDragOutImageFromEvent(event);
+    const transfer = event?.dataTransfer;
+    if (!img || !transfer) return;
+    const src = simpleaiImageDragOutSrc(img);
+    if (!src) return;
+    simpleaiEnableImageDragOutImage(img);
+    try {
+        transfer.effectAllowed = 'copy';
+    } catch (e) {}
+    event.stopPropagation();
+    const preview = simpleaiCreateImageDragPreview(img, src);
+    try {
+        transfer.setDragImage(preview, Math.round(preview.offsetWidth / 2), Math.round(preview.offsetHeight / 2));
+    } catch (e) {}
+    setTimeout(simpleaiRemoveGalleryDragPreview, 0);
+}
+
 function modalImageSwitch(offset) {
     var galleryButtons = all_gallery_buttons();
 
@@ -740,6 +863,8 @@ function simpleaiSyncComparisonSliders() {
 
 document.addEventListener("mousemove", simpleaiComparisonDocumentMouseMove, true);
 document.addEventListener("mouseup", simpleaiComparisonDocumentMouseUp, true);
+document.addEventListener('dragstart', simpleaiHandleImageDragStart, true);
+document.addEventListener('dragend', simpleaiRemoveGalleryDragPreview, true);
 window.addEventListener("resize", () => {
     const scope = simpleaiComparisonSliderScope();
     scope.querySelectorAll?.("#comparison_box").forEach((root) => simpleaiScheduleComparisonSliderSync(root, "window_resize"));
@@ -820,6 +945,7 @@ function modalTileImageToggle(event) {
 
 onAfterUiUpdate(function() {
     simpleaiBindGalleryLightbox();
+    simpleaiBindImageDragOut();
     simpleaiSyncGalleryFullscreenState();
     simpleaiSyncGalleryToolboxState();
     updateOnBackgroundChange();

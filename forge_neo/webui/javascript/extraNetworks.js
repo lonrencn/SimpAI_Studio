@@ -62,10 +62,10 @@ function setupExtraNetworksForTab(tabname) {
                 let searchTerm = search.value.toLowerCase();
 
                 // get UI preset
-                radioUI = gradioApp().querySelector("#forge_ui_preset");
-                radioButtons = radioUI.getElementsByTagName("input");
-                UIresult = 3; //  default to 'all'
-                for (i = 0; i < radioButtons.length; i++) {
+                let radioUI = gradioApp().querySelector("#forge_ui_preset");
+                let radioButtons = radioUI ? radioUI.getElementsByTagName("input") : [];
+                let UIresult = 3; //  default to 'all'
+                for (let i = 0; i < radioButtons.length; i++) {
                     if (radioButtons[i].checked) {
                         UIresult = i;
                     }
@@ -87,15 +87,15 @@ function setupExtraNetworksForTab(tabname) {
                         let visible = true;
                         if (searchOnly && searchTerm.length < 4) visible = false;
 
-                        splitSearch = searchTerm.split(" ");
+                        let splitSearch = searchTerm.split(" ");
                         splitSearch.forEach(function (partial) {
                             if (text.indexOf(partial) == -1) visible = false;
                         });
 
-                        sdversion = elem.getAttribute("data-sort-sdversion");
+                        let sdversion = elem.getAttribute("data-sort-sdversion");
                         if (sdversion == null);
                         else if (sdversion == "SdVersion.Unknown");
-                        else if (opts.lora_filter_disabled == True);
+                        else if (opts.lora_filter_disabled === true);
                         else if (UIresult == 3); //  'all'
                         else if (UIresult == 0) {
                             //  'sd'
@@ -399,16 +399,28 @@ function saveCardPreview(event, tabname, filename) {
 }
 
 function extraNetworksSearchButton(tabname, extra_networks_tabname, event) {
-    let searchTextarea = gradioApp().querySelector(
-        "#" + tabname + "_" + extra_networks_tabname + "_extra_search",
-    );
-    let button = event.target;
+    let button = event.currentTarget || event.target;
     let text = button.classList.contains("search-all")
         ? ""
         : button.textContent.trim();
 
-    searchTextarea.value = text;
-    updateInput(searchTextarea);
+    extraNetworksSetSearchAndApply(tabname, extra_networks_tabname, text);
+
+    event.preventDefault();
+    event.stopPropagation();
+}
+
+function extraNetworksSetSearchAndApply(tabname, extra_networks_tabname, text) {
+    let searchInput = gradioApp().querySelector(
+        "#" + tabname + "_" + extra_networks_tabname + "_extra_search",
+    );
+    if (!searchInput) {
+        return;
+    }
+
+    searchInput.value = text || "";
+    updateInput(searchInput);
+    applyExtraNetworkFilter(tabname + "_" + extra_networks_tabname);
 }
 
 function extraNetworksTreeProcessFileClick(
@@ -480,12 +492,7 @@ function extraNetworksTreeProcessDirectoryClick(
     }
 
     function _update_search(_tabname, _extra_networks_tabname, _search_text) {
-        // Update search input with select button's path.
-        let search_input_elem = gradioApp().querySelector(
-            "#" + tabname + "_" + extra_networks_tabname + "_extra_search",
-        );
-        search_input_elem.value = _search_text;
-        updateInput(search_input_elem);
+        extraNetworksSetSearchAndApply(_tabname, _extra_networks_tabname, _search_text);
     }
 
     // If user clicks on the chevron, then we do not select the folder.

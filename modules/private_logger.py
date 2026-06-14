@@ -85,7 +85,7 @@ def _embed_video_metadata(file_path, parsed_parameters, metadata_scheme):
             for key, value in metadata_fields.items():
                 f.write(_escape_ffmetadata(key, value) + "\n")
             if metadata_scheme:
-                f.write(_escape_ffmetadata("fooocus_scheme", metadata_scheme) + "\n")
+                f.write(_escape_ffmetadata("metadata_scheme", metadata_scheme) + "\n")
 
         args = [
             ffmpeg_exe,
@@ -350,7 +350,7 @@ def log(img, metadata, metadata_parser: MetadataParser | None = None, output_for
             elif metadata_parser:
                 pnginfo = PngInfo()
                 pnginfo.add_text('parameters', parsed_parameters)
-                pnginfo.add_text('fooocus_scheme', metadata_parser.get_scheme().value)
+                pnginfo.add_text('metadata_scheme', metadata_parser.get_scheme().value)
             else:
                 pnginfo = None
             if output_format == OutputFormat.JPEG.value:

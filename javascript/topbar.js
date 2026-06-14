@@ -2802,9 +2802,7 @@ function applyTopbarNavStyles(preset, theme, nav_name_list) {
     if (!nav_name_list.length) {
         return { foundCount: 0, activeCount: 0, totalCount: 0 };
     }
-    const mobileLimit = (typeof browser !== "undefined" && browser && browser.device && browser.device.is_mobile)
-        ? 7
-        : buttons.length;
+    const mobileLimit = buttons.length;
     const normalizedPreset = normalizePresetName(preset);
     let foundCount = 0;
     let activeCount = 0;
@@ -7839,6 +7837,53 @@ function clearPostGenerationOwnedLayoutNode(node) {
     return true;
 }
 
+function preservePreviewGeneratingForActiveGeneration(resultEl, reason) {
+    let activeGeneration = false;
+    try {
+        activeGeneration = typeof hasSimpleAIActiveGenerationControls === "function" && hasSimpleAIActiveGenerationControls();
+    } catch (e) {}
+    if (!activeGeneration) return false;
+
+    const preview = getWelcomePreviewElement();
+    if (!preview || !preview.closest) return false;
+    const previewRow = preview.closest(".row");
+    const resultRow = resultEl && resultEl.closest ? resultEl.closest(".row") : null;
+    if (!previewRow) return false;
+    const sameRow = !!(resultRow && previewRow === resultRow);
+
+    const previewWrap = preview.closest(".form, .block");
+    [previewRow, previewWrap, preview].filter(Boolean).forEach((node) => {
+        clearPostGenerationOwnedLayoutNode(node);
+    });
+
+    revealSimpleAIGenerationResultNode(previewRow, "flex");
+    if (sameRow) {
+        try { previewRow.dataset.simpleaiGenerationResultSurface = "1"; } catch (e) {}
+        try { previewRow.style.setProperty("min-height", simpleAIPreviewFitHeightVar(), "important"); } catch (e) {}
+        try { previewRow.style.setProperty("height", simpleAIPreviewFitHeightVar(), "important"); } catch (e) {}
+        try { previewRow.style.setProperty("overflow", "hidden", "important"); } catch (e) {}
+    }
+
+    if (previewWrap && previewWrap !== preview) {
+        revealSimpleAIGenerationResultNode(previewWrap, "block");
+        try { previewWrap.style.setProperty("flex", "1 1 0", "important"); } catch (e) {}
+        try { previewWrap.style.setProperty("min-width", "0", "important"); } catch (e) {}
+        try { previewWrap.style.setProperty("height", "100%", "important"); } catch (e) {}
+    }
+
+    revealSimpleAIGenerationResultNode(preview, "block");
+    try { preview.style.setProperty("flex", "1 1 0", "important"); } catch (e) {}
+    try { preview.style.setProperty("min-width", "0", "important"); } catch (e) {}
+    try { preview.style.setProperty("height", simpleAIPreviewFitHeightVar(), "important"); } catch (e) {}
+    try {
+        simpaiUiTrace("log", "[UI-TRACE] generation_preview.preserved_with_gallery", {
+            reason: reason || "active_generation_gallery_preview",
+            sameRow,
+        });
+    } catch (e) {}
+    return true;
+}
+
 function resetPostGenerationResultSurfaceState(reason) {
     const ids = [
         "preview_generating",
@@ -7991,10 +8036,12 @@ function ensurePostGenerationImageSurface(resultEl, reason) {
     try {
         if (typeof simpleaiSyncGalleryStateSoon === "function") simpleaiSyncGalleryStateSoon();
     } catch (e) {}
-    const collapsedPreview = collapseWelcomePreviewForPostGenerationSurface(gallery);
+    const preserveGeneratingPreview = preservePreviewGeneratingForActiveGeneration(gallery, reason || "post_generation");
+    const collapsedPreview = preserveGeneratingPreview ? false : collapseWelcomePreviewForPostGenerationSurface(gallery);
     simpaiUiTrace("log", "[UI-TRACE] post_generation_surface.ensure", {
         reason: reason || "post_generation",
         collapsedPreview,
+        preserveGeneratingPreview,
         row: row ? { cls: String(row.className || ""), data: row.dataset?.simpleaiPostGenerationSurface || "" } : null,
         sharedPreviewWrapper: !!(getWelcomePreviewElement()?.closest(".form, .block")?.contains?.(gallery)),
     });
@@ -8548,6 +8595,7 @@ function syncPostGenerationResultControls(stateOverride) {
     const stateHasImageOutput = stateHasOutput && !isVideoContext && !stateHasVideoOutput;
     const stateGalleryPreviewOpen = !!(params && params.gallery_preview_open);
     const singlePreviewOpen = stateGalleryPreviewOpen || hasGallerySinglePreview() || (comparisonVisible && !compareActionBlocked);
+    const activeGenerationControls = typeof hasSimpleAIActiveGenerationControls === "function" && hasSimpleAIActiveGenerationControls();
     const stateImageUrl = params?.__post_generation_image_url || "";
     const supportSurfaceKey = postGenerationSurfaceKeyFromParams(params);
     const supportSurfaceFresh = isPostGenerationSupportSurfaceFresh(supportSurfaceKey);
@@ -8692,11 +8740,13 @@ function syncPostGenerationResultControls(stateOverride) {
     const catalog = find("finished_images_catalog");
     if (finishedGallery && hasFinishedGalleryMedia) {
         showElement(finishedGallery);
-        if (stateHasImageOutput) {
+        if (stateHasImageOutput && !activeGenerationControls) {
             ensurePostGenerationImageSurface(finishedGallery, "post_generation_result_controls");
+        } else if (activeGenerationControls) {
+            preservePreviewGeneratingForActiveGeneration(finishedGallery, "post_generation_result_controls_active_generation");
         } else {
             const preview = find("preview_generating");
-            if (preview && preview.closest && preview.closest(".row") === finishedGallery.closest(".row")) {
+            if (!activeGenerationControls && preview && preview.closest && preview.closest(".row") === finishedGallery.closest(".row")) {
                 markPostGenerationCollapsedNode(preview);
             }
         }
