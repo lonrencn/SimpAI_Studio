@@ -2309,6 +2309,7 @@ def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpain
     state_params["gallery_state"] = "preview"
     state_params["gallery_preview_open"] = False
     state_params["__skip_gallery_browser_refresh_once"] = True
+    gallery_util.invalidate_main_gallery_browser_requests(state_params, "preset_switch")
     gallery_util.clear_post_generation_compare_state(state_params)
 
     config_preset = config.try_get_preset_content(resolved_preset, state_params["user"].get_did())

@@ -5665,6 +5665,17 @@ function markFinishedGalleryBrowserLoading() {
 
 function syncFinishedGalleryBrowserAfterLoad(stateJson) {
     const data = parseFinishedGalleryBrowserState(stateJson);
+    if (data && data.stale) {
+        finishedGalleryBrowserState.loading = false;
+        finishedGalleryBrowserPreloadInFlight = false;
+        finishedGalleryBrowserState.pendingPayload = null;
+        finishedGalleryBrowserState.queuedOptions = null;
+        finishedGalleryBrowserState.restoreScrollTop = null;
+        syncFinishedGalleryBrowserMoreButton();
+        setFinishedGalleryBrowserStatus("");
+        try { closeSimpleAIOpenGalleriesForPresetSwitch("gallery_browser_stale_after_preset", { suppressMs: 700 }); } catch (e) {}
+        return;
+    }
     if (data && data.request_id && Number(data.request_id) !== finishedGalleryBrowserState.activeRequestId) {
         return;
     }

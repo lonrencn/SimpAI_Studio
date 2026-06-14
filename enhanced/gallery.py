@@ -39,6 +39,8 @@ _output_list_inflight = set()
 _output_catalog_dir_cache = {}
 _gallery_media_switch_request_lock = threading.Lock()
 _gallery_media_switch_latest = {}
+_main_gallery_browser_request_lock = threading.Lock()
+_main_gallery_browser_invalidated_after = {}
 
 
 def _gallery_media_switch_noop_response():
@@ -70,6 +72,75 @@ def _gallery_media_switch_user_key(state_params):
         return str(did or "guest")
     except Exception:
         return "guest"
+
+
+def _main_gallery_browser_user_key(state_params):
+    return _gallery_media_switch_user_key(state_params)
+
+
+def invalidate_main_gallery_browser_requests(state_params, reason="preset_switch"):
+    key = _main_gallery_browser_user_key(state_params)
+    invalidated_at = time.monotonic()
+    with _main_gallery_browser_request_lock:
+        _main_gallery_browser_invalidated_after[key] = invalidated_at
+    util.log_ui_trace(
+        logger,
+        "[UI-TRACE] gallery_browser.invalidate | user=%r, reason=%r",
+        key,
+        reason,
+    )
+    return invalidated_at
+
+
+def _main_gallery_browser_request_context(state_params):
+    return {
+        "user_key": _main_gallery_browser_user_key(state_params),
+        "started_at": time.monotonic(),
+    }
+
+
+def _main_gallery_browser_request_is_stale(context):
+    if not isinstance(context, dict):
+        return False
+    user_key = context.get("user_key")
+    started_at = context.get("started_at")
+    if user_key is None or started_at is None:
+        return False
+    with _main_gallery_browser_request_lock:
+        invalidated_at = _main_gallery_browser_invalidated_after.get(user_key)
+    return bool(invalidated_at and invalidated_at > started_at)
+
+
+def _gallery_browser_stale_state_json(payload=None):
+    payload = payload or {}
+    return _main_gallery_browser_state_json(
+        ok=False,
+        stale=True,
+        media_type=payload.get("media_type"),
+        folder=payload.get("folder"),
+        request_id=payload.get("request_id"),
+        error="Gallery browser request expired.",
+    )
+
+
+def _gallery_browser_load_stale_response(payload=None, state_params=None):
+    util.log_ui_trace(
+        logger,
+        "[UI-TRACE] gallery_browser.stale_load_skip | preset=%r, request_id=%r",
+        state_params.get("__preset") if isinstance(state_params, dict) else None,
+        (payload or {}).get("request_id"),
+    )
+    return [_gallery_browser_stale_state_json(payload)] + [skip_update() for _ in range(10)]
+
+
+def _gallery_browser_native_stale_response(state_params=None, request_name="gallery_browser_native"):
+    util.log_ui_trace(
+        logger,
+        "[UI-TRACE] gallery_browser.stale_native_skip | preset=%r, request=%r",
+        state_params.get("__preset") if isinstance(state_params, dict) else None,
+        request_name,
+    )
+    return [skip_update() for _ in range(15)]
 
 
 def _register_gallery_media_switch_request(marker, target_engine_type, state_params):
@@ -1062,13 +1133,9 @@ def get_main_gallery_browser_selected_metadata(state_params, selected=None):
 
 def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_params):
     state_params = state_params or {}
-    clear_post_generation_result_state(state_params)
+    request_context = _main_gallery_browser_request_context(state_params)
     payload = _parse_main_gallery_browser_payload(payload_json)
     media_type = payload["media_type"]
-    state_params["__gallery_engine_type"] = media_type
-    state_params.setdefault("__max_per_page", 18)
-    state_params.setdefault("__max_catalog", config.default_image_catalog_max_number)
-    state_params.setdefault("__finished_nums_pages", "0,0")
 
     folder = payload["folder"]
     folders = []
@@ -1107,6 +1174,14 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
         },
         state_params,
     )
+    if _main_gallery_browser_request_is_stale(request_context):
+        return _gallery_browser_load_stale_response(payload, state_params)
+
+    clear_post_generation_result_state(state_params)
+    state_params["__gallery_engine_type"] = media_type
+    state_params.setdefault("__max_per_page", 18)
+    state_params.setdefault("__max_catalog", config.default_image_catalog_max_number)
+    state_params.setdefault("__finished_nums_pages", "0,0")
     if not result.get("ok"):
         state_json = _main_gallery_browser_state_json(
             ok=False,
@@ -1196,7 +1271,7 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
 
 def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params, offset=0, reset=True):
     state_params = state_params or {}
-    clear_post_generation_result_state(state_params)
+    request_context = _main_gallery_browser_request_context(state_params)
     media_type = get_gallery_engine_type(state_params)
     limit = 36
     folder = str(folder or state_params.get("__main_gallery_browser_folder") or "").strip().replace("\\", "/").strip("/")
@@ -1223,7 +1298,11 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
         state_params,
     )
     folders = result.get("folders") or []
+    if _main_gallery_browser_request_is_stale(request_context):
+        return _gallery_browser_native_stale_response(state_params, "_load_main_gallery_browser_native")
+
     if not result.get("ok"):
+        clear_post_generation_result_state(state_params)
         status = "Load failed" if _gallery_lang(state_params) == "en" else "加载失败"
         prev_update, next_update = _main_gallery_browser_nav_updates(folders, folder)
         return [
@@ -1261,6 +1340,10 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
         )
         folders = result.get("folders") or folders
 
+    if _main_gallery_browser_request_is_stale(request_context):
+        return _gallery_browser_native_stale_response(state_params, "_load_main_gallery_browser_native")
+
+    clear_post_generation_result_state(state_params)
     prev_update, next_update = _main_gallery_browser_nav_updates(folders, folder)
     items = result.get("items") or []
     previous_key = state_params.get("__main_gallery_browser_key")

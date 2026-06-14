@@ -6666,6 +6666,9 @@ with shared.gradio_root:
                                                                info='Image Prompt parameters are not included. Use png and a1111 for compatibility with Civitai.',
                                                                visible=modules.config.default_save_metadata_to_images)
                                     save_metadata_to_images.change(toggle_checked, inputs=[save_metadata_to_images], outputs=[metadata_scheme], queue=False, show_progress=False)
+                                    disabled_save_final_enhanced_image_only = gr.State(value=None)
+                                    disabled_save_metadata_to_images = gr.State(value=False)
+                                    disabled_metadata_scheme = gr.State(value=None)
                             style_search_bar.change(fn=None,
                                                 inputs=None,
                                                 outputs=None,
@@ -7661,9 +7664,9 @@ with shared.gradio_root:
         ctrls += freeu_ctrls
         ctrls += inpaint_ctrls
         ctrls += [params_backend]
-        ctrls += [save_final_enhanced_image_only if not args_manager.args.disable_image_log else None]
-        ctrls += [save_metadata_to_images if not args_manager.args.disable_metadata else None]
-        ctrls += [metadata_scheme if not args_manager.args.disable_metadata else None]
+        ctrls += [save_final_enhanced_image_only if not args_manager.args.disable_image_log else disabled_save_final_enhanced_image_only]
+        ctrls += [save_metadata_to_images if not args_manager.args.disable_metadata else disabled_save_metadata_to_images]
+        ctrls += [metadata_scheme if not args_manager.args.disable_metadata else disabled_metadata_scheme]
         ctrls += ip_ctrls
         ctrls += [debugging_dino, dino_erode_or_dilate, debugging_enhance_masks_checkbox,
                   enhance_input_image, enhance_checkbox, enhance_uov_method, enhance_uov_strength, enhance_uov_processing_order,

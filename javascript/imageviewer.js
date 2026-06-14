@@ -140,12 +140,71 @@ function simpleaiImageDragOutImageFromEvent(event) {
     return img;
 }
 
+function simpleaiShouldStopImageDragPropagation(img) {
+    if (!img || !img.closest) return false;
+    if (img.closest('#finished_gallery, #final_gallery')) return false;
+    return true;
+}
+
 function simpleaiAbsoluteMediaSrc(src) {
     try {
         return new URL(src, document.baseURI).href;
     } catch (e) {
         return src;
     }
+}
+
+function simpleaiCanUseExternalImageDownloadDrag(src) {
+    try {
+        const url = new URL(src, document.baseURI);
+        return !['data:', 'blob:', 'javascript:'].includes(url.protocol);
+    } catch (e) {
+        return !/^(data|blob|javascript):/i.test(String(src || ''));
+    }
+}
+
+function simpleaiSafeDecodeUriPart(value) {
+    try {
+        return decodeURIComponent(value);
+    } catch (e) {
+        return value;
+    }
+}
+
+function simpleaiImageDragOutFileName(src) {
+    let path = '';
+    try {
+        path = new URL(src, document.baseURI).pathname || '';
+    } catch (e) {
+        path = String(src || '').split(/[?#]/, 1)[0];
+    }
+    const name = simpleaiSafeDecodeUriPart(path)
+        .replace(/\\/g, '/')
+        .split('/')
+        .filter(Boolean)
+        .pop() || '';
+    const cleanName = name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
+    return cleanName && cleanName !== '.' && cleanName !== '..' ? cleanName : 'simpai-image.png';
+}
+
+function simpleaiImageDragOutMimeType(filename) {
+    const name = String(filename || '').toLowerCase();
+    if (name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.jfif')) return 'image/jpeg';
+    if (name.endsWith('.webp')) return 'image/webp';
+    if (name.endsWith('.gif')) return 'image/gif';
+    if (name.endsWith('.bmp')) return 'image/bmp';
+    if (name.endsWith('.avif')) return 'image/avif';
+    if (name.endsWith('.tif') || name.endsWith('.tiff')) return 'image/tiff';
+    return 'image/png';
+}
+
+function simpleaiSetExternalImageDownloadDragData(transfer, src) {
+    if (!transfer?.setData || !simpleaiCanUseExternalImageDownloadDrag(src)) return;
+    const filename = simpleaiImageDragOutFileName(src);
+    const mime = simpleaiImageDragOutMimeType(filename);
+    try {
+        transfer.setData('DownloadURL', `${mime}:${filename}:${src}`);
+    } catch (e) {}
 }
 
 function simpleaiRemoveGalleryDragPreview() {
@@ -191,7 +250,8 @@ function simpleaiHandleImageDragStart(event) {
     try {
         transfer.effectAllowed = 'copy';
     } catch (e) {}
-    event.stopPropagation();
+    simpleaiSetExternalImageDownloadDragData(transfer, src);
+    if (simpleaiShouldStopImageDragPropagation(img)) event.stopPropagation();
     const preview = simpleaiCreateImageDragPreview(img, src);
     try {
         transfer.setDragImage(preview, Math.round(preview.offsetWidth / 2), Math.round(preview.offsetHeight / 2));
