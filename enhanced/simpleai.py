@@ -117,7 +117,7 @@ def is_port_available(port, host='127.0.0.1'):
             return True
     except Exception:
         return False
-def find_available_port(start_port=8187, max_attempts=100, suppress_logging=False, host=None):
+def find_available_port(start_port=8187, max_attempts=100, suppress_logging=False, host=None, reserved_ports=None):
     if host is None:
         host = '0.0.0.0'
     try:
@@ -128,6 +128,13 @@ def find_available_port(start_port=8187, max_attempts=100, suppress_logging=Fals
         pass
 
     excluded_ports = {8188}
+    if reserved_ports is not None:
+        candidates = [reserved_ports] if isinstance(reserved_ports, (str, int)) else reserved_ports
+        for reserved_port in candidates:
+            try:
+                excluded_ports.add(int(reserved_port))
+            except (TypeError, ValueError):
+                pass
 
     for i in range(max_attempts):
         port = start_port + i
@@ -144,14 +151,17 @@ def find_available_port(start_port=8187, max_attempts=100, suppress_logging=Fals
     import random
     for _ in range(20):
         port = random.randint(10000, 65535)
-        if port not in range(8180, 8200) and is_port_available(port, host):
+        if port not in range(8180, 8200) and port not in excluded_ports and is_port_available(port, host):
             if not suppress_logging:
                 logger.warning(f"常规端口范围被占用，使用随机端口: {port}")
             return port
 
+    fallback_port = start_port
+    while fallback_port in excluded_ports:
+        fallback_port += 1
     if not suppress_logging:
-        logger.error(f"无法找到可用端口，尝试使用默认端口: {start_port}")
-    return start_port
+        logger.error(f"无法找到可用端口，尝试使用端口: {fallback_port}")
+    return fallback_port
 
 def _select_comfyd_input_workspace_did():
     if hasattr(shared.token, "get_local_did"):
@@ -319,14 +329,17 @@ def reset_simpleai_args():
         torch_version=torch_version,
         xformers_version=xformers_version ))
 
+    frontend_port = getattr(args_manager.args, "port", None)
+    reserved_backend_ports = {frontend_port} if frontend_port is not None else set()
+
     if args_manager.args.backend_port is not None:
-        available_port = find_available_port(args_manager.args.backend_port, suppress_logging=True)
+        available_port = find_available_port(args_manager.args.backend_port, suppress_logging=True, reserved_ports=reserved_backend_ports)
         if available_port == args_manager.args.backend_port:
             logger.info(f"使用指定的后端端口: {available_port}")
         else:
             logger.info(f"端口 {args_manager.args.backend_port} 被占用，自动切换到端口: {available_port}")
     else:
-        available_port = find_available_port(8187)
+        available_port = find_available_port(8187, reserved_ports=reserved_backend_ports)
 
     shared.sysinfo["loopback_port"] = available_port
     comfyclient_pipeline.COMFYUI_ENDPOINT_PORT = shared.sysinfo["loopback_port"]

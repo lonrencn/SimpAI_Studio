@@ -2307,6 +2307,82 @@ apply_webui_assets()
 
 title = f'{version.branch}-让创作如此轻松! Make creation a breeze!'
 
+
+def _frontend_bind_host():
+    return args_manager.args.listen or "127.0.0.1"
+
+
+def _reserved_frontend_ports():
+    reserved = set()
+    try:
+        loopback_port = shared.sysinfo.get("loopback_port") if isinstance(shared.sysinfo, dict) else None
+        if loopback_port is not None:
+            reserved.add(int(loopback_port))
+    except (TypeError, ValueError):
+        pass
+    return reserved
+
+
+def _set_frontend_port(port):
+    port = int(port)
+    args_manager.args.port = port
+    if hasattr(shared, "args") and hasattr(shared.args, "port"):
+        shared.args.port = port
+    if isinstance(shared.sysinfo, dict):
+        shared.sysinfo["local_port"] = port
+
+
+def _find_available_frontend_port(start_port):
+    try:
+        start_port = int(start_port)
+    except (TypeError, ValueError):
+        start_port = 8186
+    return simpleai.find_available_port(
+        start_port,
+        host=_frontend_bind_host(),
+        suppress_logging=True,
+        reserved_ports=_reserved_frontend_ports(),
+    )
+
+
+def _ensure_frontend_port_available():
+    try:
+        current_port = int(args_manager.args.port)
+    except (TypeError, ValueError):
+        return
+
+    host = _frontend_bind_host()
+    if simpleai.is_port_available(current_port, host):
+        return
+
+    new_port = _find_available_frontend_port(current_port + 1)
+    if new_port != current_port:
+        logging.info(f"端口 {current_port} 被占用，自动切换到: {new_port}")
+        _set_frontend_port(new_port)
+
+
+def _launch_root_app_with_frontend_port_retry(**kwargs):
+    try:
+        return launch_root_app(shared.gradio_root, **kwargs)
+    except OSError as e:
+        if "Cannot find empty port" not in str(e):
+            raise
+        current_port = kwargs.get("server_port", args_manager.args.port)
+        try:
+            current_port_int = int(current_port)
+        except (TypeError, ValueError):
+            current_port_int = 8186
+        new_port = _find_available_frontend_port(current_port_int + 1)
+        if new_port == current_port_int:
+            raise
+        logging.info(f"端口 {current_port} 被占用，自动切换到: {new_port}")
+        _set_frontend_port(new_port)
+        kwargs["server_port"] = new_port
+        return launch_root_app(shared.gradio_root, **kwargs)
+
+
+_ensure_frontend_port_available()
+
 shared.gradio_root = create_root_blocks(title=title, concurrency_count=5)
 
 get_local_url = f'http://{args_manager.args.listen}:{args_manager.args.port}{args_manager.args.webroot}'
@@ -9745,8 +9821,7 @@ else:
                          args_manager.args.port = new_port
             pass
 
-app, local_url, share_url = launch_root_app(
-    shared.gradio_root,
+app, local_url, share_url = _launch_root_app_with_frontend_port_retry(
     inbrowser=args_manager.args.in_browser,
     server_name=args_manager.args.listen,
     server_port=args_manager.args.port,

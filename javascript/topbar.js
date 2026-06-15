@@ -8232,6 +8232,13 @@ function setPanelVisibleById(panelId, visible) {
     }
 }
 
+function isSceneFrontendActiveFromTopbarParams() {
+    const params = window.simpleaiTopbarSystemParams && typeof window.simpleaiTopbarSystemParams === "object"
+        ? window.simpleaiTopbarSystemParams
+        : (topbarLastSystemParams && typeof topbarLastSystemParams === "object" ? topbarLastSystemParams : null);
+    return !!(params && (params.__is_scene_frontend || params.scene_frontend));
+}
+
 function syncImageAndTtsPanelsFromCheckboxes(traceLabel, preferredSource) {
     if (typeof window.syncTopbarMountedPanelVisibility === "function") {
         window.syncTopbarMountedPanelVisibility(traceLabel, preferredSource);
@@ -8241,8 +8248,9 @@ function syncImageAndTtsPanelsFromCheckboxes(traceLabel, preferredSource) {
     const ttsChecked = getCheckboxCheckedByWrapperId("qwen_tts_checkbox");
     if (imageChecked === null && ttsChecked === null) return;
     const showTts = !!ttsChecked;
-    const showImage = !!imageChecked;
+    const showImage = !!imageChecked && !isSceneFrontendActiveFromTopbarParams();
     setPanelVisibleById("image_input_panel", showImage);
+    document.documentElement.classList.toggle("simpai-engine-class-visible", showImage);
     setPanelVisibleById("tts_panel", showTts);
 }
 
@@ -9122,6 +9130,10 @@ function syncSceneAndAdvancedColumns(traceLabel, isSceneFrontend) {
         document.documentElement.classList.toggle("simpai-scene-parameter-normalized", isScene);
     } catch (e) {}
     setPanelVisibleById("scene_panel", isScene);
+    if (isScene) {
+        setPanelVisibleById("image_input_panel", false);
+        try { document.documentElement.classList.remove("simpai-engine-class-visible"); } catch (e) {}
+    }
     if (typeof window.syncTopbarMountedPanelVisibility === "function") {
         window.syncTopbarMountedPanelVisibility(traceLabel);
     }

@@ -6,6 +6,75 @@
     const DOCK_OPEN_DELAY_MS = 35;
     const DOCK_HIDE_DELAY_MS = 260;
     const IMAGE_FILE_EXTENSION_RE = /\.(?:png|jpe?g|gif|webp|bmp|avif|tiff?|ico)$/i;
+    let activeSketchApi = null;
+
+    function ensureSimpAISketchNamespace() {
+        window.SimpAISketch = window.SimpAISketch || {};
+        return window.SimpAISketch;
+    }
+
+    function setActiveSketch(api) {
+        const namespace = ensureSimpAISketchNamespace();
+        if (activeSketchApi && !activeSketchApi.editor?.isConnected) {
+            activeSketchApi = null;
+            namespace.active = null;
+        }
+        const next = api || null;
+        if (activeSketchApi === next) {
+            namespace.active = activeSketchApi;
+            return activeSketchApi;
+        }
+        const previous = activeSketchApi;
+        activeSketchApi = null;
+        namespace.active = null;
+        if (previous) {
+            previous.releaseTransientState?.();
+        }
+        activeSketchApi = next;
+        namespace.active = activeSketchApi;
+        return activeSketchApi;
+    }
+
+    function clearActiveSketch(api) {
+        const namespace = ensureSimpAISketchNamespace();
+        if (api && activeSketchApi !== api) return null;
+        activeSketchApi = null;
+        namespace.active = null;
+        return null;
+    }
+
+    function isActiveSketch(api) {
+        if (activeSketchApi && !activeSketchApi.editor?.isConnected) {
+            clearActiveSketch(activeSketchApi);
+        }
+        return activeSketchApi === api;
+    }
+
+    function releaseHiddenSketches() {
+        const namespace = ensureSimpAISketchNamespace();
+        for (const sketch of Array.from(namespace.instances || [])) {
+            if (!sketch?.editor?.isConnected) {
+                namespace.instances.delete(sketch);
+                if (namespace.active === sketch) clearActiveSketch(sketch);
+                continue;
+            }
+            if (sketch.isVisible?.() !== false) continue;
+            sketch.releaseTransientState?.();
+            if (namespace.active === sketch) clearActiveSketch(sketch);
+        }
+    }
+
+    function releaseAllSketchTransientState() {
+        const namespace = ensureSimpAISketchNamespace();
+        for (const sketch of Array.from(namespace.instances || [])) {
+            if (!sketch?.editor?.isConnected) {
+                namespace.instances.delete(sketch);
+                continue;
+            }
+            sketch.releaseTransientState?.();
+        }
+        clearActiveSketch(null);
+    }
 
     function ensureStyle() {
         if (document.getElementById(STYLE_ID)) return;
@@ -1577,6 +1646,7 @@
         function enterFullscreen() {
             if (fullscreenMode) return true;
             if (panFloatingMode) exitPanFloating();
+            setActiveSketch(api);
             fullscreenMode = true;
             moveEditorToBody();
             editor.classList.add("simpai-sketch--fullscreen");
@@ -1585,13 +1655,22 @@
             return true;
         }
 
-        function exitFullscreen() {
+        function exitFullscreen(options = {}) {
             if (!fullscreenMode) return false;
             fullscreenMode = false;
             editor.classList.remove("simpai-sketch--fullscreen");
             document.body.classList.remove("simpai-sketch-fullscreen-active");
             restoreEditorFromBody();
             resetViewport();
+            if (options.keepHotkey === true) {
+                pointerInsideEditor = true;
+                setActiveSketch(api);
+            } else if (isActiveSketch(api)) {
+                pointerInsideEditor = false;
+                clearActiveSketch(api);
+            } else {
+                pointerInsideEditor = false;
+            }
             editor.style.transform = "";
             updateStageDisplay();
             return true;
@@ -1607,6 +1686,7 @@
                 return true;
             }
             if (panFloatingMode) return true;
+            setActiveSketch(api);
             panFloatingMode = true;
             beginPanGesture();
             editor.classList.add("simpai-sketch--pan-floating");
@@ -1614,17 +1694,54 @@
             return true;
         }
 
-        function exitPanFloating() {
+        function exitPanFloating(options = {}) {
             if (!panFloatingMode) return false;
             panFloatingMode = false;
             endPanGesture();
             editor.classList.remove("simpai-sketch--pan-floating");
+            if (options.keepHotkey === true) {
+                pointerInsideEditor = true;
+                setActiveSketch(api);
+            } else if (isActiveSketch(api)) {
+                pointerInsideEditor = false;
+                clearActiveSketch(api);
+            } else {
+                pointerInsideEditor = false;
+            }
             viewportBaseWidth = 0;
             viewportBaseHeight = 0;
             editor.style.width = "";
             editor.style.height = "";
             editor.style.transform = "";
             applyViewportTransform();
+            return true;
+        }
+
+        function releaseTransientState(options = {}) {
+            drawing = false;
+            panGestureMode = false;
+            editor.classList.remove("is-drawing");
+            stage.classList.remove("is-cursor-visible");
+            if (panFloatingMode) {
+                panFloatingMode = false;
+                editor.classList.remove("simpai-sketch--pan-floating");
+                viewportBaseWidth = 0;
+                viewportBaseHeight = 0;
+                editor.style.width = "";
+                editor.style.height = "";
+                editor.style.transform = "";
+                applyViewportTransform();
+            }
+            if (fullscreenMode && options.keepFullscreen !== true) {
+                fullscreenMode = false;
+                editor.classList.remove("simpai-sketch--fullscreen");
+                document.body.classList.remove("simpai-sketch-fullscreen-active");
+                restoreEditorFromBody();
+                editor.style.transform = "";
+                resetViewport();
+                updateStageDisplay();
+            }
+            pointerInsideEditor = false;
             return true;
         }
 
@@ -1685,6 +1802,7 @@
         let internalWrite = false;
         let lastExternalValue = input.value || "";
         let lastWrittenValue = input.value || "";
+        let payloadSequence = 0;
 
         function drawMaskImage(maskImage) {
             maskCtx.clearRect(0, 0, width, height);
@@ -1748,6 +1866,7 @@
         }
 
         function clearImage(options = {}) {
+            payloadSequence += 1;
             exitCropMode();
             hasImage = false;
             sourceImageDataUrl = "";
@@ -1775,30 +1894,54 @@
         }
 
         async function setPayload(text) {
-            if (!text) return;
+            const sequence = ++payloadSequence;
+            if (!text) {
+                if (!hasImage) {
+                    lastPayload = null;
+                    lastExternalValue = "";
+                    lastWrittenValue = "";
+                    return false;
+                }
+                clearImage({ change: false });
+                return false;
+            }
             exitCropMode();
             let payload;
             try {
                 payload = JSON.parse(text);
             } catch (_) {
-                return;
+                return false;
             }
-            if (!payload || (!payload.image && !payload.mask)) return;
+            if (!payload || (!payload.image && !payload.mask)) return false;
 
-            const img = payload.image ? await loadImage(payload.image) : await loadImage(payload.mask);
-            hasImage = true;
-            resize(img.naturalWidth || img.width || width, img.naturalHeight || img.height || height);
-            bgCtx.clearRect(0, 0, width, height);
-            maskCtx.clearRect(0, 0, width, height);
-            if (payload.image) {
-                const image = await loadImage(payload.image);
-                bgCtx.drawImage(image, 0, 0, width, height);
-                proxyImage.src = payload.image;
-                sourceImageDataUrl = payload.image;
-            }
-            if (payload.mask) {
-                const mask = await loadImage(payload.mask);
-                drawMaskImage(mask);
+            try {
+                const imageSource = payload.image || payload.mask;
+                const img = await loadImage(imageSource);
+                if (sequence !== payloadSequence) return false;
+                hasImage = true;
+                resize(img.naturalWidth || img.width || width, img.naturalHeight || img.height || height);
+                bgCtx.clearRect(0, 0, width, height);
+                maskCtx.clearRect(0, 0, width, height);
+                if (payload.image) {
+                    const image = payload.image === imageSource ? img : await loadImage(payload.image);
+                    if (sequence !== payloadSequence) return false;
+                    bgCtx.drawImage(image, 0, 0, width, height);
+                    proxyImage.src = payload.image;
+                    sourceImageDataUrl = payload.image;
+                } else {
+                    proxyImage.removeAttribute("src");
+                    sourceImageDataUrl = "";
+                }
+                if (payload.mask) {
+                    const mask = payload.mask === imageSource ? img : await loadImage(payload.mask);
+                    if (sequence !== payloadSequence) return false;
+                    drawMaskImage(mask);
+                }
+            } catch (err) {
+                if (sequence === payloadSequence) {
+                    console.warn("[SimpAI Sketch] Payload image load failed", err);
+                }
+                return false;
             }
             undoStack.length = 0;
             redoStack.length = 0;
@@ -1813,13 +1956,16 @@
             empty.style.display = "none";
             updateStageDisplay();
             refreshToolbarState();
+            return true;
         }
 
         async function openImageDataUrl(dataUrl, options = {}) {
             if (!dataUrl) return false;
+            const sequence = ++payloadSequence;
             try {
                 exitCropMode();
                 const img = await loadImage(dataUrl);
+                if (sequence !== payloadSequence) return false;
                 hasImage = true;
                 resize(img.naturalWidth || img.width, img.naturalHeight || img.height);
                 bgCtx.clearRect(0, 0, width, height);
@@ -2120,14 +2266,47 @@
         clearImageButton.addEventListener("click", () => {
             clearImage({ change: true });
         });
+        const eventTargetInsideEditor = (event) => {
+            const target = event?.target;
+            return !!(target && (target === root || target === editor || root.contains(target) || editor.contains(target)));
+        };
+        const isSketchVisible = () => {
+            if (!root.isConnected || !editor.isConnected) return false;
+            if (fullscreenMode) return true;
+            try {
+                const rootStyle = window.getComputedStyle(root);
+                const editorStyle = window.getComputedStyle(editor);
+                if (rootStyle.display === "none" || editorStyle.display === "none") return false;
+                if (rootStyle.visibility === "hidden" || editorStyle.visibility === "hidden") return false;
+            } catch {
+            }
+            return root.getClientRects().length > 0 && editor.getClientRects().length > 0;
+        };
+        const isSketchHotkeyActive = (event) => {
+            if (!isSketchVisible()) {
+                releaseTransientState();
+                if (isActiveSketch(api)) clearActiveSketch(api);
+                return false;
+            }
+            if ((fullscreenMode || panFloatingMode || panGestureMode) && !isActiveSketch(api)) {
+                releaseTransientState();
+                return false;
+            }
+            return isActiveSketch(api) || eventTargetInsideEditor(event);
+        };
         const markPointerInside = () => {
             pointerInsideEditor = true;
+            setActiveSketch(api);
         };
         editor.addEventListener("pointerenter", markPointerInside);
         editor.addEventListener("pointerdown", markPointerInside, true);
+        editor.addEventListener("focusin", markPointerInside);
         editor.addEventListener("pointerleave", () => {
             if (!fullscreenMode && !panFloatingMode) {
                 pointerInsideEditor = false;
+                if (isActiveSketch(api)) {
+                    setActiveSketch(null);
+                }
             }
         });
         stage.addEventListener("wheel", (event) => {
@@ -2239,13 +2418,26 @@
             if (!panGestureMode && !panFloatingMode) return;
             panFullscreen(event.movementX || 0, event.movementY || 0);
         }, true);
+        document.addEventListener("pointerdown", (event) => {
+            if (eventTargetInsideEditor(event)) return;
+            if (panFloatingMode || panGestureMode) releaseTransientState();
+        }, true);
+        window.addEventListener("blur", () => releaseTransientState());
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) releaseTransientState();
+        });
         document.addEventListener("keydown", (event) => {
             const historyAction = sketchHistoryHotkey(event);
+            if (eventTargetInsideEditor(event)) {
+                markPointerInside();
+            }
+            const sketchHotkeyActive = isSketchHotkeyActive(event);
             const wantsSketchHotkey = cropMode
-                || fullscreenMode
+                ? sketchHotkeyActive
+                : fullscreenMode
                 || panFloatingMode
-                || (historyAction && hasImage && (pointerInsideEditor || event.target?.closest?.(".simpai-sketch")))
-                || ((event.code === "KeyS" || event.code === "KeyF" || event.code === "KeyQ") && pointerInsideEditor && hasImage);
+                || (historyAction && hasImage && (sketchHotkeyActive && pointerInsideEditor || eventTargetInsideEditor(event)))
+                || ((event.code === "KeyS" || event.code === "KeyF" || event.code === "KeyQ") && sketchHotkeyActive && pointerInsideEditor && hasImage);
             if (!wantsSketchHotkey) return;
             if (shouldHandleSketchHistoryHotkey(event, historyAction)) {
                 event.preventDefault();
@@ -2279,9 +2471,8 @@
             if (event.code === "KeyS" && fullscreenMode) {
                 event.preventDefault();
                 event.stopImmediatePropagation();
-                exitFullscreen();
+                exitFullscreen({ keepHotkey: true });
                 resetViewport();
-                pointerInsideEditor = true;
                 return;
             }
             if (event.code === "KeyS" && pointerInsideEditor && hasImage) {
@@ -2302,15 +2493,20 @@
         }, true);
         document.addEventListener("keyup", (event) => {
             if (event.code === "KeyF") {
+                if (!isSketchHotkeyActive(event) && !panFloatingMode && !panGestureMode) return;
                 event.preventDefault();
                 event.stopImmediatePropagation();
                 if (panFloatingMode) {
-                    exitPanFloating();
+                    exitPanFloating({ keepHotkey: true });
                 } else {
                     endPanGesture();
+                    if (isSketchVisible()) {
+                        pointerInsideEditor = true;
+                        setActiveSketch(api);
+                    }
                 }
             }
-        });
+        }, true);
 
         const api = {
             root,
@@ -2331,13 +2527,15 @@
                 const image = typeof value === "string" ? value : value.image;
                 const mask = typeof value === "string" ? null : value.mask;
                 if (!image && !mask) return false;
-                await setPayload(JSON.stringify({ image, mask }));
+                const updated = await setPayload(JSON.stringify({ image, mask }));
+                if (!updated) return false;
                 serialize({ change: !!options.change });
                 return true;
             },
             async setImage(image, options = {}) {
                 if (!image) return false;
-                await setPayload(JSON.stringify({ image, mask: maskCanvas.toDataURL("image/png") }));
+                const updated = await setPayload(JSON.stringify({ image, mask: maskCanvas.toDataURL("image/png") }));
+                if (!updated) return false;
                 serialize({ change: !!options.change });
                 return true;
             },
@@ -2388,6 +2586,11 @@
             setUiHidden,
             toggleUi,
             isUiHidden: () => uiHidden,
+            isVisible: isSketchVisible,
+            releaseTransientState,
+            setPointerInside(value) {
+                pointerInsideEditor = !!value;
+            },
             openFile,
             serialize,
             flush,
@@ -2446,6 +2649,8 @@
             }
             return ok;
         };
+        window.SimpAISketch.releaseHidden = releaseHiddenSketches;
+        window.SimpAISketch.releaseAllTransientState = releaseAllSketchTransientState;
     }
 
     function installFlushHooks() {
@@ -2471,6 +2676,7 @@
         ensureStyle();
         installFlushHooks();
         document.querySelectorAll(`.${SOURCE_CLASS}`).forEach(initRoot);
+        releaseHiddenSketches();
     }
 
     setInterval(scan, 800);

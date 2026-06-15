@@ -2201,9 +2201,12 @@ document.addEventListener("DOMContentLoaded", function() {
         const imageChecked = getChecked('input_image_checkbox');
         const ttsChecked = getChecked('qwen_tts_checkbox');
         const advancedChecked = getChecked('advanced_checkbox');
+        const params = getTopbarParams();
+        const isScene = isSceneFrontendParams(params);
         if (imageChecked !== null) {
-            setVisible('image_input_panel', !!imageChecked);
-            document.documentElement.classList.toggle('simpai-engine-class-visible', !!imageChecked);
+            const showImagePanel = !!imageChecked && !isScene;
+            setVisible('image_input_panel', showImagePanel);
+            document.documentElement.classList.toggle('simpai-engine-class-visible', showImagePanel);
         }
         if (ttsChecked !== null) setVisible('tts_panel', !!ttsChecked);
         if (advancedChecked !== null) setVisible('advanced_column', !!advancedChecked);
@@ -2214,6 +2217,12 @@ document.addEventListener("DOMContentLoaded", function() {
             || (typeof topbarLastSystemParams !== 'undefined' ? topbarLastSystemParams : null)
             || null;
     }
+
+    function isSceneFrontendParams(params) {
+        return !!(params && typeof params === 'object' && (params.__is_scene_frontend || params.scene_frontend));
+    }
+
+    window.simpaiIsSceneFrontendActive = () => isSceneFrontendParams(getTopbarParams());
 
     function sceneThemeValue(sceneFrontend, params) {
         const selected = sceneSelectedThemeValue();
@@ -2326,7 +2335,7 @@ document.addEventListener("DOMContentLoaded", function() {
     function syncSceneFrontendVisibility() {
         const params = getTopbarParams();
         const sceneFrontend = params && typeof params === 'object' ? params.scene_frontend : null;
-        const isScene = !!(params && typeof params === 'object' && (params.__is_scene_frontend || sceneFrontend));
+        const isScene = isSceneFrontendParams(params);
         setVisible('scene_panel', isScene);
         setVisible('scene_primary_row', isScene);
         setVisible('scene_additional_prompt', isScene);
@@ -2334,8 +2343,12 @@ document.addEventListener("DOMContentLoaded", function() {
             if (typeof window.closeSam3FramesEditor === 'function') {
                 try { window.closeSam3FramesEditor(); } catch (e) {}
             }
+            try { window.SimpAISketch?.releaseHidden?.(); } catch (e) {}
             return;
         }
+
+        setVisible('image_input_panel', false);
+        document.documentElement.classList.remove('simpai-engine-class-visible');
 
         const theme = sceneThemeValue(sceneFrontend || {}, params || {});
         const themeLower = theme.toLowerCase();
@@ -2373,6 +2386,7 @@ document.addEventListener("DOMContentLoaded", function() {
         ].forEach((id) => {
             setVisible(id, !disvisible.has(id));
         });
+        try { window.SimpAISketch?.releaseHidden?.(); } catch (e) {}
     }
 
     function syncAllMountedDynamicVisibility() {
@@ -2381,6 +2395,7 @@ document.addEventListener("DOMContentLoaded", function() {
         syncInpaintMaskVisibility();
         syncEnhanceMaskVisibility();
         syncSceneFrontendVisibility();
+        try { window.SimpAISketch?.releaseHidden?.(); } catch (e) {}
     }
 
     function scheduleAllMountedDynamicVisibility() {
@@ -2418,7 +2433,11 @@ document.addEventListener("DOMContentLoaded", function() {
     const visibility = window.SimpAIVisibilityController;
 
     function syncEngineClassMarkerVisibility() {
-        const visible = !!visibility?.checkboxChecked?.('input_image_checkbox');
+        const params = window.simpleaiTopbarSystemParams
+            || (typeof topbarLastSystemParams !== 'undefined' ? topbarLastSystemParams : null)
+            || null;
+        const isScene = !!(params && typeof params === 'object' && (params.__is_scene_frontend || params.scene_frontend));
+        const visible = !!visibility?.checkboxChecked?.('input_image_checkbox') && !isScene;
         document.documentElement.classList.toggle('simpai-engine-class-visible', visible);
     }
 
