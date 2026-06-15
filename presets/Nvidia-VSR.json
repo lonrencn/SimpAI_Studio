@@ -14,9 +14,6 @@
             "task_method": {
                 "Nvidia-VSR Super Resolution": "nvidia_vsr"
             },
-            "scene_steps": {
-                "Nvidia-VSR Super Resolution": 1
-            },
             "var_number_title": "Upscale factor",
             "var_number": {
                 "Nvidia-VSR Super Resolution": 2
@@ -89,7 +86,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 30,
+    "default_overwrite_step": 1,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

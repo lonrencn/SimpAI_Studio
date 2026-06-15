@@ -213,7 +213,7 @@
       "x": 576,
       "y": 672,
       "w": 390,
-      "h": 295,
+      "h": 285,
       "title": "VSR Parameters / VSR 参数",
       "target_preset_id": "vsr_preset",
       "config": {
@@ -267,130 +267,166 @@
       },
       "schema": {
         "version": "v1.1",
-        "scene_frontend": "v1.1",
-        "engine_type": "video",
-        "theme_title": "Nvidia-VSR Fast Video Super-Resolution Upscale [Optional frame interpolation]",
-        "default_theme": "Nvidia-VSR Super Resolution",
         "themes": [
           "Nvidia-VSR Super Resolution"
         ],
-        "per_theme": {
-          "Nvidia-VSR Super Resolution": {
-            "task_method": "nvidia_vsr",
-            "defaults": {
-              "prompt": "",
-              "scene_var_number": 2,
-              "scene_var_number2": 19,
-              "scene_var_number3": 30,
-              "scene_var_number7": 300,
-              "scene_switch_option1": false,
-              "scene_image_number": 1
-            }
-          }
-        },
+        "default_theme": "Nvidia-VSR Super Resolution",
+        "theme_title": "Nvidia-VSR Fast Video Super-Resolution Upscale [Optional frame interpolation]",
+        "disvisible": [
+          "scene_canvas_image",
+          "scene_additional_prompt",
+          "scene_additional_prompt_2",
+          "scene_aspect_ratio",
+          "scene_use_lora",
+          "scene_audio",
+          "scene_input_image1",
+          "scene_input_image2",
+          "scene_var_number4",
+          "scene_var_number5",
+          "scene_var_number6",
+          "scene_var_number8",
+          "scene_var_number9",
+          "scene_var_number10",
+          "scene_switch_option2",
+          "scene_switch_option3",
+          "scene_switch_option4",
+          "scene_base_model",
+          "scene_refiner_model",
+          "sam3_input_video",
+          "sam3_mask_video",
+          "scene_input_image3",
+          "scene_input_image4"
+        ],
+        "disinteractive": [],
+        "divisible": [],
+        "image_preprocessor_method": [],
+        "disable_canvas_mask": false,
         "upload_slots": [
           {
             "key": "scene_video",
-            "label": "#1 Source Video",
+            "label": "Scene Video",
             "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "SAM3 Input Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "SAM3 Mask Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_audio",
+            "label": "Scene Audio",
+            "visible": false,
             "interactive": true
           },
           {
             "key": "scene_canvas_image",
             "label": "Canvas Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
             "key": "scene_input_image1",
-            "label": "Input Image 1",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
             "key": "scene_input_image2",
-            "label": "Input Image 2",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
-            "key": "scene_audio",
-            "label": "Audio",
+            "key": "scene_input_image3",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
-            "key": "sam3_input_video",
-            "label": "SAM3 Source Video",
+            "key": "scene_input_image4",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
-          },
-          {
-            "key": "sam3_mask_video",
-            "label": "SAM3 Mask Video",
-            "visible": false,
-            "interactive": false
+            "interactive": true
           }
         ],
         "params": [
           {
-            "key": "seed_random",
-            "label": "Random Seed",
-            "type": "checkbox",
-            "default": true
-          },
-          {
-            "key": "image_seed",
-            "label": "Seed",
-            "type": "number",
-            "min": 0,
-            "max": 1125899906842623,
-            "step": 1,
-            "default": 0
-          },
-          {
             "key": "scene_var_number",
             "label": "Upscale factor",
             "type": "number",
+            "default": 2,
+            "visible": true,
+            "interactive": true,
             "min": 1,
-            "max": 4,
-            "step": 1,
-            "default": 2
+            "max": 4
           },
           {
             "key": "scene_var_number2",
             "label": "Save quality (lower = better, larger file size)",
             "type": "number",
+            "default": 19,
+            "visible": true,
+            "interactive": true,
             "min": 5,
-            "max": 45,
-            "step": 1,
-            "default": 19
+            "max": 45
           },
           {
             "key": "scene_var_number3",
             "label": "Interpolate to target FPS",
             "type": "number",
+            "default": 30,
+            "visible": true,
+            "interactive": true,
             "min": 16,
-            "max": 120,
-            "step": 1,
-            "default": 30
+            "max": 120
           },
           {
             "key": "scene_var_number7",
-            "label": "Long video segment length (frames)",
+            "label": "Long video segment length (frames) [longer segments use more RAM]",
             "type": "number",
+            "default": 300,
+            "visible": true,
+            "interactive": true,
             "min": 60,
-            "max": 600,
-            "step": 10,
-            "default": 300
+            "max": 600
           },
           {
             "key": "scene_switch_option1",
             "label": "Enable frame interpolation",
             "type": "checkbox",
-            "default": false
+            "default": false,
+            "visible": true,
+            "interactive": true
           }
-        ]
+        ],
+        "per_theme": {
+          "Nvidia-VSR Super Resolution": {
+            "task_method": "nvidia_vsr",
+            "defaults": {
+              "scene_var_number": 2,
+              "scene_var_number2": 19,
+              "scene_var_number3": 30,
+              "scene_var_number7": 300,
+              "scene_switch_option1": false,
+              "scene_aspect_ratio": "origin|Original"
+            },
+            "generation_config_props": {
+              "overwrite_step": {
+                "min": -1,
+                "max": 200,
+                "step": 1
+              }
+            }
+          }
+        }
       },
       "models_config": {
         "mode": "external_override",
@@ -481,8 +517,7 @@
         "scene_var_number2": 19,
         "scene_var_number3": 30,
         "scene_var_number7": 300,
-        "scene_switch_option1": false,
-        "scene_image_number": 1
+        "scene_switch_option1": false
       },
       "status": "idle",
       "collapsed": false,

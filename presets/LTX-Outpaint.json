@@ -16,9 +16,6 @@
             "multimodal_prompt": {
                 "LTX-Outpaint": ""
             },
-            "scene_steps": {
-                "LTX-Outpaint": 8
-            },
             "var_number_min": 0,
             "var_number_max": 60,
             "var_number_title": "Duration limit (seconds) [0 = no limit]",
@@ -133,7 +130,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 30,
+    "default_overwrite_step": 8,
     "default_prompt": "",
     "default_prompt_negative": "字幕，中文字幕，水印，错误的肢体，缺失的手指，缺失的脚趾， blurry, oversaturated, pixelated, low resolution, grainy, distorted, noise, compression artifacts, jpeg artifacts, glitches, watermark, text, logo, signature, copyright, subtitles, distorted sound, saturated sound, loud",
     "checkpoint_downloads": {},

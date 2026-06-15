@@ -18,9 +18,6 @@
             "prompt": {
                 "Z-Image_TTP_Hires.Upscale": "a RAW ultra-realistic photo,UHD,4K、8K、HDR、 High definition, ultra high definition, high detail, high texture, masterpiece, commercial photography"
             },
-            "scene_steps": {
-                "Z-Image_TTP_Hires.Upscale": 24
-            },
             "image_preprocessor_method": {
                     "Z-Image_TTP_Hires.Upscale": [["-normalization"]]
             },

@@ -16,9 +16,6 @@
             "prompt": {
                 "Flux_OneKey-Outpaint": "ultra-detailed, best quality"
             },
-            "scene_steps": {
-                "Animate Outpaint": 16
-            },
             "image_preprocessor_method": {
                     "Flux_OneKey-Outpaint": [["-normalization"]]
             },
@@ -96,7 +93,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 30,
+    "default_overwrite_step": 16,
     "default_prompt": "ultra-detailed, best quality",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

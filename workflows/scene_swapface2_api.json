@@ -13,8 +13,14 @@
         "487",
         8
       ],
-      "sampler_name": "euler",
-      "scheduler": "normal",
+      "sampler_name": [
+        "487",
+        30
+      ],
+      "scheduler": [
+        "487",
+        31
+      ],
       "denoise": 0.9,
       "model": [
         "483",
@@ -742,7 +748,10 @@
       "switch_option4": false,
       "model_type": 1,
       "model_type2": 1,
-      "clip_type": 1
+      "clip_type": 1,
+      "negative_prompt": "",
+      "sampler": "euler",
+      "scheduler": "normal"
     },
     "class_type": "SceneInput",
     "_meta": {

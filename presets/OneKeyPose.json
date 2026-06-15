@@ -15,10 +15,6 @@
                 "SDPose-OOD": "sdpose",
                 "DWPose": "dw_pose"
             },
-            "scene_steps": {
-                "SDPose-OOD": 1,
-                "DWPose": 1
-            },
             "aspect_ratio": ["1024|1:1"],
             "image_preprocessor_method": {
                 "SDPose-OOD": [["-normalization"]],
@@ -106,7 +102,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 30,
+    "default_overwrite_step": 1,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

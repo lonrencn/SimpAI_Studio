@@ -1139,7 +1139,8 @@ function readSimpleAINumericControlValueByLabel(labels) {
 }
 
 function readSimpleAIGenerationExpectedImageCount() {
-    const ids = ["scene_image_number", "image_number"];
+    const isSceneFrontend = !!document.documentElement?.classList?.contains("simpai-scene-frontend");
+    const ids = isSceneFrontend ? ["image_number"] : ["scene_image_number", "image_number"];
     for (const id of ids) {
         const root = getSimpleAIElementById(id);
         if (root && simpleAiElementVisible(root)) {
@@ -3387,6 +3388,22 @@ function applyScenePresetControlProps(input, props) {
             }
         } catch (e) {}
     }
+    if (Object.prototype.hasOwnProperty.call(props, "interactive")) {
+        const disabled = props.interactive === false;
+        if (input.disabled !== disabled) {
+            input.disabled = disabled;
+            changed += 1;
+        }
+        if (disabled) {
+            if (input.getAttribute("aria-disabled") !== "true") {
+                input.setAttribute("aria-disabled", "true");
+                changed += 1;
+            }
+        } else if (input.hasAttribute("aria-disabled")) {
+            input.removeAttribute("aria-disabled");
+            changed += 1;
+        }
+    }
     return changed;
 }
 
@@ -3481,6 +3498,12 @@ function applyScenePresetDefaults(system_params, traceLabel) {
         for (const controlId of SCENE_PRESET_DEFAULT_CONTROL_IDS) {
             if (!Object.prototype.hasOwnProperty.call(defaults, controlId)) continue;
             changed += applyScenePresetDefaultValue(controlId, defaults[controlId], propsByControl[controlId]);
+        }
+        if (Object.prototype.hasOwnProperty.call(defaults, "scene_steps")) {
+            changed += applyScenePresetDefaultValue("overwrite_step", defaults.scene_steps, propsByControl.overwrite_step || null);
+        }
+        if (Object.prototype.hasOwnProperty.call(defaults, "scene_image_number")) {
+            changed += applyScenePresetDefaultValue("image_number", defaults.scene_image_number, null);
         }
     } finally {
         scenePresetDefaultSyncApplying = false;
@@ -4789,6 +4812,39 @@ function countRenderedFinishedGalleryItems() {
     return mediaSources.size;
 }
 
+function parseFinishedCatalogCount(value) {
+    const match = String(value || "").match(/(\d+)/);
+    if (!match) return null;
+    const count = Number(match[1]);
+    return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : null;
+}
+
+function syncFinishedCatalogLabelFromRenderedCount(count, mediaType, reason) {
+    if (!Number.isFinite(Number(count)) || Number(count) <= 0) return false;
+    if (typeof refresh_finished_images_catalog_label !== "function") return false;
+    const mode = mediaType === "video" ? "video" : "image";
+    const params = window.simpleaiTopbarSystemParams || (typeof topbarLastSystemParams !== "undefined" ? topbarLastSystemParams : null) || {};
+    const label = getFinishedGalleryBrowserElement("finished_images_catalog")?.querySelector?.("button.label-wrap > span:not(.icon)");
+    const statText = String(params.__finished_nums_pages || "");
+    const statCount = parseFinishedCatalogCount(statText);
+    const labelCount = parseFinishedCatalogCount(label ? label.textContent : "");
+    if (statCount !== null && (labelCount === null || statCount > labelCount)) {
+        refresh_finished_images_catalog_label(statText, mode, { refresh: false });
+        return true;
+    }
+    const currentCount = Math.max(statCount || 0, labelCount || 0);
+    const renderedCount = Math.max(0, Math.floor(Number(count)));
+    if (renderedCount <= currentCount) return false;
+    const parts = statText.split(",");
+    const nextStat = `${renderedCount},${parts[1] || ""}`;
+    params.__finished_nums_pages = nextStat;
+    if (window.simpleaiTopbarSystemParams) window.simpleaiTopbarSystemParams.__finished_nums_pages = nextStat;
+    if (typeof topbarLastSystemParams !== "undefined" && topbarLastSystemParams) topbarLastSystemParams.__finished_nums_pages = nextStat;
+    refresh_finished_images_catalog_label(nextStat, mode, { refresh: false });
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.label_from_rendered", { reason: reason || "rendered_gallery", mode, count: renderedCount, previous: currentCount });
+    return true;
+}
+
 function countExistingFinishedGalleryMedia() {
     const gallery = getFinishedGalleryBrowserElement("finished_gallery");
     if (!gallery) return 0;
@@ -5398,6 +5454,7 @@ function syncFinishedGalleryBrowserStatusFromRenderedGallery(mediaType, reason) 
     finishedGalleryBrowserState.mediaType = mode;
     finishedGalleryBrowserState.loaded = count;
     setFinishedGalleryBrowserStatus(simpleAIGalleryBrowserCountStatus(count, mode));
+    try { syncFinishedCatalogLabelFromRenderedCount(count, mode, reason || "rendered_gallery"); } catch (e) {}
     try { syncGalleryMediaSwitch(mode, 0, "rendered_status"); } catch (e) {}
     simpaiUiTrace("log", "[UI-TRACE] gallery_browser.status_from_rendered", { reason: reason || "rendered_gallery", mode, count });
     return true;
@@ -9062,12 +9119,90 @@ function syncSceneAndAdvancedColumns(traceLabel, isSceneFrontend) {
     const isScene = !!isSceneFrontend;
     try {
         document.documentElement.classList.toggle("simpai-scene-frontend", isScene);
+        document.documentElement.classList.toggle("simpai-scene-parameter-normalized", isScene);
     } catch (e) {}
     setPanelVisibleById("scene_panel", isScene);
     if (typeof window.syncTopbarMountedPanelVisibility === "function") {
         window.syncTopbarMountedPanelVisibility(traceLabel);
     }
     syncPerformanceSelectionVisibility(null, traceLabel);
+    const sceneSettingTabKeyFromText = (value) => {
+        const text = String(value || "").trim().toLowerCase();
+        if (!text) return "";
+        if (text === "general" || text.includes("常规")) return "general";
+        if (text === "advanced" || text.includes("高级")) return "advanced";
+        if (text === "control" || text.includes("控图")) return "control";
+        if (text === "inpaint" || text.includes("重绘")) return "inpaint";
+        return "";
+    };
+    const sceneSettingTabKeyFromElement = (element) => {
+        if (!element) return "";
+        const tabId = String(element.getAttribute("data-tab-id") || "").trim().toLowerCase();
+        if (tabId === "general" || tabId === "advanced" || tabId === "control" || tabId === "inpaint") {
+            return tabId;
+        }
+        return sceneSettingTabKeyFromText(element.textContent || element.getAttribute("aria-label") || element.getAttribute("data-testid"));
+    };
+    const setSceneSettingElementHidden = (element, hidden) => {
+        if (!element) return;
+        try {
+            if (hidden) {
+                const alreadyHidden = element.classList.contains("simpai-scene-setting-hidden")
+                    && element.getAttribute("data-simpai-scene-hidden") === "1"
+                    && element.style.getPropertyValue("display") === "none";
+                if (alreadyHidden) return;
+                element.classList.add("simpai-scene-setting-hidden");
+                element.style.setProperty("display", "none", "important");
+                element.setAttribute("aria-hidden", "true");
+                element.setAttribute("data-simpai-scene-hidden", "1");
+            } else {
+                const alreadyVisible = !element.classList.contains("simpai-scene-setting-hidden")
+                    && !element.hasAttribute("data-simpai-scene-hidden")
+                    && !element.hasAttribute("aria-hidden")
+                    && !element.style.getPropertyValue("display");
+                if (alreadyVisible) return;
+                element.classList.remove("simpai-scene-setting-hidden");
+                element.style.removeProperty("display");
+                element.removeAttribute("aria-hidden");
+                element.removeAttribute("data-simpai-scene-hidden");
+            }
+        } catch (e) {}
+    };
+    const isSceneSettingTabButton = (element) => {
+        return !!element && (element.getAttribute("role") === "tab" || element.hasAttribute("data-tab-id"));
+    };
+    const isSceneSettingModeActive = () => {
+        try {
+            return document.documentElement.classList.contains("simpai-scene-parameter-normalized");
+        } catch (e) {
+            return !!isScene;
+        }
+    };
+    const restoreGeneralSettingTabsContainer = (generalSettingTabs) => {
+        if (!generalSettingTabs) return;
+        try {
+            generalSettingTabs.style.removeProperty("display");
+            generalSettingTabs.style.removeProperty("visibility");
+            generalSettingTabs.style.removeProperty("height");
+            generalSettingTabs.style.removeProperty("max-height");
+            generalSettingTabs.style.removeProperty("min-height");
+            generalSettingTabs.style.removeProperty("margin");
+            generalSettingTabs.style.removeProperty("padding");
+            generalSettingTabs.style.removeProperty("overflow");
+            generalSettingTabs.style.removeProperty("pointer-events");
+            generalSettingTabs.removeAttribute("aria-hidden");
+        } catch (e) {}
+    };
+    const disableQuickEnhanceForScene = () => {
+        if (!isSceneSettingModeActive()) return;
+        const root = getSimpleAIElementById("quick_enhance");
+        if (!root || !root.querySelectorAll) return;
+        for (const input of Array.from(root.querySelectorAll('input[type="checkbox"]'))) {
+            if (input.checked) {
+                setNativeInputValue(input, false, "checkbox");
+            }
+        }
+    };
     const syncSceneSettingSubtabs = () => {
         let root = null;
         try {
@@ -9076,44 +9211,104 @@ function syncSceneAndAdvancedColumns(traceLabel, isSceneFrontend) {
             root = null;
         }
         if (!root || !root.querySelectorAll) return;
+        const currentIsScene = isSceneSettingModeActive();
 
         const generalSettingTabs = root.querySelector("#general_setting_tabs");
         if (generalSettingTabs) {
-            if (isScene) {
+            restoreGeneralSettingTabsContainer(generalSettingTabs);
+            const tabCandidates = [
+                ...Array.from(generalSettingTabs.querySelectorAll('button[role="tab"], [role="tab"]')),
+                ...Array.from(generalSettingTabs.querySelectorAll('button, [aria-controls], [data-testid*="tab"]')),
+            ];
+            const seen = new Set();
+            const tabs = [];
+            for (const candidate of tabCandidates) {
+                if (!candidate) continue;
+                const element = candidate.closest ? (candidate.closest('[role="tab"]') || candidate.closest("button") || candidate) : candidate;
+                const key = sceneSettingTabKeyFromElement(element) || sceneSettingTabKeyFromElement(candidate);
+                if (!key) continue;
+                if (!element || seen.has(element)) continue;
+                seen.add(element);
+                tabs.push({ element, key });
+            }
+            let preferredTab = null;
+            let selectedAllowedTab = null;
+            let hiddenTabWasSelected = false;
+            for (const item of tabs) {
+                const hiddenInScene = currentIsScene && (item.key === "control" || item.key === "inpaint");
+                if (!hiddenInScene && !preferredTab && (item.key === "general" || item.key === "advanced") && isSceneSettingTabButton(item.element)) {
+                    preferredTab = item.element;
+                }
                 try {
-                    generalSettingTabs.style.removeProperty("display");
-                    generalSettingTabs.style.setProperty("visibility", "hidden", "important");
-                    generalSettingTabs.style.setProperty("height", "0", "important");
-                    generalSettingTabs.style.setProperty("max-height", "0", "important");
-                    generalSettingTabs.style.setProperty("min-height", "0", "important");
-                    generalSettingTabs.style.setProperty("margin", "0", "important");
-                    generalSettingTabs.style.setProperty("padding", "0", "important");
-                    generalSettingTabs.style.setProperty("overflow", "hidden", "important");
-                    generalSettingTabs.style.setProperty("pointer-events", "none", "important");
-                    generalSettingTabs.setAttribute("aria-hidden", "true");
+                    const selected = isSceneSettingTabButton(item.element) && (item.element.getAttribute("aria-selected") === "true"
+                        || item.element.classList.contains("selected")
+                        || item.element.classList.contains("svelte-tabs__selected"));
+                    if (hiddenInScene && selected) {
+                        hiddenTabWasSelected = true;
+                    } else if (!hiddenInScene && selected && (item.key === "general" || item.key === "advanced")) {
+                        selectedAllowedTab = item.element;
+                    }
                 } catch (e) {}
-            } else {
+            }
+            if (currentIsScene && (hiddenTabWasSelected || !selectedAllowedTab) && preferredTab && typeof preferredTab.click === "function") {
                 try {
-                    generalSettingTabs.style.removeProperty("display");
-                    generalSettingTabs.style.removeProperty("visibility");
-                    generalSettingTabs.style.removeProperty("height");
-                    generalSettingTabs.style.removeProperty("max-height");
-                    generalSettingTabs.style.removeProperty("min-height");
-                    generalSettingTabs.style.removeProperty("margin");
-                    generalSettingTabs.style.removeProperty("padding");
-                    generalSettingTabs.style.removeProperty("overflow");
-                    generalSettingTabs.style.removeProperty("pointer-events");
-                    generalSettingTabs.removeAttribute("aria-hidden");
+                    preferredTab.click();
+                } catch (e) {}
+            }
+            for (const item of tabs) {
+                const hiddenInScene = currentIsScene && (item.key === "control" || item.key === "inpaint");
+                setSceneSettingElementHidden(item.element, hiddenInScene);
+            }
+            for (const panelId of ["setting_control_tab", "setting_inpaint_tab"]) {
+                const panel = document.getElementById(panelId);
+                setSceneSettingElementHidden(panel, currentIsScene);
+            }
+            if (currentIsScene && hiddenTabWasSelected && preferredTab && typeof preferredTab.click === "function") {
+                try {
+                    setTimeout(() => preferredTab.click(), 0);
+                    setTimeout(() => syncSceneSettingSubtabs(), 80);
                 } catch (e) {}
             }
         }
+        disableQuickEnhanceForScene();
     };
     setTimeout(() => syncScenePanelMaxHeight(`${traceLabel}+0ms`), 0);
     setTimeout(() => syncScenePanelMaxHeight(`${traceLabel}+120ms`), 120);
     setTimeout(() => syncScenePanelMaxHeight(`${traceLabel}+500ms`), 500);
+    window.simpleaiSyncSceneSettingSubtabs = syncSceneSettingSubtabs;
     setTimeout(syncSceneSettingSubtabs, 0);
     setTimeout(syncSceneSettingSubtabs, 120);
     setTimeout(syncSceneSettingSubtabs, 320);
+    setTimeout(syncSceneSettingSubtabs, 760);
+    try {
+        if (!window.__simpleai_scene_setting_tabs_observer_bound) {
+            window.__simpleai_scene_setting_tabs_observer_bound = true;
+            const observer = new MutationObserver(() => {
+                if (window.__simpleai_scene_setting_tabs_observer_pending) return;
+                window.__simpleai_scene_setting_tabs_observer_pending = true;
+                requestAnimationFrame(() => {
+                    window.__simpleai_scene_setting_tabs_observer_pending = false;
+                    try {
+                        if (typeof window.simpleaiSyncSceneSettingSubtabs === "function") {
+                            window.simpleaiSyncSceneSettingSubtabs();
+                        }
+                    } catch (e) {}
+                });
+            });
+            const target = document.getElementById("advanced_column") || document.body;
+            observer.observe(target, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ["class", "style", "aria-selected", "data-tab-id"],
+            });
+            observer.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ["class"],
+            });
+            window.__simpleai_scene_setting_tabs_observer = observer;
+        }
+    } catch (e) {}
     if (typeof syncPositivePromptMetaState === "function") {
         setTimeout(syncPositivePromptMetaState, 0);
         setTimeout(syncPositivePromptMetaState, 150);

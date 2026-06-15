@@ -378,7 +378,6 @@
           "overwrite_step": 30,
           "sampler_name": "er_sde",
           "scheduler_name": "simple",
-          "clip_skip": 2,
           "performance_selection": "Speed",
           "style_selections": [
             "Fooocus Pony"
@@ -391,7 +390,6 @@
           "overwrite_step": 30,
           "sampler_name": "er_sde",
           "scheduler_name": "simple",
-          "clip_skip": 2,
           "performance_selection": "Speed",
           "style_selections": [
             "Fooocus Pony"
@@ -457,7 +455,7 @@
       "x": 528,
       "y": 1440,
       "w": 370,
-      "h": 385,
+      "h": 285,
       "title": "Advanced Config / 高级配置",
       "target_preset_id": "anima_classic",
       "config": {
@@ -467,7 +465,6 @@
           "overwrite_step": 30,
           "sampler_name": "er_sde",
           "scheduler_name": "simple",
-          "clip_skip": 2,
           "performance_selection": "Speed",
           "style_selections": [
             "Fooocus Pony"
@@ -480,7 +477,6 @@
           "overwrite_step": 30,
           "sampler_name": "er_sde",
           "scheduler_name": "simple",
-          "clip_skip": 2,
           "performance_selection": "Speed",
           "style_selections": [
             "Fooocus Pony"

@@ -333,8 +333,7 @@
         { label: 'Guidance Scale', type: 'float', cost: 0, mode: 'both', has_choices: false },
         { label: 'Forced Sampling Steps', type: 'int', cost: 0, mode: 'both', has_choices: false },
         { label: 'Sampler', type: 'str', cost: 0, mode: 'both', has_choices: true, choices: ADVANCED_SAMPLER_CHOICES },
-        { label: 'Scheduler', type: 'str', cost: 0, mode: 'both', has_choices: true, choices: ADVANCED_SCHEDULER_CHOICES },
-        { label: 'CLIP Skip', type: 'int', cost: 0, mode: 'both', has_choices: false }
+        { label: 'Scheduler', type: 'str', cost: 0, mode: 'both', has_choices: true, choices: ADVANCED_SCHEDULER_CHOICES }
     ];
     const uid = WORKBENCH_UTILS.uid;
     const nowIso = WORKBENCH_UTILS.nowIso;
@@ -5015,7 +5014,7 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
         const rawImageNumber = numberValue('image_number', 'images', 'count', 'batch_size') ?? (imageCountFromText ? Number(imageCountFromText) : null);
         const imageNumber = rawImageNumber != null && rawImageNumber > 1 ? clamp(Math.round(rawImageNumber), 1, 16) : null;
         const seed = numberValue('seed', 'image_seed');
-        const steps = numberValue('steps', 'scene_steps');
+        const steps = numberValue('overwrite_step', 'steps', 'scene_steps');
         const cfg = numberValue('cfg_scale', 'guidance_scale', 'cfg', 'guidance');
         const seedRandom = boolValue(src.seed_random ?? src.random_seed ?? src.randomize_seed);
         const widthValue = numberValue('width', 'overwrite_width');
@@ -7740,12 +7739,53 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         return Array.isArray(node.schema?.params) && node.schema.params.some(param => param?.key === key);
     }
 
+    function setPresetGenerationConfigValue(node, key, value) {
+        if (!node || !key) return;
+        value = generationConfigValueForPresetSchema(node, key, value);
+        node.generation_config = node.generation_config && typeof node.generation_config === 'object'
+            ? node.generation_config
+            : { mode: 'preset_default', defaults: {}, overrides: {} };
+        if (!node.generation_config.mode) node.generation_config.mode = 'preset_default';
+        if (!node.generation_config.defaults || typeof node.generation_config.defaults !== 'object') node.generation_config.defaults = {};
+        if (!node.generation_config.overrides || typeof node.generation_config.overrides !== 'object') node.generation_config.overrides = {};
+        node.generation_config.overrides[key] = value;
+        if (!Object.prototype.hasOwnProperty.call(node.generation_config.defaults, key)) node.generation_config.defaults[key] = value;
+        const sourceNode = node.generation_config.source_node_id ? getNode(node.generation_config.source_node_id) : null;
+        if (sourceNode && sourceNode.type === 'config' && sourceNode.config_kind === 'advanced') {
+            sourceNode.config = sourceNode.config || {};
+            sourceNode.config.values = sourceNode.config.values && typeof sourceNode.config.values === 'object' ? sourceNode.config.values : {};
+            sourceNode.config.defaults = sourceNode.config.defaults && typeof sourceNode.config.defaults === 'object' ? sourceNode.config.defaults : {};
+            sourceNode.config.values[key] = value;
+            if (!Object.prototype.hasOwnProperty.call(sourceNode.config.defaults, key)) sourceNode.config.defaults[key] = value;
+            sourceNode.config.updated_at = nowIso();
+            applyConfigNodeToPreset(sourceNode);
+        }
+    }
+
+    function presetGenerationStepValue(node) {
+        const generation = node?.generation_config && typeof node.generation_config === 'object' ? node.generation_config : {};
+        const overrides = generation.overrides && typeof generation.overrides === 'object' ? generation.overrides : {};
+        const defaults = generation.defaults && typeof generation.defaults === 'object' ? generation.defaults : {};
+        const value = overrides.overwrite_step ?? overrides.steps ?? defaults.overwrite_step ?? defaults.steps;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    }
+
+    function presetGenerationImageNumberValue(node) {
+        const generation = node?.generation_config && typeof node.generation_config === 'object' ? node.generation_config : {};
+        const overrides = generation.overrides && typeof generation.overrides === 'object' ? generation.overrides : {};
+        const defaults = generation.defaults && typeof generation.defaults === 'object' ? generation.defaults : {};
+        const value = overrides.image_number ?? defaults.image_number;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    }
+
     function applyCanvasAgentGenerationOptionsToGenerator(node, options) {
         if (!node || !options) return;
         node.params = Object.assign({}, node.params || {});
         const imageNumber = Number.isFinite(options.imageNumber) && options.imageNumber > 1 ? options.imageNumber : 1;
-        node.params.image_number = imageNumber;
-        if (presetNodeHasParam(node, 'scene_image_number')) node.params.scene_image_number = imageNumber;
+        setPresetGenerationConfigValue(node, 'image_number', imageNumber);
+        delete node.params.scene_image_number;
         if (Number.isFinite(options.seed)) {
             node.params.seed_random = false;
             node.params.image_seed = options.seed;
@@ -7753,8 +7793,9 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             node.params.seed_random = true;
         }
         if (Number.isFinite(options.steps)) {
-            if (presetNodeHasParam(node, 'scene_steps')) node.params.scene_steps = options.steps;
-            else if (presetNodeHasParam(node, 'steps')) node.params.steps = options.steps;
+            setPresetGenerationConfigValue(node, 'overwrite_step', options.steps);
+            delete node.params.scene_steps;
+            delete node.params.steps;
         }
         if (Number.isFinite(options.cfgScale)) {
             if (presetNodeHasParam(node, 'cfg_scale')) node.params.cfg_scale = options.cfgScale;
@@ -8328,7 +8369,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
                 state: 'reserved',
                 queue_position: null,
                 step: 0,
-                total_steps: Number(presetNode.params?.scene_steps || 0) || 0,
+                total_steps: presetGenerationStepValue(presetNode),
                 percent: 0,
                 message: t('Result reserved; save the mask to auto-run.', '结果已占位；保存蒙版后会自动运行。')
             },
@@ -14218,9 +14259,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         return filterVisiblePresetParamsForSpecial(node, [
             ...prepend,
             ...seedParams,
-            { key: 'scene_additional_prompt', label: 'Prompt', type: 'textarea', default: '' },
-            { key: 'scene_steps', label: 'Steps', type: 'number', min: 1, max: 200, default: 8 },
-            { key: 'scene_image_number', label: 'Images', type: 'number', min: 1, max: 16, default: 1 }
+            { key: 'scene_additional_prompt', label: 'Prompt', type: 'textarea', default: '' }
         ].filter(param => shouldShowPresetParam(node, param)));
     }
 
@@ -14376,7 +14415,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
             prompt: canvasRunPromptParamText(params.prompt),
             negative_prompt: canvasRunPromptParamText(params.negative_prompt),
             seed,
-            image_number: params.image_number || params.scene_image_number || 1,
+            image_number: params.image_number || presetGenerationImageNumberValue(node) || params.scene_image_number || 1,
             max_samples: 3
         });
         if (response?.ok) {
@@ -17421,6 +17460,16 @@ ${renderRunnableNodeStatusFoot(node)}
         return Number.isFinite(number) ? number : fallback;
     }
 
+    function boundedConfigNumberValue(source, keys, fallback, bounds) {
+        const value = configNumberValue(source, keys, fallback);
+        const min = Number(bounds?.min);
+        const max = Number(bounds?.max);
+        let next = value;
+        if (Number.isFinite(min) && next < min) next = min;
+        if (Number.isFinite(max) && next > max) next = max;
+        return next;
+    }
+
     function configTextValue(source, keys, fallback) {
         const value = configAliasValue(source, keys);
         return value === undefined ? fallback : String(value);
@@ -17446,6 +17495,54 @@ ${renderRunnableNodeStatusFoot(node)}
             if (Object.prototype.hasOwnProperty.call(data, key)) return data[key];
         }
         return undefined;
+    }
+
+    function getConfigTargetPresetNode(configNode) {
+        if (!configNode || configNode.type !== 'config') return null;
+        const edge = project.edges.find(item => item.type === 'config' && item.from === configNode.id);
+        const target = edge ? getNode(edge.to) : getNode(configNode.target_preset_id);
+        return target && ['preset', 'classic'].includes(target.type) ? target : null;
+    }
+
+    function getSceneThemeInfoForPresetNode(preset) {
+        if (!preset || preset.type !== 'preset') return {};
+        const schema = preset.schema && typeof preset.schema === 'object' ? preset.schema : {};
+        const themes = Array.isArray(schema.themes) ? schema.themes : [];
+        const theme = preset.runtime?.scene_theme || schema.default_theme || themes[0] || '';
+        const perTheme = schema.per_theme && typeof schema.per_theme === 'object' ? schema.per_theme : {};
+        return perTheme[theme] && typeof perTheme[theme] === 'object' ? perTheme[theme] : {};
+    }
+
+    function getSceneGenerationConfigPropsForPresetNode(preset, key) {
+        const themeInfo = getSceneThemeInfoForPresetNode(preset);
+        const props = themeInfo.generation_config_props && typeof themeInfo.generation_config_props === 'object'
+            ? themeInfo.generation_config_props[key]
+            : null;
+        return props && typeof props === 'object' ? props : null;
+    }
+
+    function getSceneGenerationConfigDefaultForPresetNode(preset, key) {
+        const themeInfo = getSceneThemeInfoForPresetNode(preset);
+        const defaults = themeInfo.defaults && typeof themeInfo.defaults === 'object' ? themeInfo.defaults : {};
+        if (Object.prototype.hasOwnProperty.call(defaults, key)) return defaults[key];
+        if (key === 'overwrite_step' && Object.prototype.hasOwnProperty.call(defaults, 'scene_steps')) return defaults.scene_steps;
+        return undefined;
+    }
+
+    function getSceneGenerationConfigPropsForConfigNode(configNode, key) {
+        return getSceneGenerationConfigPropsForPresetNode(getConfigTargetPresetNode(configNode), key);
+    }
+
+    function getSceneGenerationConfigDefaultForConfigNode(configNode, key) {
+        return getSceneGenerationConfigDefaultForPresetNode(getConfigTargetPresetNode(configNode), key);
+    }
+
+    function generationConfigValueForPresetSchema(preset, key, value) {
+        if (key !== 'overwrite_step') return value;
+        const props = getSceneGenerationConfigPropsForPresetNode(preset, key);
+        if (!props || props.interactive !== false) return value;
+        const fixedValue = props.value ?? getSceneGenerationConfigDefaultForPresetNode(preset, key);
+        return fixedValue === undefined ? value : fixedValue;
     }
 
     function styleConfigSelectionFromValues(values, fallback) {
@@ -17711,11 +17808,24 @@ ${renderRunnableNodeStatusFoot(node)}
 
     function renderAdvancedConfigNodeHtml(node) {
         const values = node.config?.values || {};
+        const overwriteStepProps = getSceneGenerationConfigPropsForConfigNode(node, 'overwrite_step') || {};
+        const overwriteStepBounds = {
+            min: Number.isFinite(Number(overwriteStepProps.min)) ? Number(overwriteStepProps.min) : -1,
+            max: Number.isFinite(Number(overwriteStepProps.max)) ? Number(overwriteStepProps.max) : 200,
+            step: Number.isFinite(Number(overwriteStepProps.step)) ? Number(overwriteStepProps.step) : 1,
+        };
+        const overwriteStepReadonly = overwriteStepProps.interactive === false;
+        const overwriteStepFixedValue = overwriteStepReadonly
+            ? (overwriteStepProps.value ?? getSceneGenerationConfigDefaultForConfigNode(node, 'overwrite_step'))
+            : undefined;
+        const overwriteStepValues = overwriteStepReadonly && overwriteStepFixedValue !== undefined
+            ? { overwrite_step: overwriteStepFixedValue }
+            : values;
+        const overwriteStepDisabled = overwriteStepReadonly ? ' disabled aria-disabled="true"' : '';
         const guidance = configNumberValue(values, ['guidance_scale', 'cfg_scale'], 4);
-        const overwriteStep = configNumberValue(values, ['overwrite_step', 'steps'], -1);
+        const overwriteStep = boundedConfigNumberValue(overwriteStepValues, ['overwrite_step', 'steps'], -1, overwriteStepBounds);
         const sampler = configTextValue(values, ['sampler_name', 'sampler'], 'dpmpp_2m_sde_gpu');
         const scheduler = configTextValue(values, ['scheduler_name', 'scheduler'], 'karras');
-        const clipSkip = configNumberValue(values, ['clip_skip'], 2);
         const samplerChoices = mergeChoices([sampler, ...getSelectOptionsFromDom('sampler_name', ADVANCED_SAMPLER_CHOICES)]);
         const schedulerChoices = mergeChoices([scheduler, ...getSelectOptionsFromDom('scheduler_name', ADVANCED_SCHEDULER_CHOICES)]);
         return `
@@ -17727,12 +17837,11 @@ ${renderRunnableNodeStatusFoot(node)}
 </div>
 <div class="sai-config-node-body sai-advanced-config-body">
   <label class="sai-node-field sai-node-range"><span>${escapeHtml(t('Guidance Scale', '引导强度'))}</span><div class="sai-range-pair"><input data-config-param="guidance_scale" type="range" min="0.01" max="100" step="0.01" value="${escapeHtml(guidance)}"><input data-config-param="guidance_scale" type="number" min="0.01" max="100" step="0.01" value="${escapeHtml(guidance)}"></div></label>
-  <label class="sai-node-field sai-node-range"><span>${escapeHtml(t('Forced Sampling Steps', '强制采样步数'))}</span><div class="sai-range-pair"><input data-config-param="overwrite_step" type="range" min="-1" max="200" step="1" value="${escapeHtml(overwriteStep)}"><input data-config-param="overwrite_step" type="number" min="-1" max="200" step="1" value="${escapeHtml(overwriteStep)}"></div></label>
+  <label class="sai-node-field sai-node-range"><span>${escapeHtml(t('Forced Sampling Steps', '强制采样步数'))}</span><div class="sai-range-pair"><input data-config-param="overwrite_step" type="range" min="${escapeHtml(overwriteStepBounds.min)}" max="${escapeHtml(overwriteStepBounds.max)}" step="${escapeHtml(overwriteStepBounds.step)}" value="${escapeHtml(overwriteStep)}"${overwriteStepDisabled}><input data-config-param="overwrite_step" type="number" min="${escapeHtml(overwriteStepBounds.min)}" max="${escapeHtml(overwriteStepBounds.max)}" step="${escapeHtml(overwriteStepBounds.step)}" value="${escapeHtml(overwriteStep)}"${overwriteStepDisabled}></div></label>
   <div class="sai-inspector-grid2">
     <label class="sai-node-field"><span>${escapeHtml(t('Sampler', '采样器'))}</span><select data-config-param="sampler_name">${optionHtml(samplerChoices, sampler)}</select></label>
     <label class="sai-node-field"><span>${escapeHtml(t('Scheduler', '调度器'))}</span><select data-config-param="scheduler_name">${optionHtml(schedulerChoices, scheduler)}</select></label>
   </div>
-  <label class="sai-node-field sai-node-range"><span>${escapeHtml(t('CLIP Skip', 'CLIP 跳层'))}</span><div class="sai-range-pair"><input data-config-param="clip_skip" type="range" min="1" max="12" step="1" value="${escapeHtml(clipSkip)}"><input data-config-param="clip_skip" type="number" min="1" max="12" step="1" value="${escapeHtml(clipSkip)}"></div></label>
 </div>
 <button type="button" class="sai-node-handle sai-node-handle-out" data-handle-out="config" title="${escapeHtml(t('Config output', '配置输出'))}"></button>`;
     }
@@ -21161,6 +21270,7 @@ ${actions}
             }
             const configParam = evt.target.closest('[data-config-param]');
             if (configParam) {
+                if (configParam.disabled) return;
                 syncTwinParamInputs(configParam, '[data-config-param]');
                 const key = configParam.getAttribute('data-config-param');
                 const liveResolutionScale = node.type === 'config' && node.config_kind === 'resolution' && key === 'multiplier';
@@ -21378,6 +21488,7 @@ ${actions}
             }
             const configParam = evt.target.closest('[data-config-param]');
             if (configParam) {
+                if (configParam.disabled) return;
                 syncTwinParamInputs(configParam, '[data-config-param]');
                 const key = configParam.getAttribute('data-config-param');
                 const liveResolutionScale = node.type === 'config' && node.config_kind === 'resolution' && key === 'multiplier';
@@ -32433,7 +32544,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         const isDetection = detectionIndex >= 0;
         const nodeKind = isDetection ? 'detection' : kind;
         const configOffsets = { models: 0, styles: 170, resolution: 340, advanced: 510 };
-        const configHeights = { models: 560, styles: 520, resolution: 430, advanced: 320 };
+        const configHeights = { models: 560, styles: 520, resolution: 430, advanced: 285 };
         const baseY = (presetNode.y || 0) + (isDetection ? 240 + detectionIndex * 52 : (configOffsets[kind] || 0));
         const node = {
             id: uid('config'),
@@ -32523,8 +32634,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 guidance_scale: configNumberValue(merged, ['guidance_scale', 'cfg_scale', 'default_cfg_scale'], 4),
                 overwrite_step: configNumberValue(merged, ['overwrite_step', 'steps', 'default_overwrite_step'], -1),
                 sampler_name: configTextValue(merged, ['sampler_name', 'sampler', 'default_sampler'], 'dpmpp_2m_sde_gpu'),
-                scheduler_name: configTextValue(merged, ['scheduler_name', 'scheduler', 'default_scheduler'], 'karras'),
-                clip_skip: configNumberValue(merged, ['clip_skip', 'default_clip_skip'], 2)
+                scheduler_name: configTextValue(merged, ['scheduler_name', 'scheduler', 'default_scheduler'], 'karras')
             });
         }
         return Object.assign({
@@ -32728,10 +32838,25 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             return;
         }
         const configKey = configKeyForKind(configNode.config_kind);
+        let defaults = configNode.config?.defaults && typeof configNode.config.defaults === 'object'
+            ? Object.assign({}, configNode.config.defaults)
+            : {};
+        let overrides = configNode.config?.values && typeof configNode.config.values === 'object'
+            ? Object.assign({}, configNode.config.values)
+            : {};
+        if (configNode.config_kind === 'advanced') {
+            const stepProps = getSceneGenerationConfigPropsForConfigNode(configNode, 'overwrite_step') || {};
+            if (stepProps.interactive === false) {
+                delete overrides.overwrite_step;
+                delete overrides.steps;
+                const fixedStep = stepProps.value ?? getSceneGenerationConfigDefaultForConfigNode(configNode, 'overwrite_step');
+                if (fixedStep !== undefined) defaults.overwrite_step = fixedStep;
+            }
+        }
         preset[configKey] = {
             mode: 'external_override',
-            defaults: configNode.config?.defaults || {},
-            overrides: configNode.config?.values || {},
+            defaults,
+            overrides,
             source_node_id: configNode.id,
             updated_at: nowIso()
         };
@@ -36481,7 +36606,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 state: 'queued',
                 queue_position: null,
                 step: 0,
-                total_steps: Number(node.params?.scene_steps || 0) || 0,
+                total_steps: presetGenerationStepValue(node),
                 percent: 0,
                 message: t('Result placeholder created; submitting to AsyncTask.', '已创建结果占位节点；正在提交到 AsyncTask。')
             },
@@ -36517,7 +36642,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 state: 'queued',
                 queue_position: null,
                 step: 0,
-                total_steps: Number(node.params?.scene_steps || 0) || 0,
+                total_steps: presetGenerationStepValue(node),
                 percent: 0,
                 message: 'Reusing result node; submitting to AsyncTask.'
             };
@@ -37547,6 +37672,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             delete next.size;
         }
         if (!vlmAgentUserExplicitlyRequestedGenerationControl(source, 'steps')) {
+            delete next.overwrite_step;
             delete next.steps;
             delete next.scene_steps;
         }

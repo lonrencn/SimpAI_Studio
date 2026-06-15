@@ -163,7 +163,10 @@
         "216",
         9
       ],
-      "cfg": 1,
+      "cfg": [
+        "216",
+        8
+      ],
       "shift": 5,
       "seed": 1090689971278054,
       "force_offload": true,
@@ -423,7 +426,10 @@
       "switch_option4": true,
       "model_type": 1,
       "model_type2": 1,
-      "clip_type": 1
+      "clip_type": 1,
+      "negative_prompt": "",
+      "sampler": "euler",
+      "scheduler": "simple"
     },
     "class_type": "SceneInput",
     "_meta": {

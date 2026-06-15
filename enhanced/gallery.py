@@ -689,6 +689,31 @@ def refresh_output_list(max_per_page, max_catalog, user_did=None, engine_type='i
             _output_list_inflight.discard(cache_key)
 
 
+def refresh_finished_nums_pages_for_browser(state_params, media_type):
+    if not isinstance(state_params, dict):
+        return "0,0"
+    media_type = "video" if media_type == "video" else "image"
+    state_params.setdefault("__max_per_page", 18)
+    state_params.setdefault("__max_catalog", config.default_image_catalog_max_number)
+    try:
+        user = state_params.get("user")
+        user_did = user.get_did() if user is not None and hasattr(user, "get_did") else None
+        invalidate_output_list_cache(user_did, media_type)
+        output_list, finished_nums, finished_pages = refresh_output_list(
+            state_params["__max_per_page"],
+            state_params["__max_catalog"],
+            user_did,
+            media_type,
+        )
+        state_params["__gallery_engine_type"] = media_type
+        state_params["__output_list"] = output_list
+        state_params["__finished_nums_pages"] = f"{finished_nums},{finished_pages}"
+    except Exception as e:
+        logger.exception("Refresh finished catalog stat failed: media_type=%r, error=%s", media_type, e)
+        state_params.setdefault("__finished_nums_pages", "0,0")
+    return state_params.get("__finished_nums_pages", "0,0")
+
+
 def images_list_update(choice, image_tools_checkbox, state_params):
     util.log_ui_trace(
         logger,
@@ -1181,7 +1206,10 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
     state_params["__gallery_engine_type"] = media_type
     state_params.setdefault("__max_per_page", 18)
     state_params.setdefault("__max_catalog", config.default_image_catalog_max_number)
-    state_params.setdefault("__finished_nums_pages", "0,0")
+    if payload["reset"] or "__finished_nums_pages" not in state_params:
+        finished_nums_pages = refresh_finished_nums_pages_for_browser(state_params, media_type)
+    else:
+        finished_nums_pages = state_params.get("__finished_nums_pages", "0,0")
     if not result.get("ok"):
         state_json = _main_gallery_browser_state_json(
             ok=False,
@@ -1203,7 +1231,7 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
             skip_update(),
             skip_update(),
             state_params,
-            state_params.get("__finished_nums_pages", "0,0"),
+            finished_nums_pages,
         ]
 
     folders = result.get("folders") or folders
@@ -1265,7 +1293,7 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
         gr_update(visible=infobox_state),
         gr_update(visible=infobox_state),
         state_params,
-        state_params.get("__finished_nums_pages", "0,0"),
+        state_params.get("__finished_nums_pages", finished_nums_pages),
     ]
 
 
@@ -1301,6 +1329,10 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
     if _main_gallery_browser_request_is_stale(request_context):
         return _gallery_browser_native_stale_response(state_params, "_load_main_gallery_browser_native")
 
+    if reset or "__finished_nums_pages" not in state_params:
+        finished_nums_pages = refresh_finished_nums_pages_for_browser(state_params, media_type)
+    else:
+        finished_nums_pages = state_params.get("__finished_nums_pages", "0,0")
     if not result.get("ok"):
         clear_post_generation_result_state(state_params)
         status = "Load failed" if _gallery_lang(state_params) == "en" else "加载失败"
@@ -1320,7 +1352,7 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
             skip_update(),
             skip_update(),
             state_params,
-            state_params.get("__finished_nums_pages", "0,0"),
+            finished_nums_pages,
         ]
 
     folder = result.get("folder") or folder
@@ -1395,7 +1427,7 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
         gr_update(visible=infobox_state),
         gr_update(visible=infobox_state),
         state_params,
-        state_params.get("__finished_nums_pages", "0,0"),
+        state_params.get("__finished_nums_pages", finished_nums_pages),
     ]
 
 

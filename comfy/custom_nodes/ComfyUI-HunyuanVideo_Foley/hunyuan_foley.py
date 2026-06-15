@@ -75,6 +75,108 @@ from .download_models import ensure_models_downloaded, ensure_vae_downloaded
 # --- Helper Functions ---
 logging.basicConfig(level=logging.INFO, format='HunyuanFoley (%(levelname)s): %(message)s')
 
+FOLEY_FOLDER_NAME = "hunyuan_foley"
+FOLEY_CHECKPOINTS = ("hunyuanvideo_foley.pth", "hunyuanvideo_foley_xl.pth")
+
+
+def _dedupe_paths(paths):
+    out = []
+    seen = set()
+    for path in paths:
+        if not path:
+            continue
+        norm = os.path.normpath(path)
+        key = os.path.normcase(norm)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(norm)
+    return out
+
+
+def _default_hunyuan_foley_model_dir():
+    return os.path.join(folder_paths.models_dir, FOLEY_FOLDER_NAME)
+
+
+def _hunyuan_foley_model_dirs():
+    paths = [_default_hunyuan_foley_model_dir()]
+    try:
+        paths.extend(folder_paths.get_folder_paths(FOLEY_FOLDER_NAME))
+    except Exception:
+        pass
+    return _dedupe_paths(paths)
+
+
+def _has_foley_checkpoint(path, checkpoint_name=None):
+    checkpoints = (checkpoint_name,) if checkpoint_name else FOLEY_CHECKPOINTS
+    return any(os.path.isfile(os.path.join(path, name)) for name in checkpoints)
+
+
+def _resolve_hunyuan_foley_model_path(model_path_name, foley_checkpoint_name=None):
+    default_dir = _default_hunyuan_foley_model_dir()
+    candidates = []
+    for model_dir in _hunyuan_foley_model_dirs():
+        root_folder_name = os.path.basename(os.path.normpath(model_dir))
+        if model_path_name == root_folder_name:
+            candidates.append(model_dir)
+        else:
+            candidates.append(os.path.join(model_dir, model_path_name))
+
+    candidates = _dedupe_paths(candidates)
+    for candidate in candidates:
+        if _has_foley_checkpoint(candidate, foley_checkpoint_name):
+            return candidate
+    for candidate in candidates:
+        if os.path.isdir(candidate):
+            return candidate
+    if model_path_name == os.path.basename(os.path.normpath(default_dir)):
+        return default_dir
+    return os.path.join(default_dir, model_path_name)
+
+
+def _hunyuan_foley_model_options():
+    default_dir = _default_hunyuan_foley_model_dir()
+    os.makedirs(default_dir, exist_ok=True)
+
+    options = [os.path.basename(os.path.normpath(default_dir))]
+    for model_dir in _hunyuan_foley_model_dirs():
+        if not os.path.isdir(model_dir):
+            continue
+        for name in os.listdir(model_dir):
+            sub_path = os.path.join(model_dir, name)
+            if os.path.isdir(sub_path) and _has_foley_checkpoint(sub_path) and name not in options:
+                options.append(name)
+    return options
+
+
+def _relative_to_models_dir(path):
+    try:
+        return os.path.relpath(path, folder_paths.models_dir)
+    except ValueError:
+        return os.path.join(FOLEY_FOLDER_NAME, os.path.basename(path))
+
+
+def _resolve_hunyuan_foley_vae_path(vae_name):
+    vae_path = folder_paths.get_full_path("vae", vae_name)
+    if vae_path:
+        return vae_path
+
+    if os.path.isabs(vae_name) and os.path.isfile(vae_name):
+        return os.path.normpath(vae_name)
+
+    rel_name = os.path.normpath(vae_name)
+    file_name = os.path.basename(rel_name)
+    candidates = []
+    for model_dir in _hunyuan_foley_model_dirs():
+        candidates.append(os.path.join(model_dir, file_name))
+        candidates.append(os.path.join(os.path.dirname(model_dir), rel_name))
+
+    for candidate in _dedupe_paths(candidates):
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
 def set_manual_seed(seed):
     seed = int(seed)
     numpy_seed = seed % (2**32)
@@ -421,29 +523,11 @@ def unload_vae_models():
 
 class HunyuanFoleyModelLoader(io.ComfyNode):
     def __init__(self):
-        self.model_dir = os.path.join(folder_paths.models_dir, "hunyuan_foley")
+        self.model_dir = _default_hunyuan_foley_model_dir()
 
     @classmethod
     def define_schema(cls) -> io.Schema:
-        model_dir = os.path.join(folder_paths.models_dir, "hunyuan_foley")
-        if not os.path.exists(model_dir):
-            os.makedirs(model_dir)
-
-        root_folder_name = os.path.basename(model_dir)
-        checkpoints = ["hunyuanvideo_foley.pth", "hunyuanvideo_foley_xl.pth"]
-
-        def has_checkpoint(path):
-            return any(os.path.isfile(os.path.join(path, cp)) for cp in checkpoints)
-
-        model_paths = []
-        # Always include the root hunyuan_foley folder so users can select it
-        # and trigger an automatic download even before any files exist.
-        model_paths.append(root_folder_name)
-
-        for f in os.listdir(model_dir):
-            sub_path = os.path.join(model_dir, f)
-            if os.path.isdir(sub_path) and has_checkpoint(sub_path):
-                model_paths.append(f)
+        model_paths = _hunyuan_foley_model_options()
 
         return io.Schema(
             node_id="HunyuanFoleyModelLoader",
@@ -464,12 +548,7 @@ class HunyuanFoleyModelLoader(io.ComfyNode):
     def execute(cls, model_path_name, foley_checkpoint_name, cpu_offload=False, error=None) -> io.NodeOutput:
         global loaded_models_cache
 
-        model_dir = os.path.join(folder_paths.models_dir, "hunyuan_foley")
-        root_folder_name = os.path.basename(model_dir)
-        if model_path_name == root_folder_name:
-            model_path = model_dir
-        else:
-            model_path = os.path.join(model_dir, model_path_name)
+        model_path = _resolve_hunyuan_foley_model_path(model_path_name, foley_checkpoint_name)
 
         # Auto-download any missing model files before attempting to load
         ensure_models_downloaded(model_path, foley_checkpoint_name)
@@ -601,19 +680,20 @@ class HunyuanFoleyModelLoader(io.ComfyNode):
 class LoadDACHunyuanVAE(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
-        model_dir = os.path.join(folder_paths.models_dir, "hunyuan_foley")
         vae_files = [f for f in folder_paths.get_filename_list("vae") if "dac" in f.lower() or "vae_128d_48k" in f.lower()]
-        if os.path.exists(model_dir):
+        for model_dir in _hunyuan_foley_model_dirs():
+            if not os.path.exists(model_dir):
+                continue
             for root, _, files in os.walk(model_dir):
                 for file in files:
                     if file == "vae_128d_48k.pth":
-                        rel_path = os.path.relpath(os.path.join(root, file), folder_paths.models_dir)
+                        rel_path = _relative_to_models_dir(os.path.join(root, file))
                         if rel_path not in vae_files:
                             vae_files.append(rel_path)
         # Always include the default path so download can be triggered even
         # before vae_128d_48k.pth has been downloaded.
         default_vae_rel = os.path.relpath(
-            os.path.join(model_dir, "vae_128d_48k.pth"), folder_paths.models_dir
+            os.path.join(_default_hunyuan_foley_model_dir(), "vae_128d_48k.pth"), folder_paths.models_dir
         )
         if default_vae_rel not in vae_files:
             vae_files.insert(0, default_vae_rel)
@@ -634,11 +714,11 @@ class LoadDACHunyuanVAE(io.ComfyNode):
     @classmethod
     def execute(cls, vae_name) -> io.NodeOutput:
         global loaded_vaes_cpu
-        model_dir = os.path.join(folder_paths.models_dir, "hunyuan_foley")
+        vae_path = _resolve_hunyuan_foley_vae_path(vae_name)
         # Auto-download vae_128d_48k.pth if it's the selected file and is missing
-        if "vae_128d_48k" in vae_name:
-            ensure_vae_downloaded(model_dir)
-        vae_path = folder_paths.get_full_path("vae", vae_name)
+        if not vae_path and "vae_128d_48k" in vae_name:
+            ensure_vae_downloaded(_default_hunyuan_foley_model_dir())
+            vae_path = _resolve_hunyuan_foley_vae_path(vae_name)
         if not vae_path:
             vae_path = os.path.join(folder_paths.models_dir, vae_name)
         if vae_path in loaded_vaes_cpu:

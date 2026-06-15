@@ -25,9 +25,6 @@
         "switch_option1": {
             "Swap": false
         },
-        "scene_steps": {
-            "Swap": 25
-            },
             "resolution_control": {
             "mode": "image_keep_input_area",
             "source": "scene_canvas",
@@ -77,7 +74,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1280*720",
     "default_image_number": 1,
-    "default_overwrite_step": 20,
+    "default_overwrite_step": 25,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

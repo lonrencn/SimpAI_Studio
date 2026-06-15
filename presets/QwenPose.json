@@ -18,9 +18,6 @@
             "prompt": {
                 "QwenPose": "Draw character from image2"
             },
-            "scene_steps": {
-                "QwenPose": 8
-            },
             "image_preprocessor_method": {
                     "QwenPose": [["-normalization"]]
             },
@@ -84,7 +81,7 @@
         "diffusion_models,qwen_image_edit_2511_fp8mixed.safetensors,20533762817,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
         "loras,Qwen-Image-Edit-2511-Lightning-8steps-V1.0-bf16.safetensors,849608296,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/loras/Qwen-Image-Edit-2511-Lightning-8steps-V1.0-bf16.safetensors",
         "loras,VNCCS_QIE2511_PoseStudio_ART_V5.9.5.safetensors,1179883808,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/loras/VNCCS_QIE2511_PoseStudio_ART_V5.9.5.safetensors",
-        "text_encoders,qwen_2.5_vl_7b_fp8_scaled.safetensors,9384670680,0,",
+        "text_encoders,qwen_2.5_vl_7b_fp8_scaled.safetensors,9384670680,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/qwen_2.5_vl_7b_fp8_scaled.safetensors",
         "vae,qwen_image_vae.safetensors,253806246,0,",
         "birefnet,BiRefNet_lite/BiRefNet_config.py,298,,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/birefnet/BiRefNet_lite/BiRefNet_config.py",
         "birefnet,BiRefNet_lite/birefnet.py,92134,,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/birefnet/BiRefNet_lite/birefnet.py",

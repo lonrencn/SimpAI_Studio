@@ -310,7 +310,6 @@ def _scene_ui_values(values: dict[str, Any]) -> dict[str, Any]:
         "scene_var_number8",
         "scene_var_number9",
         "scene_var_number10",
-        "scene_steps",
         "scene_switch_option1",
         "scene_switch_option2",
         "scene_switch_option3",
@@ -320,6 +319,10 @@ def _scene_ui_values(values: dict[str, Any]) -> dict[str, Any]:
     ):
         if key in values:
             result[key] = values.get(key)
+    if "overwrite_step" in values:
+        result["overwrite_step"] = values.get("overwrite_step")
+    elif "scene_steps" in values:
+        result["overwrite_step"] = values.get("scene_steps")
     return result
 
 
@@ -387,7 +390,6 @@ def build_profile_payload(name: str, values: dict[str, Any]) -> dict[str, Any]:
         )),
         "refiner_swap_method": values.get("refiner_swap_method"),
         "adaptive_cfg": values.get("adaptive_cfg"),
-        "clip_skip": values.get("clip_skip"),
         "base_model": _model_value(values, "base_model"),
         "refiner_model": _model_value(values, "refiner_model"),
         "refiner_switch": _model_value(values, "refiner_switch"),
@@ -494,7 +496,7 @@ def _current_scene_ui_values(metadata: dict[str, Any], manifest: dict[str, Any] 
         "scene_var_number8",
         "scene_var_number9",
         "scene_var_number10",
-        "scene_steps",
+        "overwrite_step",
         "scene_switch_option1",
         "scene_switch_option2",
         "scene_switch_option3",
@@ -504,6 +506,15 @@ def _current_scene_ui_values(metadata: dict[str, Any], manifest: dict[str, Any] 
     ):
         if key in metadata:
             ui_values[key] = metadata.get(key)
+    if "overwrite_step" not in ui_values:
+        if isinstance(manifest, dict) and isinstance(manifest.get("ui_values"), dict) and "scene_steps" in manifest.get("ui_values"):
+            ui_values["overwrite_step"] = manifest.get("ui_values", {}).get("scene_steps")
+        elif "scene_steps" in metadata:
+            ui_values["overwrite_step"] = metadata.get("scene_steps")
+    ui_values.pop("scene_steps", None)
+    metadata.pop("scene_steps", None)
+    if "overwrite_step" in ui_values:
+        metadata["overwrite_step"] = ui_values.get("overwrite_step")
     return ui_values
 
 
@@ -648,6 +659,7 @@ def _sanitize_model_values(metadata: dict[str, Any], state_params: dict[str, Any
 
 
 def _sanitize_profile_values(metadata: dict[str, Any], warnings: list[str]) -> dict[str, Any]:
+    metadata.pop("clip_skip", None)
     default_images = _as_int(getattr(config, "default_image_number", 1), 1)
     max_images = max(1, _as_int(getattr(config, "default_max_image_number", 32), 32))
     if "image_number" in metadata:

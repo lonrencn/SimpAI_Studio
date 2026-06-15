@@ -10,7 +10,10 @@
   },
   "103": {
     "inputs": {
-      "cfg": 1,
+      "cfg": [
+        "578",
+        8
+      ],
       "model": [
         "507",
         0
@@ -51,7 +54,10 @@
   },
   "110": {
     "inputs": {
-      "text": "字幕，中文字幕，水印，blurry, oversaturated, pixelated, low resolution, grainy, distorted, noise, compression artifacts, jpeg artifacts, glitches, watermark, text, logo, signature, copyright, subtitles, distorted sound, saturated sound, loud",
+      "text": [
+        "578",
+        29
+      ],
       "clip": [
         "499",
         1
@@ -877,7 +883,10 @@
       "switch_option4": false,
       "model_type": 1,
       "model_type2": 1,
-      "clip_type": 1
+      "clip_type": 1,
+      "negative_prompt": "",
+      "sampler": "euler",
+      "scheduler": "simple"
     },
     "class_type": "SceneInput",
     "_meta": {

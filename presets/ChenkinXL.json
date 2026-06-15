@@ -64,7 +64,7 @@
         "checkpoints,ChenkinNoob-XL-V0.5.safetensors,6938042930,0,https://www.modelscope.cn/models/ChenkinNoob/ChenkinNoob-XL-V0.5/resolve/20260410110159/ChenkinNoob-XL-V0.5.safetensors",
         "ipadapter,noob_ip_adapter.bin,1396798350,0,",
         "upscale_models,remacri_original.safetensors,66864028,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/upscale_models/remacri_original.safetensors",
-        "clip_vision,clip_vision_h.safetensors,1264219396,0,",
+        "clip_vision,clip_vision_h.safetensors,1264219396,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/clip_vision/clip_vision_h",
         "controlnet,lllyasviel/Annotators/ZoeD_M12_N.pt,1443406099,0,",
         "controlnet,noob_sdxl_controlnet_inpainting.safetensors,5004167832,0,",
         "controlnet,Chenkin-UniControl-XL.safetensors,2516656328,0,https://www.modelscope.cn/models/ChenkinNoob/Chenkin-UniControl-XL/resolve/master/Chenkin-UniControl-XL.safetensors"

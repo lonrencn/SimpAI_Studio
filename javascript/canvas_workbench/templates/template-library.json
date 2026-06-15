@@ -252,9 +252,9 @@
           "zh": "运行前需要 Wan T2V 模型文件。"
         },
         "models": [
-          "Wan2.2_T2V_High_Noise_14B_VACE-Q4_K_M.gguf",
-          "Wan2.2_T2V_Low_Noise_14B_VACE-Q4_K_M.gguf",
-          "umt5-xxl-encoder-Q8_0.gguf",
+          "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
           "wan_2.1_vae.safetensors",
           "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
           "flownet.pkl"
@@ -915,7 +915,7 @@
           "zh": "需要 Wan-SCAIL 模型、UMT5、CLIP vision、Wan VAE、lightx2v LoRA、RIFE、检测模型和 NLF。"
         },
         "models": [
-          "Wan21-14B-SCAIL-preview_fp8_e4m3fn_scaled_KJ.safetensors",
+          "Wan21-14B-SCAIL-preview_fp8_scaled_mixed.safetensors",
           "umt5-xxl-encoder-Q8_0.gguf",
           "clip_vision_h.safetensors",
           "wan_2.1_vae.safetensors",

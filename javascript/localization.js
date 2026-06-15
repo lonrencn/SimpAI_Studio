@@ -1126,10 +1126,16 @@ function refresh_finished_images_catalog_label(value, type, options) {
 	    translation_stat = "total: xxx videoes";
 	}
     }
+    value = String(value);
     var xxx = value.split(",")[0];
     var yyy = value.split(",")[1];
     var finished_label = translation + " - " + htmlDecode(translation_stat.replace(/xxx/g, xxx).replace(/yyy/g, yyy));
     label.innerHTML = finished_label;
+    try {
+        label.setAttribute("data-original-text", finished_label);
+        var labelButtonForOriginal = label.closest ? label.closest("button.label-wrap") : null;
+        if (labelButtonForOriginal) labelButtonForOriginal.setAttribute("data-original-text", finished_label);
+    } catch (e) {}
     try {
         var params = window.simpleaiTopbarSystemParams || (typeof topbarLastSystemParams !== "undefined" ? topbarLastSystemParams : null) || {};
         var skipRefresh = !!(params && params.__skip_gallery_browser_refresh_once);

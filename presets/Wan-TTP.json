@@ -17,9 +17,6 @@
             },
             "prompt": {
                 "Wan_TTP_Hires.Upscale": "(Masterpiece:1.2), (best quality:1.2), ultra high resolution, (ultra-detailed), (beautiful and aesthetic:1.2),high texture,hyperrealistic materials, 4K, raw, arw, cr2,"                },
-            "scene_steps": {
-                "Wan_TTP_Hires.Upscale": 12
-            },
             "image_preprocessor_method": {
                 "Wan_TTP_Hires.Upscale": [["-normalization"]]
             },
@@ -103,7 +100,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 24,
+    "default_overwrite_step": 12,
     "default_prompt": "",
     "default_prompt_negative": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
     "checkpoint_downloads": {},

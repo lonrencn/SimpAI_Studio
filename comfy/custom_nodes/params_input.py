@@ -77,17 +77,20 @@ class SceneInput:
                 },
                 "optional": {
                     "clip_type": ("INT", {"default": 1, "min": 1, "max": 3, "step": 1}),
+                    "negative_prompt": ("STRING", {"default": "", "multiline": True}),
+                    "sampler": (SAMPLER_NAMES, {"default": SAMPLER_NAMES[0]}),
+                    "scheduler": (SCHEDULER_NAMES, {"default": SCHEDULER_NAMES[0]}),
                 }}
-    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "STRING", "STRING", "INT", "INT", "FLOAT", "INT", "INT", "INT", "FLOAT", "FLOAT", "FLOAT", "FLOAT", "INT", "INT", "INT", "INT", "BOOLEAN", "BOOLEAN", "BOOLEAN", "BOOLEAN", "INT", "INT", "INT", "STRING", "STRING", )
-    RETURN_NAMES = ("prompt", "additional_prompt", "ip_image", "ip_image1", "inpaint_image", "inpaint_mask", "width", "height", "cfg", "steps", "var_number", "var_number2", "var_number3", "var_number4", "var_number5", "var_number6", "var_number7", "var_number8", "var_number9", "var_number10", "switch_option1", "switch_option2", "switch_option3", "switch_option4", "model_type", "model_type2", "clip_type", "ip_image2", "ip_image3", )
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "STRING", "STRING", "INT", "INT", "FLOAT", "INT", "INT", "INT", "FLOAT", "FLOAT", "FLOAT", "FLOAT", "INT", "INT", "INT", "INT", "BOOLEAN", "BOOLEAN", "BOOLEAN", "BOOLEAN", "INT", "INT", "INT", "STRING", "STRING", "STRING", SAMPLER_NAMES, SCHEDULER_NAMES, )
+    RETURN_NAMES = ("prompt", "additional_prompt", "ip_image", "ip_image1", "inpaint_image", "inpaint_mask", "width", "height", "cfg", "steps", "var_number", "var_number2", "var_number3", "var_number4", "var_number5", "var_number6", "var_number7", "var_number8", "var_number9", "var_number10", "switch_option1", "switch_option2", "switch_option3", "switch_option4", "model_type", "model_type2", "clip_type", "ip_image2", "ip_image3", "negative_prompt", "sampler", "scheduler", )
 
     FUNCTION = "scene_input"
 
     CATEGORY = "api/input"
 
-    def scene_input(self, prompt, additional_prompt, ip_image, ip_image1, ip_image2, ip_image3, inpaint_image, inpaint_mask, width, height, cfg, steps, var_number, var_number2, var_number3, var_number4, var_number5, var_number6, var_number7, var_number8, var_number9, var_number10, switch_option1, switch_option2, switch_option3, switch_option4, model_type, model_type2, clip_type=1):
+    def scene_input(self, prompt, additional_prompt, ip_image, ip_image1, ip_image2, ip_image3, inpaint_image, inpaint_mask, width, height, cfg, steps, var_number, var_number2, var_number3, var_number4, var_number5, var_number6, var_number7, var_number8, var_number9, var_number10, switch_option1, switch_option2, switch_option3, switch_option4, model_type, model_type2, clip_type=1, negative_prompt="", sampler=SAMPLER_NAMES[0], scheduler=SCHEDULER_NAMES[0]):
 
-        return (prompt, additional_prompt, ip_image, ip_image1, inpaint_image, inpaint_mask, width, height, cfg, steps, var_number, var_number2, var_number3, var_number4, var_number5, var_number6, var_number7, var_number8, var_number9, var_number10, switch_option1, switch_option2, switch_option3, switch_option4, model_type, model_type2, clip_type, ip_image2, ip_image3)
+        return (prompt, additional_prompt, ip_image, ip_image1, inpaint_image, inpaint_mask, width, height, cfg, steps, var_number, var_number2, var_number3, var_number4, var_number5, var_number6, var_number7, var_number8, var_number9, var_number10, switch_option1, switch_option2, switch_option3, switch_option4, model_type, model_type2, clip_type, ip_image2, ip_image3, negative_prompt, sampler, scheduler)
 
 class SeedInput:
     @classmethod

@@ -58,10 +58,6 @@
                 "Image-to-Video": true,
                 "Image+Audio to Video": true
             },
-            "scene_steps": {
-                "Image-to-Video": 11,
-                "Image+Audio to Video": 11
-            },
                 "aspect_ratio" : ["896|1:1","1024|1:1","1280|1:1","1408|1:1","1536|1:1","1792|1:1"],
             "resolution_control": {
                 "mode": "image_keep_input_area",
@@ -111,7 +107,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 30,
+    "default_overwrite_step": 11,
     "default_prompt": "",
     "default_prompt_negative": "字幕，中文字幕，水印，blurry, oversaturated, pixelated, low resolution, grainy, distorted, noise, compression artifacts, jpeg artifacts, glitches, watermark, text, logo, signature, copyright, subtitles, distorted sound, saturated sound, loud",
     "checkpoint_downloads": {},

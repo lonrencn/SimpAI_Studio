@@ -771,13 +771,28 @@ def bind_topbar_navigation_events(
                 queue=False,
                 show_progress=False,
             )
-        chain.then(
+        chain = chain.then(
             fn=None,
             inputs=system_params,
-            js="(x)=>{try{syncImageAndTtsPanelsFromCheckboxes('preset_nav_fast'); setTimeout(()=>syncImageAndTtsPanelsFromCheckboxes('preset_nav_fast+80ms'),80); setTimeout(()=>syncImageAndTtsPanelsFromCheckboxes('preset_nav_fast+260ms'),260);}catch(e){console.warn('[UI-TRACE] preset_nav_fast_panel_sync_failed', e);} try{if (typeof notify_style_state_changed === 'function') { notify_style_state_changed('preset_styles_fast'); } else { refresh_style_localization(); refresh_style_layout(); setTimeout(refresh_style_layout,120); setTimeout(refresh_style_layout,500); }}catch(e){console.warn('[UI-TRACE] style_preset_fast_refresh_failed', e);} try{refresh_topbar_status_js_for_preset_nav(x);}catch(e){console.warn('[UI-TRACE] topbar_status_refresh_failed', e);} try{if (typeof simpleaiRehydrateModelsTabAfterPresetNav === 'function') simpleaiRehydrateModelsTabAfterPresetNav();}catch(e){console.warn('[UI-TRACE] models_tab_rehydrate_failed', e);}}",
+            js="(x)=>new Promise((resolve)=>{try{syncImageAndTtsPanelsFromCheckboxes('preset_nav_fast'); setTimeout(()=>syncImageAndTtsPanelsFromCheckboxes('preset_nav_fast+80ms'),80); setTimeout(()=>syncImageAndTtsPanelsFromCheckboxes('preset_nav_fast+260ms'),260);}catch(e){console.warn('[UI-TRACE] preset_nav_fast_panel_sync_failed', e);} try{if (typeof notify_style_state_changed === 'function') { notify_style_state_changed('preset_styles_fast'); } else { refresh_style_localization(); refresh_style_layout(); setTimeout(refresh_style_layout,120); setTimeout(refresh_style_layout,500); }}catch(e){console.warn('[UI-TRACE] style_preset_fast_refresh_failed', e);} try{refresh_topbar_status_js_for_preset_nav(x);}catch(e){console.warn('[UI-TRACE] topbar_status_refresh_failed', e);} try{if (typeof simpleaiRehydrateModelsTabAfterPresetNav === 'function') simpleaiRehydrateModelsTabAfterPresetNav();}catch(e){console.warn('[UI-TRACE] models_tab_rehydrate_failed', e);} setTimeout(()=>resolve(x), 120);})",
             queue=False,
             show_progress=False,
         )
+        if reset_layout_scene_outputs:
+            chain = chain.then(
+                _reset_scene_frontend_ui_safe,
+                inputs=state_topbar,
+                outputs=reset_layout_scene_outputs,
+                queue=False,
+                show_progress=False,
+            )
+            chain.then(
+                fn=None,
+                inputs=system_params,
+                js="(x)=>{try{if(window.syncGradio6MountedDynamicVisibility) window.syncGradio6MountedDynamicVisibility('preset_nav_after_mount_scene_refresh'); if(typeof refresh_scene_localization==='function') refresh_scene_localization(); setTimeout(()=>{try{if(window.syncGradio6MountedDynamicVisibility) window.syncGradio6MountedDynamicVisibility('preset_nav_after_mount_scene_refresh+120ms');}catch(e){}},120);}catch(e){console.warn('[UI-TRACE] preset_nav_after_mount_scene_refresh_failed', e);}}",
+                queue=False,
+                show_progress=False,
+            )
 
 
 def bind_topbar_load_chain(
@@ -1283,8 +1298,11 @@ def bind_topbar_identity_events(
     admin_access_refresh_fn=None,
     admin_access_user_select=None,
     admin_access_outputs=None,
+    identity_admin_surface_refresh_fn=None,
+    identity_admin_surface_outputs=None,
 ) -> None:
     admin_access_refresh_outputs = list(admin_access_outputs or [])
+    identity_admin_surface_outputs = list(identity_admin_surface_outputs or [])
 
     def _identity_stage_from_base(base):
         def is_visible(index):
@@ -1332,12 +1350,21 @@ def bind_topbar_identity_events(
             inputs=state_topbar,
             outputs=nav_bars + after_identity + user_app_ctrls,
             show_progress=False,
+            queue=False,
         )
         if admin_access_refresh_fn is not None and admin_access_user_select is not None and admin_access_refresh_outputs:
             chain = chain.then(
                 admin_access_refresh_fn,
                 inputs=[admin_access_user_select, state_topbar],
                 outputs=admin_access_refresh_outputs,
+                queue=False,
+                show_progress=False,
+            )
+        if identity_admin_surface_refresh_fn is not None and identity_admin_surface_outputs:
+            chain = chain.then(
+                identity_admin_surface_refresh_fn,
+                inputs=state_topbar,
+                outputs=identity_admin_surface_outputs,
                 queue=False,
                 show_progress=False,
             )
@@ -1363,6 +1390,8 @@ def bind_topbar_identity_events(
             fn=lambda x: None,
             inputs=system_params,
             js="(x)=>{refresh_topbar_status_js(x);}",
+            queue=False,
+            show_progress=False,
         )
         return chain
 
@@ -1405,6 +1434,7 @@ def bind_topbar_identity_events(
         inputs=identity_input_info + [identity_phrase_input],
         outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [current_id_info, current_upstream_status, identity_export_btn, state_topbar],
         show_progress=False,
+        queue=False,
     )
     _after_identity_event_chain(phrases_chain)
 
@@ -1413,6 +1443,7 @@ def bind_topbar_identity_events(
         inputs=identity_input_info + [identity_phrase_input],
         outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [current_id_info, current_upstream_status, identity_export_btn, state_topbar],
         show_progress=False,
+        queue=False,
     )
     _after_identity_event_chain(confirm_chain)
 
@@ -1421,6 +1452,7 @@ def bind_topbar_identity_events(
         inputs=identity_input_info + [identity_phrase_input],
         outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + identity_input + [current_id_info, current_upstream_status, identity_export_btn, state_topbar],
         show_progress=False,
+        queue=False,
     )
     _after_identity_event_chain(unbind_chain)
 
@@ -1429,5 +1461,6 @@ def bind_topbar_identity_events(
         inputs=state_topbar,
         outputs=[identity_dialog, current_id_info, current_upstream_status, identity_export_btn, identity_stage_state] + identity_flow_rows + identity_ctrls + identity_input + [identity_input_info[0]],
         show_progress=False,
+        queue=False,
     )
 

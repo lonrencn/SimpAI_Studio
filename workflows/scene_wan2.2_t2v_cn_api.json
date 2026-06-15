@@ -32,7 +32,7 @@
     "inputs": {
       "text": [
         "107",
-        1
+        29
       ],
       "clip": [
         "124",
@@ -169,15 +169,15 @@
       ],
       "cfg": [
         "107",
-        12
+        8
       ],
       "sampler_name": [
-        "108",
-        3
+        "107",
+        30
       ],
       "scheduler": [
-        "108",
-        4
+        "107",
+        31
       ],
       "start_at_step": 0,
       "end_at_step": [
@@ -269,6 +269,7 @@
   "34": {
     "inputs": {
       "strength": 1,
+      "pre_cfg": false,
       "model": [
         "120",
         0
@@ -292,12 +293,12 @@
       ],
       "cfg": 1,
       "sampler_name": [
-        "108",
-        3
+        "107",
+        30
       ],
       "scheduler": [
-        "108",
-        4
+        "107",
+        31
       ],
       "start_at_step": [
         "110",
@@ -596,24 +597,14 @@
       "switch_option4": false,
       "model_type": 1,
       "model_type2": 1,
-      "clip_type": 1
+      "clip_type": 1,
+      "negative_prompt": "",
+      "sampler": "euler",
+      "scheduler": "simple"
     },
     "class_type": "SceneInput",
     "_meta": {
       "title": "SceneInput"
-    }
-  },
-  "108": {
-    "inputs": {
-      "steps_total": 30,
-      "refiner_step": 24,
-      "cfg": 8,
-      "sampler_name": "euler",
-      "scheduler": "simple"
-    },
-    "class_type": "KSampler Config (rgthree)",
-    "_meta": {
-      "title": "KSampler Config (rgthree)"
     }
   },
   "109": {

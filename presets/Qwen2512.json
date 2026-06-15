@@ -67,7 +67,7 @@
         "controlnet,lllyasviel/Annotators/ZoeD_M12_N.pt,1443406099,0,",
         "controlnet,parsing_bisenet.pth,53289463,0,",
         "upscale_models,4x-UltraSharp.pth,66961958,0,",
-        "text_encoders,qwen_2.5_vl_7b_fp8_scaled.safetensors,9384670680,0,",
+        "text_encoders,qwen_2.5_vl_7b_fp8_scaled.safetensors,9384670680,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/qwen_2.5_vl_7b_fp8_scaled.safetensors",
         "vae,qwen_image_vae.safetensors,253806246,0,",
         "loras,Qwen-Image-2512-Lightning-4steps-V1.0-bf16.safetensors,849608296,0,https://www.modelscope.cn/models/lightx2v/Qwen-Image-2512-Lightning/resolve/master/Qwen-Image-2512-Lightning-4steps-V1.0-bf16.safetensors",
         "upscale_models,4xNomosUniDAT_bokeh_jpg.safetensors,154152604,0,",

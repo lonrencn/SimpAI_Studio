@@ -22,7 +22,7 @@
             "agent_prompt": {
                 "QwenEdit+A2R": "描述这张图片角色的关键细节，对描述结果要求明暗度保持一致，描述服饰内衣内裤细节, 描述角色瞳孔颜色、发型细节、是否遮住眼睛，淡妆，不要有任何腮红或者脸红的描述，注意描述表情细节，角色的面部朝向，视线方向。按此格式输出：’change the picture 1 to realistic photograph, : 这张图片图片描述。'"
             },
-            "scene_steps": {
+            "overwrite_step": {
                 "QwenEdit+A2R": 20,
                 "QwenEdit+A2R_lite": 4
             },
@@ -92,7 +92,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 8,
+    "default_overwrite_step": 20,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},
@@ -104,7 +104,7 @@
         "loras,Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors,849608296,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
         "loras,anything2real_2601_A_final_patched.safetensors,613580128,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/loras/anything2real_2601_A_final_patched.safetensors",
         "loras,qe2511_consis_alpha_patched.safetensors,613578928,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/loras/qe2511_consis_alpha_patched.safetensors",
-        "text_encoders,qwen_2.5_vl_7b_fp8_scaled.safetensors,9384670680,0,",
+        "text_encoders,qwen_2.5_vl_7b_fp8_scaled.safetensors,9384670680,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/qwen_2.5_vl_7b_fp8_scaled.safetensors",
         "vae,qwen_image_vae.safetensors,253806246,0,",
         "vae,Wan2.1_VAE_upscale2x_imageonly_real_v1.safetensors,507684560,0,https://www.modelscope.cn/models/spacepxl/Wan2.1-VAE-upscale2x/resolve/master/Wan2.1_VAE_upscale2x_imageonly_real_v1.safetensors",
         "diffusion_models,z_image_turbo_bf16.safetensors,12309866400,0,https://modelscope.cn/models/VerStella/z_image_turbo_comfyui/resolve/master/split_files/diffusion_models/z_image_turbo_bf16.safetensors",

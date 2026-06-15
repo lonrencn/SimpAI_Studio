@@ -39,7 +39,7 @@ def get_comfy_task(user_did, task_class, task_name, task_method, default_params,
                 audio = None
         if not audio:
             raise ValueError("该任务必须传入音频(audio)")
-    if "scene_" in task_method or task_class in ("Qwen", "Wan", "Z-image"):
+    if "scene_" in task_method_l or task_class in ("Qwen", "Wan", "Z-image"):
         base_model = default_params.get("base_model")
         if base_model and base_model != "auto":
             is_safetensors_model = _model_type_from_name(base_model) == 1
@@ -66,6 +66,12 @@ def get_comfy_task(user_did, task_class, task_name, task_method, default_params,
         else:
             default_params.pop("i2i_clip_type", None)
     comfy_params = ComfyTaskParams(default_params, user_did)
+    if "scene_" in task_method_l or task_class in ("Qwen", "Wan", "Z-image"):
+        comfy_params.update_mapping_rule("sampler", "GeneralInput:GeneralInput:sampler")
+        comfy_params.update_mapping_rule("scheduler", "GeneralInput:GeneralInput:scheduler")
+        comfy_params.update_mapping_rule("negative_prompt", "SceneInput:SceneInput:negative_prompt")
+        comfy_params.update_mapping_rule("sampler", "SceneInput:SceneInput:sampler")
+        comfy_params.update_mapping_rule("scheduler", "SceneInput:SceneInput:scheduler")
     if 'base_model_gguf' in default_params:
         comfy_params.delete_params(['base_model'])
     if 'base_model_gguf2' in default_params:

@@ -165,78 +165,78 @@
       "target_preset_id": "wan_t2v_preset",
       "config": {
         "defaults": {
-          "base_model": "Wan2.2_T2V_High_Noise_14B_VACE-Q4_K_M.gguf",
-          "refiner_model": "Wan2.2_T2V_Low_Noise_14B_VACE-Q4_K_M.gguf",
-          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "base_model": "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "refiner_model": "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "clip_model": "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
           "vae": "wan_2.1_vae.safetensors",
           "loras": [
             {
               "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
               "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 0
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 1
+              "weight": 2.0
             }
           ]
         },
         "values": {
-          "base_model": "Wan2.2_T2V_High_Noise_14B_VACE-Q4_K_M.gguf",
-          "refiner_model": "Wan2.2_T2V_Low_Noise_14B_VACE-Q4_K_M.gguf",
-          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "base_model": "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "refiner_model": "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "clip_model": "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
           "vae": "wan_2.1_vae.safetensors",
           "loras": [
             {
               "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
               "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 0
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 1
+              "weight": 2.0
             },
             {
               "enabled": true,
@@ -350,203 +350,221 @@
       },
       "schema": {
         "version": "v1.1",
-        "scene_frontend": "v1.1",
-        "engine_type": "video",
-        "theme_title": "Wan2.2 Text-to-Video",
-        "default_theme": "Basic",
         "themes": [
           "Basic"
         ],
-        "per_theme": {
-          "Basic": {
-            "task_method": "wan2.2_t2v_cn",
-            "defaults": {
-              "prompt": "",
-              "scene_var_number": 5,
-              "scene_var_number2": 30,
-              "scene_var_number3": 1,
-              "scene_switch_option1": false,
-              "scene_steps": 6,
-              "scene_image_number": 1
-            }
-          }
-        },
+        "default_theme": "Basic",
+        "theme_title": "Wan2.2 Remix Text-to-Video",
+        "disvisible": [
+          "scene_canvas_image",
+          "scene_additional_prompt",
+          "scene_additional_prompt_2",
+          "scene_video",
+          "scene_audio",
+          "scene_input_image1",
+          "scene_input_image2",
+          "scene_var_number4",
+          "scene_var_number3",
+          "scene_var_number5",
+          "scene_var_number6",
+          "scene_var_number7",
+          "scene_var_number8",
+          "scene_var_number9",
+          "scene_var_number10",
+          "scene_switch_option2",
+          "scene_switch_option3",
+          "scene_switch_option4",
+          "scene_aspect_ratio",
+          "sam3_input_video",
+          "sam3_mask_video",
+          "scene_input_image3",
+          "scene_input_image4"
+        ],
+        "disinteractive": [],
+        "divisible": [],
+        "image_preprocessor_method": [],
+        "disable_canvas_mask": false,
         "upload_slots": [
+          {
+            "key": "scene_video",
+            "label": "Scene Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "SAM3 Input Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "SAM3 Mask Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_audio",
+            "label": "Scene Audio",
+            "visible": false,
+            "interactive": true
+          },
           {
             "key": "scene_canvas_image",
             "label": "Canvas Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
             "key": "scene_input_image1",
-            "label": "Input Image 1",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
             "key": "scene_input_image2",
-            "label": "Input Image 2",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
+          },
+          {
+            "key": "scene_input_image3",
+            "label": "Input Image",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_input_image4",
+            "label": "Input Image",
+            "visible": false,
+            "interactive": true
           }
         ],
         "params": [
           {
-            "key": "prompt",
-            "label": "Positive Prompt",
-            "type": "textarea",
-            "default": ""
-          },
-          {
-            "key": "negative_prompt",
-            "label": "Negative Prompt",
-            "type": "textarea",
-            "default": ""
-          },
-          {
-            "key": "seed_random",
-            "label": "Random Seed",
-            "type": "checkbox",
-            "default": true
-          },
-          {
-            "key": "image_seed",
-            "label": "Seed",
-            "type": "number",
-            "min": 0,
-            "max": 1125899906842623,
-            "step": 1,
-            "default": 0
-          },
-          {
             "key": "scene_var_number",
-            "label": "Motion Length",
+            "label": "scene_var_number",
             "type": "number",
+            "default": 5,
+            "visible": true,
+            "interactive": true,
             "min": 1,
-            "max": 10,
-            "step": 1,
-            "default": 5
+            "max": 10
           },
           {
             "key": "scene_var_number2",
-            "label": "Interpolate Frames",
+            "label": "Interpolate to total frames [16 = no interpolation]",
             "type": "number",
+            "default": 30,
+            "visible": true,
+            "interactive": true,
             "min": 16,
-            "max": 60,
-            "step": 1,
-            "default": 30
-          },
-          {
-            "key": "scene_var_number3",
-            "label": "CFG Scale",
-            "type": "number",
-            "min": 1,
-            "max": 5,
-            "step": 0.1,
-            "default": 1
+            "max": 60
           },
           {
             "key": "scene_switch_option1",
             "label": "Use Tiled VAE Decode",
             "type": "checkbox",
-            "default": false
-          },
-          {
-            "key": "scene_steps",
-            "label": "Scene Steps",
-            "type": "number",
-            "min": 6,
-            "max": 10,
-            "step": 1,
-            "default": 6
-          },
-          {
-            "key": "scene_image_number",
-            "label": "Video Number",
-            "type": "number",
-            "min": 1,
-            "max": 5,
-            "step": 1,
-            "default": 1
+            "default": false,
+            "visible": true,
+            "interactive": true
           }
-        ]
+        ],
+        "per_theme": {
+          "Basic": {
+            "task_method": "wan2.2_t2v_cn",
+            "defaults": {
+              "scene_var_number": 5,
+              "scene_var_number2": 30,
+              "scene_switch_option1": false,
+              "prompt": "",
+              "scene_aspect_ratio": "640|1:1"
+            },
+            "generation_config_props": {
+              "overwrite_step": {
+                "min": 6,
+                "max": 10,
+                "step": 1
+              }
+            }
+          }
+        }
       },
       "models_config": {
         "mode": "external_override",
         "defaults": {
-          "base_model": "Wan2.2_T2V_High_Noise_14B_VACE-Q4_K_M.gguf",
-          "refiner_model": "Wan2.2_T2V_Low_Noise_14B_VACE-Q4_K_M.gguf",
-          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "base_model": "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "refiner_model": "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "clip_model": "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
           "vae": "wan_2.1_vae.safetensors",
           "loras": [
             {
               "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
               "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 0
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 1
+              "weight": 2.0
             }
           ]
         },
         "overrides": {
-          "base_model": "Wan2.2_T2V_High_Noise_14B_VACE-Q4_K_M.gguf",
-          "refiner_model": "Wan2.2_T2V_Low_Noise_14B_VACE-Q4_K_M.gguf",
-          "clip_model": "umt5-xxl-encoder-Q8_0.gguf",
+          "base_model": "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "refiner_model": "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "clip_model": "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
           "vae": "wan_2.1_vae.safetensors",
           "loras": [
             {
               "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
+              "model": "None",
+              "weight": 1.0
+            },
+            {
+              "enabled": true,
               "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 0
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "None",
-              "weight": 1
-            },
-            {
-              "enabled": true,
-              "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 1
+              "weight": 2.0
             },
             {
               "enabled": true,
@@ -619,9 +637,9 @@
       "generation_config": {
         "mode": "external_override",
         "defaults": {
-          "guidance_scale": 3.5,
+          "guidance_scale": 1.0,
           "sharpness": 2,
-          "overwrite_step": 8,
+          "overwrite_step": 6,
           "sampler_name": "euler",
           "scheduler_name": "simple",
           "performance_selection": "Speed",
@@ -629,9 +647,9 @@
           "image_number": 1
         },
         "overrides": {
-          "guidance_scale": 3.5,
+          "guidance_scale": 1.0,
           "sharpness": 2,
-          "overwrite_step": 8,
+          "overwrite_step": 6,
           "sampler_name": "euler",
           "scheduler_name": "simple",
           "performance_selection": "Speed",
@@ -643,11 +661,11 @@
       },
       "model_requirements": {
         "model_list": [
-          "checkpoints,Wan2.2_T2V_High_Noise_14B_VACE-Q4_K_M.gguf,11629612832,0,",
-          "checkpoints,Wan2.2_T2V_Low_Noise_14B_VACE-Q4_K_M.gguf,11629612832,0,",
-          "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
+          "diffusion_models,Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors,14289633352,0,https://www.modelscope.cn/models/huyuefeitool/wan2.2-Remix/resolve/master/Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors ",
+          "diffusion_models,wan2.2_bernini_r_low_noise_fp8_scaled.safetensors,15574833216,0,https://www.modelscope.cn/models/Comfy-Org/Bernini-R/resolve/master/diffusion_models/wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "loras,lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors,630697104,0,https://modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Lightx2v/lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+          "text_encoders,nsfw_wan_umt5-xxl_bf16_fixed.safetensors,11366399625,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/text_encoders/wan_umt5-xxl_bf16_fixed.safetensors",
           "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
-          "loras,lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors,630697104,0,",
           "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
         ],
         "has_model_probe": true,
@@ -670,10 +688,7 @@
         "image_seed": 0,
         "scene_var_number": 5,
         "scene_var_number2": 30,
-        "scene_var_number3": 1,
-        "scene_switch_option1": false,
-        "scene_steps": 6,
-        "scene_image_number": 1
+        "scene_switch_option1": false
       },
       "status": "idle",
       "collapsed": false,
@@ -689,14 +704,14 @@
       "x": 552,
       "y": 1344,
       "w": 390,
-      "h": 385,
+      "h": 285,
       "title": "Advanced Config / 高级配置",
       "target_preset_id": "wan_t2v_preset",
       "config": {
         "defaults": {
-          "guidance_scale": 3.5,
+          "guidance_scale": 1.0,
           "sharpness": 2,
-          "overwrite_step": 8,
+          "overwrite_step": 6,
           "sampler_name": "euler",
           "scheduler_name": "simple",
           "performance_selection": "Speed",
@@ -704,9 +719,9 @@
           "image_number": 1
         },
         "values": {
-          "guidance_scale": 3.5,
+          "guidance_scale": 1.0,
           "sharpness": 2,
-          "overwrite_step": 8,
+          "overwrite_step": 6,
           "sampler_name": "euler",
           "scheduler_name": "simple",
           "performance_selection": "Speed",
@@ -737,7 +752,7 @@
         "state": "placeholder",
         "queue_position": 0,
         "step": 0,
-        "total_steps": 8,
+        "total_steps": 6,
         "percent": 0,
         "message": "Run Wan T2V after models are ready; generated video appears here."
       },
@@ -809,11 +824,11 @@
       "label": "需要模型",
       "note": "包含 1 个 preset 节点和 6 个模型依赖。运行前请检查模型。",
       "models": [
-        "checkpoints,Wan2.2_T2V_High_Noise_14B_VACE-Q4_K_M.gguf,11629612832,0,",
-        "checkpoints,Wan2.2_T2V_Low_Noise_14B_VACE-Q4_K_M.gguf,11629612832,0,",
-        "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
+        "diffusion_models,Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors,14289633352,0,https://www.modelscope.cn/models/huyuefeitool/wan2.2-Remix/resolve/master/Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors ",
+        "diffusion_models,wan2.2_bernini_r_low_noise_fp8_scaled.safetensors,15574833216,0,https://www.modelscope.cn/models/Comfy-Org/Bernini-R/resolve/master/diffusion_models/wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+        "loras,lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors,630697104,0,https://modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Lightx2v/lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+        "text_encoders,nsfw_wan_umt5-xxl_bf16_fixed.safetensors,11366399625,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/text_encoders/wan_umt5-xxl_bf16_fixed.safetensors",
         "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
-        "loras,lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors,630697104,0,",
         "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
       ]
     },

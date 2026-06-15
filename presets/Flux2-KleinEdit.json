@@ -14,11 +14,6 @@
             "task_method": {
                 "Flux2_Klein_Edit": "flux2_9b_edit_cn"
             },
-            "scene_steps_min": 4,
-            "scene_steps_max": 8,
-            "scene_steps": {
-                "Flux2_Klein_Edit": 4
-            },
             "var_number4_title": "Match original colors",
             "var_number4_min": 0,
             "var_number4_max": 1.0,
@@ -43,7 +38,9 @@
             "preprocess_target": "image",
             "preprocess_fit": "proportional"
             },
-            "aspect_ratio": ["1024|1:1", "1536|1:1", "2048|1:1", "origin|Original"]
+            "aspect_ratio": ["1024|1:1", "1536|1:1", "2048|1:1", "origin|Original"],
+            "overwrite_step_min": 4,
+            "overwrite_step_max": 8
         }
     },
     "default_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
@@ -82,7 +79,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 8,
+    "default_overwrite_step": 4,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

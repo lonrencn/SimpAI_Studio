@@ -126,7 +126,7 @@
         "defaults": {
           "base_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
           "refiner_model": "None",
-          "clip_model": "Default (model)",
+          "clip_model": "qwen3_8b_abliterated_v2-fp8mixed.safetensors",
           "vae": "flux2-vae.safetensors",
           "loras": [
             {
@@ -137,9 +137,9 @@
           ]
         },
         "values": {
-          "base_model": "",
+          "base_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
           "refiner_model": "None",
-          "clip_model": "Default (model)",
+          "clip_model": "qwen3_8b_abliterated_v2-fp8mixed.safetensors",
           "vae": "flux2-vae.safetensors",
           "loras": [
             {
@@ -281,103 +281,135 @@
       },
       "schema": {
         "version": "m1.1",
-        "scene_frontend": "m1.1",
-        "engine_type": "image",
-        "theme_title": "Flux2-9B-A2R Anime-to-Real [Optional mask]",
-        "default_theme": "Flux2_A2R",
         "themes": [
           "Flux2_A2R"
         ],
-        "per_theme": {
-          "Flux2_A2R": {
-            "task_method": "flux2_9b_edit_cn",
-            "defaults": {
-              "prompt": "转成亚洲写实风格",
-              "scene_steps": 4,
-              "scene_image_number": 1,
-              "scene_var_number4": 0,
-              "scene_switch_option1": false,
-              "scene_switch_option2": false
-            }
-          }
-        },
+        "default_theme": "Flux2_A2R",
+        "theme_title": "Flux2-9B-A2R Anime-to-Real [Optional mask]",
+        "disvisible": [
+          "scene_additional_prompt",
+          "scene_additional_prompt_2",
+          "scene_input_image1",
+          "scene_input_image2",
+          "scene_switch_option1",
+          "scene_switch_option2",
+          "scene_video",
+          "scene_audio",
+          "scene_aspect_ratio",
+          "scene_var_number",
+          "scene_var_number2",
+          "scene_var_number3",
+          "scene_refiner_model",
+          "scene_var_number5",
+          "scene_var_number6",
+          "scene_var_number7",
+          "scene_var_number8",
+          "scene_var_number9",
+          "scene_var_number10",
+          "scene_switch_option1",
+          "scene_switch_option3",
+          "scene_switch_option4",
+          "sam3_input_video",
+          "sam3_mask_video",
+          "scene_input_image3",
+          "scene_input_image4"
+        ],
+        "disinteractive": [],
+        "divisible": [],
+        "image_preprocessor_method": [],
+        "disable_canvas_mask": false,
         "upload_slots": [
           {
+            "key": "scene_video",
+            "label": "Scene Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "SAM3 Input Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "SAM3 Mask Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_audio",
+            "label": "Scene Audio",
+            "visible": false,
+            "interactive": true
+          },
+          {
             "key": "scene_canvas_image",
-            "label": "#1 Canvas Image",
+            "label": "Canvas Image",
             "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "scene_input_image1",
+            "label": "Input Image",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_input_image2",
+            "label": "Input Image",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_input_image3",
+            "label": "Input Image",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_input_image4",
+            "label": "Input Image",
+            "visible": false,
             "interactive": true
           }
         ],
         "params": [
           {
-            "key": "prompt",
-            "label": "Positive Prompt",
-            "type": "textarea",
-            "default": ""
-          },
-          {
-            "key": "negative_prompt",
-            "label": "Negative Prompt",
-            "type": "textarea",
-            "default": ""
-          },
-          {
-            "key": "seed_random",
-            "label": "Random Seed",
-            "type": "checkbox",
-            "default": true
-          },
-          {
-            "key": "image_seed",
-            "label": "Seed",
-            "type": "number",
-            "min": 0,
-            "max": 1125899906842623,
-            "step": 1,
-            "default": 0
-          },
-          {
-            "key": "scene_steps",
-            "label": "Scene Steps",
-            "type": "number",
-            "min": 4,
-            "max": 8,
-            "step": 1,
-            "default": 4
-          },
-          {
-            "key": "scene_image_number",
-            "label": "Image Number",
-            "type": "number",
-            "min": 1,
-            "max": 5,
-            "step": 1,
-            "default": 1
-          },
-          {
             "key": "scene_var_number4",
             "label": "Match original colors",
             "type": "number",
+            "default": 0,
+            "visible": true,
+            "interactive": true,
             "min": 0,
-            "max": 1,
-            "step": 0.05,
-            "default": 0
-          },
-          {
-            "key": "scene_switch_option2",
-            "label": "Convert Image 2 to pose",
-            "type": "checkbox",
-            "default": false
+            "max": 1.0
           }
-        ]
+        ],
+        "per_theme": {
+          "Flux2_A2R": {
+            "task_method": "flux2_9b_edit_cn",
+            "defaults": {
+              "scene_var_number4": 0,
+              "prompt": "转成亚洲写实风格",
+              "scene_aspect_ratio": "1024|1:1"
+            },
+            "generation_config_props": {
+              "overwrite_step": {
+                "min": 4,
+                "max": 8,
+                "step": 1
+              }
+            }
+          }
+        }
       },
       "models_config": {
         "mode": "external_override",
         "defaults": {
-          "base_model": "",
+          "base_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
           "refiner_model": "None",
-          "clip_model": "Default (model)",
+          "clip_model": "qwen3_8b_abliterated_v2-fp8mixed.safetensors",
           "vae": "flux2-vae.safetensors",
           "loras": [
             {
@@ -388,9 +420,9 @@
           ]
         },
         "overrides": {
-          "base_model": "",
+          "base_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
           "refiner_model": "None",
-          "clip_model": "Default (model)",
+          "clip_model": "qwen3_8b_abliterated_v2-fp8mixed.safetensors",
           "vae": "flux2-vae.safetensors",
           "loras": [
             {
@@ -493,7 +525,7 @@
         "defaults": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 8,
+          "overwrite_step": 4,
           "sampler_name": "euler",
           "scheduler_name": "simple",
           "performance_selection": "Speed",
@@ -503,7 +535,7 @@
         "overrides": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 8,
+          "overwrite_step": 4,
           "sampler_name": "euler",
           "scheduler_name": "simple",
           "performance_selection": "Speed",
@@ -541,11 +573,7 @@
         "negative_prompt": "",
         "seed_random": true,
         "image_seed": 0,
-        "scene_steps": 4,
-        "scene_image_number": 1,
-        "scene_var_number4": 0,
-        "scene_switch_option1": false,
-        "scene_switch_option2": false
+        "scene_var_number4": 0
       },
       "status": "idle",
       "collapsed": false,
@@ -561,14 +589,14 @@
       "x": 552,
       "y": 1440,
       "w": 380,
-      "h": 385,
+      "h": 285,
       "title": "Advanced Config / 高级配置",
       "target_preset_id": "flux_a2r_preset",
       "config": {
         "defaults": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 8,
+          "overwrite_step": 4,
           "sampler_name": "euler",
           "scheduler_name": "simple",
           "performance_selection": "Speed",
@@ -578,7 +606,7 @@
         "values": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 8,
+          "overwrite_step": 4,
           "sampler_name": "euler",
           "scheduler_name": "simple",
           "performance_selection": "Speed",
@@ -609,7 +637,7 @@
         "state": "placeholder",
         "queue_position": 0,
         "step": 0,
-        "total_steps": 8,
+        "total_steps": 4,
         "percent": 0,
         "message": "Replace the source image, then run Flux2-A2R. The edited image will appear here."
       },

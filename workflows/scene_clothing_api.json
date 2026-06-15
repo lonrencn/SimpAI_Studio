@@ -654,7 +654,10 @@
       "switch_option4": false,
       "model_type": 1,
       "model_type2": 1,
-      "clip_type": 1
+      "clip_type": 1,
+      "negative_prompt": "",
+      "sampler": "euler",
+      "scheduler": "simple"
     },
     "class_type": "SceneInput",
     "_meta": {
@@ -785,8 +788,14 @@
         9
       ],
       "cfg": 1,
-      "sampler_name": "euler",
-      "scheduler": "simple",
+      "sampler_name": [
+        "255",
+        30
+      ],
+      "scheduler": [
+        "255",
+        31
+      ],
       "denoise": 1,
       "model": [
         "35",

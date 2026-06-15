@@ -405,9 +405,18 @@
         0
       ],
       "steps": 4,
-      "cfg": 1,
-      "sampler_name": "euler",
-      "scheduler": "normal",
+      "cfg": [
+        "121",
+        8
+      ],
+      "sampler_name": [
+        "121",
+        30
+      ],
+      "scheduler": [
+        "121",
+        31
+      ],
       "denoise": 1,
       "model": [
         "36",
@@ -438,9 +447,18 @@
         0
       ],
       "steps": 4,
-      "cfg": 1,
-      "sampler_name": "euler",
-      "scheduler": "normal",
+      "cfg": [
+        "121",
+        8
+      ],
+      "sampler_name": [
+        "121",
+        30
+      ],
+      "scheduler": [
+        "121",
+        31
+      ],
       "denoise": 1,
       "model": [
         "19",
@@ -551,7 +569,10 @@
       "switch_option4": false,
       "model_type": 1,
       "model_type2": 1,
-      "clip_type": 1
+      "clip_type": 1,
+      "negative_prompt": "",
+      "sampler": "euler",
+      "scheduler": "normal"
     },
     "class_type": "SceneInput",
     "_meta": {

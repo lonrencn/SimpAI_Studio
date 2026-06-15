@@ -9,17 +9,12 @@
             "version": "v1.1",
                 "theme": ["Animate Outpaint"],
             "theme_title": "Wan-Animate Video Outpaint",
-                "disvisible": ["scene_canvas_image", "scene_additional_prompt", "scene_additional_prompt_2", "scene_input_image1", "scene_input_image2", "scene_audio", "scene_refiner_model", "scene_var_number6", "scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
+                "disvisible": ["scene_canvas_image", "scene_additional_prompt", "scene_additional_prompt_2", "scene_input_image1", "scene_input_image2", "scene_audio", "scene_var_number6", "scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
             "task_method": {
                 "Animate Outpaint": "wan_animate_outpaint_cn"
             },
             "multimodal_prompt": {
                 "Animate Outpaint": ""
-            },
-            "scene_steps_min": 8,
-            "scene_steps_max": 12,
-            "scene_steps": {
-                "Animate Outpaint": 8
             },
             "var_number_min": 0,
             "var_number_max": 60,
@@ -95,7 +90,9 @@
                 "preprocess_target": "video",
                 "preprocess_fit": "proportional",
                 "preserve_audio": true
-            }
+            },
+            "overwrite_step_min": 8,
+            "overwrite_step_max": 12
         }
     },
     "default_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
@@ -133,7 +130,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 30,
+    "default_overwrite_step": 8,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

@@ -67,7 +67,6 @@ AXIS_OPTIONS = [
     AxisOption("Forced Sampling Steps", "int", "overwrite_step"),
     AxisOption("Sampler", "str", "sampler_name", "value", choices_kind="samplers", confirm="sampler"),
     AxisOption("Scheduler", "str", "scheduler_name", choices_kind="schedulers"),
-    AxisOption("CLIP Skip", "int", "clip_skip"),
 ]
 
 AXIS_BY_LABEL = {option.label: option for option in AXIS_OPTIONS}
@@ -632,10 +631,17 @@ def _variant_seed_from_axes(base_seed, axes, indices, options, x_len, y_len):
     return _variant_seed(seed, options, indices[0], indices[1], indices[2], x_len, y_len)
 
 
-def _bool_value(value):
+def _bool_value(value, default=False):
+    if value is None:
+        return default
     if isinstance(value, bool):
         return value
-    return str(value or "").strip().lower() in ("1", "true", "yes", "on")
+    text = str(value or "").strip().lower()
+    if text in ("1", "true", "yes", "on", "enabled"):
+        return True
+    if text in ("0", "false", "no", "off", "disabled"):
+        return False
+    return default
 
 
 def _apply_axis_patch(patch, axis_type, value):
@@ -691,9 +697,6 @@ def _apply_axis_patch(patch, axis_type, value):
         generation["sampler_name"] = str(value)
     elif axis_type == "Scheduler":
         generation["scheduler_name"] = str(value)
-    elif axis_type == "CLIP Skip":
-        generation["clip_skip"] = int(value)
-
 
 def _parse_size(value):
     text = str(value or "").lower().replace(" ", "")

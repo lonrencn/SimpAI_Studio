@@ -273,32 +273,62 @@
       },
       "schema": {
         "version": "v1.1",
-        "scene_frontend": "v1.1",
-        "engine_type": "video",
-        "theme_title": "LTX2.3 Text-to-Video [Optional audio input]",
-        "default_theme": "Text+Audio to Video",
         "themes": [
           "Text-to-Video",
           "Text+Audio to Video"
         ],
-        "per_theme": {
-          "Text+Audio to Video": {
-            "task_method": "ltx2.3_t2v_cn",
-            "defaults": {
-              "prompt": "",
-              "scene_var_number": 8,
-              "scene_var_number2": 30,
-              "scene_var_number7": 30,
-              "scene_switch_option1": true,
-              "scene_steps": 11,
-              "scene_image_number": 1
-            }
-          }
-        },
+        "default_theme": "Text-to-Video",
+        "theme_title": "LTX2.3 Text-to-Video [Optional audio input]",
+        "disvisible": [
+          "scene_canvas_image",
+          "scene_input_image1",
+          "scene_input_image2",
+          "scene_additional_prompt",
+          "scene_additional_prompt_2",
+          "scene_video",
+          "scene_var_number4",
+          "scene_aspect_ratio",
+          "scene_var_number5",
+          "scene_var_number6",
+          "scene_var_number3",
+          "scene_var_number8",
+          "scene_var_number9",
+          "scene_var_number10",
+          "scene_switch_option2",
+          "scene_switch_option3",
+          "scene_switch_option4",
+          "scene_refiner_model",
+          "sam3_input_video",
+          "sam3_mask_video",
+          "scene_input_image3",
+          "scene_input_image4"
+        ],
+        "disinteractive": [],
+        "divisible": [],
+        "image_preprocessor_method": [],
+        "disable_canvas_mask": false,
         "upload_slots": [
           {
+            "key": "scene_video",
+            "label": "Scene Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "SAM3 Input Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "SAM3 Mask Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
             "key": "scene_audio",
-            "label": "#1 Audio",
+            "label": "Scene Audio",
             "visible": true,
             "interactive": true
           },
@@ -306,119 +336,111 @@
             "key": "scene_canvas_image",
             "label": "Canvas Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
             "key": "scene_input_image1",
-            "label": "Input Image 1",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
             "key": "scene_input_image2",
-            "label": "Input Image 2",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
-            "key": "scene_video",
-            "label": "Scene Video",
+            "key": "scene_input_image3",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
-            "key": "sam3_input_video",
-            "label": "SAM3 Source Video",
+            "key": "scene_input_image4",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
-          },
-          {
-            "key": "sam3_mask_video",
-            "label": "SAM3 Mask Video",
-            "visible": false,
-            "interactive": false
+            "interactive": true
           }
         ],
         "params": [
           {
-            "key": "prompt",
-            "label": "Positive Prompt",
-            "type": "textarea",
-            "default": ""
-          },
-          {
-            "key": "negative_prompt",
-            "label": "Negative Prompt",
-            "type": "textarea",
-            "default": ""
-          },
-          {
-            "key": "seed_random",
-            "label": "Random Seed",
-            "type": "checkbox",
-            "default": true
-          },
-          {
-            "key": "image_seed",
-            "label": "Seed",
-            "type": "number",
-            "min": 0,
-            "max": 1125899906842623,
-            "step": 1,
-            "default": 0
-          },
-          {
             "key": "scene_var_number",
-            "label": "Duration",
+            "label": "scene_var_number",
             "type": "number",
+            "default": 8,
+            "visible": true,
+            "interactive": true,
             "min": 1,
-            "max": 30,
-            "step": 1,
-            "default": 8
+            "max": 60
           },
           {
             "key": "scene_var_number2",
-            "label": "Interpolate Frames",
+            "label": "Interpolate to total frames [no interpolation below generation FPS]",
             "type": "number",
+            "default": 30,
+            "visible": true,
+            "interactive": true,
             "min": 24,
-            "max": 60,
-            "step": 1,
-            "default": 30
+            "max": 60
           },
           {
             "key": "scene_var_number7",
-            "label": "Output FPS",
+            "label": "Actual output FPS [higher uses more resources]",
             "type": "number",
+            "default": 30,
+            "visible": true,
+            "interactive": true,
             "min": 24,
-            "max": 50,
-            "step": 1,
-            "default": 30
+            "max": 50
           },
           {
             "key": "scene_switch_option1",
-            "label": "Generate with audio input",
+            "label": "Generate with audio input [trim to configured duration]",
             "type": "checkbox",
-            "default": true
-          },
-          {
-            "key": "scene_steps",
-            "label": "Scene Steps",
-            "type": "number",
-            "min": 11,
-            "max": 11,
-            "step": 1,
-            "default": 11
-          },
-          {
-            "key": "scene_image_number",
-            "label": "Video Number",
-            "type": "number",
-            "min": 1,
-            "max": 5,
-            "step": 1,
-            "default": 1
+            "default": false,
+            "visible": true,
+            "interactive": true
           }
-        ]
+        ],
+        "per_theme": {
+          "Text-to-Video": {
+            "task_method": "ltx2.3_t2v_cn",
+            "defaults": {
+              "scene_var_number": 8,
+              "scene_var_number2": 30,
+              "scene_var_number7": 30,
+              "scene_switch_option1": false,
+              "prompt": "",
+              "scene_aspect_ratio": "896|1:1"
+            },
+            "generation_config_props": {
+              "overwrite_step": {
+                "min": -1,
+                "max": 200,
+                "step": 1
+              }
+            }
+          },
+          "Text+Audio to Video": {
+            "task_method": "ltx2.3_t2v_cn",
+            "defaults": {
+              "scene_var_number": 8,
+              "scene_var_number2": 30,
+              "scene_var_number7": 30,
+              "scene_switch_option1": true,
+              "prompt": "",
+              "scene_aspect_ratio": "896|1:1"
+            },
+            "generation_config_props": {
+              "overwrite_step": {
+                "min": -1,
+                "max": 200,
+                "step": 1
+              }
+            }
+          }
+        }
       },
       "models_config": {
         "mode": "external_override",
@@ -518,7 +540,7 @@
         "defaults": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 30,
+          "overwrite_step": 11,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -529,7 +551,7 @@
         "overrides": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 30,
+          "overwrite_step": 11,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -576,9 +598,7 @@
         "scene_var_number": 8,
         "scene_var_number2": 30,
         "scene_var_number7": 30,
-        "scene_switch_option1": true,
-        "scene_steps": 11,
-        "scene_image_number": 1
+        "scene_switch_option1": true
       },
       "status": "idle",
       "collapsed": false,
@@ -594,14 +614,14 @@
       "x": 648,
       "y": 1368,
       "w": 360,
-      "h": 365,
+      "h": 285,
       "title": "Advanced Config / 高级配置",
       "target_preset_id": "ltx23_ta2v_preset",
       "config": {
         "defaults": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 30,
+          "overwrite_step": 11,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -612,7 +632,7 @@
         "values": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 30,
+          "overwrite_step": 11,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -644,7 +664,7 @@
         "state": "placeholder",
         "queue_position": 0,
         "step": 0,
-        "total_steps": 30,
+        "total_steps": 11,
         "percent": 0,
         "message": "Replace audio, check models, then run LTX2.3 TA2V."
       },

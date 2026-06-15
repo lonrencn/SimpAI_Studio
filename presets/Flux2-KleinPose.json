@@ -18,9 +18,6 @@
             "prompt": {
                 "Flux2-KleinPose": "Draw character from image2"
             },
-            "scene_steps": {
-                "Flux2-KleinPose": 4
-            },
             "image_preprocessor_method": {
                     "Flux2-KleinPose": [["-normalization"]]
             },
@@ -73,7 +70,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 8,
+    "default_overwrite_step": 4,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

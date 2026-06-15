@@ -58,6 +58,23 @@ def normalize_user_access_selection(selected):
     return selected
 
 
+def _token_bool_method(token, method_name, default=False):
+    try:
+        if token is not None and hasattr(token, method_name):
+            return bool(getattr(token, method_name)())
+    except Exception:
+        pass
+    return bool(default)
+
+
+def _admin_default_bool(key, default=False):
+    try:
+        import enhanced.all_parameters as ads
+        return bool(ads.get_admin_default(key))
+    except Exception:
+        return bool(default)
+
+
 def user_can_generate(user_did):
     if is_local_mode():
         return True
@@ -67,7 +84,11 @@ def user_can_generate(user_did):
         if token is None or not user_did:
             return False
         if token.is_guest(user_did):
-            return False
+            return _token_bool_method(
+                token,
+                "get_guest_can_generate",
+                _admin_default_bool("guest_can_generate", False),
+            )
         if token.is_admin(user_did):
             return True
         if hasattr(token, "can_user_generate"):
@@ -93,7 +114,11 @@ def user_can_download_models(user_did):
         if token is None or not user_did:
             return False
         if token.is_guest(user_did):
-            return False
+            return _token_bool_method(
+                token,
+                "get_guest_can_download_models",
+                _admin_default_bool("guest_can_download_models", False),
+            )
         if token.is_admin(user_did):
             return True
         if hasattr(token, "can_user_download_models"):

@@ -301,7 +301,7 @@
         "snapshot": {
           "default_styles": [],
           "default_prompt": "'''Audio Effects Prompt'''\n",
-          "default_prompt_negative": ""
+          "default_prompt_negative": "noisy, harsh, background music, BGM, singing, vocals, song, melody"
         }
       },
       "runtime": {
@@ -313,179 +313,175 @@
       },
       "schema": {
         "version": "v1.1",
-        "scene_frontend": "v1.1",
-        "engine_type": "video",
-        "theme_title": "Hunyuan-Foley Video Audio Effects Generator",
-        "default_theme": "Hunyuan-Foley",
         "themes": [
           "Hunyuan-Foley"
         ],
-        "per_theme": {
-          "Hunyuan-Foley": {
-            "task_method": "hunyuan_foley",
-            "defaults": {
-              "prompt": "'''Audio Effects Prompt'''\n",
-              "scene_additional_prompt_2": "noisy, harsh, background music, BGM, singing, vocals, song, melody",
-              "scene_var_number": 0,
-              "scene_var_number2": 4,
-              "scene_var_number3": 4.5,
-              "scene_var_number7": 0,
-              "scene_var_number8": 0,
-              "scene_switch_option1": false,
-              "scene_switch_option2": true,
-              "scene_steps": 50,
-              "scene_image_number": 1
-            }
-          }
-        },
+        "default_theme": "Hunyuan-Foley",
+        "theme_title": "Hunyuan-Foley Video Audio Effects Generator",
+        "disvisible": [
+          "scene_aspect_ratio",
+          "scene_additional_prompt",
+          "scene_additional_prompt_2",
+          "scene_canvas_image",
+          "scene_input_image1",
+          "scene_input_image2",
+          "scene_use_lora",
+          "scene_audio",
+          "scene_batch",
+          "scene_var_number3",
+          "scene_var_number4",
+          "scene_refiner_model",
+          "scene_var_number5",
+          "scene_var_number6",
+          "scene_var_number9",
+          "scene_var_number10",
+          "scene_switch_option3",
+          "scene_switch_option4",
+          "sam3_input_video",
+          "sam3_mask_video",
+          "scene_input_image3",
+          "scene_input_image4"
+        ],
+        "disinteractive": [],
+        "divisible": [],
+        "image_preprocessor_method": [],
+        "disable_canvas_mask": false,
         "upload_slots": [
           {
             "key": "scene_video",
-            "label": "#1 Source Video",
+            "label": "Scene Video",
             "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "SAM3 Input Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "SAM3 Mask Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_audio",
+            "label": "Scene Audio",
+            "visible": false,
             "interactive": true
           },
           {
             "key": "scene_canvas_image",
             "label": "Canvas Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
             "key": "scene_input_image1",
-            "label": "Input Image 1",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
             "key": "scene_input_image2",
-            "label": "Input Image 2",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
-            "key": "scene_audio",
-            "label": "Audio",
+            "key": "scene_input_image3",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
-            "key": "sam3_input_video",
-            "label": "SAM3 Source Video",
+            "key": "scene_input_image4",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
-          },
-          {
-            "key": "sam3_mask_video",
-            "label": "SAM3 Mask Video",
-            "visible": false,
-            "interactive": false
+            "interactive": true
           }
         ],
         "params": [
           {
-            "key": "prompt",
-            "label": "Audio Effects Prompt",
-            "type": "textarea",
-            "default": "'''Audio Effects Prompt'''\n"
-          },
-          {
-            "key": "scene_additional_prompt_2",
-            "label": "Negative Prompt",
-            "type": "textarea",
-            "default": "noisy, harsh, background music, BGM, singing, vocals, song, melody"
-          },
-          {
-            "key": "seed_random",
-            "label": "Random Seed",
-            "type": "checkbox",
-            "default": true
-          },
-          {
-            "key": "image_seed",
-            "label": "Seed",
-            "type": "number",
-            "min": 0,
-            "max": 1125899906842623,
-            "step": 1,
-            "default": 0
-          },
-          {
             "key": "scene_var_number",
-            "label": "Voice Volume Global",
+            "label": "Voice Volume[Global]",
             "type": "number",
+            "default": 0,
+            "visible": true,
+            "interactive": true,
             "min": -50,
-            "max": 20,
-            "step": 1,
-            "default": 0
+            "max": 20
           },
           {
             "key": "scene_var_number2",
-            "label": "Batch Size",
+            "label": "Batch Size[larger uses more VRAM,only CPU offload mode]",
             "type": "number",
+            "default": 4,
+            "visible": true,
+            "interactive": true,
             "min": -1,
-            "max": 64,
-            "step": 1,
-            "default": 4
-          },
-          {
-            "key": "scene_var_number3",
-            "label": "CFG Scale",
-            "type": "number",
-            "min": 1,
-            "max": 10,
-            "step": 0.1,
-            "default": 4.5
+            "max": 64
           },
           {
             "key": "scene_var_number7",
-            "label": "Voice Volume Origin",
+            "label": "Voice Volume[Origin]",
             "type": "number",
+            "default": 0,
+            "visible": true,
+            "interactive": true,
             "min": -50,
-            "max": 20,
-            "step": 1,
-            "default": 0
+            "max": 20
           },
           {
             "key": "scene_var_number8",
-            "label": "Voice Volume Foley",
+            "label": "Voice Volume[Foley]",
             "type": "number",
+            "default": 0,
+            "visible": true,
+            "interactive": true,
             "min": -50,
-            "max": 20,
-            "step": 1,
-            "default": 0
+            "max": 20
           },
           {
             "key": "scene_switch_option1",
             "label": "Merge Original Audio",
             "type": "checkbox",
-            "default": false
+            "default": false,
+            "visible": true,
+            "interactive": true
           },
           {
             "key": "scene_switch_option2",
-            "label": "Use CPU-Offload",
+            "label": "Use Cpu-Offload[Low VRAM Mode]",
             "type": "checkbox",
-            "default": true
-          },
-          {
-            "key": "scene_steps",
-            "label": "Scene Steps",
-            "type": "number",
-            "min": 30,
-            "max": 100,
-            "step": 1,
-            "default": 50
-          },
-          {
-            "key": "scene_image_number",
-            "label": "Output Number",
-            "type": "number",
-            "min": 1,
-            "max": 5,
-            "step": 1,
-            "default": 1
+            "default": true,
+            "visible": true,
+            "interactive": true
           }
-        ]
+        ],
+        "per_theme": {
+          "Hunyuan-Foley": {
+            "task_method": "hunyuan_foley",
+            "defaults": {
+              "scene_var_number": 0,
+              "scene_var_number2": 4,
+              "scene_var_number7": 0,
+              "scene_var_number8": 0,
+              "scene_switch_option1": false,
+              "scene_switch_option2": true,
+              "prompt": "'''Audio Effects Prompt'''\n",
+              "scene_aspect_ratio": "origin|Original"
+            },
+            "generation_config_props": {
+              "overwrite_step": {
+                "min": 30,
+                "max": 100,
+                "step": 1
+              }
+            }
+          }
+        }
       },
       "models_config": {
         "mode": "external_override",
@@ -581,7 +577,7 @@
         "defaults": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 20,
+          "overwrite_step": 50,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -592,7 +588,7 @@
         "overrides": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 20,
+          "overwrite_step": 50,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -629,23 +625,19 @@
       },
       "text_inputs": {
         "prompt": "foley_prompt",
-        "scene_additional_prompt_2": "foley_negative"
+        "negative_prompt": "foley_negative"
       },
       "params": {
         "prompt": "'''Audio Effects Prompt'''\n",
-        "negative_prompt": "",
-        "scene_additional_prompt_2": "noisy, harsh, background music, BGM, singing, vocals, song, melody",
+        "negative_prompt": "noisy, harsh, background music, BGM, singing, vocals, song, melody",
         "seed_random": true,
         "image_seed": 0,
         "scene_var_number": 0,
         "scene_var_number2": 4,
-        "scene_var_number3": 4.5,
         "scene_var_number7": 0,
         "scene_var_number8": 0,
         "scene_switch_option1": false,
-        "scene_switch_option2": true,
-        "scene_steps": 50,
-        "scene_image_number": 1
+        "scene_switch_option2": true
       },
       "status": "idle",
       "collapsed": false,
@@ -661,14 +653,14 @@
       "x": 624,
       "y": 1392,
       "w": 360,
-      "h": 360,
+      "h": 285,
       "title": "Advanced Config / 高级配置",
       "target_preset_id": "foley_preset",
       "config": {
         "defaults": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 20,
+          "overwrite_step": 50,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -679,7 +671,7 @@
         "values": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 20,
+          "overwrite_step": 50,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -760,7 +752,7 @@
       "type": "text",
       "from": "foley_negative",
       "to": "foley_preset",
-      "slot": "scene_additional_prompt_2"
+      "slot": "negative_prompt"
     },
     {
       "id": "foley_edge_models",

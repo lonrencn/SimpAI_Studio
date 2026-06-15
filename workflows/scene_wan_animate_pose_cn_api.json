@@ -27,7 +27,10 @@
         "748",
         9
       ],
-      "cfg": 1,
+      "cfg": [
+        "748",
+        8
+      ],
       "shift": 5,
       "seed": [
         "698",
@@ -326,7 +329,10 @@
   },
   "495": {
     "inputs": {
-      "text": "",
+      "text": [
+        "748",
+        29
+      ],
       "clip": [
         "493",
         0
@@ -756,7 +762,10 @@
       "switch_option4": true,
       "model_type": 1,
       "model_type2": 1,
-      "clip_type": 1
+      "clip_type": 1,
+      "negative_prompt": "",
+      "sampler": "euler",
+      "scheduler": "simple"
     },
     "class_type": "SceneInput",
     "_meta": {

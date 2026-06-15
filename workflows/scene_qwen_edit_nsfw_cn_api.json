@@ -11,23 +11,41 @@
   "2": {
     "inputs": {
       "prompt": "",
-      "negative_prompt": "",
+      "additional_prompt": "",
+      "ip_image": "None",
+      "ip_image1": "None",
+      "ip_image2": "None",
+      "ip_image3": "None",
+      "inpaint_image": "None",
+      "inpaint_mask": "None",
       "width": 1024,
       "height": 1024,
       "cfg": 1,
       "steps": 8,
-      "refiner_step": 16,
+      "var_number": 0,
+      "var_number2": 0,
+      "var_number3": 0.0,
+      "var_number4": 0.0,
+      "var_number5": 0.0,
+      "var_number6": 0.0,
+      "var_number7": 0,
+      "var_number8": 0,
+      "var_number9": 0,
+      "var_number10": 0,
+      "switch_option1": false,
+      "switch_option2": false,
+      "switch_option3": false,
+      "switch_option4": false,
+      "model_type": 1,
+      "model_type2": 1,
+      "clip_type": 1,
+      "negative_prompt": "",
       "sampler": "euler",
-      "scheduler": "simple",
-      "denoise": 1,
-      "clip_skip": -1,
-      "inpaint_disable_initial_latent": false,
-      "wavespeed_strength": 0.12,
-      "save_final_enhanced_image_only": false
+      "scheduler": "simple"
     },
-    "class_type": "GeneralInput",
+    "class_type": "SceneInput",
     "_meta": {
-      "title": "GeneralInput"
+      "title": "SceneInput"
     }
   },
   "3": {
@@ -268,19 +286,19 @@
       ],
       "steps": [
         "2",
-        5
+        9
       ],
       "cfg": [
         "2",
-        4
+        8
       ],
       "sampler_name": [
         "2",
-        7
+        30
       ],
       "scheduler": [
         "2",
-        8
+        31
       ],
       "denoise": 1,
       "model": [
@@ -510,7 +528,7 @@
       "value": "-a / 15 + 19 / 15",
       "a": [
         "2",
-        5
+        9
       ]
     },
     "class_type": "SimpleMath+",
@@ -1027,11 +1045,11 @@
     "inputs": {
       "width": [
         "2",
-        2
+        6
       ],
       "height": [
         "2",
-        3
+        7
       ],
       "upscale_method": "lanczos",
       "keep_proportion": "stretch",
@@ -1054,7 +1072,7 @@
       "expression": "ceil(a/16)*16",
       "values.a": [
         "2",
-        2
+        6
       ]
     },
     "class_type": "ComfyMathExpression",
@@ -1067,7 +1085,7 @@
       "expression": "ceil(a/16)*16",
       "values.a": [
         "2",
-        3
+        7
       ]
     },
     "class_type": "ComfyMathExpression",

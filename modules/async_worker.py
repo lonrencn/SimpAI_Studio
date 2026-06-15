@@ -163,7 +163,8 @@ class AsyncTask:
         self.adm_scaler_negative = args.pop()
         self.adm_scaler_end = args.pop()
         self.adaptive_cfg = args.pop()
-        self.clip_skip = args.pop()
+        args.pop()  # legacy generation positional slot
+        self.clip_skip = 1
         self.sampler_name = args.pop()
         self.scheduler_name = args.pop()
         self.vae_name = args.pop()
@@ -715,11 +716,19 @@ def worker():
                     imgs = [inpaint_worker.current_task.post_process(x) for x in imgs]
             except ValueError as e:
                 logger.info(f"comfy_task_error: {e}")
-                empty_path = [np.zeros((width, height), dtype=np.uint8)]
-                imgs = empty_path
                 current_progress = int(base_progress + (100 - preparation_steps) / float(all_steps) * steps)
-                yield_result(async_task, empty_path, current_progress, async_task.black_out_nsfw, False,
-                     do_not_show_finished_images=not show_intermediate_results or async_task.disable_intermediate_results)
+                if async_task.simpleai_comfy_prompt_accepted:
+                    logger.info(
+                        "[Generate] comfy_task_error_after_prompt_accept: task_id=%s, prompt_id=%s",
+                        async_task.task_id,
+                        async_task.simpleai_comfy_prompt_id,
+                    )
+                else:
+                    logger.info(
+                        "[Generate] comfy_task_error_before_prompt_accept: task_id=%s",
+                        async_task.task_id,
+                    )
+                imgs = []
                 return imgs, [], current_progress
             logger.info(f'comfypipeline.process_flow finished.')
         else:
@@ -823,8 +832,6 @@ def worker():
                 d.append(
                     ('CFG Mimicking from TSNR', 'adaptive_cfg', modules.patch.patch_settings[pid].adaptive_cfg))
 
-            if async_task.clip_skip > 1 and async_task.task_class == 'Fooocus':
-                d.append(('CLIP Skip', 'clip_skip', async_task.clip_skip))
             d.append(('Sampler', 'sampler', async_task.sampler_name))
             d.append(('Scheduler', 'scheduler', async_task.scheduler_name))
             d.append(('CLIP / Text Encoder', 'clip_model', async_task.clip_model_name))
@@ -1730,7 +1737,6 @@ def worker():
 
         if async_task.task_class in ['Fooocus']:
             logger.info(f'[Parameters] Adaptive CFG = {async_task.adaptive_cfg}')
-            logger.info(f'[Parameters] CLIP Skip = {async_task.clip_skip}')
             logger.info(f'[Parameters] Sharpness = {async_task.sharpness}')
             logger.info(f'[Parameters] ControlNet Softness = {async_task.controlnet_softness}')
             logger.info(f'[Parameters] ADM Scale = '
@@ -2009,6 +2015,11 @@ def worker():
                     async_task.steps = async_task.scene_steps
                     #all_steps = async_task.steps * async_task.image_number
                     async_task.params_backend['display_steps'] = async_task.steps
+                async_task.params_backend['steps'] = async_task.steps
+                async_task.params_backend['cfg'] = async_task.cfg_scale
+                async_task.params_backend['negative_prompt'] = async_task.negative_prompt or ''
+                async_task.params_backend['sampler'] = async_task.sampler_name
+                async_task.params_backend['scheduler'] = final_scheduler_name
                 # if async_task.task_method.lower().endswith('_cn'):
                 #     async_task.steps = async_task.steps * 3
                     #all_steps = async_task.steps * async_task.image_number
@@ -2065,7 +2076,7 @@ def worker():
                         async_task.params_backend[f'enhance_uov_processing_order'] = async_task.enhance_uov_processing_order
                         if async_task.enhance_uov_processing_order == flags.enhancement_uov_after:
                             async_task.params_backend[f'enhance_uov_prompt_type'] = async_task.enhance_uov_prompt_type
-                        tiled_block = 1024 if (async_task.task_class == 'Comfy' and async_task.task_method in ['sd15_aio','anima_aio']) else 2048
+                        tiled_block = 1024 if (async_task.task_class == 'Comfy' and async_task.task_method in ['sd15_aio']) else 2048
                         uov_method = async_task.enhance_uov_method
                         if async_task.enhance_input_image is not None:
                             H, W, C = async_task.enhance_input_image.shape

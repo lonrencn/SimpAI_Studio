@@ -22,13 +22,6 @@
                 "Restore & colorize": "Remove blur & noise, white balance correction, color grading, pro photography look",
                 "Slow high-fidelity 4-reference restore": "Remove blur & noise, white balance correction, color grading, pro photography look"
             },
-            "scene_steps_min": 4,
-            "scene_steps_max": 8,
-            "scene_steps": {
-                "Restore": 4,
-                "Restore & colorize": 4,
-                "Slow high-fidelity 4-reference restore": 4
-            },
             "image_preprocessor_method": {
                 "Restore": [["-normalization"]],
                 "Restore & colorize": [["-normalization"]],
@@ -64,7 +57,9 @@
                 "frontend_preprocess": true,
                 "preprocess_target": "image",
                 "preprocess_fit": "proportional"
-            }
+            },
+            "overwrite_step_min": 4,
+            "overwrite_step_max": 8
         }
     },
     "default_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
@@ -103,7 +98,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 8,
+    "default_overwrite_step": 4,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

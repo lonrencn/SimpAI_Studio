@@ -26,7 +26,10 @@
   },
   "5": {
     "inputs": {
-      "text": "bad quality, bad picture",
+      "text": [
+        "91",
+        29
+      ],
       "clip": [
         "2",
         1
@@ -61,8 +64,14 @@
       ],
       "steps": 30,
       "cfg": 4,
-      "sampler_name": "dpmpp_2m_sde_gpu",
-      "scheduler": "karras",
+      "sampler_name": [
+        "91",
+        30
+      ],
+      "scheduler": [
+        "91",
+        31
+      ],
       "denoise": 0.9,
       "model": [
         "37",
@@ -437,7 +446,10 @@
       "switch_option4": false,
       "model_type": 1,
       "model_type2": 1,
-      "clip_type": 1
+      "clip_type": 1,
+      "negative_prompt": "",
+      "sampler": "dpmpp_2m_sde_gpu",
+      "scheduler": "karras"
     },
     "class_type": "SceneInput",
     "_meta": {

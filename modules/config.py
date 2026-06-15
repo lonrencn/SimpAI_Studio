@@ -1322,7 +1322,6 @@ possible_preset_keys = {
     "default_cfg_scale": "guidance_scale",
     "default_sample_sharpness": "sharpness",
     "default_cfg_tsnr": "adaptive_cfg",
-    "default_clip_skip": "clip_skip",
     "default_clip_model": "clip_model",
     "default_upscale_model": "upscale_model",
     "default_sampler": "sampler",

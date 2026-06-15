@@ -15,11 +15,6 @@
             "task_method": {
                 "Flux2_StyleTransfer": "flux2_styletransfer_cn"
             },
-            "scene_steps_min": 4,
-            "scene_steps_max": 6,
-            "scene_steps": {
-                "Flux2_StyleTransfer": 4
-            },
             "image_preprocessor_method": {
                 "Flux2_StyleTransfer": [["-normalization"]]
             },
@@ -40,7 +35,9 @@
                 "frontend_preprocess": true,
                 "preprocess_target": "image",
                 "preprocess_fit": "proportional"
-            }
+            },
+            "overwrite_step_min": 4,
+            "overwrite_step_max": 6
         }
     },
     "default_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
@@ -79,7 +76,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 8,
+    "default_overwrite_step": 4,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

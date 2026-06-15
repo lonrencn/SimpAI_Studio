@@ -72,6 +72,40 @@ def scene_disvisible_with_optional_inputs(scenes):
             hidden.append(slot)
     return hidden
 
+
+def _scene_frontend_from_state_or_scene(state_or_scene):
+    if not isinstance(state_or_scene, dict):
+        return {}
+    scenes = state_or_scene.get("scene_frontend", None)
+    if isinstance(scenes, dict):
+        return scenes
+    engine = state_or_scene.get("engine", None)
+    if isinstance(engine, dict) and isinstance(engine.get("scene_frontend"), dict):
+        return engine.get("scene_frontend")
+    return state_or_scene
+
+
+def _scene_disinteractive_list(scenes):
+    if not isinstance(scenes, dict):
+        return []
+    raw = scenes.get("disinteractive", [])
+    if isinstance(raw, list):
+        return [str(item) for item in raw]
+    if isinstance(raw, str):
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    return []
+
+
+def _scene_standard_steps_readonly(state_or_scene):
+    scenes = _scene_frontend_from_state_or_scene(state_or_scene)
+    hidden = set(scene_disvisible_with_optional_inputs(scenes))
+    disabled = set(_scene_disinteractive_list(scenes))
+    return (
+        "scene_steps" in hidden
+        or "scene_steps" in disabled
+        or "overwrite_step" in disabled
+    )
+
 def ensure_dropdown_choices_include_values(choices, *values):
     result = list(choices or [])
     for value in values:
@@ -299,6 +333,95 @@ def _resolve_scene_theme_name(scenes: dict, theme):
             if isinstance(t, str) and t:
                 return t
     return ""
+
+
+def _scene_generation_step_default(state_or_scene, theme=None, default=None):
+    scenes = state_or_scene.get("scene_frontend", {}) if isinstance(state_or_scene, dict) else {}
+    if not isinstance(scenes, dict):
+        scenes = state_or_scene if isinstance(state_or_scene, dict) else {}
+    for key in ("overwrite_step", "steps", "scene_steps"):
+        if key not in scenes:
+            continue
+        value = modules.flags.get_value_by_scene_theme({"scene_frontend": scenes}, theme, key, None)
+        if value is None:
+            continue
+        try:
+            return int(float(value))
+        except Exception:
+            continue
+    if default is not None:
+        try:
+            return int(float(default))
+        except Exception:
+            return default
+    return None
+
+
+def _scene_generation_step_bound(state_or_scene, theme=None, suffix="min", default=None):
+    scenes = state_or_scene.get("scene_frontend", {}) if isinstance(state_or_scene, dict) else {}
+    if not isinstance(scenes, dict):
+        scenes = state_or_scene if isinstance(state_or_scene, dict) else {}
+    for key in (f"overwrite_step_{suffix}", f"steps_{suffix}", f"scene_steps_{suffix}"):
+        if key not in scenes:
+            continue
+        value = modules.flags.get_value_by_scene_theme({"scene_frontend": scenes}, theme, key, None)
+        if value is None:
+            continue
+        try:
+            return int(float(value))
+        except Exception:
+            continue
+    if default is not None:
+        try:
+            return int(float(default))
+        except Exception:
+            return default
+    return None
+
+
+def _scene_generation_step_update_props(state_or_scene, theme=None):
+    return {
+        "minimum": _scene_generation_step_bound(state_or_scene, theme, "min", -1),
+        "maximum": _scene_generation_step_bound(state_or_scene, theme, "max", 200),
+        "step": _scene_generation_step_bound(state_or_scene, theme, "step", 1),
+    }
+
+
+def _state_standard_generation_step_default(state):
+    if not isinstance(state, dict):
+        return None
+    preset_prepared = state.get("__preset_prepared", {})
+    candidates = [state]
+    if isinstance(preset_prepared, dict):
+        candidates.append(preset_prepared)
+    for source in candidates:
+        for key in ("overwrite_step", "steps", "default_overwrite_step"):
+            value = source.get(key)
+            if value is None:
+                continue
+            try:
+                step_value = int(float(value))
+            except Exception:
+                continue
+            if step_value > 0:
+                return step_value
+    return None
+
+
+def switch_scene_theme_standard_generation_defaults(state, theme=None):
+    scenes = state.get("scene_frontend", {}) if isinstance(state, dict) else {}
+    resolved_theme = _resolve_scene_theme_name(scenes, theme)
+    step_value = _scene_generation_step_default(state, resolved_theme, None)
+    if step_value is None:
+        step_value = _state_standard_generation_step_default(state)
+    if isinstance(state, dict) and resolved_theme:
+        state["scene_theme"] = resolved_theme
+    update = _scene_generation_step_update_props(state, resolved_theme)
+    update["interactive"] = not _scene_standard_steps_readonly(state)
+    if step_value is None:
+        return gr_update(**update)
+    update["value"] = step_value
+    return gr_update(**update)
 
 
 def _scene_audio_value_present(audio):
@@ -548,9 +671,9 @@ def switch_scene_theme(state, image_number, canvas_image, input_image1, addition
     results.append(get_scene_safe_update('scene_var_number10', var_number10_default if switch_flag else var_number10, visible, inter, label=var_number10_title, minimum=var_number10_min, maximum=var_number10_max))
 
     scene_steps_title = scenes.get('scene_steps_title', 'Scene Steps')
-    scene_steps_min = scenes.get('scene_steps_min', 1)
-    scene_steps_max = scenes.get('scene_steps_max', 100)
-    scene_steps_default = modules.flags.get_value_by_scene_theme(state, theme, 'scene_steps', 30)
+    scene_steps_min = _scene_generation_step_bound(state, theme, "min", scenes.get('scene_steps_min', 1))
+    scene_steps_max = _scene_generation_step_bound(state, theme, "max", scenes.get('scene_steps_max', 100))
+    scene_steps_default = _scene_generation_step_default(state, theme, 30)
     results.append(get_scene_safe_update('scene_steps', scene_steps_default if switch_flag else scene_steps, visible, inter, label=scene_steps_title, minimum=scene_steps_min, maximum=scene_steps_max, step=1))
 
     switch_option1_title = scenes.get('switch_option1_title', 'Switch Option 1')
@@ -709,6 +832,22 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
             return get_layout_visible_inter(control_name, visible_items, interactive_items)
         return gr_update(value=value, visible=control_name not in visible_items, interactive=control_name not in interactive_items)
 
+    def _layout_overwrite_step_update(value, visible_items, interactive_items):
+        readonly = is_scene_frontend and _scene_standard_steps_readonly(enginedata_dict)
+        update = {
+            "visible": "overwrite_step" not in visible_items,
+            "interactive": "overwrite_step" not in interactive_items and not readonly,
+            "minimum": -1,
+            "maximum": 200,
+            "step": 1,
+        }
+        if is_scene_frontend:
+            theme = _resolve_scene_theme_name(enginedata_dict.get("scene_frontend", {}), state_params.get("scene_theme"))
+            update.update(_scene_generation_step_update_props(enginedata_dict, theme))
+        if value is not None:
+            update["value"] = value
+        return gr_update(**update)
+
     def _layout_dropdown_value_visible_inter(choices, value, control_name, visible_items, interactive_items):
         update = {
             "choices": choices,
@@ -723,13 +862,14 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
         params_backend = dict(modules.flags.get_engine_default_backend_params(template_engine))
     else:
         params_backend = dict(enginedata_dict.get('backend_params', modules.flags.get_engine_default_backend_params(template_engine)))
+    scene_theme_default = None
     if ':' in engine_display_str:
         params_backend.update(dict(task_method=engine_display_str.split(':')[1]))
     if is_scene_frontend:
         scenes = enginedata_dict.get("scene_frontend", {})
         themes = scenes.get('theme', []) if isinstance(scenes, dict) else []
-        theme_default = themes[0] if isinstance(themes, list) and themes else None
-        scene_task_method = get_scene_task_method(scenes, theme_default)
+        scene_theme_default = themes[0] if isinstance(themes, list) and themes else None
+        scene_task_method = get_scene_task_method(scenes, scene_theme_default)
         if scene_task_method:
             params_backend.update(dict(task_method=scene_task_method))
     preset_clip_model = (
@@ -782,6 +922,10 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
     preset_negative_prompt = _preset_str_value('negative_prompt', 'Negative Prompt')
     preset_performance = _preset_str_value('performance', 'Performance')
     preset_steps = _preset_steps_value()
+    if is_scene_frontend:
+        scene_steps_default = _scene_generation_step_default(enginedata_dict.get("scene_frontend", {}), scene_theme_default, None)
+        if scene_steps_default is not None:
+            preset_steps = scene_steps_default
     preset_guidance_scale = _preset_float_value('guidance_scale', 'Guidance Scale')
     preset_sampler = _preset_str_value('sampler', 'Sampler')
     preset_scheduler = _preset_str_value('scheduler', 'Scheduler')
@@ -840,7 +984,7 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
             results.append(dropdown_update(choices=minimal_refiner_model_list, value=minimal_refiner_model, visible='refiner_model' not in visible, interactive='refiner_model' not in inter))
         else:
             results.append(_layout_value_visible_inter(preset_refiner_model, 'refiner_model', visible, inter))
-    results.append(_layout_value_visible_inter(preset_steps, 'overwrite_step', visible, inter))
+    results.append(_layout_overwrite_step_update(preset_steps, visible, inter))
     results.append(_layout_value_visible_inter(preset_guidance_scale, 'guidance_scale', visible, inter))
     if preset_negative_prompt is not None:
         results.append(gr_update(value=preset_negative_prompt, visible='negative_prompt' not in visible, interactive='negative_prompt' not in inter))
@@ -1081,11 +1225,11 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
         ))
 
         scene_steps_title = scenes.get('scene_steps_title', 'Scene Steps')
-        scene_steps_min = scenes.get('scene_steps_min', 1)
-        scene_steps_max = scenes.get('scene_steps_max', 100)
+        scene_steps_min = _scene_generation_step_bound(state_params, theme_default, "min", scenes.get('scene_steps_min', 1))
+        scene_steps_max = _scene_generation_step_bound(state_params, theme_default, "max", scenes.get('scene_steps_max', 100))
         results.append(get_scene_safe_update(
             'scene_steps',
-            modules.flags.get_value_by_scene_theme(state_params, theme_default, 'scene_steps', 30),
+            _scene_generation_step_default(state_params, theme_default, 30),
             visible,
             inter,
             label=scene_steps_title,
@@ -1215,7 +1359,7 @@ def load_parameter_button_click(raw_metadata: dict | str, is_generating: bool, i
     get_adm_guidance('adm_guidance', 'ADM Guidance', loaded_parameter_dict, results)
     get_str('refiner_swap_method', 'Refiner Swap Method', loaded_parameter_dict, results)
     get_number('adaptive_cfg', 'CFG Mimicking from TSNR', loaded_parameter_dict, results)
-    get_number('clip_skip', 'CLIP Skip', loaded_parameter_dict, results, cast_type=int)
+    results.append(skip_update())
     get_str('base_model', 'Base Model', loaded_parameter_dict, results)
     refiner_model_value = get_str('refiner_model', 'Refiner Model', loaded_parameter_dict, results)
     get_number('refiner_switch', 'Refiner Switch', loaded_parameter_dict, results)
@@ -1759,7 +1903,6 @@ class A1111MetadataParser(MetadataParser):
         'adm_guidance': 'ADM Guidance',
         'refiner_swap_method': 'Refiner Swap Method',
         'adaptive_cfg': 'Adaptive CFG',
-        'clip_skip': 'Clip skip',
         'overwrite_switch': 'Overwrite Switch',
         'freeu': 'FreeU',
         'base_model': 'Model',
@@ -1999,7 +2142,7 @@ class A1111MetadataParser(MetadataParser):
                 self.fooocus_to_a1111['refiner_model_hash']: self.refiner_model_hash
             }
 
-        for key in ['adaptive_cfg', 'clip_skip', 'overwrite_switch', 'refiner_swap_method', 'freeu']:
+        for key in ['adaptive_cfg', 'overwrite_switch', 'refiner_swap_method', 'freeu']:
             if key in data:
                 generation_params[self.fooocus_to_a1111[key]] = data[key]
 

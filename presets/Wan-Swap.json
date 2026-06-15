@@ -23,12 +23,6 @@
                 "Wan-Animate Face Swap": "",
                 "Wan-Animate Motion Transfer": ""
             },
-            "scene_steps_min": 4,
-            "scene_steps_max": 8,
-            "scene_steps": {
-                "Wan-Animate Face Swap": 4,
-                "Wan-Animate Motion Transfer": 4
-            },
             "var_number_min": 0,
             "var_number_max": 60,
             "var_number_title": "Duration limit (seconds) [0 = no limit]",
@@ -117,7 +111,9 @@
                 "preprocess_target": "video",
                 "preprocess_fit": "proportional",
                 "preserve_audio": true
-            }
+            },
+            "overwrite_step_min": 4,
+            "overwrite_step_max": 8
         }
     },
     "default_model": "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
@@ -176,7 +172,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 30,
+    "default_overwrite_step": 4,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

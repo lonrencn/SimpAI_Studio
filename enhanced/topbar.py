@@ -1088,6 +1088,64 @@ def _canvas_scene_value(scene_frontend, key, theme=None, default=None):
     return value
 
 
+def _canvas_scene_generation_step(scene_frontend, theme=None, default=None):
+    for key in ("overwrite_step", "steps", "scene_steps"):
+        value = _canvas_scene_value(scene_frontend, key, theme, None)
+        if value is None:
+            continue
+        try:
+            return int(float(value))
+        except Exception:
+            continue
+    return default
+
+
+def _canvas_scene_generation_step_bound(scene_frontend, theme=None, suffix="min", default=None):
+    for key in (f"overwrite_step_{suffix}", f"steps_{suffix}", f"scene_steps_{suffix}"):
+        value = _canvas_scene_value(scene_frontend, key, theme, None)
+        if value is None:
+            continue
+        try:
+            return int(float(value))
+        except Exception:
+            continue
+    return default
+
+
+def _scene_list_value(value):
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return []
+
+
+def _scene_standard_steps_readonly(scene_frontend):
+    if not isinstance(scene_frontend, dict):
+        return False
+    disvisible = set(_scene_list_value(scene_frontend.get("disvisible", [])))
+    disinteractive = set(_scene_list_value(scene_frontend.get("disinteractive", [])))
+    return (
+        "scene_steps" in disvisible
+        or "scene_steps" in disinteractive
+        or "overwrite_step" in disinteractive
+    )
+
+
+def _canvas_scene_generation_step_props(scene_frontend, theme=None):
+    props = {
+        "min": _canvas_scene_generation_step_bound(scene_frontend, theme, "min", -1),
+        "max": _canvas_scene_generation_step_bound(scene_frontend, theme, "max", 200),
+        "step": _canvas_scene_generation_step_bound(scene_frontend, theme, "step", 1),
+    }
+    if _scene_standard_steps_readonly(scene_frontend):
+        props["interactive"] = False
+        step_value = _canvas_scene_generation_step(scene_frontend, theme, None)
+        if step_value is not None:
+            props["value"] = step_value
+    return props
+
+
 def _scene_bool_value(value):
     if isinstance(value, bool):
         return value
@@ -1240,28 +1298,6 @@ def _build_canvas_scene_schema(scene_frontend):
         if item:
             params.append(item)
 
-    if "scene_steps" not in disvisible:
-        params.append({
-            "key": "scene_steps",
-            "label": "Steps",
-            "type": "number",
-            "default": _canvas_scene_value(scene_frontend, "scene_steps", default_theme, 8),
-            "min": _canvas_scene_value(scene_frontend, "scene_steps_min", default_theme, 1),
-            "max": _canvas_scene_value(scene_frontend, "scene_steps_max", default_theme, 200),
-            "visible": True,
-            "interactive": "scene_steps" not in disinteractive,
-        })
-    if "scene_image_number" not in disvisible:
-        params.append({
-            "key": "scene_image_number",
-            "label": "Images",
-            "type": "number",
-            "default": _canvas_scene_value(scene_frontend, "image_number", default_theme, 1),
-            "min": 1,
-            "max": 16,
-            "visible": True,
-            "interactive": "scene_image_number" not in disinteractive,
-        })
     if "scene_aspect_ratio" not in disvisible and isinstance(scene_frontend.get("aspect_ratio"), list):
         aspect_choices = scene_frontend.get("aspect_ratio", [])
         params.append({
@@ -1286,8 +1322,10 @@ def _build_canvas_scene_schema(scene_frontend):
             if item.get("type") == "choice" and isinstance(resolved, list):
                 resolved = item.get("default")
             defaults[key] = resolved
-        if "scene_steps" in scene_frontend:
-            defaults.setdefault("scene_steps", _canvas_scene_value(scene_frontend, "scene_steps", theme, 8))
+        scene_step_default = _canvas_scene_generation_step(scene_frontend, theme, None)
+        if scene_step_default is not None:
+            defaults.setdefault("overwrite_step", scene_step_default)
+            defaults.setdefault("scene_steps", scene_step_default)
         if "image_number" in scene_frontend:
             defaults.setdefault("scene_image_number", _canvas_scene_value(scene_frontend, "image_number", theme, 1))
         if "prompt" in scene_frontend:
@@ -1297,6 +1335,9 @@ def _build_canvas_scene_schema(scene_frontend):
         per_theme[theme] = {
             "task_method": _canvas_scene_value(scene_frontend, "task_method", theme, ""),
             "defaults": defaults,
+            "generation_config_props": {
+                "overwrite_step": _canvas_scene_generation_step_props(scene_frontend, theme),
+            },
         }
 
     return {
@@ -1464,7 +1505,6 @@ def _build_preset_store_meta(state):
                     "output_format": preset_content.get("default_output_format", ""),
                     "refiner_switch": preset_content.get("default_refiner_switch", None),
                     "adaptive_cfg": preset_content.get("default_cfg_tsnr", None),
-                    "clip_skip": preset_content.get("default_clip_skip", None),
                     "overwrite_step": preset_content.get("default_overwrite_step", None),
                     "overwrite_switch": preset_content.get("default_overwrite_switch", None),
                     "save_metadata_to_images": preset_content.get("default_save_metadata_to_images", None),
@@ -1472,9 +1512,15 @@ def _build_preset_store_meta(state):
                 scene_frontend = default_engine.get("scene_frontend", {})
                 if isinstance(scene_frontend, dict):
                     schema = _build_canvas_scene_schema(scene_frontend)
+                    scene_themes = schema.get("themes", []) if isinstance(schema, dict) else []
+                    scene_theme = scene_themes[0] if scene_themes else ""
+                    scene_default_steps = _canvas_scene_generation_step(scene_frontend, scene_theme, None)
+                    if scene_default_steps is not None:
+                        generation_config["overwrite_step"] = scene_default_steps
+                    scene_default_image_number = _canvas_scene_value(scene_frontend, "image_number", scene_theme, None)
+                    if scene_default_image_number is not None:
+                        generation_config["image_number"] = scene_default_image_number
                     if not default_prompt:
-                        scene_themes = schema.get("themes", []) if isinstance(schema, dict) else []
-                        scene_theme = scene_themes[0] if scene_themes else ""
                         default_prompt = str(_canvas_scene_value(scene_frontend, "prompt", scene_theme, "") or "")
                     raw_task = scene_frontend.get("task_method", "")
                     if isinstance(raw_task, dict) and raw_task:
@@ -1635,6 +1681,7 @@ def _build_regen_manifest_for_generation(
     sam3_input_video,
     sam3_original_video_path,
     sam3_mask_video,
+    overwrite_step=None,
 ):
     if not isinstance(state_params, dict):
         return None
@@ -1677,7 +1724,7 @@ def _build_regen_manifest_for_generation(
             "scene_var_number8": scene_var_number8,
             "scene_var_number9": scene_var_number9,
             "scene_var_number10": scene_var_number10,
-            "scene_steps": scene_steps,
+            "overwrite_step": overwrite_step,
             "scene_switch_option1": scene_switch_option1,
             "scene_switch_option2": scene_switch_option2,
             "scene_switch_option3": scene_switch_option3,
@@ -1733,7 +1780,7 @@ def _build_regen_manifest_for_generation(
     )
 
 
-def process_before_generation(state_params, seed_random, image_seed, backend_params, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source, sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None, resolution_multiplier=1.0, resolution_quantize_step=None, resolution_edit_mode=None, resolution_original_input=False, sam3_trim_payload=None):
+def process_before_generation(state_params, seed_random, image_seed, backend_params, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source, sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None, resolution_multiplier=1.0, resolution_quantize_step=None, resolution_edit_mode=None, resolution_original_input=False, sam3_trim_payload=None, overwrite_step=None):
     regen_scene_additional_prompt = scene_additional_prompt
     regen_scene_additional_prompt_2 = scene_additional_prompt_2
     backend_params.update(dict(
@@ -2055,7 +2102,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             video=video_effective,
             audio=scene_audio,
             mask_video=sam3_mask_video,
-            scene_steps=scene_steps if 'scene_steps' in scene_frontend else None,
+            scene_steps=None,
             ))
     regen_data = _build_regen_manifest_for_generation(
         state_params,
@@ -2092,6 +2139,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
         sam3_input_video,
         sam3_original_video_path,
         sam3_mask_video,
+        overwrite_step,
     )
     if regen_data:
         backend_params[regen_manifest.KEY] = regen_data
@@ -2257,6 +2305,9 @@ SCENE_PRESET_SWITCH_CLEAR_OUTPUTS = {
     44: "sam3_original_video_path",
     45: "sam3_mask_video",
     46: "sam3_trim_payload",
+}
+SCENE_PRESET_SWITCH_CLEAR_VALUES = {
+    46: "",
 }
 
 def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpaint_mode, comfyd_active_checkbox, bar_button = None, include_scene_outputs=True):
@@ -2431,7 +2482,7 @@ def reset_scene_frontend_ui(state_params):
         scene_updates += [skip_update() for _ in range(count - len(scene_updates))]
     for index in SCENE_PRESET_SWITCH_CLEAR_OUTPUTS:
         if index < len(scene_updates):
-            scene_updates[index] = gr_update(value=None)
+            scene_updates[index] = gr_update(value=SCENE_PRESET_SWITCH_CLEAR_VALUES.get(index, None))
     return scene_updates
 
 def reset_layout_values(state_params, is_generating, inpaint_mode, use_resolution_override, scene_batch_target, scene_theme=None, scene_aspect_ratio=None, fast_nav=False, after_identity_count=0):
@@ -3089,7 +3140,13 @@ def _resolve_engine_disinteractive_for_state(state):
         disinteractive = engine_data.get("disinteractive", default_params.get("disinteractive", []))
         if not isinstance(disinteractive, list):
             return []
-        return list(disinteractive)
+        result = list(disinteractive)
+        scene_frontend = engine_data.get("scene_frontend", None)
+        if not isinstance(scene_frontend, dict):
+            scene_frontend = state.get("scene_frontend", None)
+        if _scene_standard_steps_readonly(scene_frontend) and "overwrite_step" not in result:
+            result.append("overwrite_step")
+        return result
     except Exception:
         return []
 
@@ -3166,7 +3223,28 @@ def _scene_number_default_specs():
     ]
 
 
-def _build_scene_default_payload(scene_frontend, scene_theme):
+def _scene_standard_overwrite_step_default_from_state(state):
+    if not isinstance(state, dict):
+        return None
+    preset_prepared = state.get("__preset_prepared", {})
+    candidates = [state]
+    if isinstance(preset_prepared, dict):
+        candidates.append(preset_prepared)
+    for source in candidates:
+        for key in ("overwrite_step", "steps", "default_overwrite_step"):
+            value = source.get(key)
+            if value is None:
+                continue
+            try:
+                step_value = int(float(value))
+            except Exception:
+                continue
+            if step_value > 0:
+                return step_value
+    return None
+
+
+def _build_scene_default_payload(scene_frontend, scene_theme, overwrite_step_default=None):
     if not isinstance(scene_frontend, dict):
         return {}
 
@@ -3175,10 +3253,17 @@ def _build_scene_default_payload(scene_frontend, scene_theme):
     payload["scene_additional_prompt_2"] = _scene_value_by_theme(scene_frontend, scene_theme, "additional_prompt_2", "")
 
     for control_name, key, default in _scene_number_default_specs():
-        minimum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_min", 1 if key == "scene_steps" else None)
-        maximum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_max", 100 if key == "scene_steps" else None)
-        step = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_step", 1 if key == "scene_steps" else None)
-        value = _scene_value_by_theme(scene_frontend, scene_theme, key, default)
+        if key == "scene_steps":
+            minimum = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "min", -1)
+            maximum = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "max", 200)
+            step = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "step", 1)
+            fallback = overwrite_step_default if overwrite_step_default is not None else default
+            value = _canvas_scene_generation_step(scene_frontend, scene_theme, fallback)
+        else:
+            minimum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_min", None)
+            maximum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_max", None)
+            step = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_step", None)
+            value = _scene_value_by_theme(scene_frontend, scene_theme, key, default)
         payload[control_name] = _coerce_scene_default_number(value, minimum, maximum, step)
 
     for index in range(1, 5):
@@ -3199,13 +3284,19 @@ def _build_scene_control_props(scene_frontend, scene_theme):
     if not isinstance(scene_frontend, dict):
         return {}
     props = {}
+    steps_readonly = _scene_standard_steps_readonly(scene_frontend)
     for control_name, key, _default in _scene_number_default_specs():
         control_props = {}
         label_default = "Scene Steps" if key == "scene_steps" else None
         label = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_title", label_default)
-        minimum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_min", 1 if key == "scene_steps" else None)
-        maximum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_max", 100 if key == "scene_steps" else None)
-        step = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_step", 1 if key == "scene_steps" else None)
+        if key == "scene_steps":
+            minimum = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "min", -1)
+            maximum = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "max", 200)
+            step = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "step", 1)
+        else:
+            minimum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_min", None)
+            maximum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_max", None)
+            step = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_step", None)
         if label is not None:
             control_props["label"] = label
         if minimum is not None:
@@ -3214,8 +3305,12 @@ def _build_scene_control_props(scene_frontend, scene_theme):
             control_props["maximum"] = maximum
         if step is not None:
             control_props["step"] = step
+        if key == "scene_steps":
+            control_props["interactive"] = not steps_readonly
         if control_props:
             props[control_name] = control_props
+            if key == "scene_steps":
+                props["overwrite_step"] = dict(control_props)
     return props
 
 
@@ -3379,7 +3474,11 @@ def update_topbar_js_params(state, include_canvas_catalogs=True):
         __engine_disvisible=engine_disvisible,
         __scene_disvisible=scene_disvisible,
         __scene_theme=scene_theme,
-        __scene_defaults=_build_scene_default_payload(scene_frontend, scene_theme),
+        __scene_defaults=_build_scene_default_payload(
+            scene_frontend,
+            scene_theme,
+            _scene_standard_overwrite_step_default_from_state(state),
+        ),
         __scene_control_props=_build_scene_control_props(scene_frontend, scene_theme),
         __scene_task_method=str(scene_task_method or ""),
         __scene_canvas_mask_disabled=_resolve_scene_canvas_mask_disabled(scene_frontend, scene_theme),

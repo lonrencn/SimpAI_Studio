@@ -1390,6 +1390,17 @@ html.simpai-hide-performance-selection .performance_selection {
     display: none !important;
 }
 
+html.simpai-scene-frontend #quick_enhance,
+html.simpai-scene-parameter-normalized #scene_image_number_row,
+html.simpai-scene-parameter-normalized #scene_steps {
+    display: none !important;
+}
+
+html.simpai-scene-parameter-normalized #general_setting_tabs button[data-tab-id="control"],
+html.simpai-scene-parameter-normalized #general_setting_tabs button[data-tab-id="inpaint"] {
+    display: none !important;
+}
+
 .aspect_ratios label {
     flex: calc(50% - 5px) !important;
 }

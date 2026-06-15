@@ -638,7 +638,7 @@ def batch_run_scene(folder_path, upload_files, target, seed_random, image_seed, 
                     scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps,
                     scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio,
                     scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source,
-                    sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None,
+                    sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_step=None, overwrite_width=None, overwrite_height=None,
                     resolution_edit_mode=None, resolution_original_input=False, *args, get_task_with_resolution_multiplier,
                     generate_clicked, worker, constants, html, get_welcome_image, api_params, topbar):
     if len(args) < 3:
@@ -759,7 +759,8 @@ def batch_run_scene(folder_path, upload_files, target, seed_random, image_seed, 
                 scene_video, scene_audio, scene_original_video_path, active_video_source,
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
                 overwrite_width_v, overwrite_height_v, resolution_multiplier, resolution_quantize_step,
-                resolution_edit_mode, resolution_original_input_v
+                resolution_edit_mode, resolution_original_input_v,
+                overwrite_step=overwrite_step,
             )
         except Exception:
             bp = {} if backend_params is None else copy.deepcopy(backend_params)

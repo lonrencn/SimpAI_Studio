@@ -325,148 +325,159 @@
       },
       "schema": {
         "version": "v1.1",
-        "scene_frontend": "v1.1",
-        "engine_type": "video",
-        "theme_title": "Wan2.2 SVI-Pro Video Extend",
-        "default_theme": "Basic",
         "themes": [
           "Basic"
         ],
-        "per_theme": {
-          "Basic": {
-            "task_method": "wan2.2_extent_cn",
-            "defaults": {
-              "prompt": "",
-              "scene_var_number": 5,
-              "scene_var_number3": 2,
-              "scene_switch_option1": false,
-              "scene_switch_option2": false,
-              "scene_steps": 6,
-              "scene_image_number": 1
-            }
-          }
-        },
+        "default_theme": "Basic",
+        "theme_title": "Wan2.2 SVI-Pro Video Extend",
+        "disvisible": [
+          "scene_canvas_image",
+          "scene_input_image1",
+          "scene_input_image2",
+          "scene_additional_prompt",
+          "scene_additional_prompt_2",
+          "scene_audio",
+          "scene_var_number2",
+          "scene_var_number4",
+          "scene_var_number3",
+          "scene_var_number5",
+          "scene_var_number6",
+          "scene_var_number7",
+          "scene_var_number8",
+          "scene_var_number9",
+          "scene_var_number10",
+          "scene_batch",
+          "scene_switch_option3",
+          "scene_switch_option4",
+          "sam3_input_video",
+          "sam3_mask_video",
+          "scene_input_image3",
+          "scene_input_image4"
+        ],
+        "disinteractive": [],
+        "divisible": [],
+        "image_preprocessor_method": [],
+        "disable_canvas_mask": false,
         "upload_slots": [
           {
             "key": "scene_video",
-            "label": "#1 Source Video",
+            "label": "Scene Video",
             "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "sam3_input_video",
+            "label": "SAM3 Input Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "sam3_mask_video",
+            "label": "SAM3 Mask Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_audio",
+            "label": "Scene Audio",
+            "visible": false,
             "interactive": true
           },
           {
             "key": "scene_canvas_image",
             "label": "Canvas Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
             "key": "scene_input_image1",
-            "label": "Input Image 1",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
             "key": "scene_input_image2",
-            "label": "Input Image 2",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
-            "key": "scene_audio",
-            "label": "Audio",
+            "key": "scene_input_image3",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
+            "interactive": true
           },
           {
-            "key": "sam3_input_video",
-            "label": "SAM3 Source Video",
+            "key": "scene_input_image4",
+            "label": "Input Image",
             "visible": false,
-            "interactive": false
-          },
-          {
-            "key": "sam3_mask_video",
-            "label": "SAM3 Mask Video",
-            "visible": false,
-            "interactive": false
+            "interactive": true
           }
         ],
         "params": [
           {
-            "key": "prompt",
-            "label": "Positive Prompt",
-            "type": "textarea",
-            "default": ""
-          },
-          {
-            "key": "negative_prompt",
-            "label": "Negative Prompt",
-            "type": "textarea",
-            "default": ""
-          },
-          {
-            "key": "seed_random",
-            "label": "Random Seed",
-            "type": "checkbox",
-            "default": true
-          },
-          {
-            "key": "image_seed",
-            "label": "Seed",
-            "type": "number",
-            "min": 0,
-            "max": 1125899906842623,
-            "step": 1,
-            "default": 0
-          },
-          {
             "key": "scene_var_number",
-            "label": "Extension Length",
+            "label": "scene_var_number",
             "type": "number",
+            "default": 5,
+            "visible": true,
+            "interactive": true,
             "min": 1,
-            "max": 10,
-            "step": 1,
-            "default": 5
-          },
-          {
-            "key": "scene_var_number3",
-            "label": "CFG Scale",
-            "type": "number",
-            "min": 1,
-            "max": 5,
-            "step": 0.1,
-            "default": 2
+            "max": 10
           },
           {
             "key": "scene_switch_option1",
             "label": "Use Tiled VAE Decode",
             "type": "checkbox",
-            "default": false
+            "default": false,
+            "visible": true,
+            "interactive": true
           },
           {
             "key": "scene_switch_option2",
             "label": "Force Select Resolution",
             "type": "checkbox",
-            "default": false
+            "default": false,
+            "visible": true,
+            "interactive": true
           },
           {
-            "key": "scene_steps",
-            "label": "Scene Steps",
-            "type": "number",
-            "min": 6,
-            "max": 10,
-            "step": 1,
-            "default": 6
-          },
-          {
-            "key": "scene_image_number",
-            "label": "Video Number",
-            "type": "number",
-            "min": 1,
-            "max": 5,
-            "step": 1,
-            "default": 1
+            "key": "scene_aspect_ratio",
+            "label": "Aspect Ratio",
+            "type": "choice",
+            "choices": [
+              "origin|Original",
+              "640|1:1",
+              "720|1:1",
+              "832|1:1",
+              "960|1:1",
+              "1024|1:1",
+              "1280|1:1"
+            ],
+            "default": "origin|Original",
+            "visible": true,
+            "interactive": true
           }
-        ]
+        ],
+        "per_theme": {
+          "Basic": {
+            "task_method": "wan2.2_extent_cn",
+            "defaults": {
+              "scene_var_number": 5,
+              "scene_switch_option1": false,
+              "scene_switch_option2": false,
+              "scene_aspect_ratio": "origin|Original",
+              "prompt": ""
+            },
+            "generation_config_props": {
+              "overwrite_step": {
+                "min": 6,
+                "max": 10,
+                "step": 1
+              }
+            }
+          }
+        }
       },
       "models_config": {
         "mode": "external_override",
@@ -618,7 +629,7 @@
         "defaults": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 30,
+          "overwrite_step": 6,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -629,7 +640,7 @@
         "overrides": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 30,
+          "overwrite_step": 6,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -673,11 +684,8 @@
         "seed_random": true,
         "image_seed": 0,
         "scene_var_number": 5,
-        "scene_var_number3": 2,
         "scene_switch_option1": false,
-        "scene_switch_option2": false,
-        "scene_steps": 6,
-        "scene_image_number": 1
+        "scene_switch_option2": false
       },
       "status": "idle",
       "collapsed": false,
@@ -693,14 +701,14 @@
       "x": 600,
       "y": 1344,
       "w": 390,
-      "h": 385,
+      "h": 285,
       "title": "Advanced Config / 高级配置",
       "target_preset_id": "wan_extend_preset",
       "config": {
         "defaults": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 30,
+          "overwrite_step": 6,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -711,7 +719,7 @@
         "values": {
           "guidance_scale": 1,
           "sharpness": 2,
-          "overwrite_step": 30,
+          "overwrite_step": 6,
           "refiner_switch": 0.5,
           "sampler_name": "euler",
           "scheduler_name": "simple",
@@ -743,7 +751,7 @@
         "state": "placeholder",
         "queue_position": 0,
         "step": 0,
-        "total_steps": 30,
+        "total_steps": 6,
         "percent": 0,
         "message": "Connect a source video, then run Wan-Extent. The extended video appears here."
       },

@@ -77,30 +77,6 @@
                 "Clear background": "kontext_unblurbg",
                 "Depth reference": "kontext_depth_ref"
             },
-            "scene_steps_min": 8,
-            "scene_steps_max": 20,
-            "scene_steps": {
-                "General": 12,
-                "All-in-one": 12,
-                "Home appliances": 12,
-                "Makeup": 12,
-                "Metal": 12,
-                "Clothing": 12,
-                "Jewelry": 12,
-                "Consumer electronics": 12,
-                "Composite relighting": 12,
-                "Pattern extraction": 12,
-                "Scene generation": 12,
-                "Portrait retouch": 12,
-                "Angle edit": 12,
-                "IP 3-View": 12,
-                "Remove Anything": 12,
-                "Pose recovery": 12,
-                "Clothing extraction": 12,
-                "Object insertion": 12,
-                "Clear background": 12,
-                "Depth reference": 12
-            },
             "var_number3_title": "Refine LoRA strength [0–2.0]",
             "var_number3": {
                 "General": 1.0,
@@ -181,7 +157,9 @@
                 "frontend_preprocess": true,
                 "preprocess_target": "image",
                 "preprocess_fit": "proportional"
-            }
+            },
+            "overwrite_step_min": 8,
+            "overwrite_step_max": 20
         }
     },
     "default_model": "flux1-dev-kontext_fp8_scaled.safetensors",
@@ -220,7 +198,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 30,
+    "default_overwrite_step": 12,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

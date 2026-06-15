@@ -3334,7 +3334,10 @@ with shared.gradio_root:
                     with gr.Column(scale=1, visible=True, elem_classes=['scene_panel', 'simpai-mounted-hidden'], elem_id='scene_panel') as scene_panel:
                         with gr.Row(elem_id="scene_primary_row"):
                             scene_additional_prompt = gr.Textbox(label="Blessing words", show_label=True, max_lines=1, elem_id='scene_additional_prompt', elem_classes=['scene_input', 'simpai-mounted-hidden'])
-                            scene_theme = gr.Radio(choices=modules.flags.scene_themes, label="Themes", value=modules.flags.scene_themes[0])
+                            scene_theme_initial_choices = [choice for choice in modules.flags.scene_themes if str(choice).strip()]
+                            if not scene_theme_initial_choices:
+                                scene_theme_initial_choices = ["Scene Theme / 场景主题"]
+                            scene_theme = gr.Radio(choices=scene_theme_initial_choices, label="Themes", value=scene_theme_initial_choices[0], visible=False, elem_id='scene_theme')
 
                         # Qwen Multiangle Camera Control
                         with gr.Accordion("📸 3D Camera Control", open=False, visible=True, elem_id="camera_control_accordion", elem_classes=['simpai-mounted-hidden']) as camera_control_accordion:
@@ -4641,6 +4644,13 @@ with shared.gradio_root:
                                 queue=False,
                                 show_progress=False,
                             )
+                            event = event.then(
+                                modules.meta_parser.switch_scene_theme_standard_generation_defaults,
+                                inputs=[state_topbar, scene_theme],
+                                outputs=[overwrite_step],
+                                queue=False,
+                                show_progress=False,
+                            )
                             event.then(
                                 switch_scene_theme_ready_to_gen,
                                 inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio],
@@ -5601,7 +5611,7 @@ with shared.gradio_root:
 
                                     return [skip_component_update(), skip_component_update(), skip_component_update(), None]
                                 with gr.Row():
-                                    quick_enhance = gr.Checkbox(label='Quick Enhance', value=False)
+                                    quick_enhance = gr.Checkbox(label='Quick Enhance', value=False, elem_id="quick_enhance")
                                 quick_enhance_uov_strength = gr.Slider(label='Denoising Strength of enhance',
                                                  visible=False, minimum=0, maximum=1.0, step=0.01, value=0.2)
                                 output_format = gr.Radio(label='Output Format',
@@ -5643,8 +5653,8 @@ with shared.gradio_root:
                                                            value=modules.config.default_sampler)
                                     scheduler_name = gr.Dropdown(label='Scheduler', choices=flags.comfy_scheduler_list,
                                                              value=modules.config.default_scheduler)
-                                clip_skip = gr.Slider(label='CLIP Skip', minimum=1, maximum=flags.clip_skip_max, step=1,
-                                                     value=modules.config.default_clip_skip)
+                                clip_skip = gr.Number(value=1, minimum=1, maximum=flags.clip_skip_max, step=1,
+                                                      precision=0, visible=False, elem_id="clip_skip_placeholder")
                             sdxl_adv_checkbox = gr.Checkbox(label='SDXL advanced setting', value=False,  container=False)
                             with gr.Group(visible=False) as sdxl_adv_pannel: 
                                 with gr.Row():
@@ -6633,8 +6643,8 @@ with shared.gradio_root:
                     binding_id_button = gr.Button(value='IdentityCenter', visible=True, elem_id="identity_center")
                     identity_introduce = gr.HTML(visible=True, value=topbar.build_identity_introduce_html({}), elem_classes=["identityIntroduce"], elem_id='identity_introduce')
                     with gr.Column() as configure_panel:
-                        with gr.Tabs():
-                            with gr.Tab(label='Application') as user_panel:
+                        with gr.Tabs(selected="application", elem_id="identity_settings_tabs"):
+                            with gr.Tab(label='Application', id="application", elem_id="identity_application_tab") as user_panel:
                                 with gr.Row():
                                     language_ui = gr.Radio(label='Language of UI', choices=['En', '中文'], value=modules.flags.language_radio(args_manager.args.language), interactive=(args_manager.args.language in ['default', 'cn', 'en']), container=False)
                                     background_theme = gr.Radio(label='Theme of background', choices=['light', 'dark'], value=args_manager.args.theme, interactive=True, container=False)
@@ -6708,7 +6718,7 @@ with shared.gradio_root:
                                 queue=False
                             )
 
-                            with gr.Tab(label='Local System', visible=False) as local_system_tab:
+                            with gr.Tab(label='Local System', id="local_system", elem_id="identity_local_system_tab", visible=False) as local_system_tab:
                                 with gr.Column() as admin_panel:
                                     with gr.Group():
                                         with gr.Row(visible=True if not args_manager.args.disable_backend else False):
@@ -6755,7 +6765,7 @@ with shared.gradio_root:
                                             web_in_did_switch_btn = gr.Button(value="Switch", size="sm", min_width=30)
                                             web_in_did_list = gr.Markdown(elem_classes=["htmlcontent"])
 
-                            with gr.Tab(label='Users', visible=False) as user_access_tab:
+                            with gr.Tab(label='Users', id="users", elem_id="identity_users_tab", visible=False) as user_access_tab:
                                 with gr.Column(elem_classes=["admin-access-panel"]):
                                     admin_access_initial = _admin_access_initial_snapshot()
                                     admin_access_initial_did = admin_access_initial["selected"]
@@ -7434,18 +7444,18 @@ with shared.gradio_root:
             gallery_videos_btn.click(lambda request, tools, state: gallery_util.switch_gallery_engine_type("video", request, tools, state), inputs=[gallery_media_switch_request, image_tools_checkbox, state_topbar], outputs=[gallery_index, index_radio, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='(request,tools,state)=>{let marker=request||""; try{clearSimpleAICompareReadyState("gallery_media_switch.video"); marker=(typeof beginGalleryMediaSwitchRequest==="function")?beginGalleryMediaSwitchRequest("video",1500):`${Date.now()}:0:video`; if(typeof beginGalleryMediaSwitchRequest!=="function") syncGalleryMediaSwitch("video",1500);}catch(e){} return [marker,tools,state];}') \
                 .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{if(typeof isGalleryMediaSwitchModeCurrent==="function"&&!isGalleryMediaSwitchModeCurrent("video")) return; syncGalleryMediaSwitch("video", 1200); try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(typeof syncPostGenerationResultControls==="function"){syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80); setTimeout(()=>syncPostGenerationResultControls(state),220);}}catch(e){} refresh_finished_images_catalog_label(x, "video", {refresh:false}); try{const nums=String((state&&state.__finished_nums_pages)||x||""); if(/^0(?:,|$)/.test(nums)&&typeof restoreWelcomePreviewForEmptyGalleryBrowser==="function") restoreWelcomePreviewForEmptyGalleryBrowser("gallery_media_switch.video.empty"); if(typeof scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery==="function") scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery("video", "gallery_media_switch.video");}catch(e){}}')
             gallery_browser_load_evt = gallery_browser_load_btn.click(gallery_util.load_main_gallery_browser_page, inputs=[gallery_browser_payload, image_tools_checkbox, state_topbar], outputs=[gallery_browser_state, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='()=>{try{clearSimpleAICompareReadyState("gallery_browser.load"); markFinishedGalleryBrowserLoading();}catch(e){}}')
-            gallery_browser_load_evt.then(lambda x: None, inputs=[gallery_browser_state], queue=False, show_progress=False, js='(x)=>{try{syncFinishedGalleryBrowserAfterLoad(x); traceResultPanelStateSoon("gallery_browser.load.after");}catch(e){console.warn("[UI-TRACE] gallery_browser_load.dom_trace_failed", e);}}')
+            gallery_browser_load_evt.then(lambda x, stat, state: None, inputs=[gallery_browser_state, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,stat,state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} syncFinishedGalleryBrowserAfterLoad(x); const mode=(state && (state.__gallery_engine_type || state.engine_type)) || (typeof getFinishedGalleryBrowserMode==="function"?getFinishedGalleryBrowserMode():null); refresh_finished_images_catalog_label(stat, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.load.after");}catch(e){console.warn("[UI-TRACE] gallery_browser_load.dom_trace_failed", e);}}')
             gallery_browser_outputs = [gallery_browser_folder, gallery_browser_prev_folder_btn, gallery_browser_next_folder_btn, gallery_browser_status, gallery_browser_more_btn, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat]
             gallery_browser_folder.change(gallery_util.load_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.change"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.folder.change");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder.dom_trace_failed", e);}}')
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.change"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.folder.change");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder.dom_trace_failed", e);}}')
             gallery_browser_prev_folder_btn.click(gallery_util.previous_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.prev"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.folder.prev");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_prev.dom_trace_failed", e);}}')
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.prev"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.folder.prev");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_prev.dom_trace_failed", e);}}')
             gallery_browser_next_folder_btn.click(gallery_util.next_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.next"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.folder.next");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_next.dom_trace_failed", e);}}')
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.next"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.folder.next");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_next.dom_trace_failed", e);}}')
             gallery_browser_refresh_btn.click(gallery_util.refresh_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.refresh"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.refresh");}catch(e){console.warn("[UI-TRACE] gallery_browser_refresh.dom_trace_failed", e);}}')
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.refresh"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.refresh");}catch(e){console.warn("[UI-TRACE] gallery_browser_refresh.dom_trace_failed", e);}}')
             gallery_browser_more_btn.click(gallery_util.load_more_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.more"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.more");}catch(e){console.warn("[UI-TRACE] gallery_browser_more.dom_trace_failed", e);}}')
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.more"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.more");}catch(e){console.warn("[UI-TRACE] gallery_browser_more.dom_trace_failed", e);}}')
             gallery.select(gallery_util.select_gallery, inputs=[gallery_index, image_tools_checkbox, state_topbar, backfill_prompt], outputs=[prompt_info_box, prompt_info_close_btn, prompt_info_container, prompt, negative_prompt, params_note_info, params_note_close_button, params_note_input_name, params_note_delete_button, params_note_regen_button, params_note_preset_button, params_note_box, image_toolbox, state_topbar], show_progress=False) \
                 .then(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80);}catch(e){console.warn("[UI-TRACE] gallery_select_compare_sync_failed", e);}}')
             gallery.preview_open(gallery_util.gallery_preview_open, inputs=[image_tools_checkbox, state_topbar], outputs=[image_toolbox, state_topbar], queue=False, show_progress=False)
@@ -7808,9 +7818,9 @@ with shared.gradio_root:
                 scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6,
                 scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps,
                 scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio,
-                scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source,
+                image_number, scene_video, scene_audio, scene_original_video_path, active_video_source,
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
-                overwrite_width, overwrite_height, resolution_edit_mode, resolution_original_input_checkbox
+                overwrite_step, overwrite_width, overwrite_height, resolution_edit_mode, resolution_original_input_checkbox
             ] + scene_generation_model_ctrls + ctrls + [model_params_state, resolution_multiplier, resolution_quantize_step, state_topbar],
             outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button, generate_button, state_is_generating, scene_batch_status, scene_batch_id],
             show_progress=False
@@ -8507,11 +8517,11 @@ with shared.gradio_root:
                 scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8,
                 scene_var_number9, scene_var_number10, scene_steps,
                 scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4,
-                scene_aspect_ratio, scene_image_number,
+                scene_aspect_ratio, image_number,
                 scene_video_backup, scene_audio_backup, scene_original_video_backup, active_video_source,
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
                 overwrite_width, overwrite_height, resolution_multiplier, resolution_quantize_step,
-                resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload,
+                resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload, overwrite_step,
             ],
             outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating, index_radio, image_toolbox, prompt_info_box, image_seed, params_backend] + protections + [preset_store, identity_dialog],
             show_progress=False,
@@ -8549,11 +8559,11 @@ with shared.gradio_root:
                 scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8,
                 scene_var_number9, scene_var_number10, scene_steps,
                 scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4,
-                scene_aspect_ratio, scene_image_number,
+                scene_aspect_ratio, image_number,
                 scene_video_backup, scene_audio_backup, scene_original_video_backup, active_video_source,
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
                 overwrite_width, overwrite_height, resolution_multiplier, resolution_quantize_step,
-                resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload,
+                resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload, overwrite_step,
             ],
             outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating, index_radio, image_toolbox, prompt_info_box, image_seed, params_backend] + protections + [preset_store, identity_dialog],
             show_progress=False,
@@ -8813,6 +8823,7 @@ with shared.gradio_root:
 
         scene_theme.select(switch_scene_theme_select, inputs=state_topbar, outputs=state_topbar, queue=False, show_progress=False) \
                    .then(switch_scene_theme_safe, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme], outputs=[camera_control_accordion, anglelight_control_accordion, style_transfer_accordion, sam3_video_mask_accordion, pose_studio, gaussian_studio, scene_resolution_override_accordion, scene_use_resolution_override_checkbox, scene_resolution_override] + scene_params[1:], queue=False, show_progress=False) \
+                   .then(modules.meta_parser.switch_scene_theme_standard_generation_defaults, inputs=[state_topbar, scene_theme], outputs=[overwrite_step], queue=False, show_progress=False) \
                    .then(fn=lambda state, theme: None, inputs=[state_topbar, scene_theme], js="(state, theme)=>{try{if(window.SimpAIPoseStudioEditor?.closeScenePreset) window.SimpAIPoseStudioEditor.closeScenePreset(); if(window.SimpAIGaussianStudioEditor?.closeScenePreset) window.SimpAIGaussianStudioEditor.closeScenePreset(); if(typeof reconcileSceneAuxControls==='function') reconcileSceneAuxControls(state, theme); if(typeof syncResolutionControlWidgets==='function') syncResolutionControlWidgets();}catch(e){console.warn('[UI-TRACE] scene_aux_reconcile_failed', e);}}", queue=False, show_progress=False) \
                    .then(lambda: None, js='()=>{try{if(window.syncGradio6MountedDynamicVisibility) window.syncGradio6MountedDynamicVisibility("scene_theme");}catch(e){console.warn("[UI-TRACE] scene_theme_mounted_visibility_sync_failed", e);}}', show_progress=False, queue=False) \
                    .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=True) \
@@ -8856,6 +8867,7 @@ with shared.gradio_root:
         scene_audio.upload(_remember_scene_audio_for_generation, inputs=[scene_audio], outputs=[scene_audio_backup], queue=False, show_progress=False) \
             .then(modules.meta_parser.switch_ltx23_audio_theme_when_audio_present, inputs=[state_topbar, scene_theme, scene_audio_backup], outputs=[state_topbar, scene_theme], queue=False, show_progress=False) \
             .then(switch_scene_theme_safe, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme], outputs=[camera_control_accordion, anglelight_control_accordion, style_transfer_accordion, sam3_video_mask_accordion, pose_studio, gaussian_studio, scene_resolution_override_accordion, scene_use_resolution_override_checkbox, scene_resolution_override] + scene_params[1:], queue=False, show_progress=False) \
+            .then(modules.meta_parser.switch_scene_theme_standard_generation_defaults, inputs=[state_topbar, scene_theme], outputs=[overwrite_step], queue=False, show_progress=False) \
             .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)
         scene_audio.clear(_clear_scene_audio_for_generation, outputs=[scene_audio_backup], queue=False, show_progress=False) \
             .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)
@@ -8970,6 +8982,31 @@ with shared.gradio_root:
             sanitized.append(dropdown_update(choices=allowed, value=next_value))
         return sanitized
 
+    def _refresh_identity_admin_surface(state_params):
+        try:
+            user = state_params.get("user", None) if isinstance(state_params, dict) else None
+            user_did = user.get_did() if user is not None and hasattr(user, "get_did") else ""
+            is_guest = shared.token.is_guest(user_did)
+            is_admin = shared.token.is_admin(user_did)
+            is_privileged_guest = is_guest and is_local_mode()
+            admin_visible = is_admin or is_privileged_guest
+            return [
+                gr_update(visible=admin_visible),
+                gr_update(visible=is_admin),
+                gr_update(visible=admin_visible),
+                gr_update(visible=admin_visible, value=topbar.update_comfyd_url(state_params)),
+                topbar.update_topbar_js_params(state_params)[0],
+            ]
+        except Exception as e:
+            logger.warning(f"[IdentityAccess] failed to refresh admin surface: {e}")
+            return [
+                skip_component_update(),
+                skip_component_update(),
+                skip_component_update(),
+                skip_component_update(),
+                skip_component_update(),
+            ]
+
     
     after_identity = [gallery_index, index_radio, gallery_index_stat, preset_store, preset_store_list, history_link, identity_introduce, configure_panel, local_system_tab, user_access_tab, admin_panel, admin_link, system_params] + ip_types
     bind_topbar_identity_events(
@@ -9004,6 +9041,8 @@ with shared.gradio_root:
         admin_access_refresh_fn=_admin_access_refresh,
         admin_access_user_select=admin_access_user_select,
         admin_access_outputs=admin_access_outputs,
+        identity_admin_surface_refresh_fn=_refresh_identity_admin_surface,
+        identity_admin_surface_outputs=[local_system_tab, user_access_tab, admin_panel, admin_link, system_params],
     )
 
     reset_layout_ui_outputs = nav_bars + reset_preset_layout + reset_preset_func + scene_frontend_ctrls

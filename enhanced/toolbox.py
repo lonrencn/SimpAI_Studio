@@ -766,6 +766,8 @@ def _apply_regen_manifest(parsed_parameters, state_params, manifest):
             scene_frontend["theme"] = [theme] + [item for item in themes if item != theme]
         else:
             theme = themes[0] if themes else None
+        for legacy_key in ("scene_steps", "scene_steps_min", "scene_steps_max"):
+            scene_frontend.pop(legacy_key, None)
 
         scene_value_map = {
             "scene_additional_prompt": "additional_prompt",
@@ -780,7 +782,8 @@ def _apply_regen_manifest(parsed_parameters, state_params, manifest):
             "scene_var_number8": "var_number8",
             "scene_var_number9": "var_number9",
             "scene_var_number10": "var_number10",
-            "scene_steps": "scene_steps",
+            "scene_steps": "overwrite_step",
+            "overwrite_step": "overwrite_step",
             "scene_switch_option1": "switch_option1",
             "scene_switch_option2": "switch_option2",
             "scene_switch_option3": "switch_option3",
@@ -965,7 +968,7 @@ def save_preset(*args):
     adm_scaler_end = args.pop()
     refiner_swap_method = args.pop()
     adaptive_cfg = args.pop()
-    clip_skip = args.pop()
+    args.pop()  # legacy generation positional slot
     base_model = args.pop()
     refiner_model = args.pop()
     refiner_switch = args.pop()
@@ -1121,6 +1124,8 @@ def save_preset(*args):
                 chosen = value.get(scene_theme, next(iter(value.values()), None))
                 if chosen is not None:
                     scene_frontend[key] = {scene_theme: chosen}
+            for legacy_key in ("scene_steps", "scene_steps_min", "scene_steps_max"):
+                scene_frontend.pop(legacy_key, None)
 
             task_method_map = scene_frontend.get("task_method", None)
             if isinstance(task_method_map, dict):
@@ -1151,7 +1156,7 @@ def save_preset(*args):
             _set_theme_value("var_number8", scene_var_number8)
             _set_theme_value("var_number9", scene_var_number9)
             _set_theme_value("var_number10", scene_var_number10)
-            _set_theme_value("scene_steps", scene_steps)
+            _set_theme_value("overwrite_step", overwrite_step)
             _set_theme_value("switch_option1", scene_switch_option1)
             _set_theme_value("switch_option2", scene_switch_option2)
             _set_theme_value("switch_option3", scene_switch_option3)
@@ -1227,8 +1232,6 @@ def save_preset(*args):
             preset["default_overwrite_switch"] = overwrite_switch
         if ads.default["inpaint_engine"] != inpaint_engine:
             preset["default_inpaint_engine"] = inpaint_engine
-        if ads.default["clip_skip"] != clip_skip:
-            preset["default_clip_skip"] = clip_skip
         if clip_model and clip_model not in (flags.default_clip, flags.default_vae, 'auto'):
             preset["default_clip_model"] = clip_model
         if ads.default["vae"] != vae_name:

@@ -2542,10 +2542,15 @@ function initGeneratingStateRecovery() {
 
         const stopVisible = !!stopbutton.offsetParent;
         const skipVisible = !!(skipbutton && skipbutton.offsetParent);
-        const generateVisible = !!genbutton.offsetParent;
+        let generateVisible = !!genbutton.offsetParent;
         const loadParameterVisible = elementIsVisible(getGradioRootById('load_parameter_button'));
         const progressVisible = !!(progressBar && progressBar.offsetParent);
         const sceneBusy = !!((sceneVideoPlaceholder && sceneVideoPlaceholder.offsetParent) || (sceneAudioPlaceholder && sceneAudioPlaceholder.offsetParent));
+
+        if ((stopVisible || skipVisible || loadParameterVisible) && generateVisible) {
+            hideGenerateButtonWhenAlternateActionVisible("generation_state_recovery");
+            generateVisible = false;
+        }
 
         if (!stopVisible && !skipVisible && !generateVisible && !loadParameterVisible && !sceneBusy) {
             reconcileGenerationActionButtons("empty_generation_controls");
@@ -2931,13 +2936,39 @@ function restoreGradioComponentVisibility(rootOrId, options = {}) {
     return changed;
 }
 
+function hideGenerateButtonWhenAlternateActionVisible(reason) {
+    const generateRoot = getGradioRootById('generate_button');
+    if (!elementIsVisible(generateRoot)) return false;
+
+    const stopVisible = elementIsVisible(getGradioRootById('stop_button'));
+    const skipVisible = elementIsVisible(getGradioRootById('skip_button'));
+    const loadParameterVisible = elementIsVisible(getGradioRootById('load_parameter_button'));
+    if (!stopVisible && !skipVisible && !loadParameterVisible) return false;
+
+    const hidden = setGradioComponentVisible('generate_button', false);
+    if (hidden) {
+        try {
+            console.info('[UI-TRACE] generation_button.hidden_for_active_action', {
+                reason: reason || '',
+                stopVisible,
+                skipVisible,
+                loadParameterVisible,
+            });
+        } catch (e) {}
+    }
+    return hidden;
+}
+
 function reconcileGenerationActionButtons(reason) {
     const generateRoot = getGradioRootById('generate_button');
     if (!generateRoot) return false;
     const stopVisible = elementIsVisible(getGradioRootById('stop_button'));
     const skipVisible = elementIsVisible(getGradioRootById('skip_button'));
     const loadParameterVisible = elementIsVisible(getGradioRootById('load_parameter_button'));
-    if (stopVisible || skipVisible || loadParameterVisible) return false;
+    if (stopVisible || skipVisible || loadParameterVisible) {
+        hideGenerateButtonWhenAlternateActionVisible(reason || 'reconcile');
+        return false;
+    }
 
     const changed = restoreGradioComponentVisibility(generateRoot, { interactive: true });
     if (changed) {

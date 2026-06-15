@@ -319,7 +319,6 @@ def _generation_api_overrides(generation):
         "output_format": ("output_format",),
         "refiner_switch": ("refiner_switch",),
         "adaptive_cfg": ("adaptive_cfg", "cfg_tsnr"),
-        "clip_skip": ("clip_skip",),
         "overwrite_step": ("overwrite_step", "steps"),
         "overwrite_switch": ("overwrite_switch",),
         "save_metadata_to_images": ("save_metadata_to_images",),
@@ -330,7 +329,6 @@ def _generation_api_overrides(generation):
         "image_number",
         "refiner_switch",
         "adaptive_cfg",
-        "clip_skip",
         "overwrite_step",
         "overwrite_switch",
     }
@@ -906,7 +904,7 @@ def _default_api_args():
         "adm_scaler_negative": getattr(config, "default_cfg_negative", 0.8),
         "adm_scaler_end": getattr(config, "default_cfg_end", 0.3),
         "adaptive_cfg": getattr(config, "default_cfg_tsnr", 7.0),
-        "clip_skip": getattr(config, "default_clip_skip", 2),
+        "clip_skip": 1,
         "sampler_name": getattr(config, "default_sampler", "dpmpp_2m_sde_gpu"),
         "scheduler_name": getattr(config, "default_scheduler", "karras"),
         "vae_name": getattr(config, "default_vae", getattr(flags, "default_vae", "Default (model)")),
@@ -1549,6 +1547,7 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
     models = _merged_config_values(_model_config(preset_node))
     resolution = _merged_config_values(_resolution_config(preset_node))
     generation = _merged_config_values(_generation_config(preset_node))
+    generation_api_overrides = _generation_api_overrides(generation)
     styles_config = _merged_config_values(_styles_config(preset_node))
     scene_defaults = _scene_theme_defaults(preset_node, runtime)
     scene_params = {**scene_defaults, **params}
@@ -1560,8 +1559,12 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
     scene_theme = runtime.get("scene_theme") or ""
     aspect_ratio = _resolve_backend_aspect_ratio(resolution, scene_params, materialized_inputs)
     random_resolution = _resolution_random_aspect_enabled(resolution)
-    scene_image_number = _positive_int(_scene_param(params, scene_defaults, "scene_image_number")) or 1
-    scene_steps = _positive_int(_scene_param(params, scene_defaults, "scene_steps"))
+    scene_image_number = _positive_int(generation_api_overrides.get("image_number")) or _positive_int(_scene_param(params, scene_defaults, "scene_image_number")) or 1
+    scene_steps = _positive_int(generation_api_overrides.get("overwrite_step"))
+    if scene_steps is None:
+        scene_steps = _positive_int(_scene_param(params, scene_defaults, "overwrite_step"))
+    if scene_steps is None:
+        scene_steps = _positive_int(_scene_param(params, scene_defaults, "scene_steps"))
     image_seed = _resolve_seed(scene_params)
 
     params_backend = {
@@ -1594,6 +1597,14 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
         params_backend.get("keep_vlm_model_loaded"),
     )
     params_backend.update(_scene_lora_backend_params(enabled_loras))
+    if scene_steps is not None:
+        params_backend["steps"] = scene_steps
+    if generation_api_overrides.get("guidance_scale") is not None:
+        params_backend["cfg"] = generation_api_overrides.get("guidance_scale")
+    if generation_api_overrides.get("sampler_name") is not None:
+        params_backend["sampler"] = generation_api_overrides.get("sampler_name")
+    if generation_api_overrides.get("scheduler_name") is not None:
+        params_backend["scheduler"] = generation_api_overrides.get("scheduler_name")
     aspect_size = _split_size_text(aspect_ratio)
 
     for index in range(1, 11):
@@ -1668,6 +1679,7 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
     scene_negative_prompt = params.get("negative_prompt", "")
     if not str(scene_negative_prompt or "").strip():
         scene_negative_prompt = preset_defaults["default_prompt_negative"]
+    params_backend["negative_prompt"] = scene_negative_prompt
     scene_prompt = params.get("prompt", "")
     if not str(scene_prompt or "").strip():
         scene_prompt = preset_defaults["default_prompt"]
@@ -1691,7 +1703,7 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
         "resolution_edit_mode": _resolution_edit_mode(resolution),
         "params_backend": params_backend,
     }
-    api_arg_overrides.update(_generation_api_overrides(generation))
+    api_arg_overrides.update(generation_api_overrides)
     if scene_image_number:
         api_arg_overrides["image_number"] = scene_image_number
     if scene_steps is not None:
