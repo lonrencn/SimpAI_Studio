@@ -278,9 +278,17 @@ def get_path_userhome() -> str:
     return path_userhome
 
 def get_path_models_root() -> str:
+    global config_dict, always_save_keys, config_needs_write
+
     if args_manager.args.models_root:
         path_models_root = args_manager.args.models_root
         makedirs_with_log(_config_path_to_abs(path_models_root))
+        if "path_models_root" not in config_dict:
+            config_dict["path_models_root"] = path_models_root
+            config_needs_write = True
+            logger.info(f'Auto added missing config key "path_models_root" with command line value: {json.dumps(path_models_root, ensure_ascii=False)}')
+        if "path_models_root" not in always_save_keys:
+            always_save_keys.append("path_models_root")
     else:
         path_models_root = get_dir_or_set_default('path_models_root', 'models')
     _log_info_once("path_models_root", f'The path_models_root: {os.path.abspath(path_models_root)}')

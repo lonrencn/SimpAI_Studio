@@ -43,6 +43,7 @@ import ldm_patched.modules.model_management as model_management
 from ui.components.sketch_image import create_sketch_image
 from ui.layout.floating import floating_card, floating_panel, floating_shell
 from ui.bootstrap import apply_webui_assets, create_root_blocks, launch_root_app
+from ui.frontend_http_guard import configure_frontend_http_guard
 from ui.update_helpers import dataset_update, dropdown_update, gr_update, skip_update as skip_component_update
 from ui.events.topbar import (
     bind_topbar_identity_events,
@@ -3935,7 +3936,7 @@ with shared.gradio_root:
                     identity_bind_button.click(bind_identity_flow, inputs=[identity_nick_input, identity_areacode, identity_tele_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [input_id_info], show_progress=False)
                     identity_change_button.click(change_identity_flow,  outputs=[identity_stage_state] + identity_ctrls + identity_input, show_progress=False)
                     identity_verify_button.click(verify_identity_flow, inputs=identity_input_info + [identity_vcode_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls, show_progress=False)
-                    identity_phrases_set_button.click(lambda a, b, c: set_phrases_flow(a,b,c,'set'), inputs=identity_input_info + [identity_phrase_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [current_id_info], show_progress=False)
+                    identity_phrases_set_button.click(lambda a, b, c: set_phrases_flow(a,b,c,'set'), inputs=identity_input_info + [identity_phrase_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [current_id_info, current_upstream_status, identity_export_btn], show_progress=False)
                     identity_qr.upload(trigger_input_identity_flow, inputs=identity_qr, outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [input_id_info], show_progress=False, queue=False)
                 
                 nav_bars = topbar_layout.nav_bars
@@ -9761,12 +9762,6 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 if ads.get_admin_default('comfyd_active_checkbox') and not args_manager.args.disable_comfyd and not args_manager.args.disable_backend:
     comfyd.active(True)
-# Fix for global proxy issues causing "Expecting value: line 1 column 1"
-for key in ['NO_PROXY', 'no_proxy']:
-    current_val = os.environ.get(key, '')
-    if 'localhost' not in current_val:
-        os.environ[key] = f"localhost,127.0.0.1,0.0.0.0,{current_val}".strip(',')
-
 import socket
 import psutil
 
@@ -9820,6 +9815,8 @@ else:
                          logging.info(f"Port {args_manager.args.port} is occupied on 0.0.0.0, automatically switched to: {new_port}")
                          args_manager.args.port = new_port
             pass
+
+configure_frontend_http_guard(args_manager.args.listen, args_manager.args.port)
 
 app, local_url, share_url = _launch_root_app_with_frontend_port_retry(
     inbrowser=args_manager.args.in_browser,
