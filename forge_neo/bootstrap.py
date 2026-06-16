@@ -22,6 +22,62 @@ def _default_user_base_dir() -> str:
     return str(Path(__file__).resolve().parents[3] / "users")
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _resolve_from_repo(path: str) -> Path:
+    value = os.path.expandvars(os.path.expanduser(str(path or "").strip()))
+    if not value:
+        return _repo_root()
+    p = Path(value)
+    if not p.is_absolute():
+        p = _repo_root() / p
+    return p.resolve()
+
+
+def _launch_models_root_value() -> str:
+    try:
+        import args_manager
+
+        value = str(getattr(args_manager.args, "models_root", "") or "").strip()
+        if value:
+            return value
+    except Exception:
+        pass
+    for env_name in ("simpleai_models_root", "SIMPLEAI_MODELS_ROOT"):
+        value = str(os.environ.get(env_name) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def ensure_user_config_model_root_from_launch() -> Path | None:
+    models_root = _launch_models_root_value()
+    if not models_root:
+        return None
+
+    config_path = _resolve_from_repo(_default_user_base_dir()) / "config.txt"
+    config: dict[str, object] = {}
+    if config_path.exists():
+        try:
+            loaded = json.loads(config_path.read_text(encoding="utf-8"))
+            if not isinstance(loaded, dict):
+                return None
+            config = loaded
+        except Exception:
+            return None
+
+    current = config.get("path_models_root")
+    if isinstance(current, str) and current.strip():
+        return config_path
+
+    config["path_models_root"] = models_root
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(json.dumps(config, indent=4, ensure_ascii=False), encoding="utf-8")
+    return config_path
+
+
 def _env_flag(name: str, default: bool = False) -> bool:
     value = os.environ.get(name)
     if value is None:
@@ -236,6 +292,7 @@ def ensure_shared_token(*, test_stub: bool = False) -> None:
 
 
 def ensure_config(*, test_stub: bool = False):
+    ensure_user_config_model_root_from_launch()
     enable_forge_neo_read_only_user_config()
     ensure_shared_token(test_stub=test_stub)
     return importlib.import_module("modules.config")

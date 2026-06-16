@@ -166,6 +166,34 @@ def _path_to_config_style(original_path, resolved_path):
     return os.path.normpath(resolved_path)
 
 
+def _package_default_models_root_abs():
+    return os.path.abspath(os.path.join(shared.root, "..", "..", "SimpleModels"))
+
+
+def _path_is_under(path, root):
+    try:
+        path_norm = os.path.normcase(os.path.normpath(os.path.abspath(path)))
+        root_norm = os.path.normcase(os.path.normpath(os.path.abspath(root)))
+        return os.path.commonpath([path_norm, root_norm]) == root_norm
+    except Exception:
+        return False
+
+
+def _relative_config_path(path):
+    return os.path.normpath(os.path.relpath(os.path.abspath(path), shared.root)).replace("\\", "/")
+
+
+def _path_to_generated_config_style(path):
+    resolved = _config_path_to_abs(path)
+    if not resolved:
+        return path
+    if _path_is_relative_config(path):
+        return _relative_config_path(resolved)
+    if _path_is_under(resolved, _package_default_models_root_abs()):
+        return _relative_config_path(resolved)
+    return os.path.normpath(resolved)
+
+
 def _normalize_path_for_compare(path):
     abs_path = _config_path_to_abs(path)
     if not abs_path:
@@ -281,7 +309,7 @@ def get_path_models_root() -> str:
     global config_dict, always_save_keys, config_needs_write
 
     if args_manager.args.models_root:
-        path_models_root = args_manager.args.models_root
+        path_models_root = _path_to_generated_config_style(args_manager.args.models_root)
         makedirs_with_log(_config_path_to_abs(path_models_root))
         if "path_models_root" not in config_dict:
             config_dict["path_models_root"] = path_models_root
@@ -378,7 +406,7 @@ def _build_default_dir_value(resolved_default_value, as_array=False, make_direct
             expanded = os.path.expandvars(os.path.expanduser(path))
             abs_path = _config_path_to_abs(path)
             if not os.path.isabs(expanded):
-                path = os.path.relpath(abs_path, shared.root)
+                path = _relative_config_path(abs_path)
             dp.append(path)
             if make_directory:
                 makedirs_with_log(abs_path)
@@ -389,7 +417,7 @@ def _build_default_dir_value(resolved_default_value, as_array=False, make_direct
         makedirs_with_log(dp)
     expanded_default = os.path.expandvars(os.path.expanduser(resolved_default_value))
     if not os.path.isabs(expanded_default):
-        dp = os.path.relpath(dp, shared.root)
+        dp = _relative_config_path(dp)
     if as_array:
         dp = [dp]
     return dp

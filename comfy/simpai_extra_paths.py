@@ -88,6 +88,11 @@ def _resolve_path(path, base_dir):
     return os.path.normpath(os.path.abspath(value))
 
 
+def _path_is_relative(path):
+    value = os.path.expandvars(os.path.expanduser(str(path or "").strip()))
+    return bool(value) and not os.path.isabs(value)
+
+
 def _as_path_list(value):
     if isinstance(value, (list, tuple)):
         return [str(x).strip() for x in value if isinstance(x, str) and x.strip()]
@@ -110,23 +115,54 @@ def _dedupe_paths(paths):
     return out
 
 
-def _config_candidates(repo_root):
+def _first_env_value(names):
+    for name in names:
+        value = os.getenv(name)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _models_root_from_env():
+    return _first_env_value(("simpleai_models_root", "SIMPLEAI_MODELS_ROOT"))
+
+
+def _userhome_config_candidates_from_env():
     candidates = []
     for env_name in ("simpleai_userhome", "SIMPLEAI_USERHOME"):
         env_userhome = os.getenv(env_name)
         if env_userhome:
             candidates.append(os.path.join(_resolve_path(env_userhome, os.getcwd()), "config.txt"))
+    return candidates
 
-    candidates.extend(
-        [
-            os.path.abspath(os.path.join(os.getcwd(), "..", "..", "users", "config.txt")),
-            os.path.abspath(os.path.join(os.getcwd(), "users", "config.txt")),
-            os.path.abspath(os.path.join(repo_root, "..", "..", "users", "config.txt")),
-            os.path.abspath(os.path.join(repo_root, "users", "config.txt")),
-            os.path.abspath(os.path.join(repo_root, "..", "users", "config.txt")),
-        ]
+
+def _repo_config_candidates(repo_root):
+    return [
+        os.path.abspath(os.path.join(repo_root, "..", "..", "users", "config.txt")),
+        os.path.abspath(os.path.join(repo_root, "users", "config.txt")),
+        os.path.abspath(os.path.join(repo_root, "..", "users", "config.txt")),
+    ]
+
+
+def _cwd_config_candidates():
+    return [
+        os.path.abspath(os.path.join(os.getcwd(), "..", "..", "users", "config.txt")),
+        os.path.abspath(os.path.join(os.getcwd(), "users", "config.txt")),
+    ]
+
+
+def _config_candidates(repo_root):
+    candidates = (
+        _userhome_config_candidates_from_env()
+        + _repo_config_candidates(repo_root)
+        + _cwd_config_candidates()
     )
     return _dedupe_paths(candidates)
+
+
+def _config_write_candidate(repo_root):
+    candidates = _userhome_config_candidates_from_env() + _repo_config_candidates(repo_root)
+    return candidates[0] if candidates else None
 
 
 def find_simpai_config_path(repo_root=None):
@@ -137,8 +173,93 @@ def find_simpai_config_path(repo_root=None):
     return None
 
 
+def _primary_config_path(repo_root):
+    for candidate in _dedupe_paths(_userhome_config_candidates_from_env() + _repo_config_candidates(repo_root)):
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def _default_models_root_config_value(repo_root):
+    candidates = ("../../SimpleModels", "../SimpleModels", "SimpleModels")
+    for value in candidates:
+        if os.path.isdir(_resolve_path(value, repo_root)):
+            return value
+    return "../../SimpleModels"
+
+
+def _default_models_root_abs(repo_root):
+    return _resolve_path(_default_models_root_config_value(repo_root), repo_root)
+
+
+def _models_root_config_value(config, repo_root):
+    models_root = config.get("path_models_root") if isinstance(config, dict) else None
+    if isinstance(models_root, str) and models_root.strip():
+        return models_root.strip()
+    return _default_models_root_config_value(repo_root)
+
+
+def _is_path_under(path, root):
+    try:
+        path_norm = os.path.normcase(os.path.normpath(os.path.abspath(path)))
+        root_norm = os.path.normcase(os.path.normpath(os.path.abspath(root)))
+        return os.path.commonpath([path_norm, root_norm]) == root_norm
+    except Exception:
+        return False
+
+
+def _path_to_repo_relative(path, repo_root):
+    return os.path.normpath(os.path.relpath(os.path.abspath(path), repo_root)).replace("\\", "/")
+
+
+def _relative_yaml_path(path):
+    return os.path.normpath(path).replace("\\", "/")
+
+
+def ensure_simpai_config_from_launch_context(repo_root=None):
+    repo_root = os.path.abspath(repo_root or _repo_root_from_yaml(None))
+    models_root = _models_root_from_env() or _default_models_root_config_value(repo_root)
+
+    config_path = _primary_config_path(repo_root) or _config_write_candidate(repo_root)
+    if not config_path:
+        return None
+
+    config = {}
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            if not isinstance(loaded, dict):
+                return None
+            config = loaded
+        except Exception as e:
+            logging.warning("Failed to read SimpAI config before env bootstrap: %s (%s)", config_path, e)
+            return None
+
+    current = config.get("path_models_root")
+    if isinstance(current, str) and current.strip():
+        return config_path
+
+    config["path_models_root"] = models_root
+    try:
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        logging.warning("Failed to write SimpAI config from env: %s (%s)", config_path, e)
+        return None
+
+    logging.info("Wrote SimpAI model root config from launch context: %s", config_path)
+    return config_path
+
+
+def ensure_simpai_config_from_env(repo_root=None):
+    return ensure_simpai_config_from_launch_context(repo_root)
+
+
 def load_simpai_config(repo_root=None):
     repo_root = os.path.abspath(repo_root or _repo_root_from_yaml(None))
+    ensure_simpai_config_from_launch_context(repo_root)
     config_path = find_simpai_config_path(repo_root)
     if config_path is None:
         return None, None
@@ -147,10 +268,28 @@ def load_simpai_config(repo_root=None):
 
 
 def get_models_root(config, repo_root):
-    models_root = config.get("path_models_root") if isinstance(config, dict) else None
-    if not isinstance(models_root, str) or not models_root.strip():
-        models_root = "models"
-    return _resolve_path(models_root, repo_root)
+    return _resolve_path(_models_root_config_value(config, repo_root), repo_root)
+
+
+def models_root_yaml_value(config, repo_root):
+    raw_root = _models_root_config_value(config, repo_root)
+    models_root = _resolve_path(raw_root, repo_root)
+    if _path_is_relative(raw_root):
+        return _relative_yaml_path(raw_root)
+    if _is_path_under(models_root, _default_models_root_abs(repo_root)):
+        return _path_to_repo_relative(models_root, repo_root)
+    return os.path.normpath(models_root)
+
+
+def path_yaml_value(path, config, repo_root):
+    resolved = _resolve_path(path, repo_root)
+    raw_root = _models_root_config_value(config, repo_root)
+    models_root = get_models_root(config, repo_root)
+    if _path_is_relative(raw_root) and _is_path_under(resolved, models_root):
+        return _path_to_repo_relative(resolved, repo_root)
+    if _is_path_under(resolved, _default_models_root_abs(repo_root)):
+        return _path_to_repo_relative(resolved, repo_root)
+    return os.path.normpath(resolved)
 
 
 def model_root_category_dirs(folder_name, models_root):
@@ -216,10 +355,9 @@ def _format_extra_model_paths_value(paths, indent):
 
 
 def build_extra_model_paths_text(config, repo_root):
-    models_root = get_models_root(config, repo_root)
-    lines = ["", "comfyui:", f"     models_root: {models_root}"]
+    lines = ["", "comfyui:", f"     models_root: {models_root_yaml_value(config, repo_root)}"]
     for folder_name in SIMPAI_CONFIG_PATH_MAP:
-        paths = build_folder_paths(config, folder_name, repo_root)
+        paths = [path_yaml_value(path, config, repo_root) for path in build_folder_paths(config, folder_name, repo_root)]
         value = _format_extra_model_paths_value(paths, 5 + len(folder_name))
         if value is not None:
             lines.append(f"     {folder_name}: {value}")

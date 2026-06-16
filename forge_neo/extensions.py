@@ -916,16 +916,19 @@ def extension_summary() -> dict[str, object]:
     }
 
 
-def extension_config_states_dir() -> Path:
+def extension_config_states_dir(*, create: bool = False) -> Path:
     config = ensure_config()
     base = Path(getattr(config, "path_userhome", "") or ".")
     path = base / "config" / "forge_neo_extension_states"
-    path.mkdir(parents=True, exist_ok=True)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def list_extension_config_states() -> list[Path]:
     root = extension_config_states_dir()
+    if not root.is_dir():
+        return []
     return sorted(root.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
 
 
@@ -982,7 +985,7 @@ def current_extension_config_state(name: str = "Current") -> dict[str, object]:
 def save_extension_config_state(name: str = "") -> tuple[Path, dict[str, object]]:
     config_name = _clean_config_name(name)
     timestamp = datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
-    path = extension_config_states_dir() / f"{timestamp}_{config_name}.json"
+    path = extension_config_states_dir(create=True) / f"{timestamp}_{config_name}.json"
     data = current_extension_config_state(config_name)
     data["filepath"] = str(path)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
