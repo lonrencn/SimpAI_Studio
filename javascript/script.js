@@ -3010,6 +3010,47 @@ function setGradioButtonInteractive(rootId, interactive) {
     return true;
 }
 
+function getGenerationProgressText() {
+    const progressRoot = getGradioRootById('progress-bar')
+        || gradioApp().querySelector('#progress_html, .progress-html, [data-testid="progress-bar"]');
+    return String(progressRoot?.innerText || progressRoot?.textContent || '');
+}
+
+function generationProgressAllowsControlRestore() {
+    const text = getGenerationProgressText();
+    if (!text.trim()) return false;
+    if (/Generation task queued|Preparing task|Loading models|排队|准备|加载模型/i.test(text)) return false;
+    return /Task in progress|Sampling|ETA|采样|执行|生成中|%/i.test(text);
+}
+
+function restoreGenerationControlsAfterUnlock(reason) {
+    const generateRoot = getGradioRootById('generate_button');
+    const stopRoot = getGradioRootById('stop_button');
+    const skipRoot = getGradioRootById('skip_button');
+    if (!generateRoot || !stopRoot || !skipRoot) return false;
+
+    const generateVisible = elementIsVisible(generateRoot);
+    const stopVisible = elementIsVisible(stopRoot);
+    const skipVisible = elementIsVisible(skipRoot);
+    const loadParameterVisible = elementIsVisible(getGradioRootById('load_parameter_button'));
+    if (generateVisible || loadParameterVisible || (!stopVisible && !skipVisible)) return false;
+    if (!generationProgressAllowsControlRestore()) return false;
+
+    const changed = [
+        restoreGradioComponentVisibility(stopRoot, { interactive: true }),
+        restoreGradioComponentVisibility(skipRoot, { interactive: true }),
+    ].some(Boolean);
+    if (changed) {
+        try {
+            console.info('[UI-TRACE] generation_controls.restored_after_unlock', { reason: reason || '' });
+        } catch (e) {}
+    }
+    return changed;
+}
+
+window.simpleaiRestoreGenerationControlsAfterUnlock = restoreGenerationControlsAfterUnlock;
+onAfterUiUpdate(() => restoreGenerationControlsAfterUnlock('after_ui_update'));
+
 function setGradioCheckboxValue(rootId, checked) {
     const input = getGradioCheckboxById(rootId);
     if (!input) return false;

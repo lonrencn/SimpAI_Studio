@@ -208,6 +208,7 @@ def check_base_environment():
             ('comfyui-embedded-docs', '0.5.4'),
             ('comfy-kitchen', '0.2.10'),
             ('comfy-aimdo', '0.4.10'),
+            ('onnxruntime', '1.25.1'),
             ('av', '17.0.0')
         ]
         for (update_pkg_name, update_pkg_version) in update_pkgs:

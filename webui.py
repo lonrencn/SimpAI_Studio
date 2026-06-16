@@ -1017,7 +1017,7 @@ def generate_clicked(task: worker.AsyncTask, state):
                 updates.append(skip_component_update())
             else:
                 button_interactive_state[name] = interactive
-                updates.append(gr_update(interactive=interactive))
+                updates.append(gr_update(visible=True, interactive=interactive))
         return tuple(updates)
 
     def generation_controls_unlocked():

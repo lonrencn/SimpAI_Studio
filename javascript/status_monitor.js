@@ -2,6 +2,8 @@
     // ==================== 配置常量 ====================
     const CHECK_INTERVAL = 2000;         // 检测间隔毫秒
     const MAX_RETRY_COUNT = 3;
+    const STATUS_DRAG_SAFE_MARGIN = 3;
+    const STATUS_EDGE_DOCK_THRESHOLD = 6;
 
     // ==================== 状态管理 ====================
     let state = {
@@ -15,6 +17,7 @@
         offsetY: 0,
         hasAdminAPI: false,
         initialPositionMoved: false, // 新增初始位置标记
+        statusEdgeDockSide: '',
         isReconnectVisible: false    // 是否显示重连按钮
     };
 
@@ -149,7 +152,7 @@
 
     const canvasWorkbenchLabel = document.createElement('span');
     canvasWorkbenchLabel.className = 'work-entry-label';
-    canvasWorkbenchLabel.textContent = t('Infinite Canvas', '无限画布');
+    canvasWorkbenchLabel.textContent = t('iCanvas', '无限画布');
 
     canvasWorkbenchToggleBtn.appendChild(canvasWorkbenchIcon);
     canvasWorkbenchToggleBtn.appendChild(canvasWorkbenchLabel);
@@ -166,7 +169,7 @@
 
     const transferToggleLabel = document.createElement('span');
     transferToggleLabel.className = 'transfer-toggle-label';
-    transferToggleLabel.textContent = t('Image Transfer', '图片中转');
+    transferToggleLabel.textContent = t('imgTransfer', '图片中转');
 
     const transferCountBadge = document.createElement('span');
     transferCountBadge.className = 'transfer-count-badge';
@@ -527,7 +530,7 @@
         canvasWorkbenchToggleBtn.classList.toggle('is-loading', !!isLoading);
         canvasWorkbenchToggleBtn.toggleAttribute('aria-disabled', !!isLoading);
         canvasWorkbenchToggleBtn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
-        canvasWorkbenchLabel.textContent = isLoading ? t('Loading', '加载中') : t('Infinite Canvas', '无限画布');
+        canvasWorkbenchLabel.textContent = isLoading ? t('Loading', '加载中') : t('iCanvas', '无限画布');
         canvasWorkbenchToggleBtn.title = isLoading
             ? t('Loading Infinite Canvas', '正在加载无限画布')
             : (isCanvasWorkbenchStandaloneActive() ? canvasWorkbenchStandaloneTitle() : canvasWorkbenchInlineTitle());
@@ -687,7 +690,7 @@
     });
 
     function updateTransferToggleText() {
-        transferToggleLabel.textContent = t('Image Transfer', '图片中转');
+        transferToggleLabel.textContent = t('imgTransfer', '图片中转');
         transferToggleIcon.textContent = transferState.expanded ? '▴' : '▾';
         updateTransferEntryState();
     }
@@ -698,14 +701,14 @@
         transferCountBadge.title = t('Transfer station image count', '中转站图片数量');
         transferCountBadge.style.display = count > 0 ? 'inline-flex' : 'none';
         workEntryTile.classList.toggle('has-transfer-items', count > 0);
-        transferToggleBtn.title = `${t('Image Transfer', '图片中转站')}: ${count}`;
-        transferToggleBtn.setAttribute('aria-label', `${t('Image Transfer', '图片中转站')}: ${count}`);
+        transferToggleBtn.title = `${t('imgTransfer', '图片中转站')}: ${count}`;
+        transferToggleBtn.setAttribute('aria-label', `${t('imgTransfer', '图片中转站')}: ${count}`);
     }
 
     function refreshLocalizedStaticText() {
         backToAdminBtn.textContent = t('Back to Admin', '返回管理窗口');
         reconnectBtn.textContent = ` ${t('Reconnect', '重连')}`;
-        canvasWorkbenchLabel.textContent = canvasWorkbenchLazyState.loadingPromise ? t('Loading', '加载中') : t('Infinite Canvas', '无限画布');
+        canvasWorkbenchLabel.textContent = canvasWorkbenchLazyState.loadingPromise ? t('Loading', '加载中') : t('iCanvas', '无限画布');
         canvasWorkbenchToggleBtn.title = canvasWorkbenchLazyState.loadingPromise
             ? t('Loading Infinite Canvas', '正在加载无限画布')
             : (isCanvasWorkbenchStandaloneActive() ? canvasWorkbenchStandaloneTitle() : canvasWorkbenchInlineTitle());
@@ -990,13 +993,32 @@
             background: transparent;
             pointer-events: auto;
             cursor: grab;
-            transition: all 0.2s ease;
+            transition: opacity 0.2s ease;
         }
 
         #gradio-status-monitor.dragging {
             cursor: grabbing;
             opacity: 0.8;
             transition: none !important;
+        }
+
+        #gradio-status-monitor.edge-docked {
+            max-width: min(76px, calc(100vw - 6px));
+        }
+
+        #gradio-status-monitor.edge-docked .status-indicator.light,
+        #gradio-status-monitor.edge-docked .status-indicator.dark,
+        #gradio-status-monitor.edge-docked .status-monitor-tiles {
+            width: 76px;
+        }
+
+        #gradio-status-monitor.edge-docked .status-monitor-tiles {
+            flex-direction: column;
+        }
+
+        #gradio-status-monitor.edge-docked .status-monitor-tile {
+            width: 76px;
+            flex: 0 0 76px;
         }
 
         .status-indicator.light,
@@ -2125,43 +2147,144 @@
         function stopDrag() {
             if (state.isDragging) {
                 state.isDragging = false;
-                statusContainer.classList.remove('dragging');
+                finishStatusMonitorDrag();
                 
                 // 移除临时事件监听器
                 document.removeEventListener('mousemove', doDrag);
                 document.removeEventListener('mouseup', stopDrag);
-                if (transferState && transferState.expanded) requestAnimationFrame(updateTransferPanelLayout);
             }
         }
         
         function stopPointerDrag() {
             if (state.isDragging) {
                 state.isDragging = false;
-                statusContainer.classList.remove('dragging');
+                finishStatusMonitorDrag();
                 
                 // 移除临时事件监听器
                 document.removeEventListener('pointermove', doPointerDrag);
                 document.removeEventListener('pointerup', stopPointerDrag);
                 document.removeEventListener('pointercancel', stopPointerDrag);
-                if (transferState && transferState.expanded) requestAnimationFrame(updateTransferPanelLayout);
             }
         }
         
         function stopTouchDrag() {
             if (state.isDragging) {
                 state.isDragging = false;
-                statusContainer.classList.remove('dragging');
+                finishStatusMonitorDrag();
                 
                 // 移除临时事件监听器
                 document.removeEventListener('touchmove', doTouchDrag);
                 document.removeEventListener('touchend', stopTouchDrag);
                 document.removeEventListener('touchcancel', stopTouchDrag);
-                if (transferState && transferState.expanded) requestAnimationFrame(updateTransferPanelLayout);
             }
         }
     }
+
+    function finishStatusMonitorDrag() {
+        statusContainer.classList.remove('dragging');
+        updateStatusMonitorEdgeDock(true);
+        if (transferState && transferState.expanded) requestAnimationFrame(updateTransferPanelLayout);
+    }
+
+    function clearStatusMonitorEdgeDock() {
+        statusContainer.classList.remove('edge-docked', 'edge-docked-left', 'edge-docked-right');
+        state.statusEdgeDockSide = '';
+    }
+
+    function clearStatusMonitorInlinePosition() {
+        statusContainer.style.left = '';
+        statusContainer.style.top = '';
+        statusContainer.style.right = '';
+        statusContainer.style.bottom = '';
+    }
+
+    function clampStatusMonitorIntoViewport() {
+        const rect = statusContainer.getBoundingClientRect();
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || rect.right;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.bottom;
+        const maxX = Math.max(STATUS_DRAG_SAFE_MARGIN, viewportWidth - rect.width - STATUS_DRAG_SAFE_MARGIN);
+        const maxY = Math.max(STATUS_DRAG_SAFE_MARGIN, viewportHeight - rect.height - STATUS_DRAG_SAFE_MARGIN);
+
+        statusContainer.style.left = `${clamp(rect.left, STATUS_DRAG_SAFE_MARGIN, maxX)}px`;
+        statusContainer.style.top = `${clamp(rect.top, STATUS_DRAG_SAFE_MARGIN, maxY)}px`;
+        statusContainer.style.right = 'auto';
+        statusContainer.style.bottom = 'auto';
+    }
+
+    function applyStatusMonitorEdgeDockSide(side, anchorPosition, sourceRect) {
+        statusContainer.classList.add('edge-docked');
+        statusContainer.classList.toggle('edge-docked-left', side === 'left');
+        statusContainer.classList.toggle('edge-docked-right', side === 'right');
+        state.statusEdgeDockSide = side;
+
+        if (!anchorPosition) return;
+
+        const rect = sourceRect || statusContainer.getBoundingClientRect();
+        const dockRect = statusContainer.getBoundingClientRect();
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || dockRect.bottom;
+        const maxY = Math.max(STATUS_DRAG_SAFE_MARGIN, viewportHeight - dockRect.height - STATUS_DRAG_SAFE_MARGIN);
+        statusContainer.style.top = `${clamp(rect.top, STATUS_DRAG_SAFE_MARGIN, maxY)}px`;
+        statusContainer.style.bottom = 'auto';
+        if (side === 'left') {
+            statusContainer.style.left = `${STATUS_DRAG_SAFE_MARGIN}px`;
+            statusContainer.style.right = 'auto';
+        } else {
+            statusContainer.style.left = 'auto';
+            statusContainer.style.right = `${STATUS_DRAG_SAFE_MARGIN}px`;
+        }
+    }
+
+    function updateStatusMonitorEdgeDock(anchorPosition) {
+        try {
+            if (isMobileStatusLayout()) {
+                clearStatusMonitorEdgeDock();
+                return;
+            }
+
+            const rect = statusContainer.getBoundingClientRect();
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || rect.right;
+            const leftGap = rect.left;
+            const rightGap = viewportWidth - rect.right;
+            const side = leftGap <= STATUS_EDGE_DOCK_THRESHOLD
+                ? 'left'
+                : (rightGap <= STATUS_EDGE_DOCK_THRESHOLD ? 'right' : '');
+
+            if (!side) {
+                const wasDocked = statusContainer.classList.contains('edge-docked');
+                clearStatusMonitorEdgeDock();
+                if (anchorPosition && wasDocked) clampStatusMonitorIntoViewport();
+                return;
+            }
+
+            applyStatusMonitorEdgeDockSide(side, anchorPosition, rect);
+        } catch (e) {
+        }
+    }
+
+    function preserveStatusMonitorPositionAfterResize() {
+        if (!state.initialPositionMoved) {
+            clearStatusMonitorInlinePosition();
+            clearStatusMonitorEdgeDock();
+            return;
+        }
+
+        if (isMobileStatusLayout()) {
+            clearStatusMonitorEdgeDock();
+            clampStatusMonitorIntoViewport();
+            return;
+        }
+
+        if (state.statusEdgeDockSide === 'left' || state.statusEdgeDockSide === 'right') {
+            applyStatusMonitorEdgeDockSide(state.statusEdgeDockSide, true);
+            return;
+        }
+
+        clampStatusMonitorIntoViewport();
+    }
+
     // 统一移动元素的函数，增加边界保护
     function moveElement(clientX, clientY) {
+        if (state.statusEdgeDockSide) clearStatusMonitorEdgeDock();
         // 计算新位置
         const newLeft = clientX - state.offsetX;
         const newTop = clientY - state.offsetY;
@@ -2172,7 +2295,7 @@
         const elementHeight = rect.height;
 
         // 确保不超出视口边界，并留出余量防止变形
-        const safeMargin = 3; // 安全边距，防止元素变形
+        const safeMargin = STATUS_DRAG_SAFE_MARGIN; // 安全边距，防止元素变形
         const maxX = window.innerWidth - elementWidth - safeMargin;
         const maxY = window.innerHeight - elementHeight - safeMargin;
 
@@ -2180,6 +2303,7 @@
         statusContainer.style.top = `${Math.max(safeMargin, Math.min(maxY, newTop))}px`;
         statusContainer.style.right = 'auto'; // 取消右侧定位
         statusContainer.style.bottom = 'auto'; // 取消底部定位
+        state.initialPositionMoved = true;
     }
 
     function clamp(n, min, max) {
@@ -2790,9 +2914,12 @@
 
             const statusRect = statusIndicator.getBoundingClientRect();
             const margin = 8;
+            const openRight = statusRect.left < margin + 64;
             const downAvail = window.innerHeight - (statusRect.bottom + 6) - margin;
             const upAvail = (statusRect.top - 6) - margin;
             const openUp = downAvail < 220 && upAvail > downAvail;
+            transferPanel.style.left = openRight ? '0' : 'auto';
+            transferPanel.style.right = openRight ? 'auto' : '0';
 
             if (openUp) {
                 transferPanel.style.top = 'auto';
@@ -3227,14 +3354,8 @@
             statusIndicator.classList.remove('transfer-expanded');
         }
         statusIndicator.classList.toggle('transfer-expanded', !!transferState.expanded);
-        // 新增resize事件监听
         window.addEventListener('resize', () => {
-            const mobileStatus = isMobileStatusLayout();
-            statusContainer.style.left = 'auto';
-            statusContainer.style.top = mobileStatus ? 'auto' : '0px';
-            statusContainer.style.right = mobileStatus ? 'max(8px, env(safe-area-inset-right))' : '12px';
-            statusContainer.style.bottom = mobileStatus ? 'max(10px, env(safe-area-inset-bottom))' : 'auto';
-            state.initialPositionMoved = false; // 重置位置标记
+            preserveStatusMonitorPositionAfterResize();
             if (transferState && transferState.expanded) requestAnimationFrame(updateTransferPanelLayout);
             syncMobileStatusPresetStoreVisibility();
         });

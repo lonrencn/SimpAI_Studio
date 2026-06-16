@@ -275,7 +275,6 @@ def _build_comfyd_launch_args(argv=None):
         ("--disable-xformers", "--disable-xformers"),
         ("--always-gpu", "--gpu-only"),
         ("--always-high-vram", "--highvram"),
-        ("--always-normal-vram", "--normalvram"),
         ("--always-low-vram", "--lowvram"),
         ("--always-no-vram", "--novram"),
         ("--always-cpu", "--cpu"),
