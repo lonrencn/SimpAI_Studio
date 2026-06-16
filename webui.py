@@ -3410,7 +3410,7 @@ with shared.gradio_root:
                             gallery_index = gr.Dropdown(choices=None, value=None, show_label=False, allow_custom_value=True, elem_id="gallery_index_bridge", elem_classes=["sai-gradio-hidden-bridge"])
                     with gr.Column(scale=1, visible=True, elem_classes=['scene_panel', 'simpai-mounted-hidden'], elem_id='scene_panel') as scene_panel:
                         with gr.Row(elem_id="scene_primary_row"):
-                            scene_additional_prompt = gr.Textbox(label="Blessing words", show_label=True, max_lines=1, elem_id='scene_additional_prompt', elem_classes=['scene_input', 'simpai-mounted-hidden'])
+                            scene_additional_prompt = gr.Textbox(label="Additional Prompt", show_label=True, max_lines=1, elem_id='scene_additional_prompt', elem_classes=['scene_input', 'simpai-mounted-hidden'])
                             scene_theme_initial_choices = [choice for choice in modules.flags.scene_themes if str(choice).strip()]
                             if not scene_theme_initial_choices:
                                 scene_theme_initial_choices = ["Scene Theme / 场景主题"]
@@ -3783,7 +3783,7 @@ with shared.gradio_root:
                         scene_aspect_ratio = scene_resolution_control.selection
                         scene_audio = gr.Audio(label="Audio (Upload)", visible=True, sources=["upload"], type="filepath", elem_id="scene_audio", elem_classes=['simpai-mounted-hidden'])
                         scene_audio_placeholder = gr.HTML('<div style="padding: 20px; text-align: center; border: 2px dashed #ccc; border-radius: 8px; background: rgba(128,128,128,0.1); color: #888;">Hide When Generating...</div>', visible=False, elem_id="scene_audio_placeholder")
-                        scene_additional_prompt_2 = gr.Textbox(label="Blessing words", show_label=True, max_lines=1, visible=True, elem_classes=['scene_input_2', 'simpai-mounted-hidden'], elem_id='scene_additional_prompt_2')
+                        scene_additional_prompt_2 = gr.Textbox(label="Additional Prompt", show_label=True, max_lines=1, visible=True, elem_classes=['scene_input_2', 'simpai-mounted-hidden'], elem_id='scene_additional_prompt_2')
                         
                         sam3_input_video.upload(on_sam3_video_upload, inputs=[sam3_input_video], outputs=[sam3_input_video, sam3_original_video_path, active_video_source, resolution_source_meta, sam3_trim_payload], show_progress=True) \
                             .then(lambda: None, js='()=>{if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("sam3_input_video", "upload");}')

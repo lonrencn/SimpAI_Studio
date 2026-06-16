@@ -61,6 +61,7 @@ def _make_pip_env():
     env = os.environ.copy()
     env["PYTHONNOUSERSITE"] = "1"
     env["PIP_USER"] = "0"
+    env["PIP_PROGRESS_BAR"] = "raw"
     env.pop("PYTHONPATH", None)
     env.pop("PYTHONHOME", None)
     return env
@@ -203,10 +204,10 @@ def check_base_environment():
         logger.info(f'当前环境：PyTorch 2.9.1+CUDA 13.0. 50系以上显卡支持Nvfp4模型加速推理.')
         update_pkgs = [
             ('comfyui-frontend-package', '1.45.15'),
-            ('comfyui-workflow-templates', '0.9.98'),
-            ('comfyui-embedded-docs', '0.5.3'),
+            ('comfyui-workflow-templates', '0.10.0'),
+            ('comfyui-embedded-docs', '0.5.4'),
             ('comfy-kitchen', '0.2.10'),
-            ('comfy-aimdo', '0.4.9'),
+            ('comfy-aimdo', '0.4.10'),
             ('av', '17.0.0')
         ]
         for (update_pkg_name, update_pkg_version) in update_pkgs:

@@ -1,125 +1,367 @@
-## 什么是预置包?
-<div align=center><img width="450" src="https://v2.token.tm/img/SimpAI_Studio_preset_1.png"></div>
+# SimpAI_Studio 预置说明
 
-* **预置包**，顾名思义就是预先设置好的一组环境配置参数。从上面的基础架构图中可以看出，预置包是SimpAI_Studio的重要组成部分。
-* 预置包代表了图片生成的一种预设风格，一类预设主题，亦是一种预设的方法范例。它将变幻无穷的图片创作分门别类，通过全面的参数设定确保出图的基本效果和质量。
-* 预置包可以大幅降低普通用户使用SDXL出图的使用门槛。 因为即使相同的提示词，在不同的模型和参数下，SDXL生成的图片也会千差万别，质量也都参差不齐。把所有影响出图的环境和参数打包在一起，形成预置包后，使用相同的预置包，可以保障相似的出图效果。
-* 预置包是积累和沉淀出图经验的有力工具。出图新手和老手的差别就在于谁在环境配置和参数设置上的经验更丰富，能更快更好的达成预期目标。用好预置包工具，可以快速缩短新手和老手之间的距离。
-* 预置包也是学习出图技巧的最佳案例。通过对预置包内容的学习和配置，可以加速对图片生成原理的理解，快速掌握图片生成的技巧。积累自己的预置包后，就可以大幅提升出图的效率和质量。
+`presets` 目录保存 SimpAI_Studio 内置预置。一个预置通常由 JSON 配置、简介页、预览图和欢迎图组成。JSON 决定模型、默认参数、后端任务、场景界面和模型资源列表；其他文件负责在导航、预置池和欢迎区域展示。
 
-## 预置包里都包含哪些内容
-- 生成图片所需的模型，比如主模型，精炼模型，LoRA局部或风格模型等。
-- 运行模型的参数配置，比如采样器、调度器，引导系数、采样锐度等。
-- 系统功能的默认设置，比如默认的出图数量、图片尺寸、是否支持蒙板上传等。
-- 默认正反提示词示例，包括示范样张的正反提示词。
-- 图片生成的流程设置，针对某种场景和目标的特殊执行流程。(计划中)
-- 预置包所涉及的资源，包括模型的MUID及下载源，风格样式的定义等。
-- 预置包的来源和说明，说明使用方法和来源作者的链接。
+当前预置已经不再只服务 SDXL。目录里同时包含 Flux、Qwen、Wan、Z-image、Comfy 视频/音频工作流、Fooocus/SDXL 兼容预置，以及 Canvas 工作台可用的场景预置。
 
-## SimpAI_Studio在预置包上有哪些增强
-- 预置包使用时可在线切换，不用每次重新启动。
-- 新增极简的场景化模式，可配置一键出图的傻瓜版预置包。
-- 预置包在加载时会主动检测缺失模型文件，提供自动下载模型的机制。
-- 预置包可以从当前环境中抽取生成，可以快速定制自己的预置包。
-- 预置包对配置格式和模型资源进行了标准化，障了可用性和一致性，有利于预置包的交流和交换。
-- 预置包在界面上有显著的介绍和范例入口，方便新手学习和经验交流。
+## 目录
 
-## 如何制作预置包？
-- 首先在SimpAI_Studio上把生成图片所需模型和参数都配置好，尝试生成图片，直到满意。
-- 从界面底部打开"参数工具"选项，在工具箱中选择"生成预置包"，根据提示输入预置包名称后，系统会在presets目录自动生成名称对应的预置包json配置文件。
-- 为了让更多人认识、了解和使用你创作的预置包，可以添加预置包的简介页。简介页是以html文件形式保存在`presets/html`目录下，也可以用URL形式加入配置文件。
-- 配置文件和说明文件放到位后，系统在每次启动或预置包切换时，会更新顶部的预置包导航，如果存在简介页则会自动出现在右侧设置Tab顶部。
-- 原创的预置包，可以推荐到社区，发布到公共的presets目录下，供大家分享学习和使用。
-- 目前SimpAI_Studio支持的预置包配置参数如下，后续可以根据使用场景进行添加，可以在Github Issues和QQ群:1005085136 提出需求。
+| 路径 | 用途 |
+| --- | --- |
+| `presets/*.json` | 内置预置 JSON。文件名就是预置名。 |
+| `presets/html/*.inc.html` | 右侧简介页。文件名匹配预置名。 |
+| `presets/samples/*.jpg` | 导航和预置池 hover 预览图。 |
+| `presets/welcome/*` | 欢迎图。支持按预置名定制桌面图和移动端图。 |
+| `presets/deprecated/` | 已不用的旧预置。 |
 
-  ```
-  default_prompt                                    # 默认提示词
-  default_prompt_negative                           # 默认负向提示词
-  default_styles                                    # 默认风格
-  default_aspect_ratio                              # 默认宽高比
-  defautl_output_format                             # 默认图片格式
-  default_image_number                              # 默认出图数量
-  default_max_image_number                          # 默认最大出图数量
-  default_performance                               # 默认生成模式
-  default_model                                     # 默认基础模型
-  default_refiner                                   # 默认精炼模型
-  default_refiner_switch                            # 默认精炼切入点
-  default_loras                                     # 默认LoRA
-  default_loras_min_weight                          # 默认LoRA的最小值
-  default_loras_max_weight                          # 默认LoRA的最大值
-  default_sampler                                   # 默认采样器
-  default_scheduler                                 # 默认调度器
-  default_cfg_scale                                 # 默认引导系数CFG
-  default_sample_sharpness                          # 默认采样锐度
-  default_adm_guidance                              # 默认ADM引导系数: [adm_scaler_positive, adm_scaler_positive, adm_scaler_end]
-  default_cfg_tsnr                                  # 默认TSNR模拟CFG
-  default_overwrite_step                            # 默认重写采样步数STEP
-  default_overwrite_switch                          # 默认重写精炼器切入步数
-  default_inpaint_engine                            # 默认重绘引擎版本
-  default_mixing_image_prompt_and_vary_upscale      # 默认图像提示与增强变化混合
-  default_mixing_image_prompt_and_inpaint           # 默认图像提示与重绘混合
-  default_inpaint_advanced_masking_checkbox         # 默认开启重绘蒙板
-  default_freeu                                     # 默认FreeU参数: [b1, b2, s1, s2]
-  default_seed                                      # 默认种子
-  default_backfill_prompt                           # 默认浏览图片回填提示词
-  default_translation_methods                       # 默认翻译器模型
-  model_list					    # 模型列表
-  styles_definition                                 # 自定义风格
-  reference                                         # 预置包说明链接
-  
-## 如何配置极简模式的场景预置包?
-- 以贺卡预置包为范例,介绍极简模式的场景预置参数:
-```
-"default_engine": {
-        "backend_engine": "Comfy",
-        "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
-        "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
-        "available_aspect_ratios_selection": "Flux",
-        "scene_frontend": {
-            "version": "m1.1",
-            "theme": ["graffiti", "crayon"],  # 在一个预置包内的多主题切换, 是必要配置项, 单主题配一项即可。
-            "theme_title": "主题",            # 主题切换栏的显示标题, 默认显示"内容主题"。
-            "disvisible": ["scene_canvas_image"],  不显示的UI组件, 可能的值: "scene_canvas_image", "scene_theme", "scene_additional_prompt"。
-            "prompt": {  # 回填到提示词框的提示词, 基于主题进行配置。不配置则不回填。回填时可以做变量替换, 这里示范的变量是additional_prompt。
-                "graffiti": "Text titled \"{additional_prompt}\", Doodle, graffiti style Keith Haring, cute, marker pen illustration, MBE illustration, stars, moo
-n, bold lines, grunge aesthetic style, mixed pattern, text and emoji installation, ",
-                "crayon": "文字标题为\"{additional_prompt}\"，新年贺卡，蜡笔风格，粗线条描边，红色中文艺术字标题，"
-            },
-            "additional_prompt": {    # 额外提示词内容，基于主题进行配置。
-                "graffiti": "Happy New Year",
-                "crayon": "新年快乐"
-            },
-            "additional_prompt_title": "祝福语",   # 额外提示词栏的显示标题。
-            "multimodal_prompt": {  # 多模态反推图片内容的提示词，基于主题进行配置。不配置则不反推。如果反推提示词含中文，则反推结果也会是中文的。
-                "graffiti": "The title of the image is \"{additional_prompt}\", Please provide a detailed description of image, but do not describe the style. Ple
-ase add some blessing and holiday elements, such as fireworks, red envelopes, etc. The description should be as detailed as possible, but not more than 70 words,"
-,
-                "crayon": "图片标题为\"{additional_prompt}\"，把图片内容与中国春节的庆祝活动相结合，替换成节日喜庆的背景，加入春联，福字，蒸笼等元素。综合这些内容
-元素，发挥想象力，编写一段生成图片的新提示词。内容描述要精细，总字数不超过50个汉字, 要用中文回复。"
-            },
-            # "image_preprocessor_method": [["face"]],   #图片预处理设置, 按照图片顺序依次设置。这里设置第一张图片需要含脸图片，没有则生成按钮不被激活。
-            "aspect_ratio" : {  # 出图候选尺寸配置, 支持自定义尺寸, 例如: "1024|1:1", 定宽为1024,宽高比是1:1
-                "graffiti": ["9:16", "4:5", "4:3", "1024|1:1", "3:2", "16:9", "21:9"],
-                "crayon": ["9:16", "4:5", "4:3", "1024|1:1", "3:2", "16:9", "21:9"]
-            },
-            "aspect_ratio_select_mode": "auto_candidate",   # 出图尺寸选择模式，auto_candidate 是根据输入图片的尺寸自动匹配最佳，并包含临近两个一起作为候选集。auto_match 是根据输入图片的尺寸自动匹配最佳，只保留匹配的尺寸作为候选集。当不设置选择模式，默认为自动匹配最佳宽高比，但仍保留所有候选集，最终交用户选择确认。
-            "task_method": {   # 调用的工作流，基于主题进行配置。
-                "graffiti": "happy",  # 对应实际的工作流文件名:  scene_happy_api.json
-                "crayon": "happy_cn"  # 对应实际的工作流文件名:  scene_happy_cn_api.json    scene_开头表示场景工作流, _cn_api结尾支持中文的流,即prompt不用提前翻译. 
-            }
-        }
+用户自己保存的预置在用户目录里，不写进这里。界面里用户预置名末尾可能带 `.`，用来区分内置预置。
+
+## JSON 基本结构
+
+当前预置推荐显式写 `default_engine`。旧兼容会把缺失的 `default_engine` 当成 Fooocus，但新预置不要依赖这个行为。
+
+```json
+{
+  "default_engine": {
+    "backend_engine": "Z-image",
+    "disvisible": ["backend_selection", "performance_selection", "refiner_model"],
+    "disinteractive": ["performance_selection", "refiner_model"],
+    "available_aspect_ratios_selection": "SDXL",
+    "backend_params": {
+      "task_method": "z_image_turbo_aio_cn"
     },
+    "resolution_control": {
+      "mode": "standard",
+      "source": "none",
+      "base_width": 832,
+      "base_height": 1216,
+      "quantize": 16,
+      "interactive": true,
+      "frontend_preprocess": false,
+      "preprocess_target": "none",
+      "preprocess_fit": "scale"
+    }
+  },
+  "default_model": "z_image_turbo_bf16.safetensors",
+  "default_refiner": "None",
+  "default_upscale_model": "4x-UltraSharp.pth",
+  "default_vae": "ae.safetensors",
+  "default_clip_model": "qwen_3_4b.safetensors",
+  "default_loras": [
+    ["None", 1.0],
+    ["None", 1.0],
+    ["None", 1.0],
+    ["None", 1.0],
+    ["None", 1.0]
+  ],
+  "default_cfg_scale": 1,
+  "default_sample_sharpness": 2,
+  "default_sampler": "euler_ancestral",
+  "default_scheduler": "beta",
+  "default_performance": "Speed",
+  "default_aspect_ratio": "832*1216",
+  "default_image_number": 1,
+  "default_overwrite_step": 8,
+  "default_prompt": "",
+  "default_prompt_negative": "",
+  "model_list": [
+    "diffusion_models,z_image_turbo_bf16.safetensors,12309866400,0,https://modelscope.cn/models/example/repo/resolve/master/diffusion_models/z_image_turbo_bf16.safetensors",
+    "text_encoders,qwen_3_4b.safetensors,8044982048,0,https://modelscope.cn/models/example/repo/resolve/master/text_encoders/qwen_3_4b.safetensors",
+    "vae,ae.safetensors,335304388,0,"
+  ]
+}
 ```
-## 如何配置预置包简介？
-- 预置包简介是对预置包能力和效果的介绍和引导。
-- 简介页显示在操作界面右上角，高度为110px的窗口内，起到预置包的简要说明和入口引导作用。
-- 建议单独制作预置包的整体说明页，包括预置包的使用场景，配置的模型，效果特点，使用技巧，样张示例等详细内容。
-- 预置包简介有两种配置方式：
-<br>**一，本地html文件** 在`presets/html`目录下，创建和预置包json配置文件同名的.inc.html文件作为该配置包的简介页，比如：`default.json` 对应的概要说明页为 `html/default.inc.html`。
-<br>**二，网络URL** 在预置包json配置文件内新增属性项："reference"，指向外部的网络URL。预置包启用后，会通过网络调取该页面展示在右上侧窗口内。
-<br><br>两种方式在调用时都会通过url参数方式传入两个环境变量，"__theme"表示当前的背景样式：dark(夜黑)或light(明亮)，"__lang"表示界面语言：cn(中文)或default(英文)。概要说明页可根据参数自行适配。在presets目录下提供的`html/default.inc.html`文件作为样本示范供参考。
 
-## 如何获取制作好的预置包？
-- SimpAI_Studio会优选社区用户制作的预置包更新到presets目录下，上到导航条，供大家使用。
-- 加入SimpAI_Studio用户交流QQ群：1005085136，通过群内获取。
-<img width="250" src="https://v2.token.tm/img/qqgroup.jpg">
+## 顶层字段
+
+| 字段 | 作用 |
+| --- | --- |
+| `default_engine` | 后端类型、任务方法、界面显示规则和分辨率控制。 |
+| `default_model` | 主模型。可来自 `checkpoints`、`diffusion_models`、`unet` 等分类。 |
+| `default_clip_model` | Text Encoder / CLIP。若使用模型内置编码器，可写 `Default (model)` 或按同类预置写法处理。 |
+| `default_vae` | VAE，常见值为具体文件名或 `None`。 |
+| `default_loras` | LoRA 默认列表，当前内置预置通常保留 5 个槽位。 |
+| `default_refiner` / `default_refiner_switch` | 精炼模型及启用比例。多数新预置写 `None`。 |
+| `default_upscale_model` | 放大模型。没有特殊需求可写 `default`。 |
+| `default_sampler` / `default_scheduler` | 采样器和调度器。Comfy 路线常见 `euler`、`simple`、`beta`、`kl_optimal`。 |
+| `default_cfg_scale` | CFG / guidance。不同后端含义会有差异。 |
+| `default_sample_sharpness` | 锐度参数。 |
+| `default_overwrite_step` | 默认步数。场景预置也可以在 `scene_frontend` 中按主题设置。 |
+| `default_image_number` | 默认生成数量。 |
+| `default_prompt` / `default_prompt_negative` | 默认正向和负向提示词。 |
+| `default_styles` | 样式列表。当前多数预置为空数组。 |
+| `default_aspect_ratio` | 默认尺寸字符串，常见格式为 `宽*高`。 |
+| `default_resolution_quantize_step` | 分辨率量化步长，常见值为 `16`。 |
+| `default_resolution_multiplier` | 分辨率倍率。 |
+| `default_resolution_edit_mode` | 分辨率编辑模式，常见值为 `scale`。 |
+| `default_save_metadata_to_images` | 是否把元数据写入输出图。 |
+| `model_list` | 缺失模型检查和下载入口。新预置优先维护这个字段。 |
+| `checkpoint_downloads` / `embeddings_downloads` / `lora_downloads` / `vae_downloads` | 旧下载字段，保留兼容。当前内置预置多为空对象。 |
+| `previous_default_models` | 旧模型名迁移提示，只有少数预置需要。 |
+
+## `default_engine`
+
+`default_engine` 控制预置使用哪类后端、哪些控件显示、默认使用哪个 workflow。
+
+| 字段 | 作用 |
+| --- | --- |
+| `backend_engine` | 后端名称。当前目录常见 `Flux`、`Qwen`、`Wan`、`Z-image`、`Comfy`、`SDXL`、`Fooocus`。 |
+| `engine_type` | 可选。视频/音频类一般写 `"video"`，图片类通常不写。 |
+| `disvisible` | 隐藏的主界面控件 id。 |
+| `disinteractive` | 显示但不可编辑的主界面控件 id。 |
+| `available_aspect_ratios_selection` | 尺寸模板。常见 `SDXL`、`Flux`、`Common`、`HyDiT`。 |
+| `backend_params.task_method` | 后端任务名。普通非场景预置通常写在这里。 |
+| `resolution_control` | 分辨率控制策略。普通预置写在 `default_engine` 下；场景预置通常写在 `scene_frontend` 下。 |
+| `scene_frontend` | 场景界面配置。存在时会启用场景面板和 Canvas 预置节点的场景参数。 |
+
+## 场景预置
+
+带 `scene_frontend` 的预置用于图像编辑、视频、音频、商品修图、姿态、去背景、扩图等场景。字段可以写成固定值，也可以写成按主题分组的对象。`theme` 数组的第一项是默认主题。
+
+```json
+{
+  "default_engine": {
+    "backend_engine": "Flux",
+    "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+    "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+    "available_aspect_ratios_selection": "Flux",
+    "scene_frontend": {
+      "version": "m1.1",
+      "theme": ["Edit", "Pose"],
+      "theme_title": "Flux Image Editing",
+      "task_method": {
+        "Edit": "flux2_9b_edit_cn",
+        "Pose": "flux2_pose_cn"
+      },
+      "prompt": {
+        "Edit": "",
+        "Pose": "Convert the second image to pose and apply it to the first image."
+      },
+      "disvisible": [
+        "scene_additional_prompt_2",
+        "scene_video",
+        "scene_audio",
+        "scene_var_number5",
+        "scene_var_number6",
+        "scene_switch_option3",
+        "scene_switch_option4",
+        "sam3_input_video",
+        "sam3_mask_video"
+      ],
+      "aspect_ratio": ["1024|1:1", "1536|1:1", "origin|Original"],
+      "resolution_control": {
+        "mode": "image_keep_input_area",
+        "source": "scene_canvas",
+        "base_width": 1024,
+        "base_height": 1024,
+        "quantize": 16,
+        "interactive": true,
+        "frontend_preprocess": true,
+        "preprocess_target": "image",
+        "preprocess_fit": "proportional"
+      },
+      "var_number4_title": "Match original colors",
+      "var_number4_min": 0,
+      "var_number4_max": 1,
+      "var_number4": {
+        "Edit": 0.1,
+        "Pose": 0
+      },
+      "switch_option2_title": "Convert Image 2 to pose",
+      "switch_option2": {
+        "Edit": false,
+        "Pose": true
+      },
+      "overwrite_step_min": 4,
+      "overwrite_step_max": 8
+    }
+  }
+}
+```
+
+### 场景字段
+
+| 字段 | 作用 |
+| --- | --- |
+| `version` | 场景 UI 版本，当前常见 `m1.1` 或 `v1.1`。 |
+| `theme` | 主题列表。第一项为默认主题。 |
+| `theme_title` | 主题栏标题。 |
+| `task_method` | 每个主题对应的 workflow 任务名。 |
+| `prompt` | 主题默认提示词。 |
+| `additional_prompt` / `additional_prompt_2` | 场景面板里的额外文本输入默认值。 |
+| `additional_prompt_title` / `additional_prompt_title_2` | 额外文本输入标题。 |
+| `multimodal_prompt` | VLM 反推或改写提示词。 |
+| `agent_prompt` | Canvas Agent / VLM 提示增强规则。 |
+| `disvisible` | 隐藏的场景控件。 |
+| `disinteractive` | 显示但不可编辑的场景控件。 |
+| `image_preprocessor_method` | 输入图预处理规则。可按主题配置。 |
+| `disable_canvas_mask` | 是否禁用 Canvas mask。 |
+| `aspect_ratio` | 场景尺寸候选。支持 `1024|1:1`、`1536|1:1`、`origin|Original`。 |
+| `aspect_ratio_select_mode` | 尺寸自动选择模式。需要自动候选时写 `auto_candidate`，只保留匹配项时写 `auto_match`。不写时使用列表第一项作为默认值。 |
+| `resolution_control` | 场景分辨率控制。 |
+| `overwrite_step` | 可按主题设置默认步数。 |
+| `overwrite_step_min` / `overwrite_step_max` | 步数控件范围。 |
+| `var_number` 到 `var_number10` | 场景数字控件。每个控件可配 `_title`、`_min`、`_max`、`_step`。 |
+| `switch_option1` 到 `switch_option4` | 场景开关控件。每个控件可配 `_title`。 |
+
+场景可用输入槽包括：
+
+```text
+scene_canvas_image
+scene_input_image1
+scene_input_image2
+scene_input_image3
+scene_input_image4
+scene_video
+scene_audio
+sam3_input_video
+sam3_mask_video
+```
+
+这些 id 放进 `disvisible` 后，对应上传槽会从场景面板和 Canvas 预置节点里隐藏。
+
+## 分辨率控制
+
+当前预置里常见的 `resolution_control.mode`：
+
+| mode | 用途 |
+| --- | --- |
+| `standard` | 使用预置默认宽高，不依赖输入素材。 |
+| `image_keep_input_area` | 以输入图为参考，按面积和比例生成输出尺寸。 |
+| `video_keep_input_area` | 以输入视频为参考，按面积和比例生成输出尺寸。 |
+| `input_passthrough` | 使用输入素材尺寸。 |
+
+常见字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `source` | 尺寸来源。常见 `none`、`scene_canvas`、`scene_input_image1`、`scene_video`、`video_first_frame`。 |
+| `base_width` / `base_height` | 基准宽高。 |
+| `quantize` | 宽高量化步长，常见 `16`。 |
+| `interactive` | 是否允许用户在界面调整。 |
+| `frontend_preprocess` | 是否在前端预处理素材。 |
+| `preprocess_target` | 预处理目标，常见 `image`、`video`、`none`。 |
+| `preprocess_fit` | 预处理缩放方式，常见 `scale`、`proportional`。 |
+| `preserve_audio` | 视频类预置可用，保留原视频音频。 |
+
+`origin|Original` 是保留输入原尺寸的候选值，常用于编辑、视频和音频相关预置。
+
+## 模型资源 `model_list`
+
+`model_list` 用于判断模型是否齐全，也用于模型下载面板。每项可以写字符串，也可以写数组。字符串格式如下：
+
+```text
+category,path_file,size,hash10,url
+```
+
+示例：
+
+```json
+{
+  "model_list": [
+    "diffusion_models,Flux2-Klein-9B-True-v2-fp8mixed.safetensors,9433058560,0,https://modelscope.cn/models/wikeeyang/Flux2-Klein-9B-True-V2/resolve/master/Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
+    "text_encoders,qwen3_8b_abliterated_v2-fp8mixed.safetensors,8191194604,0,https://www.modelscope.cn/models/silveroxides/FLUX.2-dev-fp8_scaled/resolve/master/qwen3_8b_abliterated_v2-fp8mixed.safetensors",
+    "vae,flux2-vae.safetensors,336211292,0,https://www.modelscope.cn/models/Comfy-Org/flux2-klein-4B/resolve/master/split_files/vae/flux2-vae.safetensors"
+  ]
+}
+```
+
+字段含义：
+
+| 字段 | 说明 |
+| --- | --- |
+| `category` | 模型分类，对应模型目录和 `modelsinfo` 分类。常见 `checkpoints`、`diffusion_models`、`text_encoders`、`clip`、`vae`、`loras`、`controlnet`、`upscale_models`。 |
+| `path_file` | 文件名或分类目录下的相对路径，例如 `ltx/xxx.safetensors`。 |
+| `size` | 文件大小，单位字节。写对后可以发现大小不一致的文件。 |
+| `hash10` | 旧字段，当前多数内置项写 `0`。 |
+| `url` | 下载地址。为空时系统会按默认下载前缀生成地址。 |
+
+`category` 可以带子目录，例如：
+
+```json
+{
+  "model_list": [
+    "controlnet/hr16/DWPose-TorchScript-BatchSize5,dw-ll_ucoco_384_bs5.torchscript.pt,135059124,0,https://modelscope.cn/models/svjack/DWPose-TorchScript-BatchSize5/resolve/master/dw-ll_ucoco_384_bs5.torchscript.pt"
+  ]
+}
+```
+
+## 展示资源
+
+### 简介页
+
+简介页放在 `presets/html`。查找次序如下：
+
+```text
+presets/html/<Preset>.<lang>.inc.html
+presets/html/<Preset>.inc.<lang>.html
+presets/html/<Preset>.inc.html
+presets/html/blank.inc.html
+```
+
+示例：
+
+```text
+presets/html/Z-imageT.inc.html
+presets/html/Wan(T2I).inc.html
+presets/html/Flux2-Klein.inc.html
+```
+
+简介页会显示在预置说明区域。没有简介页时会使用 `blank.inc.html`。
+
+### 导航预览图
+
+导航和预置池 hover 预览图放在 `presets/samples`。前端会把预置名转成小写，并把空格改为 `_`：
+
+```text
+Z-imageT      -> presets/samples/z-imaget.jpg
+Wan(T2I)      -> presets/samples/wan(t2i).jpg
+Flux2-Klein   -> presets/samples/flux2-klein.jpg
+QwenEdit+     -> presets/samples/qwenedit+.jpg
+```
+
+找不到对应图片时使用 `presets/samples/noimage.jpg`。
+
+### 欢迎图
+
+欢迎图放在 `presets/welcome`。按预置名查找时支持原名和小写下划线名：
+
+```text
+presets/welcome/welcome_<preset>_w.jpg
+presets/welcome/welcome_<preset>_m.jpg
+```
+
+`_w` 是桌面图，`_m` 是移动端图。没有预置专属欢迎图时，使用通用欢迎图。
+
+示例：
+
+```text
+presets/welcome/welcome_z-ttp_w.jpg
+presets/welcome/welcome_z-ttp_m.jpg
+```
+
+## 制作和维护建议
+
+1. 以同后端、同用途的现有预置为模板。例如文生图看 `Z-imageT.json`，图片编辑看 `Flux2-KleinEdit.json` 或 `QwenEdit+.json`，视频看 `Wan(T2V).json` 或 `LTX2.3(TA2V).json`，音频看 `Hunyuan-Foley.json`。
+2. 新预置优先维护 `model_list`，不要只写旧的 `*_downloads` 字段。
+3. 场景预置的 `theme`、`task_method`、`prompt`、自定义控件默认值要成组维护。主题名不一致时，界面会拿不到对应值。
+4. 需要自动尺寸候选时再写 `aspect_ratio_select_mode`。不需要时让第一项候选作为默认尺寸。
+5. `disvisible` 和 `disinteractive` 只写真实控件 id。写错不会报错，但界面不会按预期变化。
+6. 修改内置预置后，同时检查 `presets/samples`、`presets/html`、`presets/welcome` 是否需要同名展示资源。
+7. 文件名、JSON 字段和模型文件名建议使用 UTF-8 保存。模型相对路径里的反斜杠建议写成 `/`。
+
+## JSON 校验
+
+在仓库根目录执行下面命令，可以检查 `presets` 下 JSON 是否能被正常读取：
+
+```powershell
+Get-ChildItem .\presets -Filter *.json | ForEach-Object {
+    try {
+        Get-Content -Raw -LiteralPath $_.FullName | ConvertFrom-Json | Out-Null
+    } catch {
+        Write-Error "$($_.Name): $($_.Exception.Message)"
+    }
+}
+```
+
+这只检查 JSON 格式，不检查模型文件是否存在。模型是否齐全由界面的模型检查和下载面板读取 `model_list` 后判断。

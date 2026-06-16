@@ -30,10 +30,80 @@ index_url = os.environ.get('INDEX_URL', "https://mirrors.aliyun.com/pypi/simple"
 extra_index_url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 
 target_path_install = f' -t {os.path.join(python_embeded_path, "Lib/site-packages")}' if sys.platform.startswith("win") else ''
+re_pip_raw_progress = re.compile(r"^Progress\s+(\d+)\s+of\s+(\d+)\s*$")
 
 modules_path = os.path.dirname(os.path.realpath(__file__))
 script_path = os.path.dirname(modules_path)
 dir_repos = "repos"
+
+def _format_download_size(byte_count):
+    value = float(max(0, byte_count))
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            if unit == "B":
+                return f"{int(value)} {unit}"
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} GB"
+
+
+def _format_progress_bar(current, total, width=24):
+    if total <= 0:
+        return None
+    ratio = max(0.0, min(1.0, current / total))
+    filled = min(width, int(round(ratio * width)))
+    bar = "#" * filled + "-" * (width - filled)
+    percent = ratio * 100
+    return f"  Downloading [{bar}] {percent:5.1f}% ({_format_download_size(current)} / {_format_download_size(total)})\n"
+
+
+class PipRawProgressFormatter:
+    def __init__(self, step_percent=5):
+        self.step_percent = max(1, int(step_percent))
+        self.last_bucket = None
+
+    def format(self, line):
+        text = line.rstrip("\r\n")
+        match = re_pip_raw_progress.match(text)
+        if match is None:
+            self.last_bucket = None
+            return line
+
+        current = int(match.group(1))
+        total = int(match.group(2))
+        if total <= 0:
+            return None
+
+        percent = max(0, min(100, int((current * 100) / total)))
+        bucket = percent // self.step_percent
+        if current < total and bucket == self.last_bucket:
+            return None
+
+        self.last_bucket = bucket
+        if current >= total:
+            self.last_bucket = None
+        return _format_progress_bar(current, total)
+
+
+def _run_live(command, run_kwargs):
+    formatter = PipRawProgressFormatter()
+    output = []
+    popen_kwargs = dict(run_kwargs)
+    popen_kwargs["stdout"] = subprocess.PIPE
+    popen_kwargs["stderr"] = subprocess.STDOUT
+    popen_kwargs["bufsize"] = 1
+
+    process = subprocess.Popen(**popen_kwargs)
+    if process.stdout is not None:
+        for line in process.stdout:
+            output.append(line)
+            display_line = formatter.format(line)
+            if display_line is None:
+                continue
+            sys.stdout.write(display_line)
+            sys.stdout.flush()
+    returncode = process.wait()
+    return subprocess.CompletedProcess(command, returncode, stdout="".join(output), stderr="")
 
 def git_clone(url, dir, name=None, hash=None):
     try:
@@ -103,10 +173,11 @@ def run(command, desc=None, errdesc=None, custom_env=None, live: bool = default_
         "errors": 'ignore',
     }
     
-    if not live:
+    if live:
+        result = _run_live(command, run_kwargs)
+    else:
         run_kwargs["stdout"] = run_kwargs["stderr"] = subprocess.PIPE
-
-    result = subprocess.run(**run_kwargs)
+        result = subprocess.run(**run_kwargs)
 
     if result.returncode != 0:
         error_bits = [
@@ -126,6 +197,7 @@ def _make_pip_env(base_env=None):
     env = (os.environ if base_env is None else base_env).copy()
     env["PYTHONNOUSERSITE"] = "1"
     env["PIP_USER"] = "0"
+    env["PIP_PROGRESS_BAR"] = "raw"
     env.pop("PYTHONPATH", None)
     env.pop("PYTHONHOME", None)
     return env
