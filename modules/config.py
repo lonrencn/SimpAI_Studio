@@ -1489,8 +1489,22 @@ comfyui:
      qwen-tts: {qwen_tts}
      '''
 
+def _path_to_comfy_extra_yaml_value(path):
+    resolved = _config_path_to_abs(path)
+    if not resolved:
+        return path
+    if _path_is_under(resolved, shared.root):
+        return _relative_config_path(resolved)
+    if _path_is_under(resolved, _package_default_models_root_abs()):
+        return _relative_config_path(resolved)
+    return os.path.normpath(resolved)
+
+
 def paths2str(p, n):
-    return p[0] if len(p) <= 1 else '|\n' + ''.join([' '] * (5 + len(n))) + ''.join(['\n'] + [' '] * (5 + len(n))).join(p)
+    paths = [_path_to_comfy_extra_yaml_value(path) for path in p]
+    if not paths:
+        return ""
+    return paths[0] if len(paths) <= 1 else '|\n' + ''.join([' '] * (5 + len(n))) + ''.join(['\n'] + [' '] * (5 + len(n))).join(paths)
 
 def _model_root_for_extra_paths():
     paths = _normalize_model_dirs([path_models_root])
@@ -1500,7 +1514,7 @@ def _extra_model_paths(catalog, paths):
     return _with_model_root_category_dirs(catalog, paths)
 
 config_comfy_text = config_comfy_formatted_text.format(
-        models_root=_model_root_for_extra_paths(), 
+        models_root=_path_to_comfy_extra_yaml_value(_model_root_for_extra_paths()),
         checkpoints=paths2str(_extra_model_paths('checkpoints', paths_diffusion_models + paths_checkpoints),'checkpoints'),
         LLM=paths2str(_extra_model_paths('LLM', paths_LLM), 'LLM'),
         clip_vision=paths2str(_extra_model_paths('clip_vision', paths_clip_vision + paths_ipadapter), 'clip_vision'),

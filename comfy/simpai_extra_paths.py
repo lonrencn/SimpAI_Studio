@@ -289,12 +289,18 @@ def path_yaml_value(path, config, repo_root):
         return _path_to_repo_relative(resolved, repo_root)
     if _is_path_under(resolved, _default_models_root_abs(repo_root)):
         return _path_to_repo_relative(resolved, repo_root)
+    if _is_path_under(resolved, repo_root):
+        return _path_to_repo_relative(resolved, repo_root)
     return os.path.normpath(resolved)
 
 
 def model_root_category_dirs(folder_name, models_root):
     folders = MODEL_ROOT_CATEGORY_FOLDERS.get(folder_name, (folder_name,))
     return [os.path.normpath(os.path.join(models_root, folder)) for folder in folders]
+
+
+def package_models_root(repo_root):
+    return os.path.normpath(os.path.join(repo_root, "models"))
 
 
 def _root_from_category_path(path, folder):
@@ -339,6 +345,7 @@ def infer_extra_model_roots(config, repo_root):
 def build_folder_paths(config, folder_name, repo_root):
     models_root = get_models_root(config, repo_root)
     paths = model_root_category_dirs(folder_name, models_root)
+    paths.extend(model_root_category_dirs(folder_name, package_models_root(repo_root)))
     for extra_root in infer_extra_model_roots(config, repo_root):
         paths.extend(model_root_category_dirs(folder_name, extra_root))
     for config_key in SIMPAI_CONFIG_PATH_MAP.get(folder_name, ()):
