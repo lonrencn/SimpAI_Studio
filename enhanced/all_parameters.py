@@ -295,7 +295,7 @@ default = {
     'backend': 'SDXL',
     'comfyd_active_checkbox': True,
     'image_catalog_max_number': 65,
-    'clip_skip': 1,
+    'clip_skip': 2,
     'clip_model': 'Default (model)',
     'vae': 'Default (model)',
     'upscale_model': 'default',

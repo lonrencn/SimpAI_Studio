@@ -904,7 +904,7 @@ def _default_api_args():
         "adm_scaler_negative": getattr(config, "default_cfg_negative", 0.8),
         "adm_scaler_end": getattr(config, "default_cfg_end", 0.3),
         "adaptive_cfg": getattr(config, "default_cfg_tsnr", 7.0),
-        "clip_skip": 1,
+        "clip_skip": getattr(config, "default_clip_skip", 2),
         "sampler_name": getattr(config, "default_sampler", "dpmpp_2m_sde_gpu"),
         "scheduler_name": getattr(config, "default_scheduler", "karras"),
         "vae_name": getattr(config, "default_vae", getattr(flags, "default_vae", "Default (model)")),

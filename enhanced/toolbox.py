@@ -1224,11 +1224,15 @@ def save_preset(*args):
             preset["default_adm_guidance"] = f'({adm_scaler_positive}, {adm_scaler_negative}, {adm_scaler_end})'
         if ads.default["freeu"]!=freeu_ctrls[1:]:
             preset["default_freeu"]=freeu_ctrls[1:]
-        if ads.default["adaptive_cfg"] != adaptive_cfg:
+        def _differs_from_builtin_or_config(config_key, value, builtin_default):
+            config_default = getattr(config, config_key, builtin_default)
+            return value != builtin_default or value != config_default
+
+        if _differs_from_builtin_or_config("default_cfg_tsnr", adaptive_cfg, ads.default["adaptive_cfg"]):
             preset["default_cfg_tsnr"] = adaptive_cfg
-        if ads.default["overwrite_step"] != overwrite_step:
+        if _differs_from_builtin_or_config("default_overwrite_step", overwrite_step, ads.default["overwrite_step"]):
             preset["default_overwrite_step"] = overwrite_step
-        if ads.default["overwrite_switch"] != overwrite_switch:
+        if _differs_from_builtin_or_config("default_overwrite_switch", overwrite_switch, ads.default["overwrite_switch"]):
             preset["default_overwrite_switch"] = overwrite_switch
         if ads.default["inpaint_engine"] != inpaint_engine:
             preset["default_inpaint_engine"] = inpaint_engine

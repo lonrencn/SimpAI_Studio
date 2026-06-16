@@ -37,6 +37,7 @@ _SOURCE_BACKEND_DEFAULT_PERFORMANCE_ARGS = [
     "--cuda-malloc",
     "--cuda-stream",
     "--pin-shared-memory",
+    "--disable-sage",
 ]
 _SOURCE_BACKEND_DISABLED_VALUES = {"0", "false", "no", "off", "disabled", "none"}
 _SOURCE_BACKEND_DEFAULT_VALUES = {"", "1", "true", "yes", "on", "default", "source", "source7890", "source_7890"}

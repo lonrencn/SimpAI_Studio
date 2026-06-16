@@ -1,4 +1,5 @@
 from re import A
+import re
 import threading
 import queue
 from contextlib import contextmanager
@@ -37,6 +38,117 @@ def _restore_standard_streams_if_closed():
         sys.stdout = _standard_stream_backup("stdout")
     if _standard_stream_is_closed(sys.stderr):
         sys.stderr = _standard_stream_backup("stderr")
+
+
+def _positive_int(value):
+    try:
+        result = int(value)
+    except Exception:
+        return None
+    return result if result > 0 else None
+
+
+def _parse_resolution_pair(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    text = text.split(",", 1)[0].strip()
+    if "|" in text:
+        left, right = text.split("|", 1)
+        left = left.strip()
+        right = right.strip()
+        if left.isdigit() and ":" in right:
+            try:
+                ratio_w, ratio_h = right.split(":", 1)
+                width = int(left)
+                ratio_w = float(ratio_w)
+                ratio_h = float(ratio_h)
+                if width > 0 and ratio_w > 0 and ratio_h > 0:
+                    return width, int(round(width * ratio_h / ratio_w))
+            except Exception:
+                pass
+    match = re.search(r"(\d+)\D+(\d+)", text.replace("×", "x").replace("*", "x"))
+    if not match:
+        return None
+    width = int(match.group(1))
+    height = int(match.group(2))
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
+
+
+def _image_resolution(value):
+    image = value.get("image") if isinstance(value, dict) else value
+    shape = getattr(image, "shape", None)
+    if not shape or len(shape) < 2:
+        return None
+    height = _positive_int(shape[0])
+    width = _positive_int(shape[1])
+    if not width or not height:
+        return None
+    return width, height
+
+
+def _task_uses_uov_image(async_task):
+    if getattr(async_task, "uov_input_image", None) is None:
+        return False
+    method = str(getattr(async_task, "uov_method", "") or "").strip().casefold()
+    if method in ("", "disabled", "none"):
+        return False
+    current_tab = str(getattr(async_task, "current_tab", "") or "").strip().casefold()
+    return current_tab == "uov" or (
+        current_tab == "ip" and bool(getattr(async_task, "mixing_image_prompt_and_vary_upscale", False))
+    )
+
+
+def _initial_resolution_from_task(async_task):
+    if _task_uses_uov_image(async_task):
+        uov_size = _image_resolution(getattr(async_task, "uov_input_image", None))
+        if uov_size:
+            return uov_size
+
+    overwrite_width = _positive_int(getattr(async_task, "overwrite_width", None))
+    overwrite_height = _positive_int(getattr(async_task, "overwrite_height", None))
+    if overwrite_width and overwrite_height:
+        return overwrite_width, overwrite_height
+
+    parsed = _parse_resolution_pair(getattr(async_task, "aspect_ratios_selection", None))
+    if parsed:
+        return parsed
+
+    raise ValueError(f"Invalid aspect ratio selection: {getattr(async_task, 'aspect_ratios_selection', None)!r}")
+
+
+def _clip_skip_max():
+    try:
+        import modules.flags as flags
+
+        return int(getattr(flags, "clip_skip_max", 12))
+    except Exception:
+        return 12
+
+
+def _default_clip_skip_value():
+    try:
+        value = int(getattr(modules.config, "default_clip_skip", 2))
+    except Exception:
+        value = 2
+    maximum = _clip_skip_max()
+    if value < 1 or value > maximum:
+        return 2
+    return value
+
+
+def _normalize_clip_skip(value):
+    try:
+        normalized = int(value)
+    except Exception:
+        return _default_clip_skip_value()
+    if normalized < 1 or normalized > _clip_skip_max():
+        return _default_clip_skip_value()
+    return normalized
 
 
 def _is_custom_model_choice(model_name):
@@ -163,8 +275,7 @@ class AsyncTask:
         self.adm_scaler_negative = args.pop()
         self.adm_scaler_end = args.pop()
         self.adaptive_cfg = args.pop()
-        args.pop()  # legacy generation positional slot
-        self.clip_skip = 1
+        self.clip_skip = _normalize_clip_skip(args.pop())
         self.sampler_name = args.pop()
         self.scheduler_name = args.pop()
         self.vae_name = args.pop()
@@ -1754,8 +1865,7 @@ def worker():
         denoising_strength = 1.0
         tiled = False
 
-        width, height = async_task.aspect_ratios_selection.replace('×', ' ').split(' ')[:2]
-        width, height = int(width), int(height)
+        width, height = _initial_resolution_from_task(async_task)
         if async_task.task_class in ['Fooocus']:
             logger.info(f'[Parameters] Aspect Ratios = {width}×{height}')
 

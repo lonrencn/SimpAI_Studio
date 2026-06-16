@@ -5730,7 +5730,7 @@ with shared.gradio_root:
                                                            value=modules.config.default_sampler)
                                     scheduler_name = gr.Dropdown(label='Scheduler', choices=flags.comfy_scheduler_list,
                                                              value=modules.config.default_scheduler)
-                                clip_skip = gr.Number(value=1, minimum=1, maximum=flags.clip_skip_max, step=1,
+                                clip_skip = gr.Number(value=modules.config.default_clip_skip, minimum=1, maximum=flags.clip_skip_max, step=1,
                                                       precision=0, visible=False, elem_id="clip_skip_placeholder")
                             sdxl_adv_checkbox = gr.Checkbox(label='SDXL advanced setting', value=False,  container=False)
                             with gr.Group(visible=False) as sdxl_adv_pannel: 

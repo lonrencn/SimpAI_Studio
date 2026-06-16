@@ -79,21 +79,21 @@
 | `default_engine` | 后端类型、任务方法、界面显示规则和分辨率控制。 |
 | `default_model` | 主模型。可来自 `checkpoints`、`diffusion_models`、`unet` 等分类。 |
 | `default_clip_model` | Text Encoder / CLIP。若使用模型内置编码器，可写 `Default (model)` 或按同类预置写法处理。 |
-| `default_vae` | VAE，常见值为具体文件名或 `None`。 |
+| `default_vae` | VAE。当前内置写法为具体文件名或 `None`。 |
 | `default_loras` | LoRA 默认列表，当前内置预置通常保留 5 个槽位。 |
 | `default_refiner` / `default_refiner_switch` | 精炼模型及启用比例。多数新预置写 `None`。 |
 | `default_upscale_model` | 放大模型。没有特殊需求可写 `default`。 |
-| `default_sampler` / `default_scheduler` | 采样器和调度器。Comfy 路线常见 `euler`、`simple`、`beta`、`kl_optimal`。 |
+| `default_sampler` / `default_scheduler` | 采样器和调度器。取值必须是当前后端能识别的 sampler / scheduler 名称。 |
 | `default_cfg_scale` | CFG / guidance。不同后端含义会有差异。 |
 | `default_sample_sharpness` | 锐度参数。 |
 | `default_overwrite_step` | 默认步数。场景预置也可以在 `scene_frontend` 中按主题设置。 |
 | `default_image_number` | 默认生成数量。 |
 | `default_prompt` / `default_prompt_negative` | 默认正向和负向提示词。 |
 | `default_styles` | 样式列表。当前多数预置为空数组。 |
-| `default_aspect_ratio` | 默认尺寸字符串，常见格式为 `宽*高`。 |
-| `default_resolution_quantize_step` | 分辨率量化步长，常见值为 `16`。 |
+| `default_aspect_ratio` | 默认尺寸字符串，格式为 `宽*高`，例如 `832*1216`。 |
+| `default_resolution_quantize_step` | 分辨率量化步长。当前代码接受 `1`、`8`、`16`、`32`、`64`，其他值会回到默认 `8`。 |
 | `default_resolution_multiplier` | 分辨率倍率。 |
-| `default_resolution_edit_mode` | 分辨率编辑模式，常见值为 `scale`。 |
+| `default_resolution_edit_mode` | 分辨率编辑模式。当前标准值为 `proportional`、`crop`、`scale`、`pad`。 |
 | `default_save_metadata_to_images` | 是否把元数据写入输出图。 |
 | `model_list` | 缺失模型检查和下载入口。新预置优先维护这个字段。 |
 | `checkpoint_downloads` / `embeddings_downloads` / `lora_downloads` / `vae_downloads` | 旧下载字段，保留兼容。当前内置预置多为空对象。 |
@@ -105,11 +105,11 @@
 
 | 字段 | 作用 |
 | --- | --- |
-| `backend_engine` | 后端名称。当前目录常见 `Flux`、`Qwen`、`Wan`、`Z-image`、`Comfy`、`SDXL`、`Fooocus`。 |
+| `backend_engine` | 后端名称。当前内置预置使用 `Flux`、`Qwen`、`Wan`、`Z-image`、`Comfy`、`SDXL`、`Fooocus`。 |
 | `engine_type` | 可选。视频/音频类一般写 `"video"`，图片类通常不写。 |
 | `disvisible` | 隐藏的主界面控件 id。 |
 | `disinteractive` | 显示但不可编辑的主界面控件 id。 |
-| `available_aspect_ratios_selection` | 尺寸模板。常见 `SDXL`、`Flux`、`Common`、`HyDiT`。 |
+| `available_aspect_ratios_selection` | 尺寸模板。当前代码定义 `SDXL`、`Common`、`Flux`、`Wan`。 |
 | `backend_params.task_method` | 后端任务名。普通非场景预置通常写在这里。 |
 | `resolution_control` | 分辨率控制策略。普通预置写在 `default_engine` 下；场景预置通常写在 `scene_frontend` 下。 |
 | `scene_frontend` | 场景界面配置。存在时会启用场景面板和 Canvas 预置节点的场景参数。 |
@@ -183,7 +183,7 @@
 
 | 字段 | 作用 |
 | --- | --- |
-| `version` | 场景 UI 版本，当前常见 `m1.1` 或 `v1.1`。 |
+| `version` | 场景 UI 版本。当前内置预置使用 `m1.1` 或 `v1.1`。 |
 | `theme` | 主题列表。第一项为默认主题。 |
 | `theme_title` | 主题栏标题。 |
 | `task_method` | 每个主题对应的 workflow 任务名。 |
@@ -222,7 +222,7 @@ sam3_mask_video
 
 ## 分辨率控制
 
-当前预置里常见的 `resolution_control.mode`：
+当前 `resolution_control.mode` 识别的值：
 
 | mode | 用途 |
 | --- | --- |
@@ -231,17 +231,17 @@ sam3_mask_video
 | `video_keep_input_area` | 以输入视频为参考，按面积和比例生成输出尺寸。 |
 | `input_passthrough` | 使用输入素材尺寸。 |
 
-常见字段：
+字段和值：
 
 | 字段 | 说明 |
 | --- | --- |
-| `source` | 尺寸来源。常见 `none`、`scene_canvas`、`scene_input_image1`、`scene_video`、`video_first_frame`。 |
+| `source` | 尺寸来源。当前代码识别 `none`、`no_source`、`scene_canvas`、`scene_input_image1`、`scene_input_image2`、`scene_input_image3`、`scene_input_image4`、`scene_video`、`sam3_input_video`、`video_first_frame`、`scene_video_first_frame`。 |
 | `base_width` / `base_height` | 基准宽高。 |
-| `quantize` | 宽高量化步长，常见 `16`。 |
+| `quantize` | 宽高量化步长。当前代码接受 `1`、`8`、`16`、`32`、`64`，其他值会回到默认 `8`。 |
 | `interactive` | 是否允许用户在界面调整。 |
 | `frontend_preprocess` | 是否在前端预处理素材。 |
-| `preprocess_target` | 预处理目标，常见 `image`、`video`、`none`。 |
-| `preprocess_fit` | 预处理缩放方式，常见 `scale`、`proportional`。 |
+| `preprocess_target` | 预处理目标。无固定枚举；当前代码只有 `video` 会进入视频预处理，其他值会进入图片预处理。内置预置使用 `image`、`video`、`none`。 |
+| `preprocess_fit` | 预处理缩放方式。标准值为 `proportional`、`crop`、`scale`、`pad`。兼容别名：`keep` / `keep_ratio` -> `proportional`，`cover` -> `crop`，`fill` / `stretch` -> `scale`，`padding` / `letterbox` / `contain` -> `pad`。 |
 | `preserve_audio` | 视频类预置可用，保留原视频音频。 |
 
 `origin|Original` 是保留输入原尺寸的候选值，常用于编辑、视频和音频相关预置。
@@ -270,10 +270,10 @@ category,path_file,size,hash10,url
 
 | 字段 | 说明 |
 | --- | --- |
-| `category` | 模型分类，对应模型目录和 `modelsinfo` 分类。常见 `checkpoints`、`diffusion_models`、`text_encoders`、`clip`、`vae`、`loras`、`controlnet`、`upscale_models`。 |
-| `path_file` | 文件名或分类目录下的相对路径，例如 `ltx/xxx.safetensors`。 |
-| `size` | 文件大小，单位字节。写对后可以发现大小不一致的文件。 |
-| `hash10` | 旧字段，当前多数内置项写 `0`。 |
+| `category` | 模型分类，对应模型目录和 `modelsinfo` 分类。它不是固定枚举，取决于本地模型目录注册；例如 `checkpoints`、`diffusion_models`、`text_encoders`、`clip`、`vae`、`loras`、`controlnet`、`upscale_models`。 |
+| `path_file` | 文件名或分类目录下的相对路径，例如 `ltx/xxx.safetensors`。也支持 `[目录名]` 这种目录包写法。 |
+| `size` | 普通文件时表示文件大小，单位字节；`path_file` 写成 `[目录名]` 时表示该目录下至少需要多少个模型文件。 |
+| `hash10` | 仍按第五列前的字段读取为字符串并保存在内部数据里；当前缺失检查、下载队列和 Canvas 模型检查都不使用这个值，内置项通常写 `0`。 |
 | `url` | 下载地址。为空时系统会按默认下载前缀生成地址。 |
 
 `category` 可以带子目录，例如：
@@ -282,6 +282,16 @@ category,path_file,size,hash10,url
 {
   "model_list": [
     "controlnet/hr16/DWPose-TorchScript-BatchSize5,dw-ll_ucoco_384_bs5.torchscript.pt,135059124,0,https://modelscope.cn/models/svjack/DWPose-TorchScript-BatchSize5/resolve/master/dw-ll_ucoco_384_bs5.torchscript.pt"
+  ]
+}
+```
+
+目录包写法仍能参与缺失检查，但目录包 zip 自动下载已经不支持；缺失时需要用户手动安装目录内容。例子：
+
+```json
+{
+  "model_list": [
+    "diffusers,[example-diffusers-folder],12,0,"
   ]
 }
 ```

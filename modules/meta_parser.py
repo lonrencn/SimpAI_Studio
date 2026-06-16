@@ -1791,6 +1791,8 @@ def parse_meta_from_preset(preset_content):
                 width, height = default_aspect_ratio.split('×')
                 height = height[:height.index(" ")]
             preset_prepared[meta_key] = (width, height)
+        elif settings_key == "default_clip_model" and settings_key not in items:
+            preset_prepared[meta_key] = modules.flags.default_clip
         elif settings_key == "default_vae" and settings_key not in items:
             preset_prepared[meta_key] = modules.flags.default_vae
         elif settings_key not in items and settings_key in modules.config.allow_missing_preset_key:

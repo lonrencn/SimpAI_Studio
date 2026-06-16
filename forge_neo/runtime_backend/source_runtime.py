@@ -4,6 +4,7 @@ import json
 import os
 import queue
 import random
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -56,8 +57,43 @@ _STDOUT_DONE = object()
 _JSON_DECODER = json.JSONDecoder()
 _SOURCE_BACKEND_CONTROL_PAYLOAD_KEY = "__forge_neo_source_control_path"
 _SOURCE_BACKEND_INTERRUPT_GRACE_SECONDS = 12.0
+_SOURCE_BACKEND_COMMAND_LINE_MESSAGE = "Source backend command line prepared"
 _SOURCE_BATCH_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".avif"}
 _SOURCE_BATCH_UNSAFE_FILENAME_CHARS = '#<>:"/\\|?*\n\r\t'
+_SOURCE_BACKEND_NOISY_FLAGS = {
+    "--skip-version-check",
+    "--skip-prepare-environment",
+    "--skip-install",
+    "--api",
+    "--disable-console-progressbars",
+    "--no-hashing",
+}
+_SOURCE_BACKEND_DIR_ARGS = {
+    "--ckpt-dirs": "ckpt",
+    "--text-encoder-dirs": "text_encoder",
+    "--vae-dirs": "vae",
+    "--lora-dirs": "lora",
+    "--esrgan-models-path": "upscale",
+    "--controlnet-dir": "controlnet",
+    "--controlnet-dirs": "controlnet",
+}
+_SOURCE_BACKEND_VALUE_ARGS = {
+    "--data-dir",
+    "--model-ref",
+    "--gpu-device-id",
+    "--reserve-vram",
+    "--text-enc-device",
+    "--vae-device",
+    "--tiled-conv2d",
+    "--cuda-stream",
+    "--server-name",
+    "--gradio-auth",
+    "--gradio-auth-path",
+    "--api-auth",
+    "--subpath",
+    "--gradio-allowed-path",
+    "--sage-function",
+}
 _SOURCE_BACKEND_MODEL_ARG_CATALOGS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("--ckpt-dirs", ("checkpoints", "diffusion_models")),
     ("--text-encoder-dirs", ("text_encoders", "clip")),
@@ -202,7 +238,7 @@ def _source_event_log_line(event: dict[str, Any]) -> str:
 
 def _source_event_visible_in_ui(event: dict[str, Any]) -> bool:
     message = str(event.get("message_en") or event.get("message") or event.get("message_cn") or "")
-    return message != "Source backend command line prepared"
+    return message != _SOURCE_BACKEND_COMMAND_LINE_MESSAGE
 
 
 def _reader_stdout(stream: Any, output_queue: "queue.Queue[object]") -> None:
@@ -289,10 +325,62 @@ def _print_source_backend_log(message: str) -> None:
         print(f"[Forge Neo]: {text}", flush=True)
 
 
+def _source_backend_full_args_log_enabled() -> bool:
+    value = str(os.environ.get("FORGE_NEO_SOURCE_BACKEND_LOG_FULL_ARGS", "") or "").strip().casefold()
+    return value in {"1", "true", "yes", "on", "full", "verbose"}
+
+
+def _source_backend_commandline_tokens(commandline_args: str) -> list[str]:
+    try:
+        return shlex.split(commandline_args or "")
+    except ValueError:
+        return [part for part in str(commandline_args or "").split() if part]
+
+
+def _source_backend_commandline_summary(commandline_args: str) -> str:
+    tokens = _source_backend_commandline_tokens(commandline_args)
+    flags: list[str] = []
+    dir_counts = {label: 0 for label in ("ckpt", "text_encoder", "vae", "lora", "upscale", "controlnet")}
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in _SOURCE_BACKEND_DIR_ARGS:
+            dir_counts[_SOURCE_BACKEND_DIR_ARGS[token]] += 1
+            index += 2
+            continue
+        if token in _SOURCE_BACKEND_VALUE_ARGS:
+            value = tokens[index + 1] if index + 1 < len(tokens) and not str(tokens[index + 1]).startswith("--") else ""
+            if token not in {"--data-dir", "--model-ref"}:
+                flags.append(f"{token}={value}" if value else token)
+            index += 2 if value else 1
+            continue
+        if token.startswith("--") and token not in _SOURCE_BACKEND_NOISY_FLAGS:
+            flags.append(token)
+        index += 1
+
+    flag_text = " ".join(flags) if flags else "(no extra flags)"
+    counts_text = " ".join(f"{label}={count}" for label, count in dir_counts.items() if count)
+    if counts_text:
+        return f"args={flag_text} model_dirs={counts_text}"
+    return f"args={flag_text}"
+
+
 def _source_event_console_line(event: dict[str, Any]) -> str:
+    message = str(event.get("message_en") or event.get("message") or event.get("message_cn") or "source backend event")
+    if message == _SOURCE_BACKEND_COMMAND_LINE_MESSAGE:
+        commandline_args = str(event.get("commandline_args") or "").strip()
+        python_executable = str(event.get("python_executable") or "").strip()
+        suffix = ""
+        if python_executable:
+            suffix += f" python={python_executable}"
+        if commandline_args:
+            if _source_backend_full_args_log_enabled():
+                suffix += f" args={commandline_args}"
+            else:
+                suffix += f" {_source_backend_commandline_summary(commandline_args)}"
+        return f"source backend command line prepared{suffix}"
     if not _source_event_visible_in_ui(event):
         return ""
-    message = str(event.get("message_en") or event.get("message") or event.get("message_cn") or "source backend event")
     progress = _clamped_progress(event.get("progress", 0.0))
     suffix = ""
     try:
@@ -830,7 +918,46 @@ class _SourceBackendSession:
         self._key = key
         self._stdout_lines.clear()
         _print_source_backend_log(f"service pid={process.pid}")
+        self._drain_startup_output(process, output_queue)
         return process
+
+    def _drain_startup_output(self, process: subprocess.Popen, output_queue: "queue.Queue[object]", timeout: float = 2.0) -> None:
+        deadline = time.monotonic() + timeout
+        saw_command_line = False
+        while time.monotonic() < deadline and process.poll() is None:
+            try:
+                item = output_queue.get(timeout=0.05)
+            except queue.Empty:
+                if saw_command_line:
+                    break
+                continue
+
+            if item is _STDOUT_DONE:
+                self._stdout_lines.append("<source backend stdout closed>")
+                _print_source_backend_log("child stdout closed")
+                break
+            if not isinstance(item, str):
+                continue
+
+            line = item.rstrip("\r\n")
+            event = _source_event_from_line(line)
+            if event is not None:
+                self._stdout_lines.append(_source_event_log_line(event))
+                console_line = _source_event_console_line(event)
+                if console_line:
+                    _print_source_backend_log(console_line)
+                message = str(event.get("message_en") or event.get("message") or event.get("message_cn") or "")
+                if message == _SOURCE_BACKEND_COMMAND_LINE_MESSAGE:
+                    saw_command_line = True
+                continue
+
+            source_result = _source_result_from_line(line)
+            if source_result is not None:
+                self._stdout_lines.append(_source_result_log_line(source_result))
+                continue
+            if line:
+                self._stdout_lines.append(line)
+                _print_source_backend_log(line)
 
     def stop(self) -> None:
         process = self._process
