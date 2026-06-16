@@ -6409,6 +6409,25 @@ function removePresetStoreDraftItemByName(name) {
     return removePresetStoreDraftItemAt(index);
 }
 
+function isPresetStoreDraftItemPinned(name) {
+    const cleanName = getCleanPresetStoreName(name);
+    if (!cleanName) return false;
+    const norm = normalizePresetName(cleanName);
+    return presetStoreDraftState.list.some((item) => normalizePresetName(item) === norm);
+}
+
+function togglePresetStoreCandidateByName(name) {
+    const cleanName = getCleanPresetStoreName(name);
+    if (!cleanName) return false;
+    if (isPresetStoreDraftItemPinned(cleanName)) {
+        return removePresetStoreDraftItemByName(cleanName);
+    }
+    const changed = insertPresetStoreDraftItem(cleanName, presetStoreDraftState.list.length, "candidate");
+    renderPresetStoreDraft();
+    if (changed) syncPresetStoreCandidatePinnedState();
+    return changed;
+}
+
 function getPresetStoreDraftHost() {
     return getPresetStoreControl("#preset_store_nav_draft");
 }
@@ -6757,20 +6776,37 @@ function startPresetStoreCandidatePointerDrag(event, candidate) {
     const finishDrag = (upEvent) => {
         const drag = presetStoreDraftState.pointerDrag;
         const hasPointer = upEvent && Number.isFinite(upEvent.clientX) && Number.isFinite(upEvent.clientY);
+        const moved = drag && hasPointer
+            ? Math.hypot(upEvent.clientX - (drag.startClientX || upEvent.clientX), upEvent.clientY - (drag.startClientY || upEvent.clientY))
+            : 999;
+        const isClickToggle = drag && hasPointer && moved < 8;
         let insertionIndex = hasPointer ? getPresetStoreDraftInsertionIndex(upEvent.clientX, upEvent.clientY, { bypassCooldown: true }) : -1;
-        if (drag && hasPointer && insertionIndex < 0) {
-            const moved = Math.hypot(upEvent.clientX - (drag.startClientX || upEvent.clientX), upEvent.clientY - (drag.startClientY || upEvent.clientY));
-            if (moved < 8) {
-                insertionIndex = presetStoreDraftState.list.length;
-            }
+        if (isClickToggle && insertionIndex < 0) {
+            insertionIndex = presetStoreDraftState.list.length;
         }
-        const changed = !!(drag && insertionIndex >= 0 && insertPresetStoreDraftItem(drag.name, insertionIndex, "candidate"));
+        const pendingAction = drag ? {
+            name: drag.name,
+            isClickToggle,
+            insertionIndex,
+        } : null;
         removePresetStoreDragGhost();
         presetStoreDraftState.pointerDrag = null;
         clearPresetStoreDraftDragState();
+        let changed = false;
+        let actionHandledRender = false;
+        if (pendingAction) {
+            if (pendingAction.isClickToggle) {
+                togglePresetStoreCandidateByName(pendingAction.name);
+                actionHandledRender = true;
+            } else if (pendingAction.insertionIndex >= 0) {
+                changed = insertPresetStoreDraftItem(pendingAction.name, pendingAction.insertionIndex, "candidate");
+            }
+        }
         if (drag) {
-            renderPresetStoreDraft();
-            if (changed) syncPresetStoreCandidatePinnedState();
+            if (!actionHandledRender) {
+                renderPresetStoreDraft();
+                if (changed) syncPresetStoreCandidatePinnedState();
+            }
         }
         window.removeEventListener("pointermove", onMove, true);
         window.removeEventListener("pointerup", finishDrag, true);
@@ -6916,7 +6952,9 @@ function syncPresetStoreCandidatePinnedState() {
     const draftSet = new Set(presetStoreDraftState.list.map((name) => normalizePresetName(name)));
     presetStoreEl.querySelectorAll(".preset-store-candidate").forEach((button) => {
         const name = getCleanPresetStoreName(button.dataset.presetBaseName || button.textContent || "");
-        button.classList.toggle("sai-store-pinned", draftSet.has(normalizePresetName(name)));
+        const isPinned = draftSet.has(normalizePresetName(name));
+        button.classList.toggle("sai-store-pinned", isPinned);
+        button.setAttribute("aria-pressed", isPinned ? "true" : "false");
     });
 }
 
@@ -6993,6 +7031,14 @@ function createPresetStoreCandidateElement(entry) {
         deleteButton.title = topbarTranslateText("Delete");
         button.appendChild(deleteButton);
     }
+    button.addEventListener("keydown", (event) => {
+        if (event.target && event.target.closest && event.target.closest(".preset-store-user-delete")) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        togglePresetStoreCandidateByName(entry.name);
+    }, true);
     return button;
 }
 
