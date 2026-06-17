@@ -10,7 +10,7 @@
                 "theme_title": "Flux2-Klein Pose Editor",
                 "disable_canvas_mask": true,
                 "disvisible": ["scene_additional_prompt", "scene_video", "scene_audio","scene_input_image2","scene_refiner_model",
-                "scene_var_number","scene_var_number2", "scene_var_number3","scene_var_number4","scene_switch_option1", "scene_switch_option2", "scene_additional_prompt_2", "scene_aspect_ratio", "scene_steps", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10"
+                "scene_var_number","scene_var_number2", "scene_var_number3","scene_var_number4","scene_switch_option1", "scene_switch_option2", "scene_additional_prompt_2", "scene_aspect_ratio", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10"
                 ,"scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
             "task_method": {
                 "Flux2-KleinPose": "flux2_pose_cn"
@@ -32,7 +32,9 @@
             "preprocess_target": "image",
             "preprocess_fit": "proportional"
             },
-            "aspect_ratio": ["1024|1:1", "1536|1:1", "2048|1:1","origin|Original"]
+            "aspect_ratio": ["1024|1:1", "1536|1:1", "2048|1:1","origin|Original"],
+            "overwrite_step_min": 4,
+            "overwrite_step_max": 8
         }
     },
     "default_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
@@ -70,7 +72,7 @@
     "default_styles": [],
     "default_aspect_ratio": "1024*1024",
     "default_image_number": 1,
-    "default_overwrite_step": 4,
+    "default_overwrite_step": 6,
     "default_prompt": "",
     "default_prompt_negative": "",
     "checkpoint_downloads": {},

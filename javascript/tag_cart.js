@@ -183,8 +183,73 @@ function initializeTagAssistantLogic() {
         tagTitleDefaults: {
             en: { noTranslation: 'None', noAliases: 'None', noCustomCategory: 'None', noSecondaryCategory: 'None', unknownCategory: 'Unknown Category' },
             zh: { noTranslation: '无', noAliases: '无', noCustomCategory: '无', noSecondaryCategory: '无', unknownCategory: '未知类别' }
+        },
+        customTagsEditor: {
+            openButton: { zh: '自定义 CSV', en: 'Custom CSV' },
+            editTitle: { zh: '编辑 custom_tags.csv', en: 'Edit custom_tags.csv' },
+            title: { zh: '自定义标签 CSV', en: 'Custom Tags CSV' },
+            hint: { zh: '每行一个自定义标签。保存时会写入 custom_tags.csv。', en: 'One row per custom tag. Save writes custom_tags.csv.' },
+            reload: { zh: '重新读取', en: 'Reload' },
+            save: { zh: '保存', en: 'Save' },
+            close: { zh: '关闭', en: 'Close' },
+            tag: { zh: '标签', en: 'Tag' },
+            translation: { zh: '译名', en: 'Translation' },
+            aliases: { zh: '别名', en: 'Aliases' },
+            addRow: { zh: '添加行', en: 'Add Row' },
+            deleteRow: { zh: '删除此行', en: 'Delete row' },
+            loading: { zh: '正在读取 custom_tags.csv ...', en: 'Loading custom_tags.csv ...' },
+            loadedRows: { zh: '已加载 {count} 行。', en: 'Loaded {count} rows.' },
+            saving: { zh: '正在保存 custom_tags.csv ...', en: 'Saving custom_tags.csv ...' },
+            saved: { zh: '已保存并重新加载。', en: 'Saved and reloaded.' },
+            loadFailedStatus: { zh: '读取自定义标签失败：{status}', en: 'Failed to load custom tags: {status}' },
+            saveFailedStatus: { zh: '保存自定义标签失败：{status}', en: 'Failed to save custom tags: {status}' },
+            reloadFailed: { zh: '重新读取 custom_tags.csv 失败。', en: 'Failed to reload custom_tags.csv.' },
+            loadFailed: { zh: '读取 custom_tags.csv 失败。', en: 'Failed to load custom_tags.csv.' },
+            saveFailed: { zh: '保存 custom_tags.csv 失败。', en: 'Failed to save custom_tags.csv.' }
         }
     };
+
+    function getInitialTagCartLang() {
+        const candidates = [];
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            candidates.push(params.get('__lang'), params.get('lang'), params.get('language'));
+        } catch (error) {
+            // URL parsing can fail in embedded test documents.
+        }
+        try {
+            candidates.push(window.locale_lang);
+        } catch (error) {
+            // Some standalone contexts do not expose locale_lang.
+        }
+        try {
+            candidates.push(localStorage.getItem('ailang'));
+        } catch (error) {
+            // localStorage may be blocked in private contexts.
+        }
+        candidates.push(document.documentElement.lang);
+        const normalized = candidates
+            .map(value => String(value || '').trim().toLowerCase())
+            .find(Boolean);
+        return normalized && normalized.startsWith('en') ? 'en' : 'zh';
+    }
+
+    function tagCartLang() {
+        return displayEnglishOnly ? 'en' : 'zh';
+    }
+
+    function localizedText(entry, replacements = {}) {
+        const lang = tagCartLang();
+        let text = String(entry?.[lang] || entry?.zh || entry?.en || '');
+        Object.entries(replacements || {}).forEach(([key, value]) => {
+            text = text.replaceAll(`{${key}}`, String(value));
+        });
+        return text;
+    }
+
+    function customTagsEditorText(key, replacements = {}) {
+        return localizedText(uiTexts.customTagsEditor[key], replacements);
+    }
     
     // --- 全局状态变量 ---
     // [优化 3] 新增 isDataLoaded 状态标志
@@ -192,7 +257,7 @@ function initializeTagAssistantLogic() {
     let allTags = [], filteredTags = [], selectedTags = [];
     let searchableWildcardTags = [];
     let currentPage = 1, debounceTimer;
-    let isNsfwFilterActive = true, displayEnglishOnly = false;
+    let isNsfwFilterActive = true, displayEnglishOnly = getInitialTagCartLang() === 'en';
     let activeFormat = 'spaces', activeAction = 'append', activeTarget = 'positive';
     
     let primaryCategories = [], secondaryCategories = new Set();
@@ -208,6 +273,7 @@ function initializeTagAssistantLogic() {
     let formatBtnGroup, actionBtnGroup, targetBtnGroup;
     let primaryCategoryRow, secondaryCategoryRow;
     let customTagsEditor, customTagsTableBody, customTagsStatus, customTagsPathLabel;
+    let customTagsEditorTitle, customTagsEditorHint, customTagsThead;
     let customTagsSaveBtn, customTagsReloadBtn, customTagsCloseBtn, customTagsAddBtn;
     let customTagEditorRows = [];
     let tagcartResizeState = null;
@@ -285,8 +351,7 @@ function initializeTagAssistantLogic() {
         editCustomBtn = document.createElement('button');
         editCustomBtn.id = 'custom-tags-editor-btn';
         editCustomBtn.className = 'btn tagcart-toolbar-btn px-3 py-2 rounded-lg h-10 flex-shrink-0 flex items-center gap-2';
-        editCustomBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> <span>Custom CSV</span>';
-        editCustomBtn.title = 'Edit custom_tags.csv';
+        editCustomBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> <span></span>';
         controlBar.appendChild(editCustomBtn);
 
         copyBtn = document.createElement('button'); copyBtn.id = 'copy-btn'; copyBtn.className = 'btn tagcart-primary-btn px-5 py-2 rounded-lg h-10 flex-shrink-0 flex items-center justify-center gap-2'; copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i>';
@@ -350,12 +415,11 @@ function initializeTagAssistantLogic() {
 
         const customEditorTitleWrap = document.createElement('div');
         customEditorTitleWrap.className = 'tagcart-editor-title-wrap';
-        const customEditorTitle = document.createElement('div');
-        customEditorTitle.className = 'tagcart-editor-title';
-        customEditorTitle.textContent = 'Custom Tags CSV';
+        customTagsEditorTitle = document.createElement('div');
+        customTagsEditorTitle.className = 'tagcart-editor-title';
         customTagsPathLabel = document.createElement('div');
         customTagsPathLabel.className = 'tagcart-editor-path';
-        customEditorTitleWrap.appendChild(customEditorTitle);
+        customEditorTitleWrap.appendChild(customTagsEditorTitle);
         customEditorTitleWrap.appendChild(customTagsPathLabel);
 
         const customEditorActions = document.createElement('div');
@@ -363,15 +427,12 @@ function initializeTagAssistantLogic() {
         customTagsReloadBtn = document.createElement('button');
         customTagsReloadBtn.type = 'button';
         customTagsReloadBtn.className = 'btn tagcart-editor-btn';
-        customTagsReloadBtn.textContent = 'Reload';
         customTagsSaveBtn = document.createElement('button');
         customTagsSaveBtn.type = 'button';
         customTagsSaveBtn.className = 'btn tagcart-editor-btn active';
-        customTagsSaveBtn.textContent = 'Save';
         customTagsCloseBtn = document.createElement('button');
         customTagsCloseBtn.type = 'button';
         customTagsCloseBtn.className = 'btn tagcart-editor-btn';
-        customTagsCloseBtn.textContent = 'Close';
         customEditorActions.appendChild(customTagsReloadBtn);
         customEditorActions.appendChild(customTagsSaveBtn);
         customEditorActions.appendChild(customTagsCloseBtn);
@@ -379,16 +440,14 @@ function initializeTagAssistantLogic() {
         customEditorHeader.appendChild(customEditorTitleWrap);
         customEditorHeader.appendChild(customEditorActions);
 
-        const customEditorHint = document.createElement('div');
-        customEditorHint.className = 'tagcart-editor-hint';
-        customEditorHint.textContent = 'One row per custom tag. Save writes custom_tags.csv.';
+        customTagsEditorHint = document.createElement('div');
+        customTagsEditorHint.className = 'tagcart-editor-hint';
 
         const customTableWrap = document.createElement('div');
         customTableWrap.className = 'tagcart-editor-table-wrap';
         const customTagsTable = document.createElement('table');
         customTagsTable.className = 'tagcart-editor-table';
-        const customTagsThead = document.createElement('thead');
-        customTagsThead.innerHTML = '<tr><th>Tag</th><th>Translation</th><th>Aliases</th><th></th></tr>';
+        customTagsThead = document.createElement('thead');
         customTagsTableBody = document.createElement('tbody');
         customTagsTable.appendChild(customTagsThead);
         customTagsTable.appendChild(customTagsTableBody);
@@ -399,14 +458,13 @@ function initializeTagAssistantLogic() {
         customTagsAddBtn = document.createElement('button');
         customTagsAddBtn.type = 'button';
         customTagsAddBtn.className = 'btn tagcart-editor-btn';
-        customTagsAddBtn.textContent = 'Add Row';
         customEditorTableActions.appendChild(customTagsAddBtn);
 
         customTagsStatus = document.createElement('div');
         customTagsStatus.className = 'tagcart-editor-status';
 
         customTagsEditor.appendChild(customEditorHeader);
-        customTagsEditor.appendChild(customEditorHint);
+        customTagsEditor.appendChild(customTagsEditorHint);
         customTagsEditor.appendChild(customTableWrap);
         customTagsEditor.appendChild(customEditorTableActions);
         customTagsEditor.appendChild(customTagsStatus);
@@ -697,7 +755,7 @@ function initializeTagAssistantLogic() {
                         await loadCustomTagsEditorContent();
                     } catch (error) {
                         console.error('Failed to reload custom tag editor:', error);
-                        setCustomTagsStatus(error.message || 'Failed to reload custom_tags.csv.', 'error');
+                        setCustomTagsStatus(error.message || customTagsEditorText('reloadFailed'), 'error');
                     }
                 });
             }
@@ -707,7 +765,7 @@ function initializeTagAssistantLogic() {
                         await saveCustomTagsEditorContent();
                     } catch (error) {
                         console.error('Failed to save custom tag editor:', error);
-                        setCustomTagsStatus(error.message || 'Failed to save custom_tags.csv.', 'error');
+                        setCustomTagsStatus(error.message || customTagsEditorText('saveFailed'), 'error');
                     }
                 });
             }
@@ -1080,7 +1138,7 @@ function initializeTagAssistantLogic() {
                 <td><input data-field="name" value="" placeholder="1girl" /></td>
                 <td><input data-field="translation" value="" placeholder="1个女孩" /></td>
                 <td><input data-field="aliases" value="" placeholder="solo girl" /></td>
-                <td><button type="button" class="btn tagcart-editor-icon-btn" data-action="delete-row" title="Delete row"><i class="fa-solid fa-trash-can"></i></button></td>
+                <td><button type="button" class="btn tagcart-editor-icon-btn" data-action="delete-row" title="${customTagsEditorText('deleteRow')}"><i class="fa-solid fa-trash-can"></i></button></td>
             `;
             tr.querySelector('[data-field="name"]').value = normalized.name;
             tr.querySelector('[data-field="translation"]').value = normalized.translation;
@@ -1112,7 +1170,28 @@ function initializeTagAssistantLogic() {
     function setCustomTagsStatus(message, tone = 'info') {
         if (!customTagsStatus) return;
         customTagsStatus.textContent = message || '';
+        delete customTagsStatus.dataset.messageKey;
+        delete customTagsStatus.dataset.messageParams;
         customTagsStatus.dataset.tone = tone || 'info';
+    }
+
+    function setCustomTagsStatusKey(key, params = {}, tone = 'info') {
+        if (!customTagsStatus) return;
+        customTagsStatus.dataset.messageKey = key;
+        customTagsStatus.dataset.messageParams = JSON.stringify(params || {});
+        customTagsStatus.textContent = customTagsEditorText(key, params);
+        customTagsStatus.dataset.tone = tone || 'info';
+    }
+
+    function refreshCustomTagsStatusText() {
+        if (!customTagsStatus || !customTagsStatus.dataset.messageKey) return;
+        let params = {};
+        try {
+            params = JSON.parse(customTagsStatus.dataset.messageParams || '{}');
+        } catch (error) {
+            params = {};
+        }
+        customTagsStatus.textContent = customTagsEditorText(customTagsStatus.dataset.messageKey, params);
     }
 
     function closeCustomTagsEditor() {
@@ -1122,16 +1201,16 @@ function initializeTagAssistantLogic() {
     }
 
     async function loadCustomTagsEditorContent() {
-        setCustomTagsStatus('Loading custom_tags.csv ...');
+        setCustomTagsStatusKey('loading');
         const response = await fetch(customTagsApiUrl, { cache: 'no-store' });
         if (!response.ok) {
-            throw new Error(`Failed to load custom tags: ${response.status}`);
+            throw new Error(customTagsEditorText('loadFailedStatus', { status: response.status }));
         }
         const payload = await response.json();
         customTagEditorRows = parseCustomTagsCsv(typeof payload.content === 'string' ? payload.content : '');
         renderCustomTagsEditorRows();
         customTagsPathLabel.textContent = payload.path || '';
-        setCustomTagsStatus(`Loaded ${customTagEditorRows.length} rows.`, 'success');
+        setCustomTagsStatusKey('loadedRows', { count: customTagEditorRows.length }, 'success');
     }
 
     async function openCustomTagsEditor() {
@@ -1141,7 +1220,7 @@ function initializeTagAssistantLogic() {
             await loadCustomTagsEditorContent();
         } catch (error) {
             console.error('Failed to open custom tag editor:', error);
-            setCustomTagsStatus(error.message || 'Failed to load custom_tags.csv.', 'error');
+            setCustomTagsStatus(error.message || customTagsEditorText('loadFailed'), 'error');
         }
     }
 
@@ -1179,14 +1258,14 @@ function initializeTagAssistantLogic() {
     async function saveCustomTagsEditorContent() {
         customTagEditorRows = collectCustomTagsEditorRows();
         const content = serializeCustomTagsRows(customTagEditorRows);
-        setCustomTagsStatus('Saving custom_tags.csv ...');
+        setCustomTagsStatusKey('saving');
         const response = await fetch(customTagsApiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content })
         });
         if (!response.ok) {
-            let message = `Failed to save custom tags: ${response.status}`;
+            let message = customTagsEditorText('saveFailedStatus', { status: response.status });
             try {
                 const payload = await response.json();
                 if (payload && payload.details) {
@@ -1199,7 +1278,7 @@ function initializeTagAssistantLogic() {
         }
         await response.json();
         await refreshTagData({ preserveSelection: true });
-        setCustomTagsStatus('Saved and reloaded.', 'success');
+        setCustomTagsStatusKey('saved', {}, 'success');
     }
 
     async function loadAllData() {
@@ -2556,6 +2635,27 @@ function initializeTagAssistantLogic() {
         return true;
     }
 
+    function updateCustomTagsEditorText() {
+        const editLabel = editCustomBtn?.querySelector('span');
+        if (editLabel) editLabel.textContent = customTagsEditorText('openButton');
+        if (editCustomBtn) editCustomBtn.title = customTagsEditorText('editTitle');
+        if (customTagsEditorTitle) customTagsEditorTitle.textContent = customTagsEditorText('title');
+        if (customTagsEditorHint) customTagsEditorHint.textContent = customTagsEditorText('hint');
+        if (customTagsReloadBtn) customTagsReloadBtn.textContent = customTagsEditorText('reload');
+        if (customTagsSaveBtn) customTagsSaveBtn.textContent = customTagsEditorText('save');
+        if (customTagsCloseBtn) customTagsCloseBtn.textContent = customTagsEditorText('close');
+        if (customTagsThead) {
+            customTagsThead.innerHTML = `<tr><th>${customTagsEditorText('tag')}</th><th>${customTagsEditorText('translation')}</th><th>${customTagsEditorText('aliases')}</th><th></th></tr>`;
+        }
+        if (customTagsAddBtn) customTagsAddBtn.textContent = customTagsEditorText('addRow');
+        if (customTagsTableBody) {
+            customTagsTableBody.querySelectorAll('[data-action="delete-row"]').forEach(button => {
+                button.title = customTagsEditorText('deleteRow');
+            });
+        }
+        refreshCustomTagsStatusText();
+    }
+
     function updateUIText(lang) {
         searchInput.placeholder = uiTexts.searchInputPlaceholder[lang];
         draggableHandle.textContent = uiTexts.draggableHandleText[lang];
@@ -2577,6 +2677,7 @@ function initializeTagAssistantLogic() {
         nsfwFilterBtn.title = uiTexts.buttonTitles.nsfwFilter[lang];
         clearAllBtn.title = uiTexts.buttonTitles.clearAll[lang];
         toggleLanguageBtn.title = uiTexts.buttonTitles.toggleLanguage[lang];
+        updateCustomTagsEditorText();
 
         // 只有在数据加载后才执行渲染，否则会出错
         if (isDataLoaded) {
@@ -2597,6 +2698,8 @@ function initializeTagAssistantLogic() {
     setupEventListeners(); // 2. 绑定基础事件
     positionDraggableContainer();
     if (isNsfwFilterActive) nsfwFilterBtn.classList.add('active');
+    if (displayEnglishOnly) toggleLanguageBtn.classList.add('active');
+    updateUIText(tagCartLang());
     window.SimpAITagCartAdapter = {
         open: openTagCartForWorkbench,
         close: hideTagCartPanel,

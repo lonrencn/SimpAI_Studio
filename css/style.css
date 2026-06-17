@@ -4,6 +4,42 @@
   --scene-right-panel-min-width: 320px;
   --scene-right-panel-flex: 0.82fr;
   --advanced-column-width: clamp(360px, 30vw, 430px);
+  --simpai-dark-text-color: #d7dce3;
+  --simpai-dark-text-muted: #aeb6c2;
+  --simpai-dark-text-faint: #8f9aaa;
+}
+
+:root[data-theme="dark"],
+html[data-theme="dark"],
+body[data-theme="dark"],
+.dark {
+  --body-text-color: var(--simpai-dark-text-color);
+  --body-text-color-subdued: var(--simpai-dark-text-muted);
+  --body-text-color-subdued-faded: var(--simpai-dark-text-faint);
+  --block-title-text-color: var(--simpai-dark-text-color);
+  --block-label-text-color: var(--simpai-dark-text-muted);
+  --input-label-color: var(--simpai-dark-text-muted);
+  --input-placeholder-color: var(--simpai-dark-text-faint);
+  --button-secondary-text-color: var(--simpai-dark-text-color);
+  --button-secondary-text-color-hover: #eef2f7;
+  --button-secondary-text-color-disabled: #7f8796;
+}
+
+:root[data-theme="dark"] .gradio-container,
+html[data-theme="dark"] .gradio-container,
+body[data-theme="dark"] .gradio-container,
+.dark .gradio-container,
+.gradio-container.dark {
+  --body-text-color: var(--simpai-dark-text-color);
+  --body-text-color-subdued: var(--simpai-dark-text-muted);
+  --body-text-color-subdued-faded: var(--simpai-dark-text-faint);
+  --block-title-text-color: var(--simpai-dark-text-color);
+  --block-label-text-color: var(--simpai-dark-text-muted);
+  --input-label-color: var(--simpai-dark-text-muted);
+  --input-placeholder-color: var(--simpai-dark-text-faint);
+  --button-secondary-text-color: var(--simpai-dark-text-color);
+  --button-secondary-text-color-hover: #eef2f7;
+  --button-secondary-text-color-disabled: #7f8796;
 }
 
 .loader-container {

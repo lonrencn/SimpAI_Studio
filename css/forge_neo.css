@@ -1,11 +1,29 @@
+body:has(#forge_neo_root),
+.gradio-container:has(#forge_neo_root),
+#forge_neo_root {
+    --forge-neo-dark-text: #d7dce3;
+    --forge-neo-dark-muted: #aeb6c2;
+    --forge-neo-dark-faint: #8f9aaa;
+    --body-text-color: var(--forge-neo-dark-text);
+    --body-text-color-subdued: var(--forge-neo-dark-muted);
+    --body-text-color-subdued-faded: var(--forge-neo-dark-faint);
+    --block-title-text-color: var(--forge-neo-dark-text);
+    --block-label-text-color: var(--forge-neo-dark-muted);
+    --input-label-color: var(--forge-neo-dark-muted);
+    --input-placeholder-color: var(--forge-neo-dark-faint);
+    --button-secondary-text-color: var(--forge-neo-dark-text);
+    --button-secondary-text-color-hover: #eef2f7;
+    --button-secondary-text-color-disabled: #7f8796;
+}
+
 #forge_neo_root {
     --forge-neo-bg: var(--background-fill-primary, #0f0f10);
     --forge-neo-panel: var(--block-background-fill, #202124);
     --forge-neo-panel-2: var(--input-background-fill, #242428);
     --forge-neo-panel-3: #2f3036;
     --forge-neo-border: var(--border-color-primary, #3f3f46);
-    --forge-neo-text: var(--body-text-color, #f4f4f5);
-    --forge-neo-muted: var(--body-text-color-subdued, #a1a1aa);
+    --forge-neo-text: var(--body-text-color, var(--forge-neo-dark-text));
+    --forge-neo-muted: var(--body-text-color-subdued, var(--forge-neo-dark-muted));
     --forge-neo-accent: var(--button-primary-background-fill, #f97316);
     --forge-neo-accent-soft: #7c431f;
     --forge-neo-primary-top: #fb923c;

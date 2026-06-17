@@ -5172,7 +5172,7 @@
   },
   "766": {
     "inputs": {
-      "clip_name": "clip_l.safetensors",
+      "clip_name": "placeholder.safetensors",
       "type": "qwen_image",
       "device": "default"
     },
@@ -5544,7 +5544,7 @@
   },
   "808": {
     "inputs": {
-      "clip_name": "clip_l.safetensors",
+      "clip_name": "placeholder.safetensors",
       "type": "qwen_image"
     },
     "class_type": "CLIPLoaderGGUF",

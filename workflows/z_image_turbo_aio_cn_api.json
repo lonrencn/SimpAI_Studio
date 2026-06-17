@@ -4923,7 +4923,7 @@
   },
   "766": {
     "inputs": {
-      "clip_name": "clip_l.safetensors",
+      "clip_name": "placeholder.safetensors",
       "type": "lumina2",
       "device": "default"
     },
@@ -5728,7 +5728,7 @@
   },
   "853": {
     "inputs": {
-      "clip_name": "clip_l.safetensors",
+      "clip_name": "placeholder.safetensors",
       "type": "lumina2"
     },
     "class_type": "CLIPLoaderGGUF",

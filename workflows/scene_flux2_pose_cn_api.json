@@ -1,7 +1,7 @@
 {
   "62": {
     "inputs": {
-      "clip_name": "clip_l.safetensors",
+      "clip_name": "placeholder.safetensors",
       "type": "flux2",
       "device": "default"
     },
@@ -94,7 +94,7 @@
   "411": {
     "inputs": {
       "lora_name": "placeholder.safetensors",
-      "strength_model": 1,
+      "strength_model": 0,
       "model": [
         "410",
         0
@@ -108,7 +108,7 @@
   "412": {
     "inputs": {
       "lora_name": "placeholder.safetensors",
-      "strength_model": 1,
+      "strength_model": 0,
       "model": [
         "411",
         0
@@ -122,7 +122,7 @@
   "413": {
     "inputs": {
       "lora_name": "placeholder.safetensors",
-      "strength_model": 1,
+      "strength_model": 0,
       "model": [
         "412",
         0
@@ -135,7 +135,7 @@
   },
   "414": {
     "inputs": {
-      "prompt": "",
+      "prompt": "Draw character from image2",
       "additional_prompt": "",
       "ip_image": "None",
       "ip_image1": "None",
@@ -149,10 +149,10 @@
       "steps": 4,
       "var_number": 0,
       "var_number2": 0,
-      "var_number3": 0.0,
-      "var_number4": 0.0,
-      "var_number5": 0.0,
-      "var_number6": 0.0,
+      "var_number3": 0,
+      "var_number4": 0,
+      "var_number5": 0,
+      "var_number6": 0,
       "var_number7": 0,
       "var_number8": 0,
       "var_number9": 0,
@@ -179,7 +179,10 @@
         "416",
         0
       ],
-      "steps": 4,
+      "steps": [
+        "414",
+        9
+      ],
       "cfg": [
         "414",
         8
@@ -198,16 +201,16 @@
         0
       ],
       "positive": [
-        "451",
+        "456",
         0
       ],
       "negative": [
-        "451",
-        1
+        "460",
+        0
       ],
       "latent_image": [
-        "451",
-        2
+        "463",
+        0
       ]
     },
     "class_type": "KSampler",
@@ -297,27 +300,10 @@
       "title": "Int"
     }
   },
-  "428": {
-    "inputs": {
-      "comparison": "a == b",
-      "a": [
-        "422",
-        0
-      ],
-      "b": [
-        "427",
-        0
-      ]
-    },
-    "class_type": "easy compare",
-    "_meta": {
-      "title": "Compare"
-    }
-  },
   "430": {
     "inputs": {
       "images": [
-        "319",
+        "466",
         0
       ]
     },
@@ -463,7 +449,7 @@
   },
   "447": {
     "inputs": {
-      "clip_name": "clip_l.safetensors",
+      "clip_name": "placeholder.safetensors",
       "type": "flux2"
     },
     "class_type": "CLIPLoaderGGUF",
@@ -500,14 +486,179 @@
       "title": "i2i_ip_image1"
     }
   },
-  "451": {
+  "454": {
     "inputs": {
-      "prompt": [
+      "pixels": [
+        "134",
+        0
+      ],
+      "vae": [
+        "63",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "455": {
+    "inputs": {
+      "conditioning": [
+        "458",
+        0
+      ],
+      "latent": [
+        "457",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  },
+  "456": {
+    "inputs": {
+      "conditioning": [
+        "455",
+        0
+      ],
+      "latent": [
+        "454",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  },
+  "457": {
+    "inputs": {
+      "pixels": [
+        "449",
+        0
+      ],
+      "vae": [
+        "63",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "458": {
+    "inputs": {
+      "text": [
         "414",
         0
       ],
-      "mode": "2_image",
-      "batch_size": 1,
+      "clip": [
+        "448",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "459": {
+    "inputs": {
+      "text": [
+        "414",
+        29
+      ],
+      "clip": [
+        "448",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "460": {
+    "inputs": {
+      "conditioning": [
+        "461",
+        0
+      ],
+      "latent": [
+        "454",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  },
+  "461": {
+    "inputs": {
+      "conditioning": [
+        "459",
+        0
+      ],
+      "latent": [
+        "457",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  },
+  "463": {
+    "inputs": {
+      "width": [
+        "464",
+        1
+      ],
+      "height": [
+        "465",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "464": {
+    "inputs": {
+      "expression": "ceil(a/16)*16",
+      "values.a": [
+        "414",
+        6
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "465": {
+    "inputs": {
+      "expression": "ceil(a/16)*16",
+      "values.a": [
+        "414",
+        7
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "466": {
+    "inputs": {
       "width": [
         "414",
         6
@@ -516,26 +667,20 @@
         "414",
         7
       ],
-      "clip": [
-        "448",
-        0
-      ],
-      "vae": [
-        "63",
-        0
-      ],
-      "image1": [
-        "134",
-        0
-      ],
-      "image2": [
-        "449",
+      "upscale_method": "lanczos",
+      "keep_proportion": "stretch",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 1,
+      "device": "cpu",
+      "image": [
+        "319",
         0
       ]
     },
-    "class_type": "PainterFluxImageEdit",
+    "class_type": "ImageResizeKJv2",
     "_meta": {
-      "title": "Painter Flux Image Edit"
+      "title": "Resize Image v2"
     }
   }
 }

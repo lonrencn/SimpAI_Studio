@@ -360,6 +360,26 @@ def create_placeholder_files():
             logger.info(f"Created placeholder file: {loras_placeholder_path}")
         except Exception as e:
             logger.error(f"Failed to create loras placeholder: {e}")
+
+    clip_dir = config.paths_clip
+    if isinstance(clip_dir, list) and clip_dir:
+        clip_dir = clip_dir[0]
+    if not os.path.exists(clip_dir):
+        try:
+            os.makedirs(clip_dir)
+            logger.info(f"Created clip directory at {clip_dir}")
+        except Exception as e:
+            logger.error(f"Failed to create clip directory: {e}")
+            return
+
+    clip_placeholder_path = os.path.join(clip_dir, "placeholder.safetensors")
+    if not os.path.exists(clip_placeholder_path):
+        try:
+            with open(clip_placeholder_path, 'w') as f:
+                f.write("This is a placeholder file for CLIP text encoder models.")
+            logger.info(f"Created placeholder file: {clip_placeholder_path}")
+        except Exception as e:
+            logger.error(f"Failed to create clip placeholder: {e}")
 def ini_args():
     import args_manager
     if not platform.system() == "Darwin" and args_manager.args.disable_backend:

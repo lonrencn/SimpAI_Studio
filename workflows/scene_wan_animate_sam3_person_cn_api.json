@@ -311,7 +311,7 @@
   },
   "493": {
     "inputs": {
-      "clip_name": "clip_l.safetensors",
+      "clip_name": "placeholder.safetensors",
       "type": "wan"
     },
     "class_type": "CLIPLoaderGGUF",
@@ -1352,7 +1352,7 @@
   },
   "801": {
     "inputs": {
-      "clip_name": "clip_l.safetensors",
+      "clip_name": "placeholder.safetensors",
       "type": "wan",
       "device": "default"
     },
