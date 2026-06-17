@@ -14721,7 +14721,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
     </div>
   </div>
 </div>`;
-        (root || document.body).appendChild(modal);
+        document.body.appendChild(modal);
         const input = modal.querySelector('[data-textarea-editor-input]');
         textareaEditorState = {
             modal,
@@ -18898,7 +18898,7 @@ ${actions}
         modal.__xyzState = defaultXyzPlotState(node);
         modal.__xyzAxisOptions = XYZ_AXIS_FALLBACKS;
         modal.__xyzPreview = null;
-        document.body.appendChild(modal);
+        (root || document.body).appendChild(modal);
         renderXyzPlotModal(modal);
         if (typeof WORKBENCH_API.xyzAxisOptions === 'function') {
             const response = await WORKBENCH_API.xyzAxisOptions({
@@ -35059,6 +35059,19 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
     function applyPresetModelStatus(node, response) {
         if (!node || !['preset', 'classic'].includes(node.type)) return;
         if (response?.ok) {
+            const missingCount = Number(response.missing_count || 0);
+            let message = response.message || '';
+            if (response.model_config_gate) {
+                message = response.ready
+                    ? t('Selected Models Config files are available.', '已选择的 Models Config 模型文件可用。')
+                    : t('{count} selected Models Config file(s) are missing.', '已选择的 Models Config 缺少 {count} 个模型文件。').replace('{count}', missingCount);
+            } else if (response.ready) {
+                message = response.has_requirements
+                    ? t('All required model files are available.', '所需模型文件已可用。')
+                    : t('No missing models found for this preset.', '当前 preset 没有发现缺失模型。');
+            } else if (missingCount) {
+                message = t('{count} required model file(s) are missing.', '缺少 {count} 个所需模型文件。').replace('{count}', missingCount);
+            }
             node.model_status = {
                 state: response.state || (response.ready ? 'ready' : 'missing'),
                 ready: !!response.ready,
@@ -35066,9 +35079,11 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 missing_count: Number(response.missing_count || 0),
                 missing_models: cloneRunValue(response.missing_models || [], []),
                 can_download: response.can_download !== false,
+                model_config_gate: !!response.model_config_gate,
+                selected_model_count: Number(response.selected_model_count || 0),
                 checked_preset: response.checked_preset || response.preset || node.preset?.name || '',
                 checked_at: response.checked_at || nowIso(),
-                message: response.message || ''
+                message
             };
         } else {
             node.model_status = {
@@ -35076,36 +35091,13 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 ready: false,
                 missing_count: 0,
                 checked_at: nowIso(),
-                message: response?.details || response?.error || 'Model check failed.'
+                message: response?.details || response?.error || t('Model check failed.', '模型检查失败。')
             };
         }
     }
 
     function openMainMissingModelListForPreset(node) {
-        const status = node?.model_status || {};
-        const presetName = status.checked_preset || node?.preset?.name || node?.title || '';
-        if (!presetName) return false;
-        let opened = false;
-        try {
-            if (typeof window.triggerMissingModelCheckForPreset === 'function') {
-                opened = !!window.triggerMissingModelCheckForPreset(presetName);
-            }
-        } catch (err) {
-            console.warn('[SimpAI Canvas] failed to open missing model popup', err);
-        }
-        const raise = () => {
-            if (root) root.style.zIndex = '2147483000';
-            const content = document.getElementById('missing_model_modal_content');
-            const modal = document.getElementById('missing_model_modal') || content;
-            [modal, content].forEach((el) => {
-                if (!el) return;
-                el.style.zIndex = '2147483647';
-            });
-        };
-        window.setTimeout(raise, 120);
-        window.setTimeout(raise, 700);
-        if (!opened) openWorkbenchMissingModelModal(node);
-        return opened;
+        return openWorkbenchMissingModelModal(node);
     }
 
     function openWorkbenchMissingModelModal(node) {
@@ -35115,26 +35107,27 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         const canDownload = status.can_download !== false;
         const existing = document.querySelector('.sai-workbench-missing-model-modal');
         if (existing) existing.remove();
+        const emptyLabel = t('No missing model rows were returned.', '没有返回缺失模型条目。');
         const modal = document.createElement('div');
         modal.className = 'sai-canvas-modal sai-workbench-missing-model-modal';
         modal.classList.toggle('theme-dark', detectWorkbenchTheme() === 'dark');
         modal.innerHTML = `
 <div class="sai-canvas-modal-panel sai-workbench-missing-model-panel">
   <div class="sai-canvas-modal-head">
-    <span>Missing Models - ${escapeHtml(presetName)}</span>
-    <button type="button" data-modal-close title="Close"><i class="fa-solid fa-xmark"></i></button>
+    <span>${escapeHtml(t('Missing Models', '缺失模型'))} - ${escapeHtml(presetName)}</span>
+    <button type="button" data-modal-close title="${escapeHtml(t('Close', '关闭'))}"><i class="fa-solid fa-xmark"></i></button>
   </div>
   <div class="sai-workbench-missing-model-body">
-    <div class="sai-inspector-note">${escapeHtml(status.message || `${rows.length} required model file(s) are missing.`)}</div>
-    <div class="sai-workbench-missing-model-list">${rows.length ? rows.map((item, index) => renderWorkbenchMissingModelRow(item, index, canDownload)).join('') : '<p>No missing model rows were returned.</p>'}</div>
+    <div class="sai-inspector-note">${escapeHtml(status.message || t('{count} required model file(s) are missing.', '缺少 {count} 个所需模型文件。').replace('{count}', rows.length))}</div>
+    <div class="sai-workbench-missing-model-list">${rows.length ? rows.map((item, index) => renderWorkbenchMissingModelRow(item, index, canDownload)).join('') : `<p>${escapeHtml(emptyLabel)}</p>`}</div>
   </div>
   <div class="sai-canvas-modal-foot">
-    <button type="button" data-modal-close>Close</button>
-    <button type="button" data-download-all ${canDownload && rows.length ? '' : 'disabled'}><i class="fa-solid fa-cloud-arrow-down"></i><span>Download All</span></button>
+    <button type="button" data-modal-close>${escapeHtml(t('Close', '关闭'))}</button>
+    <button type="button" data-download-all ${canDownload && rows.length ? '' : 'disabled'}><i class="fa-solid fa-cloud-arrow-down"></i><span>${escapeHtml(t('Download All', '全部下载'))}</span></button>
   </div>
 </div>`;
         ensureWorkbenchFormFieldNames(modal, 'workbench_missing_models');
-        document.body.appendChild(modal);
+        (root || document.body).appendChild(modal);
         modal.addEventListener('click', async (evt) => {
             if (evt.target === modal || evt.target.closest('[data-modal-close]')) {
                 modal.remove();
@@ -35150,28 +35143,40 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 await queuePresetModelDownloads(node);
             }
         });
+        return true;
     }
 
     function renderWorkbenchMissingModelRow(item, index, canDownload) {
         const status = item.download_status || {};
         const statusText = status.state || status.status || '';
         const path = [item.cata, item.path_file].filter(Boolean).join(' / ');
+        const roleLabel = modelStatusRoleLabel(item.role || '');
         return `
 <div class="sai-workbench-missing-model-row">
   <div>
     <b>${escapeHtml(item.path_file || 'model')}</b>
     <code>${escapeHtml(path)}</code>
-    <small>${escapeHtml([item.human_size, statusText].filter(Boolean).join(' · '))}</small>
+    <small>${escapeHtml([roleLabel, item.human_size, statusText].filter(Boolean).join(' · '))}</small>
   </div>
-  <button type="button" data-download-one="${index}" ${canDownload ? '' : 'disabled'} title="Download this model"><i class="fa-solid fa-download"></i><span>Download</span></button>
+  <button type="button" data-download-one="${index}" ${canDownload ? '' : 'disabled'} title="${escapeHtml(t('Download this model', '下载这个模型'))}"><i class="fa-solid fa-download"></i><span>${escapeHtml(t('Download', '下载'))}</span></button>
 </div>`;
+    }
+
+    function modelStatusRoleLabel(role) {
+        const key = String(role || '').trim();
+        if (key === 'Base Model') return t('Base Model', '基础模型');
+        if (key === 'Refiner') return t('Refiner', '细化模型');
+        if (key === 'Upscale Model') return t('Upscale Model', '放大模型');
+        if (key === 'LoRA') return 'LoRA';
+        if (key === 'CLIP' || key === 'VAE') return key;
+        return key;
     }
 
     async function checkPresetModelStatus(node) {
         if (!node || !['preset', 'classic'].includes(node.type)) return { ok: false, error: 'preset node is unavailable' };
         node.model_status = Object.assign({}, node.model_status || {}, {
             state: 'checking',
-            message: 'Checking required model files...'
+            message: t('Checking required model files...', '正在检查所需模型文件...')
         });
         renderAll({ inspector: false });
         const response = await sendCanvasPresetModelStatusRequest(node);
@@ -35218,7 +35223,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         if (!node || !['preset', 'classic'].includes(node.type)) return { ok: false, error: 'preset node is unavailable' };
         node.model_status = Object.assign({}, node.model_status || {}, {
             state: 'checking',
-            message: 'Queuing missing model downloads...'
+            message: t('Queuing missing model downloads...', '正在加入缺失模型下载任务...')
         });
         renderAll({ inspector: false });
         const response = await sendCanvasPresetModelDownloadsRequest(node, options || {});
@@ -35227,19 +35232,19 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             applyPresetModelStatus(current, response);
             if (response?.ok && response.state === 'queued') {
                 current.model_status.state = 'queued';
-                current.model_status.message = response.message || `Queued ${response.queued_count || 0} model download task(s).`;
+                current.model_status.message = response.message || t('Queued {count} model download task(s).', '已加入 {count} 个模型下载任务。').replace('{count}', response.queued_count || 0);
             }
             mutate({ inspector: false });
         }
         if (response?.ok) {
             const latest = getNode(node.id) || node;
-            showToast(response.message || 'Model downloads queued.');
+            showToast(response.message || t('Model downloads queued.', '模型下载任务已加入。'));
             openMainMissingModelListForPreset(latest);
             [1200, 3200, 6500].forEach((delay) => {
                 window.setTimeout(() => openMainMissingModelListForPreset(getNode(node.id) || latest), delay);
             });
         } else {
-            showToast(`Model download queue failed: ${response?.error || response?.details || 'unknown error'}`);
+            showToast(t('Model download queue failed: {error}', '模型下载任务加入失败：{error}').replace('{error}', response?.error || response?.details || 'unknown error'));
         }
         return response;
     }
@@ -35255,16 +35260,18 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         }
         const status = await checkPresetModelStatus(node);
         if (!status?.ok) {
-            showToast(`Model check failed: ${status?.error || status?.details || 'unknown error'}`);
+            showToast(t('Model check failed: {error}', '模型检查失败：{error}').replace('{error}', status?.error || status?.details || 'unknown error'));
             return status;
         }
         if (status.ready) {
-            showToast('Preset models are ready.');
+            showToast(status.model_config_gate
+                ? t('Selected Models Config files are available.', '已选择的 Models Config 模型文件可用。')
+                : t('Preset models are ready.', 'Preset 所需模型已可用。'));
             return status;
         }
         openMainMissingModelListForPreset(getNode(node.id) || node);
         const count = Number(status.missing_count || 0);
-        showToast(`Preset is missing ${count} model file(s). Use the model list to download one or all.`);
+        showToast(t('Preset is missing {count} model file(s). Use the model list to download one or all.', 'Preset 缺少 {count} 个模型文件，可在模型列表中下载。').replace('{count}', count));
         return status;
     }
 
@@ -35278,7 +35285,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             if (current) {
                 current.status = {
                     state: 'blocked',
-                    message: `Missing ${count} required model file(s).`
+                    message: t('Missing {count} required model file(s).', '缺少 {count} 个所需模型文件。').replace('{count}', count)
                 };
                 renderAll({ inspector: false });
             }

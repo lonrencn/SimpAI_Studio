@@ -349,6 +349,7 @@ def reset_simpleai_args():
     cache_ram = _build_comfyd_cache_args(cache_ram_enable, cache_ram_value)
     cache_clear_on_finish = [["--cache-clear-on-finish"]] if ads.get_admin_default('cache_clear_on_finish_checkbox') else []
     has_launch_memory_mode = any(_launch_arg_was_set(flag) for flag in (
+        "--disable-offload-from-vram",
         "--always-gpu",
         "--always-high-vram",
         "--always-normal-vram",
