@@ -2056,13 +2056,21 @@ html.simpai-scene-parameter-normalized #general_setting_tabs button[data-tab-id=
 }
 
 html.simpai-preset-switch-gallery-suppressed #finished_gallery,
+html.simpai-preset-nav-active #finished_gallery,
 html.simpai-preset-switch-gallery-suppressed #final_gallery,
+html.simpai-preset-nav-active #final_gallery,
 html.simpai-preset-switch-gallery-suppressed #progress_video,
+html.simpai-preset-nav-active #progress_video,
 html.simpai-preset-switch-gallery-suppressed #comparison_box,
+html.simpai-preset-nav-active #comparison_box,
 html.simpai-preset-switch-gallery-suppressed #image_toolbox,
+html.simpai-preset-nav-active #image_toolbox,
 html.simpai-preset-switch-gallery-suppressed #compare_btn,
+html.simpai-preset-nav-active #compare_btn,
 html.simpai-preset-switch-gallery-suppressed #model_browser_modal,
-html.simpai-preset-switch-gallery-suppressed #model_browser_modal_content {
+html.simpai-preset-nav-active #model_browser_modal,
+html.simpai-preset-switch-gallery-suppressed #model_browser_modal_content,
+html.simpai-preset-nav-active #model_browser_modal_content {
   display: none !important;
   min-height: 0 !important;
   height: 0 !important;
@@ -2074,7 +2082,8 @@ html.simpai-preset-switch-gallery-suppressed #model_browser_modal_content {
 }
 
 #finished_images_catalog.simpai-preset-switch-catalog-collapsed > :not(button.label-wrap),
-html.simpai-preset-switch-gallery-suppressed #finished_images_catalog > :not(button.label-wrap) {
+html.simpai-preset-switch-gallery-suppressed #finished_images_catalog > :not(button.label-wrap),
+html.simpai-preset-nav-active #finished_images_catalog > :not(button.label-wrap) {
   display: none !important;
   min-height: 0 !important;
   height: 0 !important;
@@ -2981,6 +2990,24 @@ html.simpai-gallery-browser-welcome-pending .preview_column > .row.simpai-galler
 html.simpai-gallery-browser-welcome-pending .preview_column > .row.simpai-gallery-browser-overlay-row #simpleai_gallery_welcome_guard_placeholder {
     display: flex !important;
     visibility: visible !important;
+}
+
+html.simpai-gallery-browser-loading-silent .preview_column > .row.simpai-gallery-browser-overlay-row > .form:has(#preview_generating),
+html.simpai-gallery-browser-loading-silent .preview_column > .row.simpai-gallery-browser-overlay-row > .block:has(#preview_generating),
+html.simpai-gallery-browser-loading-silent .preview_column > .row.simpai-gallery-browser-overlay-row #preview_generating,
+html.simpai-gallery-browser-loading-silent .preview_column > .row.simpai-gallery-browser-overlay-row #preview_generating.main_view,
+html.simpai-gallery-browser-loading-silent .preview_column > .row.simpai-gallery-browser-overlay-row #simpleai_gallery_welcome_guard_placeholder {
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+html.simpai-gallery-browser-loading-silent.simpai-gallery-browser-welcome-pending .preview_column > .row.simpai-gallery-browser-overlay-row #finished_gallery:has(.gallery-container > .preview),
+html.simpai-gallery-browser-loading-silent.simpai-gallery-browser-welcome-pending .preview_column > .row.simpai-gallery-browser-overlay-row #finished_gallery:has(.grid-wrap .gallery-item),
+html.simpai-gallery-browser-loading-silent.simpai-gallery-browser-welcome-pending .preview_column > .row.simpai-gallery-browser-overlay-row #finished_gallery:has(img),
+html.simpai-gallery-browser-loading-silent.simpai-gallery-browser-welcome-pending .preview_column > .row.simpai-gallery-browser-overlay-row #finished_gallery:has(video) {
+    opacity: 1 !important;
+    pointer-events: auto !important;
 }
 
 .preview_column [data-simpleai-gallery-welcome-hidden-for-gallery="1"],

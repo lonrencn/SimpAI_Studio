@@ -767,6 +767,11 @@ function scheduleCloseSimpleAIOpenGalleriesForPresetSwitch(reason) {
 
 function clearSimpleAIPresetSwitchGalleryHidden(reason) {
     const reasonText = String(reason || "");
+    if (shouldKeepPresetSwitchGalleryHiddenDuringNavClear(reasonText)) {
+        try { closeSimpleAIOpenGalleriesForPresetSwitch(`preset_nav_clear_blocked:${reasonText}`, { suppressMs: SIMPLEAI_PRESET_SWITCH_GALLERY_SUPPRESS_MS }); } catch (e) {}
+        simpaiUiTrace("log", "[UI-TRACE] preset_gallery.clear_deferred_during_nav", { reason: reason || "preset_nav" });
+        return false;
+    }
     simpleAIPresetSwitchGalleryCloseToken += 1;
     if (/generate_start|preview_start|preset_switch|preset_nav/i.test(reasonText)) {
         try { resetPostGenerationResultSurfaceState(reasonText || "preset_gallery_clear"); } catch (e) {}
@@ -801,6 +806,7 @@ function clearSimpleAIPresetSwitchGalleryHidden(reason) {
     });
     clearSimpleAICatalogLinkedGalleryHidden(reason);
     simpaiUiTrace("log", "[UI-TRACE] preset_gallery.clear", { reason: reason || "user_action" });
+    return true;
 }
 
 function allowCatalogOpenDuringPresetSwitch(reason) {
@@ -810,6 +816,19 @@ function allowCatalogOpenDuringPresetSwitch(reason) {
     try { document.documentElement.classList.remove("simpai-preset-switch-gallery-suppressed"); } catch (e) {}
     simpleAIPresetSwitchGalleryHiddenUntil = 0;
     simpaiUiTrace("log", "[UI-TRACE] preset_gallery.user_catalog_open_allows_clear", { reason: reason || "catalog_open" });
+}
+
+function shouldKeepPresetSwitchGalleryHiddenDuringNavClear(reason) {
+    const reasonText = String(reason || "");
+    const active = !!(
+        presetNavProgressActive
+        || document.documentElement.classList.contains("simpai-preset-nav-active")
+        || isSimpleAIPresetGallerySuppressed()
+    );
+    if (!active) return false;
+    if (/generate_start|preview_start|generation_done|catalog_toggle_user_open/i.test(reasonText)) return false;
+    if (/catalog_toggle_preopen|click:finished_images_catalog/i.test(reasonText)) return false;
+    return true;
 }
 
 function scheduleSimpleAIPresetGalleryClear(reason) {
@@ -989,6 +1008,20 @@ function bindSimpleAIPresetSwitchGalleryClearControls() {
             const catalogWillOpen = preparedOpen || !catalogIsOpen;
             const catalogWasCollapsed = catalog.dataset.simpleaiPresetSwitchCatalogCollapsed === "1";
             if (evt.type === "pointerdown") {
+                if (catalogIsOpen) {
+                    simpleAIFinishedCatalogPreparedOpenUntil = 0;
+                    try { evt.preventDefault(); } catch (e) {}
+                    try { evt.stopPropagation(); } catch (e) {}
+                    try { evt.stopImmediatePropagation(); } catch (e) {}
+                    simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.pointer_preclose_deferred", {
+                        open: catalogIsOpen,
+                        reason: "wait_for_click",
+                    });
+                    return;
+                }
+                try { evt.preventDefault(); } catch (e) {}
+                try { evt.stopPropagation(); } catch (e) {}
+                try { evt.stopImmediatePropagation(); } catch (e) {}
                 simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.pointer_preopen_deferred", {
                     open: catalogIsOpen,
                     reason: "wait_for_click",
@@ -2115,6 +2148,7 @@ function beginPresetNavProgress(nextPreset) {
     presetNavNetworkPending = 0;
     presetNavNetworkToken += 1;
     closeSimpleAISceneTransientEditorsForPresetSwitch("preset_nav_begin");
+    try { closeSimpleAIOpenGalleriesForPresetSwitch("preset_nav_begin", { suppressMs: SIMPLEAI_PRESET_SWITCH_GALLERY_SUPPRESS_MS }); } catch (e) {}
     setPresetNavSceneSuppressed(true);
     presetNavProgressStartedAt = Date.now();
     presetNavProgressValue = 0;
@@ -3273,6 +3307,41 @@ function refresh_topbar_status_js(system_params) {
     }
     return
 }
+
+function mergeSimpleAITopbarSystemParamsForGallery(system_params, reason) {
+    const incoming = system_params && typeof system_params === "object" ? system_params : null;
+    const previous = (window.simpleaiTopbarSystemParams && typeof window.simpleaiTopbarSystemParams === "object")
+        ? window.simpleaiTopbarSystemParams
+        : (topbarLastSystemParams && typeof topbarLastSystemParams === "object" ? topbarLastSystemParams : null);
+    if (!incoming) {
+        return previous || {};
+    }
+    const incomingHasPreset = Object.prototype.hasOwnProperty.call(incoming, "__preset")
+        || Object.prototype.hasOwnProperty.call(incoming, "preset");
+    const previousHasPreset = !!(previous && (
+        Object.prototype.hasOwnProperty.call(previous, "__preset")
+        || Object.prototype.hasOwnProperty.call(previous, "preset")
+    ));
+    const merged = (!incomingHasPreset && previousHasPreset)
+        ? Object.assign({}, previous, incoming)
+        : incoming;
+    topbarLastSystemParams = merged;
+    window.simpleaiTopbarSystemParams = merged;
+    try {
+        window.dispatchEvent(new CustomEvent("simpai:system-params-updated", { detail: merged }));
+    } catch (e) {}
+    try {
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.topbar_state_merge", {
+            reason: reason || "gallery_browser",
+            incoming_keys: Object.keys(incoming || {}).length,
+            merged: merged !== incoming,
+            preset: merged && merged.__preset,
+            is_scene: !!(merged && (merged.__is_scene_frontend || merged.scene_frontend)),
+        });
+    } catch (e) {}
+    return merged;
+}
+window.mergeSimpleAITopbarSystemParamsForGallery = mergeSimpleAITopbarSystemParamsForGallery;
 
 function syncPerformanceSelectionVisibility(system_params, traceLabel) {
     try { simpaiUiTrace("log", "[UI-TRACE] syncPerformanceSelectionVisibility.enter | trace=" + (traceLabel || "") + " isScene=" + !!(system_params && system_params["__is_scene_frontend"])); } catch(e) {}
@@ -4809,9 +4878,6 @@ function countRenderedFinishedGalleryItems() {
     if (style && (style.display === "none" || style.visibility === "hidden")) return null;
     if (rect && (rect.width <= 0 || rect.height <= 0)) return null;
 
-    const preview = gallery.querySelector(".gallery-container > .preview");
-    if (preview) return 1;
-
     const itemSelectors = [
         ".grid-wrap .gallery-item",
         ".grid-wrap button",
@@ -4820,6 +4886,19 @@ function countRenderedFinishedGalleryItems() {
     for (const selector of itemSelectors) {
         const count = gallery.querySelectorAll(selector).length;
         if (count > 0) return count;
+    }
+
+    const preview = gallery.querySelector(".gallery-container > .preview");
+    if (preview) {
+        const previewThumbSelectors = [
+            ".gallery-container > .preview .thumbnails > .thumbnail-item",
+            ".gallery-container > .preview .thumbnails > button",
+        ];
+        for (const selector of previewThumbSelectors) {
+            const count = gallery.querySelectorAll(selector).length;
+            if (count > 0) return count;
+        }
+        return null;
     }
 
     const mediaSources = new Set();
@@ -4844,22 +4923,16 @@ function syncFinishedCatalogLabelFromRenderedCount(count, mediaType, reason) {
     const params = window.simpleaiTopbarSystemParams || (typeof topbarLastSystemParams !== "undefined" ? topbarLastSystemParams : null) || {};
     const label = getFinishedGalleryBrowserElement("finished_images_catalog")?.querySelector?.("button.label-wrap > span:not(.icon)");
     const statText = String(params.__finished_nums_pages || "");
-    const statCount = parseFinishedCatalogCount(statText);
-    const labelCount = parseFinishedCatalogCount(label ? label.textContent : "");
-    if (statCount !== null && (labelCount === null || statCount > labelCount)) {
-        refresh_finished_images_catalog_label(statText, mode, { refresh: false });
-        return true;
-    }
-    const currentCount = Math.max(statCount || 0, labelCount || 0);
     const renderedCount = Math.max(0, Math.floor(Number(count)));
-    if (renderedCount <= currentCount) return false;
     const parts = statText.split(",");
     const nextStat = `${renderedCount},${parts[1] || ""}`;
-    params.__finished_nums_pages = nextStat;
-    if (window.simpleaiTopbarSystemParams) window.simpleaiTopbarSystemParams.__finished_nums_pages = nextStat;
-    if (typeof topbarLastSystemParams !== "undefined" && topbarLastSystemParams) topbarLastSystemParams.__finished_nums_pages = nextStat;
+    const labelCount = parseFinishedCatalogCount(label ? label.textContent : "");
+    const labelText = String(label ? label.textContent : "");
+    const labelAlreadyMatches = labelCount === renderedCount
+        && (mode === "video" ? /视频|video/i.test(labelText) : /图片|image|出图/i.test(labelText));
+    if (labelAlreadyMatches) return false;
     refresh_finished_images_catalog_label(nextStat, mode, { refresh: false });
-    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.label_from_rendered", { reason: reason || "rendered_gallery", mode, count: renderedCount, previous: currentCount });
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.label_from_rendered", { reason: reason || "rendered_gallery", mode, count: renderedCount });
     return true;
 }
 
@@ -5057,6 +5130,28 @@ function getWelcomePreviewGuardNodes() {
     return [preview, preview.closest(".form, .block"), preview.closest(".row")].filter(Boolean);
 }
 
+function isFinishedGalleryBrowserClosedForSurfaceRefresh() {
+    const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog") || document.getElementById("finished_images_catalog");
+    if (!catalogRoot) return false;
+    if (Date.now() < simpleAIFinishedCatalogPreparedOpenUntil) return false;
+    return !isSimpleAIPresetCatalogOpen(catalogRoot);
+}
+
+function isFinishedGalleryBrowserOpenOrLoading() {
+    const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog") || document.getElementById("finished_images_catalog");
+    const preparedOpen = Date.now() < simpleAIFinishedCatalogPreparedOpenUntil;
+    const catalogOpen = !!(catalogRoot && isSimpleAIPresetCatalogOpen(catalogRoot));
+    if (!preparedOpen && !catalogOpen) return false;
+    return !!(
+        preparedOpen
+        || catalogOpen
+        || (finishedGalleryBrowserState && finishedGalleryBrowserState.loading)
+        || (finishedGalleryBrowserState && finishedGalleryBrowserState.pendingPayload)
+        || document.documentElement.classList.contains("simpai-gallery-browser-loading-silent")
+        || document.documentElement.classList.contains("simpai-gallery-browser-welcome-pending")
+    );
+}
+
 function removeFinishedGalleryWelcomePlaceholder() {
     try {
         const placeholder = document.getElementById("simpleai_gallery_welcome_guard_placeholder");
@@ -5074,6 +5169,7 @@ function suppressFinishedGalleryWelcomeGuardForComparison(reason) {
     try { removeFinishedGalleryWelcomePlaceholder(); } catch (e) {}
     try {
         document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+        document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
         document.documentElement.classList.remove("simpai-gallery-browser-overlay-active");
     } catch (e) {}
     try {
@@ -5204,10 +5300,60 @@ function clearWelcomePreviewHiddenForGalleryNode(el) {
     try { el.hidden = false; } catch (e) {}
     try { el.style.removeProperty("display"); } catch (e) {}
     try { el.style.removeProperty("visibility"); } catch (e) {}
+    try { el.style.removeProperty("opacity"); } catch (e) {}
+    try { el.style.removeProperty("pointer-events"); } catch (e) {}
     try { el.style.removeProperty("height"); } catch (e) {}
     try { el.style.removeProperty("min-height"); } catch (e) {}
     try { el.style.removeProperty("max-height"); } catch (e) {}
     return true;
+}
+
+function getFinishedGalleryBrowserExpectedMediaCount(mediaType) {
+    const mode = getFinishedGalleryBrowserMode(mediaType);
+    const params = window.simpleaiTopbarSystemParams || (typeof topbarLastSystemParams !== "undefined" ? topbarLastSystemParams : null) || {};
+    const statCount = parseFinishedCatalogCount(params.__finished_nums_pages || "");
+    const label = getFinishedGalleryBrowserElement("finished_images_catalog")?.querySelector?.("button.label-wrap > span:not(.icon)");
+    const labelText = String(label ? label.textContent : "");
+    const labelMatchesMode = mode === "video" ? /视频|video/i.test(labelText) : /图片|image|出图/i.test(labelText);
+    const labelCount = labelMatchesMode ? parseFinishedCatalogCount(labelText) : null;
+    return Math.max(0, statCount || 0, labelCount || 0);
+}
+
+function shouldHideWelcomePreviewDuringGalleryBrowserLoading(reason, options) {
+    if (options && options.showWelcomeWhileLoading) return false;
+    const reasonText = String(reason || "");
+    const deferredEmpty = /gallery_browser_after_load_empty_deferred/i.test(reasonText);
+    if (!deferredEmpty && /timeout_keep_welcome|gallery_browser_after_load_empty|gallery_browser_empty/i.test(reasonText)) return false;
+    if (!/catalog_toggle|gallery_browser_(refresh_start|bridge_start|loading|after_load_empty_deferred)/i.test(reasonText)) return false;
+    return getFinishedGalleryBrowserExpectedMediaCount() > 0
+        || (countExistingFinishedGalleryMedia() || 0) > 0
+        || (countRenderedFinishedGalleryItems() || 0) > 0;
+}
+
+function hideWelcomePreviewDuringGalleryBrowserLoading(reason) {
+    const preview = getWelcomePreviewElement();
+    rememberFinishedGalleryWelcomeSource(preview);
+    const previewForm = preview && preview.closest ? preview.closest(".form, .block") : null;
+    const row = (preview && preview.closest ? preview.closest(".row") : null) || getFinishedGallerySurfaceRow();
+    let applied = false;
+    if (row) applied = markWelcomePreviewGuardNode(row) || applied;
+    [preview, previewForm].filter(Boolean).forEach((node) => {
+        try { node.dataset.simpleaiGalleryWelcomeHiddenForGallery = "1"; } catch (e) {}
+        try { node.classList.add("simpai-gallery-browser-welcome-hidden"); } catch (e) {}
+        try { node.setAttribute("aria-hidden", "true"); } catch (e) {}
+        try { node.hidden = true; } catch (e) {}
+        try { node.style.setProperty("visibility", "hidden", "important"); } catch (e) {}
+        try { node.style.setProperty("opacity", "0", "important"); } catch (e) {}
+        try { node.style.setProperty("pointer-events", "none", "important"); } catch (e) {}
+        applied = true;
+    });
+    try {
+        document.documentElement.classList.add("simpai-gallery-browser-welcome-pending");
+        document.documentElement.classList.add("simpai-gallery-browser-loading-silent");
+    } catch (e) {}
+    setFinishedGalleryOverlayActive(true);
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.welcome_loading_hidden", { reason: reason || "gallery_loading", applied });
+    return applied;
 }
 
 function hideWelcomePreviewForFinishedGallery(reason, options) {
@@ -5244,6 +5390,11 @@ function hideWelcomePreviewForFinishedGallery(reason, options) {
 }
 
 function finishFinishedGalleryMediaSurface(reason) {
+    if (isFinishedGalleryBrowserClosedForSurfaceRefresh()) {
+        setFinishedGalleryOverlayActive(false);
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.media_surface_skip_closed", { reason: reason || "gallery_media_ready" });
+        return false;
+    }
     try { window.clearTimeout(finishedGalleryWelcomeGuardTimer); } catch (e) {}
     finishedGalleryWelcomeGuardTimer = null;
     finishedGalleryWelcomeGuardUntil = 0;
@@ -5251,11 +5402,36 @@ function finishFinishedGalleryMediaSurface(reason) {
     setFinishedGalleryBrowserHasMediaState(true, reason || "gallery_media_ready");
     try { clearSimpleAICatalogLinkedGalleryHidden(reason || "gallery_media_ready"); } catch (e) {}
     try { removeFinishedGalleryWelcomePlaceholder(); } catch (e) {}
-    try { document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending"); } catch (e) {}
+    try {
+        document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+        document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+    } catch (e) {}
     setFinishedGalleryOverlayActive(false);
     const hidden = hideWelcomePreviewForFinishedGallery(reason || "gallery_media_ready");
     simpaiUiTrace("log", "[UI-TRACE] gallery_browser.media_surface_ready", {
         reason: reason || "gallery_media_ready",
+        hidden,
+        media: countExistingFinishedGalleryMedia(),
+    });
+    return hidden;
+}
+
+function showMountedFinishedGalleryForCatalogOpen(reason) {
+    try { window.clearTimeout(finishedGalleryWelcomeGuardTimer); } catch (e) {}
+    finishedGalleryWelcomeGuardTimer = null;
+    finishedGalleryWelcomeGuardUntil = 0;
+    finishedGalleryWelcomeGuardHoldStaleUntil = 0;
+    setFinishedGalleryBrowserHasMediaState(true, reason || "catalog_open_ready");
+    try { clearSimpleAICatalogLinkedGalleryHidden(reason || "catalog_open_ready"); } catch (e) {}
+    try { removeFinishedGalleryWelcomePlaceholder(); } catch (e) {}
+    try {
+        document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+        document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+    } catch (e) {}
+    setFinishedGalleryOverlayActive(true);
+    const hidden = hideWelcomePreviewForFinishedGallery(reason || "catalog_open_ready", { sameRow: true });
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.surface_prepare_mounted", {
+        reason: reason || "catalog_open_ready",
         hidden,
         media: countExistingFinishedGalleryMedia(),
     });
@@ -5284,7 +5460,7 @@ function prepareFinishedGallerySurfaceForCatalogOpen(reason) {
     const preview = getWelcomePreviewElement();
     rememberFinishedGalleryWelcomeSource(preview);
     if (hasMountedFinishedGalleryBrowserMedia()) {
-        finishFinishedGalleryMediaSurface(reason || "catalog_open_ready");
+        showMountedFinishedGalleryForCatalogOpen(reason || "catalog_open_ready");
         simpaiUiTrace("log", "[UI-TRACE] gallery_browser.surface_prepare_ready", { reason: reason || "catalog_open" });
         return true;
     }
@@ -5295,7 +5471,10 @@ function prepareFinishedGallerySurfaceForCatalogOpen(reason) {
     setFinishedGalleryOverlayActive(true);
     if ((countRenderedFinishedGalleryItems() || 0) > 0 || countExistingFinishedGalleryMedia() > 0) {
         finishedGalleryWelcomeGuardHoldStaleUntil = 0;
-        try { document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending"); } catch (e) {}
+        try {
+            document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+            document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+        } catch (e) {}
         hideWelcomePreviewForFinishedGallery(reason || "catalog_open_ready");
         simpaiUiTrace("log", "[UI-TRACE] gallery_browser.surface_prepare_fast", { reason: reason || "catalog_open", applied });
         return applied;
@@ -5317,7 +5496,10 @@ function restoreWelcomePreviewAfterCatalogClose(reason) {
         });
         removeFinishedGalleryWelcomePlaceholder();
         setFinishedGalleryOverlayActive(false);
-        try { document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending"); } catch (e) {}
+        try {
+            document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+            document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+        } catch (e) {}
         simpaiUiTrace("log", "[UI-TRACE] gallery_browser.welcome_restore_skipped", { reason: reason || "catalog_close", cleared });
         return cleared;
     }
@@ -5339,7 +5521,10 @@ function restoreWelcomePreviewAfterCatalogClose(reason) {
         removeFinishedGalleryWelcomePlaceholder();
     }
     setFinishedGalleryOverlayActive(false);
-    try { document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending"); } catch (e) {}
+    try {
+        document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+        document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+    } catch (e) {}
     simpaiUiTrace("log", "[UI-TRACE] gallery_browser.welcome_restore_after_close", { reason: reason || "catalog_close", restored });
     return restored;
 }
@@ -5374,6 +5559,28 @@ function restoreWelcomePreviewForEmptyGalleryBrowser(reason) {
 }
 window.restoreWelcomePreviewForEmptyGalleryBrowser = restoreWelcomePreviewForEmptyGalleryBrowser;
 
+function shouldDeferEmptyGalleryBrowserRestoreDuringOpen(reason) {
+    const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog") || document.getElementById("finished_images_catalog");
+    const catalogOpen = !!(catalogRoot && isSimpleAIPresetCatalogOpen(catalogRoot));
+    const preparedOpen = Date.now() < simpleAIFinishedCatalogPreparedOpenUntil;
+    if (!catalogOpen && !preparedOpen) return false;
+    return getFinishedGalleryBrowserExpectedMediaCount(finishedGalleryBrowserState && finishedGalleryBrowserState.mediaType) > 0
+        || (countExistingFinishedGalleryMedia() || 0) > 0
+        || (countRenderedFinishedGalleryItems() || 0) > 0;
+}
+
+function deferEmptyGalleryBrowserRestoreDuringOpen(reason) {
+    setFinishedGalleryBrowserHasMediaState(false, reason || "gallery_browser_after_load_empty_deferred");
+    finishedGalleryWelcomeGuardUntil = Math.max(finishedGalleryWelcomeGuardUntil, Date.now() + 8000);
+    hideWelcomePreviewDuringGalleryBrowserLoading(reason || "gallery_browser_after_load_empty_deferred");
+    scheduleFinishedGalleryWelcomeGuard(reason || "gallery_browser_after_load_empty_deferred", {
+        force: true,
+        ignoreMountedMedia: true,
+    });
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.empty_restore_deferred", { reason: reason || "gallery_browser_after_load_empty" });
+    return true;
+}
+
 function shouldIgnoreMountedGalleryMediaForWelcomeGuard(reason, options) {
     if (options && options.ignoreMountedMedia) return true;
     if (finishedGalleryBrowserState && finishedGalleryBrowserState.loading) return true;
@@ -5399,22 +5606,32 @@ function applyFinishedGalleryWelcomeGuard(reason, options) {
             applied = markWelcomePreviewGuardNode(node) || applied;
         });
         setFinishedGalleryOverlayActive(true);
-        try { document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending"); } catch (e) {}
+        try {
+            document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+            document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+        } catch (e) {}
         hideWelcomePreviewForFinishedGallery(reason || "gallery_has_media");
         simpaiUiTrace("log", "[UI-TRACE] gallery_browser.welcome_guard_fast_media", { reason: reason || "gallery_has_media", applied });
         return applied;
+    }
+    if (shouldHideWelcomePreviewDuringGalleryBrowserLoading(reason, options)) {
+        return hideWelcomePreviewDuringGalleryBrowserLoading(reason || "gallery_loading");
     }
     const preview = getWelcomePreviewElement();
     rememberFinishedGalleryWelcomeSource(preview);
     const placeholder = preview ? null : ensureFinishedGalleryWelcomePlaceholder();
     let applied = false;
     getWelcomePreviewGuardNodes().forEach((node) => {
+        try { clearWelcomePreviewHiddenForGalleryNode(node); } catch (e) {}
         applied = markWelcomePreviewGuardNode(node) || applied;
     });
     if (placeholder) {
         applied = markWelcomePreviewGuardNode(placeholder) || applied;
     }
-    try { document.documentElement.classList.add("simpai-gallery-browser-welcome-pending"); } catch (e) {}
+    try {
+        document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+        document.documentElement.classList.add("simpai-gallery-browser-welcome-pending");
+    } catch (e) {}
     setFinishedGalleryOverlayActive(true);
     simpaiUiTrace("log", "[UI-TRACE] gallery_browser.welcome_guard_apply", { reason: reason || "gallery_loading", applied });
     return applied;
@@ -5425,7 +5642,10 @@ function releaseFinishedGalleryWelcomeGuard(hidePreview, reason) {
     finishedGalleryWelcomeGuardTimer = null;
     finishedGalleryWelcomeGuardUntil = 0;
     finishedGalleryWelcomeGuardHoldStaleUntil = 0;
-    try { document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending"); } catch (e) {}
+    try {
+        document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+        document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+    } catch (e) {}
     const preview = getWelcomePreviewElement();
     const gallery = getFinishedGalleryBrowserElement("finished_gallery") || document.getElementById("finished_gallery");
     const sameRow = !!(
@@ -5435,7 +5655,8 @@ function releaseFinishedGalleryWelcomeGuard(hidePreview, reason) {
         && gallery.closest
         && preview.closest(".row") === gallery.closest(".row")
     );
-    const keepOverlay = !!hidePreview && sameRow && (countRenderedFinishedGalleryItems() || 0) > 0;
+    const closedForSurfaceRefresh = isFinishedGalleryBrowserClosedForSurfaceRefresh();
+    const keepOverlay = !closedForSurfaceRefresh && !!hidePreview && sameRow && (countRenderedFinishedGalleryItems() || 0) > 0;
     setFinishedGalleryOverlayActive(keepOverlay);
     getWelcomePreviewGuardNodes().forEach((node) => {
         let owned = false;
@@ -5450,8 +5671,10 @@ function releaseFinishedGalleryWelcomeGuard(hidePreview, reason) {
         try { node.style.removeProperty("visibility"); } catch (e) {}
     });
     if (hidePreview && ((countRenderedFinishedGalleryItems() || 0) > 0 || countExistingFinishedGalleryMedia() > 0)) {
-        setFinishedGalleryBrowserHasMediaState(true, reason || "gallery_done");
-        hideWelcomePreviewForFinishedGallery(reason || "gallery_done", { sameRow });
+        if (!closedForSurfaceRefresh) {
+            setFinishedGalleryBrowserHasMediaState(true, reason || "gallery_done");
+            hideWelcomePreviewForFinishedGallery(reason || "gallery_done", { sameRow });
+        }
     }
     if (!keepOverlay) {
         removeFinishedGalleryWelcomePlaceholder();
@@ -5859,7 +6082,11 @@ function syncFinishedGalleryBrowserAfterLoad(stateJson) {
             settleFinishedGalleryWelcomeGuardAfterLoad("gallery_browser_after_load");
         }
     } else {
-        restoreWelcomePreviewForEmptyGalleryBrowser("gallery_browser_after_load_empty");
+        if (shouldDeferEmptyGalleryBrowserRestoreDuringOpen("gallery_browser_after_load_empty")) {
+            deferEmptyGalleryBrowserRestoreDuringOpen("gallery_browser_after_load_empty_deferred");
+        } else {
+            restoreWelcomePreviewForEmptyGalleryBrowser("gallery_browser_after_load_empty");
+        }
     }
     syncFinishedGalleryBrowserMoreButton();
     window.setTimeout(() => {
@@ -5880,11 +6107,7 @@ function syncFinishedGalleryBrowserAfterLoad(stateJson) {
 }
 
 function syncFinishedGalleryBrowserAfterNativeLoad(stat, state, reason) {
-    const params = state && typeof state === "object" ? state : {};
-    try {
-        window.simpleaiTopbarSystemParams = params;
-        if (typeof topbarLastSystemParams !== "undefined") topbarLastSystemParams = params;
-    } catch (e) {}
+    const params = mergeSimpleAITopbarSystemParamsForGallery(state && typeof state === "object" ? state : {}, reason || "gallery_browser_native");
     const mode = (params && (params.__gallery_engine_type || params.engine_type)) || getFinishedGalleryBrowserMode();
     const hasPathList = Array.isArray(params.__main_gallery_browser_paths);
     const paths = hasPathList ? params.__main_gallery_browser_paths : [];
@@ -5942,7 +6165,8 @@ function bindFinishedGalleryBrowserControls() {
         label.__simpleaiGalleryBrowserOpenBound = true;
         label.addEventListener("click", () => {
             window.setTimeout(() => {
-                if (!isSimpleAIPresetCatalogOpen(root)) {
+                const latestRoot = getFinishedGalleryBrowserElement("finished_images_catalog") || root;
+                if (!isSimpleAIPresetCatalogOpen(latestRoot)) {
                     closeSimpleAICatalogLinkedGallery("catalog_toggle_close");
                     return;
                 }
@@ -8250,7 +8474,10 @@ function ensurePostGenerationImageSurface(resultEl, reason) {
     try { setSimpleAIPreviewFitHeightVariable(previewColumn); } catch (e) {}
     try { clearFinishedImagesCatalogClosedHitbox("post_generation_surface"); } catch (e) {}
     try { clearSimpleAICatalogLinkedGalleryWrappers("post_generation_surface"); } catch (e) {}
-    try { document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending"); } catch (e) {}
+    try {
+        document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+        document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+    } catch (e) {}
     try { setFinishedGalleryOverlayActive(false); } catch (e) {}
     try { removeFinishedGalleryWelcomePlaceholder(); } catch (e) {}
     try {
@@ -8867,6 +9094,7 @@ function syncPostGenerationResultControls(stateOverride) {
     const supportSurfaceFresh = isPostGenerationSupportSurfaceFresh(supportSurfaceKey);
     const stateCompareVisible = !!(params && params.__post_generation_compare_visible);
     const stateCompareReady = !!(params && params.__post_generation_compare_ready);
+    const galleryBrowserOpenOrLoading = isFinishedGalleryBrowserOpenOrLoading();
     const revealPostGenerationCompareControls = () => {
         const compareBtn = find("compare_btn");
         const toolboxVisible = stateImageToolsEnabled && singlePreviewOpen;
@@ -8887,6 +9115,15 @@ function syncPostGenerationResultControls(stateOverride) {
         return true;
     };
     if (!stateHasOutput && !stateHasGalleryOutput && !stateHasVideoOutput && !hasFinishedGalleryMedia && !hasFinalGalleryMedia) {
+        if (galleryBrowserOpenOrLoading) {
+            setCompareButtonReadyState(find("compare_btn"), false);
+            hideElement(find("image_toolbox"));
+            simpaiUiTrace("log", "[UI-TRACE] post_generation_result_controls.skip_gallery_browser_loading", {
+                engineType,
+                reason: "gallery_browser_loading",
+            });
+            return;
+        }
         try { clearPostGenerationSupportSurface(); } catch (e) {}
         try { removePostGenerationMissingGalleryPlaceholder(); } catch (e) {}
         try { removeFinishedGalleryWelcomePlaceholder(); } catch (e) {}
@@ -8895,6 +9132,7 @@ function syncPostGenerationResultControls(stateOverride) {
             document.documentElement.classList.remove("simpai-video-result-preview");
             document.documentElement.classList.remove("simpai-comparison-preview");
             document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+            document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
             document.documentElement.classList.remove("simpai-gallery-browser-overlay-active");
         } catch (e) {}
         setCompareButtonReadyState(find("compare_btn"), false);
@@ -9174,7 +9412,10 @@ function syncGenerationResultGallerySurface(reason) {
         changed = true;
     });
     if (changed) {
-        try { document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending"); } catch (e) {}
+        try {
+            document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+            document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+        } catch (e) {}
         simpaiUiTrace("log", "[UI-TRACE] generation_result_gallery.surface_revealed", { reason: reason || "generation_result_surface" });
     }
     return changed;
