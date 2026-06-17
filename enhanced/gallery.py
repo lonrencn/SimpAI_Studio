@@ -4,6 +4,10 @@ import math
 import json
 import copy
 import subprocess
+import base64
+import hashlib
+import io
+from collections import OrderedDict
 import modules.util as util
 import modules.config as config
 import modules.meta_parser as meta_parser
@@ -12,11 +16,12 @@ import enhanced.toolbox as toolbox
 import re
 import shared
 import shutil
+import args_manager
 from lxml import etree
 import logging
 import threading
 import time
-from PIL import Image
+from PIL import Image, ImageOps
 from enhanced.logger import format_name
 from ui.update_helpers import dropdown_update, gr_update, skip_update
 logger = logging.getLogger(format_name(__name__))
@@ -41,6 +46,289 @@ _gallery_media_switch_request_lock = threading.Lock()
 _gallery_media_switch_latest = {}
 _main_gallery_browser_request_lock = threading.Lock()
 _main_gallery_browser_invalidated_after = {}
+GALLERY_DISPLAY_PREVIEW_PREFIX = "simpai_gprev__"
+GALLERY_DISPLAY_PREVIEW_ROUTE = "/simpleai/gallery-preview"
+GALLERY_DISPLAY_PREVIEW_MAX_EDGE = 1600
+GALLERY_DISPLAY_PREVIEW_PIXEL_LIMIT = 2000000
+GALLERY_DISPLAY_PREVIEW_EDGE_LIMIT = 2048
+GALLERY_DISPLAY_PREVIEW_JPEG_QUALITY = 88
+GALLERY_DISPLAY_PREVIEW_MEMORY_MAX_ITEMS = 96
+GALLERY_DISPLAY_PREVIEW_MEMORY_MAX_BYTES = 256 * 1024 * 1024
+_gallery_display_preview_memory = OrderedDict()
+_gallery_display_preview_memory_lock = threading.Lock()
+_gallery_display_preview_memory_bytes = 0
+
+
+def _gallery_display_preview_resample_filter():
+    try:
+        return Image.Resampling.LANCZOS
+    except AttributeError:
+        return Image.LANCZOS
+
+
+def _user_did_from_state(state_params):
+    try:
+        user = state_params.get("user") if isinstance(state_params, dict) else None
+        if user is not None and hasattr(user, "get_did"):
+            return user.get_did()
+    except Exception:
+        pass
+    try:
+        return shared.token.get_guest_did()
+    except Exception:
+        return None
+
+
+def _gallery_display_preview_outputs_root(user_did=None):
+    try:
+        return os.path.abspath(config.get_user_path_outputs(user_did))
+    except Exception:
+        return ""
+
+
+def _gallery_display_preview_is_under_outputs(media_path, user_did=None):
+    outputs_root = _gallery_display_preview_outputs_root(user_did)
+    if not media_path or not outputs_root:
+        return False
+    try:
+        abs_path = os.path.abspath(str(media_path))
+        root_path = os.path.abspath(str(outputs_root))
+        if os.path.normcase(os.path.commonpath([abs_path, root_path])) != os.path.normcase(root_path):
+            return False
+    except Exception:
+        return False
+    return True
+
+
+def _gallery_display_preview_name(media_path):
+    try:
+        stat = os.stat(media_path)
+    except OSError:
+        return ""
+    normalized_path = os.path.abspath(str(media_path)).replace("\\", "/")
+    encoded = base64.urlsafe_b64encode(normalized_path.encode("utf-8")).decode("ascii").rstrip("=")
+    signature = hashlib.sha1(
+        f"{normalized_path}|{stat.st_size}|{getattr(stat, 'st_mtime_ns', int(stat.st_mtime * 1000000000))}|{GALLERY_DISPLAY_PREVIEW_MAX_EDGE}".encode("utf-8")
+    ).hexdigest()[:16]
+    return f"{GALLERY_DISPLAY_PREVIEW_PREFIX}{encoded}__{signature}.jpg"
+
+
+def _gallery_display_preview_original_path_from_name(preview_name):
+    name = str(preview_name or "")
+    match = re.match(rf"^{re.escape(GALLERY_DISPLAY_PREVIEW_PREFIX)}([A-Za-z0-9_-]+)__[0-9a-f]{{16}}\.jpg$", name)
+    if not match:
+        return ""
+    encoded = match.group(1)
+    try:
+        padded = encoded + ("=" * ((4 - len(encoded) % 4) % 4))
+        return base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+    except Exception:
+        return ""
+
+
+def _gallery_display_preview_path_allowed(media_path):
+    if not media_path:
+        return False
+    try:
+        abs_path = os.path.abspath(str(media_path))
+        userhome = os.path.abspath(config.path_userhome)
+        if os.path.normcase(os.path.commonpath([abs_path, userhome])) != os.path.normcase(userhome):
+            return False
+        parts = [part.lower() for part in abs_path.replace("\\", "/").split("/")]
+        return "outputs" in parts
+    except Exception:
+        return False
+
+
+def _gallery_display_preview_webroot():
+    try:
+        webroot = str(getattr(args_manager.args, "webroot", "") or "").strip()
+    except Exception:
+        webroot = ""
+    if not webroot:
+        return ""
+    if webroot.startswith("http://") or webroot.startswith("https://"):
+        match = re.match(r"^https?://[^/]+(/.*)?$", webroot)
+        webroot = match.group(1) if match else ""
+    if webroot and not webroot.startswith("/"):
+        webroot = "/" + webroot
+    return webroot.rstrip("/")
+
+
+def _gallery_display_preview_origin(state_params=None):
+    candidates = []
+    if isinstance(state_params, dict):
+        candidates.extend([
+            state_params.get("__webpath"),
+            state_params.get("__origin"),
+            state_params.get("__base_url"),
+        ])
+    try:
+        root = getattr(shared, "gradio_root", None)
+        candidates.extend([
+            getattr(root, "local_url", None),
+            getattr(root, "share_url", None),
+        ])
+    except Exception:
+        pass
+    for candidate in candidates:
+        match = re.match(r"^(https?://[^/]+)", str(candidate or ""))
+        if match:
+            return match.group(1)
+    try:
+        host = str(getattr(args_manager.args, "listen", "") or "127.0.0.1").strip()
+        port = int(getattr(args_manager.args, "port", 0) or 0)
+        if not port:
+            return ""
+        if host in ("", "0.0.0.0", "::"):
+            host = "127.0.0.1"
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        return f"http://{host}:{port}"
+    except Exception:
+        return ""
+
+
+def _gallery_display_preview_url(preview_name, state_params=None):
+    origin = _gallery_display_preview_origin(state_params)
+    if not origin:
+        return ""
+    return f"{origin}{_gallery_display_preview_webroot()}{GALLERY_DISPLAY_PREVIEW_ROUTE}/{preview_name}"
+
+
+def _gallery_image_needs_display_preview(media_path):
+    try:
+        with Image.open(media_path) as image:
+            width, height = image.size
+    except Exception:
+        return False
+    if not width or not height:
+        return False
+    return (width * height) >= GALLERY_DISPLAY_PREVIEW_PIXEL_LIMIT or max(width, height) >= GALLERY_DISPLAY_PREVIEW_EDGE_LIMIT
+
+
+def _gallery_create_display_preview_bytes(media_path):
+    try:
+        with Image.open(media_path) as image:
+            image = ImageOps.exif_transpose(image)
+            if image.mode not in ("RGB", "L"):
+                image = image.convert("RGB")
+            elif image.mode == "L":
+                image = image.convert("RGB")
+            image.thumbnail(
+                (GALLERY_DISPLAY_PREVIEW_MAX_EDGE, GALLERY_DISPLAY_PREVIEW_MAX_EDGE),
+                _gallery_display_preview_resample_filter(),
+            )
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=GALLERY_DISPLAY_PREVIEW_JPEG_QUALITY, optimize=True)
+            return buffer.getvalue()
+    except Exception as e:
+        logger.warning("Gallery display preview failed: path=%r, error=%s", media_path, e)
+        return b""
+
+
+def _gallery_store_display_preview(preview_name, media_path, data):
+    global _gallery_display_preview_memory_bytes
+    if not preview_name or not data:
+        return
+    size = len(data)
+    entry = {
+        "data": data,
+        "mime": "image/jpeg",
+        "path": os.path.abspath(str(media_path)),
+        "size": size,
+        "created_at": time.time(),
+    }
+    with _gallery_display_preview_memory_lock:
+        old = _gallery_display_preview_memory.pop(preview_name, None)
+        if old:
+            _gallery_display_preview_memory_bytes -= int(old.get("size") or 0)
+        _gallery_display_preview_memory[preview_name] = entry
+        _gallery_display_preview_memory_bytes += size
+        while (
+            len(_gallery_display_preview_memory) > GALLERY_DISPLAY_PREVIEW_MEMORY_MAX_ITEMS
+            or _gallery_display_preview_memory_bytes > GALLERY_DISPLAY_PREVIEW_MEMORY_MAX_BYTES
+        ):
+            _, removed = _gallery_display_preview_memory.popitem(last=False)
+            _gallery_display_preview_memory_bytes -= int(removed.get("size") or 0)
+
+
+def _gallery_get_display_preview_entry(preview_name):
+    with _gallery_display_preview_memory_lock:
+        entry = _gallery_display_preview_memory.get(preview_name)
+        if not entry:
+            return None
+        _gallery_display_preview_memory.move_to_end(preview_name)
+        return {
+            "data": entry.get("data") or b"",
+            "mime": entry.get("mime") or "image/jpeg",
+        }
+
+
+def _gallery_ensure_display_preview(media_path, user_did=None):
+    if not _gallery_display_preview_is_under_outputs(media_path, user_did):
+        return ""
+    if not _gallery_image_needs_display_preview(media_path):
+        return ""
+    preview_name = _gallery_display_preview_name(media_path)
+    if not preview_name:
+        return ""
+    if _gallery_get_display_preview_entry(preview_name):
+        return preview_name
+    data = _gallery_create_display_preview_bytes(media_path)
+    if not data:
+        return ""
+    _gallery_store_display_preview(preview_name, media_path, data)
+    return preview_name
+
+
+def _gallery_lazy_display_preview_name(media_path, user_did=None):
+    if not _gallery_display_preview_is_under_outputs(media_path, user_did):
+        return ""
+    if not _gallery_image_needs_display_preview(media_path):
+        return ""
+    return _gallery_display_preview_name(media_path)
+
+
+def get_gallery_display_preview_response(preview_name):
+    entry = _gallery_get_display_preview_entry(preview_name)
+    if entry:
+        return entry
+    media_path = _gallery_display_preview_original_path_from_name(preview_name)
+    if not media_path or not _gallery_display_preview_path_allowed(media_path):
+        return None
+    media_path = os.path.abspath(str(media_path))
+    if not os.path.isfile(media_path) or os.path.splitext(media_path)[1].lower() not in image_types:
+        return None
+    if _gallery_display_preview_name(media_path) != str(preview_name or ""):
+        return None
+    if not _gallery_image_needs_display_preview(media_path):
+        return None
+    data = _gallery_create_display_preview_bytes(media_path)
+    if not data:
+        return None
+    _gallery_store_display_preview(preview_name, media_path, data)
+    return _gallery_get_display_preview_entry(preview_name)
+
+
+def gallery_display_path_for_progress(media_path, engine_type="image", user_did=None, state_params=None):
+    if engine_type != "image" or not media_path:
+        return media_path
+    media_path = os.path.abspath(str(media_path))
+    if not os.path.isfile(media_path):
+        return media_path
+    if os.path.splitext(media_path)[1].lower() not in image_types:
+        return media_path
+    preview_name = _gallery_lazy_display_preview_name(media_path, user_did)
+    if not preview_name:
+        return media_path
+    return _gallery_display_preview_url(preview_name, state_params) or media_path
+
+
+def gallery_display_paths_for_progress(media_paths, engine_type="image", user_did=None, state_params=None):
+    if engine_type != "image":
+        return media_paths
+    return [gallery_display_path_for_progress(path, engine_type, user_did, state_params) for path in (media_paths or [])]
 
 
 def _gallery_media_switch_noop_response():
@@ -889,7 +1177,8 @@ def images_list_fill_gallery(choice, state_params):
         media_paths[0],
     )
     label = _gallery_media_label(engine_type, state_params)
-    return gr_update(value=media_paths, visible=True, label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False), gr_update(visible=False)
+    display_paths = gallery_display_paths_for_progress(media_paths, engine_type, user_did, state_params)
+    return gr_update(value=display_paths, visible=True, label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False), gr_update(visible=False)
 
 
 def switch_gallery_engine_type(target_engine_type, *args):
@@ -975,10 +1264,11 @@ def switch_gallery_engine_type(target_engine_type, *args):
     progress_window_update = skip_update() if has_media else _empty_gallery_welcome_update(state_params)
     if not _is_gallery_media_switch_request_current(request_marker, target_engine_type, state_params):
         return _gallery_media_switch_noop_response()
+    display_paths = gallery_display_paths_for_progress(media_paths, target_engine_type, user_did, state_params)
     return [
         dropdown_update(choices=output_list, value=choice, visible=bool(output_list)),
         gr_update(visible=True, open=True),
-        gr_update(value=media_paths, visible=has_media, label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False),
+        gr_update(value=display_paths, visible=has_media, label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False),
         progress_window_update,
         gallery_update,
         gr_update(visible=False),
@@ -1070,10 +1360,11 @@ def canvas_refresh_after_run(image_tools_checkbox, state_params):
     infobox_state = state_params.get("infobox_state", False)
     label = _gallery_media_label(target_engine_type, state_params)
     progress_window_update = skip_update() if has_media else _empty_gallery_welcome_update(state_params)
+    display_paths = gallery_display_paths_for_progress(media_paths, target_engine_type, user_did, state_params)
     return [
         dropdown_update(choices=output_list, value=choice, visible=bool(output_list)),
         gr_update(visible=True, open=True),
-        gr_update(value=media_paths, visible=has_media, label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False),
+        gr_update(value=display_paths, visible=has_media, label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False),
         progress_window_update,
         gr_update(value=None, visible=False),
         gr_update(visible=False),
@@ -1282,9 +1573,10 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
         query=payload["query"],
     )
     progress_window_update = skip_update() if media_paths else _empty_gallery_welcome_update(state_params)
+    display_paths = gallery_display_paths_for_progress(media_paths, media_type, _user_did_from_state(state_params), state_params)
     return [
         state_json,
-        gr_update(value=media_paths, visible=bool(media_paths), label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False),
+        gr_update(value=display_paths, visible=bool(media_paths), label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False),
         progress_window_update,
         gr_update(value=None, visible=False),
         gr_update(visible=False),
@@ -1411,6 +1703,7 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
     label = _gallery_media_label(media_type, state_params)
     status = _gallery_browser_count_status(len(media_paths), media_type, state_params)
     progress_window_update = skip_update() if media_paths else _empty_gallery_welcome_update(state_params)
+    display_paths = gallery_display_paths_for_progress(media_paths, media_type, _user_did_from_state(state_params), state_params)
 
     return [
         dropdown_update(choices=folders, value=folder or None),
@@ -1418,7 +1711,7 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
         next_update,
         gr_update(value=status),
         gr_update(interactive=bool(result.get("has_more"))),
-        gr_update(value=media_paths, visible=bool(media_paths), label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False),
+        gr_update(value=display_paths, visible=bool(media_paths), label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False),
         progress_window_update,
         gr_update(value=None, visible=False),
         gr_update(visible=False),

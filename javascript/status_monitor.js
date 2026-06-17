@@ -2743,6 +2743,93 @@
         }
     }
 
+    function fileNameFromUrl(url) {
+        try {
+            const parsed = new URL(url, window.location.href);
+            const raw = parsed.pathname.split('/').filter(Boolean).pop() || `gallery_${Date.now()}.png`;
+            return decodeURIComponent(raw).replace(/[\\/:*?"<>|]+/g, '_') || `gallery_${Date.now()}.png`;
+        } catch (e) {
+            return `gallery_${Date.now()}.png`;
+        }
+    }
+
+    function firstUriFromText(text) {
+        return String(text || '').split(/\r?\n/).map((line) => line.trim()).find((line) => line && !line.startsWith('#')) || '';
+    }
+
+    function firstImageSrcFromHtml(html) {
+        if (!html) return '';
+        try {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const src = doc.querySelector('img[src]')?.getAttribute('src') || '';
+            if (src) return src;
+        } catch (e) {
+        }
+        const match = String(html).match(/<img\b[^>]*\bsrc=["']?([^"'\s>]+)/i);
+        return match ? match[1] : '';
+    }
+
+    function normalizeDropUrl(url) {
+        const value = String(url || '').trim();
+        if (!value) return '';
+        try {
+            return new URL(value, window.location.href).href;
+        } catch (e) {
+            return value;
+        }
+    }
+
+    function galleryOriginalUrlFromDropSource(source) {
+        const url = normalizeDropUrl(source);
+        if (!url) return '';
+        try {
+            if (typeof window.simpleaiGalleryDisplayPreviewOriginalSrc === 'function') {
+                const original = window.simpleaiGalleryDisplayPreviewOriginalSrc(url);
+                if (original) return original;
+            }
+        } catch (e) {
+        }
+        if (/\/gradio_api\/file=/i.test(url)) return url;
+        return '';
+    }
+
+    function galleryOriginalUrlFromDownloadUrl(value) {
+        const text = String(value || '');
+        if (!text) return '';
+        const first = text.indexOf(':');
+        const second = first >= 0 ? text.indexOf(':', first + 1) : -1;
+        if (second < 0) return '';
+        return galleryOriginalUrlFromDropSource(text.slice(second + 1));
+    }
+
+    function galleryOriginalUrlFromDataTransfer(dataTransfer) {
+        if (!dataTransfer || typeof dataTransfer.getData !== 'function') {
+            try { return galleryOriginalUrlFromDropSource(window.__simpleaiGalleryOriginalDragUrl || ''); } catch (e) { return ''; }
+        }
+        const custom = galleryOriginalUrlFromDropSource(dataTransfer.getData('application/x-simpleai-gallery-original-url'));
+        if (custom) return custom;
+        const downloadUrl = galleryOriginalUrlFromDownloadUrl(dataTransfer.getData('DownloadURL'));
+        if (downloadUrl) return downloadUrl;
+        const uri = galleryOriginalUrlFromDropSource(firstUriFromText(dataTransfer.getData('text/uri-list')));
+        if (uri) return uri;
+        const htmlSrc = galleryOriginalUrlFromDropSource(firstImageSrcFromHtml(dataTransfer.getData('text/html')));
+        if (htmlSrc) return htmlSrc;
+        const plain = galleryOriginalUrlFromDropSource(dataTransfer.getData('text/plain'));
+        if (plain) return plain;
+        try { return galleryOriginalUrlFromDropSource(window.__simpleaiGalleryOriginalDragUrl || ''); } catch (e) { return ''; }
+    }
+
+    async function setFileInputFromGalleryOriginalUrl(fileInput, url) {
+        if (!fileInput || !url) return false;
+        try {
+            const blob = await urlToBlob(url);
+            if (!blob || !String(blob.type || '').startsWith('image/')) return false;
+            return setFileInputFromFile(fileInput, fileFromBlob(blob, fileNameFromUrl(url), blob.type));
+        } catch (e) {
+            return false;
+        }
+    }
+
     function findFileInputForDropEvent(evt) {
         try {
             const root = gradioApp && gradioApp();
@@ -2847,6 +2934,7 @@
             if (!dataTransfer) return false;
             const types = dataTransfer.types ? Array.from(dataTransfer.types) : [];
             if (types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl')) return false;
+            if (types.includes('application/x-simpleai-gallery-original-url')) return true;
             if (types.includes('Files')) return true;
             if (types.includes('text/uri-list') || types.includes('text/plain')) return true;
             const files = dataTransfer.files ? Array.from(dataTransfer.files) : [];
@@ -2859,6 +2947,12 @@
     async function handleTransferDropDataTransfer(dataTransfer) {
         const transferId = dataTransfer ? (dataTransfer.getData('application/x-simpleai-transfer-id') || '') : '';
         if (transferId) return;
+
+        const galleryOriginalUrl = galleryOriginalUrlFromDataTransfer(dataTransfer);
+        if (galleryOriginalUrl) {
+            const added = await addTransferUrl(galleryOriginalUrl);
+            if (added) return;
+        }
 
         const files = (dataTransfer && dataTransfer.files) ? Array.from(dataTransfer.files) : [];
         if (files.length) {
@@ -2968,7 +3062,7 @@
         transferToggleBtn.addEventListener('dragenter', (e) => {
             try {
                 const types = e.dataTransfer && e.dataTransfer.types ? Array.from(e.dataTransfer.types) : [];
-                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl');
+                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl') || types.includes('application/x-simpleai-gallery-original-url');
                 if (!hasAny) return;
             } catch (e0) {
             }
@@ -2982,7 +3076,7 @@
         transferToggleBtn.addEventListener('dragover', (e) => {
             try {
                 const types = e.dataTransfer && e.dataTransfer.types ? Array.from(e.dataTransfer.types) : [];
-                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl');
+                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl') || types.includes('application/x-simpleai-gallery-original-url');
                 if (!hasAny) return;
             } catch (e0) {
             }
@@ -2996,7 +3090,7 @@
         transferToggleBtn.addEventListener('drop', async (e) => {
             try {
                 const types = e.dataTransfer && e.dataTransfer.types ? Array.from(e.dataTransfer.types) : [];
-                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl');
+                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl') || types.includes('application/x-simpleai-gallery-original-url');
                 if (!hasAny) return;
             } catch (e0) {
             }
@@ -3010,7 +3104,7 @@
         workEntryTile.addEventListener('dragenter', (e) => {
             try {
                 const types = e.dataTransfer && e.dataTransfer.types ? Array.from(e.dataTransfer.types) : [];
-                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl');
+                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl') || types.includes('application/x-simpleai-gallery-original-url');
                 if (!hasAny) return;
             } catch (e0) {
             }
@@ -3024,7 +3118,7 @@
         workEntryTile.addEventListener('dragover', (e) => {
             try {
                 const types = e.dataTransfer && e.dataTransfer.types ? Array.from(e.dataTransfer.types) : [];
-                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl');
+                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl') || types.includes('application/x-simpleai-gallery-original-url');
                 if (!hasAny) return;
             } catch (e0) {
             }
@@ -3042,7 +3136,7 @@
         workEntryTile.addEventListener('drop', async (e) => {
             try {
                 const types = e.dataTransfer && e.dataTransfer.types ? Array.from(e.dataTransfer.types) : [];
-                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl');
+                const hasAny = types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl') || types.includes('application/x-simpleai-gallery-original-url');
                 if (!hasAny) return;
             } catch (e0) {
             }
@@ -3144,18 +3238,30 @@
             try {
                 if (isLayerForgePoint(e)) return;
                 const types = e.dataTransfer && e.dataTransfer.types ? Array.from(e.dataTransfer.types) : [];
-                const hasPayload = types.includes('application/x-simpleai-transfer-id') || types.includes('application/x-simpleai-image-dataurl');
+                const hasPayload = types.includes('application/x-simpleai-transfer-id')
+                    || types.includes('application/x-simpleai-image-dataurl')
+                    || types.includes('application/x-simpleai-gallery-original-url')
+                    || !!window.__simpleaiGalleryOriginalDragUrl;
                 if (!hasPayload) return;
                 e.preventDefault();
             } catch (err) {
             }
         }, true);
 
-        document.addEventListener('drop', (e) => {
+        document.addEventListener('drop', async (e) => {
             try {
                 if (isLayerForgePoint(e)) return;
                 const input = findFileInputForDropEvent(e);
                 if (!input) return;
+                const galleryOriginalUrl = galleryOriginalUrlFromDataTransfer(e.dataTransfer);
+                if (galleryOriginalUrl) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    if (await setFileInputFromGalleryOriginalUrl(input, galleryOriginalUrl)) {
+                        return;
+                    }
+                }
                 const transferId = e.dataTransfer ? (e.dataTransfer.getData('application/x-simpleai-transfer-id') || '') : '';
                 if (transferId) {
                     const idNum = Number(transferId);

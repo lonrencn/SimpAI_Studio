@@ -2,6 +2,7 @@
 (function() {
     // Configuration
     const LAYERFORGE_APP_URL = "/gradio_api/file=javascript/layerforge/app.html";
+    const LAYERFORGE_MODAL_Z_INDEX = '2147483000';
     const COMFY_API_URL = (() => {
         const protocol = window.location.protocol || "http:";
         const hostname = window.location.hostname || "127.0.0.1";
@@ -427,7 +428,7 @@
         modal.style.width = '100vw';
         modal.style.height = '100vh';
         modal.style.backgroundColor = 'rgba(0,0,0,0.82)';
-        modal.style.zIndex = '2147483647';
+        modal.style.zIndex = LAYERFORGE_MODAL_Z_INDEX;
         modal.style.display = 'flex';
         modal.style.justifyContent = 'center';
         modal.style.alignItems = 'center';
@@ -514,7 +515,7 @@
         modal.style.width = '100vw';
         modal.style.height = '100vh';
         modal.style.backgroundColor = 'rgba(0,0,0,0.8)';
-        modal.style.zIndex = '2147483647';
+        modal.style.zIndex = LAYERFORGE_MODAL_Z_INDEX;
         modal.style.display = 'flex';
         modal.style.justifyContent = 'center';
         modal.style.alignItems = 'center';

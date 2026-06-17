@@ -76,7 +76,52 @@ function simpleaiMediaSrc(elem) {
     return elem.currentSrc || elem.src || elem.getAttribute?.('src') || '';
 }
 
+const SIMPLEAI_GALLERY_DISPLAY_PREVIEW_PREFIX = 'simpai_gprev__';
+const SIMPLEAI_GALLERY_DISPLAY_PREVIEW_ROUTE = '/simpleai/gallery-preview/';
+const SIMPLEAI_GALLERY_ORIGINAL_DRAG_URL_TYPE = 'application/x-simpleai-gallery-original-url';
+
+function simpleaiBase64UrlDecodeUtf8(value) {
+    const text = String(value || '');
+    if (!text) return '';
+    const padded = text.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - text.length % 4) % 4);
+    try {
+        const binary = atob(padded);
+        const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+        if (window.TextDecoder) return new TextDecoder('utf-8').decode(bytes);
+        return decodeURIComponent(Array.from(bytes, (byte) => `%${byte.toString(16).padStart(2, '0')}`).join(''));
+    } catch (e) {
+        return '';
+    }
+}
+
+function simpleaiGalleryDisplayPreviewOriginalSrc(src) {
+    const value = String(src || '');
+    if (!value) return '';
+    let url = null;
+    try {
+        url = new URL(value, document.baseURI || window.location?.href || location.href);
+    } catch (e) {
+        return '';
+    }
+    const fileName = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() || '');
+    const match = fileName.match(new RegExp(`^${SIMPLEAI_GALLERY_DISPLAY_PREVIEW_PREFIX}([A-Za-z0-9_-]+)__[0-9a-f]{16}\\.jpg$`));
+    if (!match) return '';
+    const originalPath = simpleaiBase64UrlDecodeUtf8(match[1]);
+    if (!originalPath) return '';
+    const routeIndex = url.pathname.indexOf(SIMPLEAI_GALLERY_DISPLAY_PREVIEW_ROUTE);
+    const basePath = routeIndex >= 0 ? url.pathname.slice(0, routeIndex) : '';
+    const encodedPath = encodeURI(String(originalPath).replace(/\\/g, '/')).replace(/\?/g, '%3F').replace(/#/g, '%23');
+    return `${url.origin}${basePath}/gradio_api/file=${encodedPath}`;
+}
+
+function simpleaiOriginalNativeImageDragSrc(img) {
+    const src = simpleaiMediaSrc(img);
+    return simpleaiGalleryDisplayPreviewOriginalSrc(src) || src;
+}
+
 const SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR = [
+    '#finished_gallery img',
+    '#final_gallery img',
     '#finished_gallery .gallery-container img',
     '#final_gallery .gallery-container img',
     '#scene_input_images img',
@@ -95,12 +140,62 @@ const SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR = [
     '#ip_image_3 img',
     '#ip_image_4 img'
 ].join(', ');
+const SIMPLEAI_NATIVE_IMAGE_DRAG_CONTAINER_SELECTOR = [
+    '#finished_gallery',
+    '#final_gallery',
+    '#scene_input_images',
+    '#scene_input_image1',
+    '#scene_input_image2',
+    '#scene_input_image3',
+    '#scene_input_image4',
+    '#describe_input_image',
+    '#image_input_panel',
+    '#input_image',
+    '#uov_input_image',
+    '#inpaint_input_image',
+    '#ip_image_grid',
+    '#ip_image_1',
+    '#ip_image_2',
+    '#ip_image_3',
+    '#ip_image_4'
+].join(', ');
+const SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PROXY_PIXEL_LIMIT = 2000000;
+const SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PROXY_EDGE_LIMIT = 2048;
+const SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PRESTART_RESTORE_MS = 1200;
+const SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_ACTIVE_RESTORE_MS = 3500;
+const SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PLACEHOLDER_SRC = 'data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22120%22%20height%3D%22120%22%20viewBox%3D%220%200%20120%20120%22%3E%3Crect%20width%3D%22120%22%20height%3D%22120%22%20rx%3D%2210%22%20fill%3D%22%23111827%22/%3E%3Cpath%20d%3D%22M25%2085l22-27%2015%2017%2012-14%2021%2024H25z%22%20fill%3D%22%239ca3af%22/%3E%3Ccircle%20cx%3D%2282%22%20cy%3D%2238%22%20r%3D%2210%22%20fill%3D%22%23d1d5db%22/%3E%3C/svg%3E';
+const SIMPLEAI_GALLERY_ORIGINAL_CONTEXT_RESTORE_MS = 30000;
+const SIMPLEAI_GALLERY_PREVIEW_OPEN_PENDING_MS = 10;
+const SIMPLEAI_GALLERY_PREVIEW_STABLE_MS = 150;
+const SIMPLEAI_GALLERY_PREVIEW_THUMBNAIL_SWITCH_MS = 1200;
+let simpleaiLargeNativeImageDragState = null;
+let simpleaiGalleryOriginalContextState = null;
+let simpleaiGalleryOriginalCopyImage = null;
+let simpleaiGalleryPreviewDeferredRevealTimer = null;
+let simpleaiGalleryPreviewWasOpen = false;
 
 function simpleaiNativeImageDragPreviewImageFromEvent(event) {
     const target = event?.target;
-    if (!target || !target.closest) return null;
-    const img = target.closest(SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR);
+    if (!target) return null;
+    let img = null;
+    if (target.matches?.(SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR)) {
+        img = target;
+    }
+    if (!img && target.closest) {
+        const closestImage = target.closest('img');
+        if (closestImage?.matches?.(SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR)) img = closestImage;
+    }
+    if (!img && target.querySelector) {
+        const nestedImage = target.querySelector('img');
+        if (nestedImage?.matches?.(SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR)) img = nestedImage;
+    }
+    if (!img && target.closest) {
+        const container = target.closest(SIMPLEAI_NATIVE_IMAGE_DRAG_CONTAINER_SELECTOR);
+        const containerImage = container?.querySelector?.('img');
+        if (containerImage?.matches?.(SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR)) img = containerImage;
+    }
     if (!img || img.tagName !== 'IMG') return null;
+    if (simpleaiLargeNativeImageDragState?.img === img) return img;
     const src = simpleaiMediaSrc(img);
     if (!src || src.startsWith('data:image/svg+xml')) return null;
     const naturalWidth = Number(img.naturalWidth || 0);
@@ -109,13 +204,268 @@ function simpleaiNativeImageDragPreviewImageFromEvent(event) {
     return img;
 }
 
+function simpleaiShouldPreventLargeNativeImageDrag(img) {
+    if (simpleaiGalleryDisplayPreviewOriginalSrc(simpleaiMediaSrc(img))) return true;
+    const naturalWidth = Number(img?.naturalWidth || 0);
+    const naturalHeight = Number(img?.naturalHeight || 0);
+    if (!naturalWidth || !naturalHeight) return false;
+    return naturalWidth * naturalHeight >= SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PROXY_PIXEL_LIMIT
+        || Math.max(naturalWidth, naturalHeight) >= SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PROXY_EDGE_LIMIT;
+}
+
+function simpleaiCreateLargeNativeImageDragState(img) {
+    if (!img) return null;
+    const displaySrc = simpleaiMediaSrc(img);
+    const previewOriginalSrc = simpleaiGalleryDisplayPreviewOriginalSrc(displaySrc);
+    const originalSrc = previewOriginalSrc || simpleaiOriginalNativeImageDragSrc(img);
+    if (!originalSrc || originalSrc.startsWith('data:image/svg+xml') || displaySrc.startsWith('data:image/svg+xml')) return null;
+    simpleaiRestoreLargeNativeImageDragSource();
+    const sourceSwapped = !previewOriginalSrc;
+    const state = {
+        img,
+        originalSrc,
+        attrSrc: img.getAttribute?.('src') ?? null,
+        attrSrcset: img.getAttribute?.('srcset') ?? null,
+        attrSizes: img.getAttribute?.('sizes') ?? null,
+        sourceSwapped,
+        started: false,
+        restoreTimer: null,
+    };
+    simpleaiLargeNativeImageDragState = state;
+    img.dataset.simpleaiLargeNativeDragProxy = '1';
+    if (sourceSwapped) {
+        img.removeAttribute?.('srcset');
+        img.removeAttribute?.('sizes');
+        img.setAttribute?.('src', SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PLACEHOLDER_SRC);
+        img.src = SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PLACEHOLDER_SRC;
+    }
+    return state;
+}
+
+function simpleaiAbsoluteNativeImageDragSrc(src) {
+    const value = String(src || '');
+    if (!value) return '';
+    try {
+        return new URL(value, document.baseURI || window.location?.href || location.href).href;
+    } catch (e) {
+        return value;
+    }
+}
+
+function simpleaiLargeNativeImageDragFileName(src) {
+    try {
+        const url = new URL(src, document.baseURI || window.location?.href || location.href);
+        const rawName = url.pathname.split('/').filter(Boolean).pop() || 'image.png';
+        return decodeURIComponent(rawName).replace(/[\\/:*?"<>|]+/g, '_') || 'image.png';
+    } catch (e) {
+        return 'image.png';
+    }
+}
+
+function simpleaiLargeNativeImageDragMimeType(src) {
+    const path = String(src || '').split('?', 1)[0].toLowerCase();
+    if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+    if (path.endsWith('.webp')) return 'image/webp';
+    if (path.endsWith('.gif')) return 'image/gif';
+    if (path.endsWith('.bmp')) return 'image/bmp';
+    return 'image/png';
+}
+
+function simpleaiSetLargeNativeImageDragData(transfer, originalSrc) {
+    if (!transfer || !originalSrc) return;
+    const url = simpleaiAbsoluteNativeImageDragSrc(originalSrc);
+    const fileName = simpleaiLargeNativeImageDragFileName(url);
+    const mimeType = simpleaiLargeNativeImageDragMimeType(url);
+    try { window.__simpleaiGalleryOriginalDragUrl = url; } catch (e) {}
+    try { transfer.clearData(); } catch (e) {}
+    try { transfer.setData(SIMPLEAI_GALLERY_ORIGINAL_DRAG_URL_TYPE, url); } catch (e) {}
+    try { transfer.setData('text/uri-list', url); } catch (e) {}
+    try { transfer.setData('text/plain', url); } catch (e) {}
+    try { transfer.setData('DownloadURL', `${mimeType}:${fileName}:${url}`); } catch (e) {}
+}
+
+function simpleaiClipboardItemSupports(type) {
+    try {
+        if (!window.ClipboardItem) return false;
+        if (typeof window.ClipboardItem.supports === 'function') return window.ClipboardItem.supports(type);
+        return type === 'image/png';
+    } catch (e) {
+        return false;
+    }
+}
+
+async function simpleaiCopyBlobToClipboardForPaste(blob, preferredType) {
+    if (!blob || !navigator.clipboard || !navigator.clipboard.write || !window.ClipboardItem) return false;
+    const type = blob.type || preferredType || 'image/png';
+    if (simpleaiClipboardItemSupports(type)) {
+        await navigator.clipboard.write([new ClipboardItem({ [type]: blob })]);
+        return true;
+    }
+    if (!simpleaiClipboardItemSupports('image/png')) return false;
+    const bitmap = await createImageBitmap(blob);
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width || 1;
+        canvas.height = bitmap.height || 1;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return false;
+        ctx.drawImage(bitmap, 0, 0);
+        const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (!pngBlob) return false;
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+        return true;
+    } finally {
+        try { bitmap.close?.(); } catch (e) {}
+    }
+}
+
+function simpleaiFetchImageBlobForClipboard(url) {
+    return fetch(url, { credentials: 'same-origin' }).then((response) => {
+        if (!response.ok) throw new Error('image fetch failed');
+        return response.blob();
+    });
+}
+
+async function simpleaiConvertBlobToPngForClipboard(blob) {
+    const bitmap = await createImageBitmap(blob);
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width || 1;
+        canvas.height = bitmap.height || 1;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('canvas unavailable');
+        ctx.drawImage(bitmap, 0, 0);
+        const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (!pngBlob) throw new Error('png encode failed');
+        return pngBlob;
+    } finally {
+        try { bitmap.close?.(); } catch (e) {}
+    }
+}
+
+function simpleaiCopyLargeNativeImageForPaste(originalSrc) {
+    const url = simpleaiAbsoluteNativeImageDragSrc(originalSrc);
+    if (!url || !navigator.clipboard || !navigator.clipboard.write || !window.ClipboardItem) return Promise.resolve(false);
+    const type = simpleaiLargeNativeImageDragMimeType(url);
+    try {
+        if (simpleaiClipboardItemSupports(type)) {
+            return navigator.clipboard.write([
+                new ClipboardItem({ [type]: simpleaiFetchImageBlobForClipboard(url) })
+            ]).then(() => true, () => false);
+        }
+        if (!simpleaiClipboardItemSupports('image/png')) return Promise.resolve(false);
+        return navigator.clipboard.write([
+            new ClipboardItem({
+                'image/png': simpleaiFetchImageBlobForClipboard(url).then(simpleaiConvertBlobToPngForClipboard)
+            })
+        ]).then(() => true, () => false);
+    } catch (e) {
+        return Promise.resolve(false);
+    }
+}
+
+function simpleaiScheduleLargeNativeImageDragRestore(state, delay, options = {}) {
+    if (!state) return;
+    if (state.restoreTimer) clearTimeout(state.restoreTimer);
+    state.restoreTimer = setTimeout(() => {
+        if (options.onlyIfNotStarted && state.started) return;
+        simpleaiRestoreLargeNativeImageDragSource(state);
+        simpleaiRemoveNativeImageDragPreview();
+    }, delay);
+}
+
+function simpleaiRestoreLargeNativeImageDragSource(state = simpleaiLargeNativeImageDragState) {
+    if (!state || !state.img) return;
+    if (state.restoreTimer) {
+        clearTimeout(state.restoreTimer);
+        state.restoreTimer = null;
+    }
+    const img = state.img;
+    if (state.sourceSwapped) {
+        if (state.attrSrc === null) {
+            img.removeAttribute?.('src');
+            if (state.originalSrc) img.src = state.originalSrc;
+        } else {
+            img.setAttribute?.('src', state.attrSrc);
+            img.src = state.attrSrc;
+        }
+        if (state.attrSrcset === null) img.removeAttribute?.('srcset');
+        else img.setAttribute?.('srcset', state.attrSrcset);
+        if (state.attrSizes === null) img.removeAttribute?.('sizes');
+        else img.setAttribute?.('sizes', state.attrSizes);
+    }
+    delete img.dataset.simpleaiLargeNativeDragProxy;
+    if (simpleaiLargeNativeImageDragState === state) simpleaiLargeNativeImageDragState = null;
+}
+
+function simpleaiRestoreGalleryOriginalContextImage(state = simpleaiGalleryOriginalContextState) {
+    if (!state || !state.img) return;
+    if (state.restoreTimer) {
+        clearTimeout(state.restoreTimer);
+        state.restoreTimer = null;
+    }
+    const img = state.img;
+    if (state.attrSrc === null) {
+        img.removeAttribute?.('src');
+        if (state.previewSrc) img.src = state.previewSrc;
+    } else {
+        img.setAttribute?.('src', state.attrSrc);
+        img.src = state.attrSrc;
+    }
+    if (state.attrSrcset === null) img.removeAttribute?.('srcset');
+    else img.setAttribute?.('srcset', state.attrSrcset);
+    if (state.attrSizes === null) img.removeAttribute?.('sizes');
+    else img.setAttribute?.('sizes', state.attrSizes);
+    delete img.dataset.simpleaiGalleryOriginalContext;
+    delete img.dataset.simpleaiGalleryOriginalContextPreviewSrc;
+    if (simpleaiGalleryOriginalContextState === state) simpleaiGalleryOriginalContextState = null;
+}
+
+function simpleaiPrepareGalleryOriginalContextMenu(event) {
+    const img = simpleaiNativeImageDragPreviewImageFromEvent(event);
+    if (!img) return;
+    const previewSrc = simpleaiMediaSrc(img);
+    const originalSrc = simpleaiGalleryDisplayPreviewOriginalSrc(previewSrc);
+    if (!originalSrc) return;
+    simpleaiRestoreGalleryOriginalContextImage();
+    const state = {
+        img,
+        previewSrc,
+        originalSrc,
+        attrSrc: img.getAttribute?.('src') ?? null,
+        attrSrcset: img.getAttribute?.('srcset') ?? null,
+        attrSizes: img.getAttribute?.('sizes') ?? null,
+        restoreTimer: null,
+    };
+    simpleaiGalleryOriginalContextState = state;
+    img.dataset.simpleaiGalleryOriginalContext = '1';
+    img.dataset.simpleaiGalleryOriginalContextPreviewSrc = previewSrc;
+    img.removeAttribute?.('srcset');
+    img.removeAttribute?.('sizes');
+    img.setAttribute?.('src', originalSrc);
+    img.src = originalSrc;
+    state.restoreTimer = setTimeout(() => {
+        simpleaiRestoreGalleryOriginalContextImage(state);
+    }, SIMPLEAI_GALLERY_ORIGINAL_CONTEXT_RESTORE_MS);
+}
+
+function simpleaiPrepareLargeNativeImageDrag(event) {
+    if (event.button !== undefined && event.button !== 0) return;
+    const img = simpleaiNativeImageDragPreviewImageFromEvent(event);
+    if (!img || !simpleaiShouldPreventLargeNativeImageDrag(img)) return;
+    const state = simpleaiCreateLargeNativeImageDragState(img);
+    if (!state) return;
+    simpleaiScheduleLargeNativeImageDragRestore(state, SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PRESTART_RESTORE_MS, { onlyIfNotStarted: true });
+}
+
 function simpleaiRemoveNativeImageDragPreview() {
     document.getElementById('simpleai-native-image-drag-preview')?.remove();
 }
 
 function simpleaiCreateNativeImageDragPreview(img) {
     simpleaiRemoveNativeImageDragPreview();
-    const src = simpleaiMediaSrc(img);
+    const activeState = simpleaiLargeNativeImageDragState?.img === img ? simpleaiLargeNativeImageDragState : null;
+    const src = simpleaiGalleryDisplayPreviewOriginalSrc(activeState?.attrSrc || '') ? activeState.attrSrc : simpleaiMediaSrc(img);
     if (!src) return null;
     const preview = document.createElement('div');
     preview.id = 'simpleai-native-image-drag-preview';
@@ -146,13 +496,97 @@ function simpleaiCreateNativeImageDragPreview(img) {
 function simpleaiHandleNativeImageDragStart(event) {
     const img = simpleaiNativeImageDragPreviewImageFromEvent(event);
     const transfer = event?.dataTransfer;
-    if (!img || !transfer) return;
+    if (!img) return;
+    let largeDragState = simpleaiLargeNativeImageDragState?.img === img ? simpleaiLargeNativeImageDragState : null;
+    if (!largeDragState && simpleaiGalleryDisplayPreviewOriginalSrc(simpleaiMediaSrc(img))) {
+        largeDragState = simpleaiCreateLargeNativeImageDragState(img);
+    }
+    if (largeDragState) {
+        largeDragState.started = true;
+        if (largeDragState.restoreTimer) {
+            clearTimeout(largeDragState.restoreTimer);
+            largeDragState.restoreTimer = null;
+        }
+        simpleaiSetLargeNativeImageDragData(transfer, largeDragState.originalSrc);
+        simpleaiScheduleLargeNativeImageDragRestore(largeDragState, SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_ACTIVE_RESTORE_MS);
+    }
+    if (!transfer) return;
     const preview = simpleaiCreateNativeImageDragPreview(img);
     if (!preview) return;
     try {
         transfer.setDragImage(preview, Math.round(preview.offsetWidth / 2), Math.round(preview.offsetHeight / 2));
     } catch (e) {}
     setTimeout(simpleaiRemoveNativeImageDragPreview, 0);
+}
+
+function simpleaiHandleNativeImageDragEnd() {
+    simpleaiRemoveNativeImageDragPreview();
+    simpleaiRestoreLargeNativeImageDragSource();
+    setTimeout(() => {
+        try { delete window.__simpleaiGalleryOriginalDragUrl; } catch (e) {}
+    }, 200);
+}
+
+function simpleaiHandleLargeNativeImageDragPointerDone() {
+    if (simpleaiLargeNativeImageDragState) simpleaiHandleNativeImageDragEnd();
+}
+
+function simpleaiHandleGalleryOriginalContextPointerDown() {
+    if (simpleaiGalleryOriginalContextState) simpleaiRestoreGalleryOriginalContextImage();
+}
+
+function simpleaiPrepareGalleryOriginalContextPointerDown(event) {
+    if (event?.button !== 2) return;
+    simpleaiPrepareGalleryOriginalContextMenu(event);
+}
+
+function simpleaiTrackGalleryOriginalCopyImage(event) {
+    const img = simpleaiNativeImageDragPreviewImageFromEvent(event);
+    if (img && simpleaiGalleryDisplayPreviewOriginalSrc(simpleaiMediaSrc(img))) {
+        simpleaiGalleryOriginalCopyImage = img;
+    }
+}
+
+function simpleaiIsEditableCopyTarget(target) {
+    if (!target || !target.closest) return false;
+    return !!target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]');
+}
+
+function simpleaiCurrentGalleryOriginalCopyImage() {
+    if (simpleaiGalleryOriginalCopyImage && simpleaiGalleryOriginalCopyImage.isConnected) {
+        return simpleaiGalleryOriginalCopyImage;
+    }
+    return gradioApp()?.querySelector?.(
+        '#finished_gallery .gallery-container > .preview img, #final_gallery .gallery-container > .preview img'
+    ) || null;
+}
+
+function simpleaiHandleGalleryOriginalCopyKeyDown(event) {
+    const key = String(event?.key || '').toLowerCase();
+    if (key !== 'c' || (!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey) return;
+    if (simpleaiIsEditableCopyTarget(event.target)) return;
+    const img = simpleaiCurrentGalleryOriginalCopyImage();
+    if (!img) return;
+    const originalSrc = simpleaiGalleryDisplayPreviewOriginalSrc(simpleaiMediaSrc(img));
+    if (!originalSrc) return;
+    event.preventDefault();
+    simpleaiCopyLargeNativeImageForPaste(originalSrc);
+}
+
+function simpleaiHandleLargeNativeImageDragKeyUp(event) {
+    if (event?.key === 'Escape') simpleaiHandleNativeImageDragEnd();
+}
+
+function simpleaiHandleGalleryOriginalContextKeyUp(event) {
+    if (event?.key === 'Escape') simpleaiRestoreGalleryOriginalContextImage();
+}
+
+function simpleaiHandleLargeNativeImageDragVisibilityChange() {
+    if (!document.hidden) simpleaiHandleLargeNativeImageDragPointerDone();
+}
+
+function simpleaiHandleGalleryOriginalContextVisibilityChange() {
+    if (document.hidden) simpleaiRestoreGalleryOriginalContextImage();
 }
 
 function modalImageSwitch(offset) {
@@ -394,6 +828,113 @@ function simpleaiAnyManagedGalleryPreviewOpen() {
     return false;
 }
 
+function simpleaiMarkGalleryPreviewOpenPending(target) {
+    if (!target || !target.closest) return false;
+    const thumbnailTarget = target.closest([
+        '#finished_gallery .thumbnails .thumbnail-item',
+        '#final_gallery .thumbnails .thumbnail-item'
+    ].join(', '));
+    if (thumbnailTarget && simpleaiAnyManagedGalleryPreviewOpen()) {
+        window.__simpleaiGalleryPreviewThumbnailSwitchUntil = Date.now() + SIMPLEAI_GALLERY_PREVIEW_THUMBNAIL_SWITCH_MS;
+        window.__simpleaiGalleryPreviewOpenPendingUntil = 0;
+        window.__simpleaiGalleryPreviewRevealReady = true;
+        window.__simpleaiGalleryPreviewRevealTicks = 2;
+        try { document.documentElement.classList.remove('simpai-gallery-toolbox-deferred'); } catch (e) {}
+        return false;
+    }
+
+    const previewTarget = target.closest([
+        '#finished_gallery .grid-wrap .gallery-item',
+        '#final_gallery .grid-wrap .gallery-item'
+    ].join(', '));
+    if (!previewTarget) return false;
+    if (target.closest('.delete-button, button[aria-label*="delete" i], button[title*="delete" i], button[aria-label*="删除"], button[title*="删除"]')) return false;
+    window.__simpleaiGalleryPreviewOpenPendingUntil = Date.now() + SIMPLEAI_GALLERY_PREVIEW_OPEN_PENDING_MS;
+    window.__simpleaiGalleryPreviewRevealReady = false;
+    window.__simpleaiGalleryPreviewRevealTicks = 0;
+    try { document.documentElement.classList.add('simpai-gallery-toolbox-deferred'); } catch (e) {}
+    simpleaiScheduleGalleryPreviewDeferredReveal();
+    return true;
+}
+
+function simpleaiScheduleGalleryPreviewDeferredReveal() {
+    const until = Number(window.__simpleaiGalleryPreviewOpenPendingUntil || 0);
+    try { clearTimeout(simpleaiGalleryPreviewDeferredRevealTimer); } catch (e) {}
+    simpleaiGalleryPreviewDeferredRevealTimer = setTimeout(() => {
+        try { simpleaiSyncGalleryToolboxState(); } catch (e) {}
+    }, Math.max(0, until - Date.now()) + 80);
+}
+
+function simpleaiGalleryPreviewOpenPending() {
+    const until = Number(window.__simpleaiGalleryPreviewOpenPendingUntil || 0);
+    return until > Date.now();
+}
+
+function simpleaiGalleryPreviewThumbnailSwitchActive() {
+    const until = Number(window.__simpleaiGalleryPreviewThumbnailSwitchUntil || 0);
+    return until > Date.now();
+}
+
+function simpleaiGalleryPreviewRevealAllowed() {
+    return simpleaiUpdateGalleryPreviewRevealAllowed(simpleaiAnyManagedGalleryPreviewOpen());
+}
+
+function simpleaiUpdateGalleryPreviewRevealAllowed(previewOpen) {
+    const now = Date.now();
+    if (!previewOpen) {
+        if (simpleaiGalleryPreviewThumbnailSwitchActive()) {
+            window.__simpleaiGalleryPreviewRevealReady = true;
+            window.__simpleaiGalleryPreviewRevealTicks = 2;
+            try { document.documentElement.classList.remove('simpai-gallery-toolbox-deferred'); } catch (e) {}
+            return true;
+        }
+        simpleaiGalleryPreviewWasOpen = false;
+        window.__simpleaiGalleryPreviewFirstSeenAt = 0;
+        if (simpleaiGalleryPreviewOpenPending()) {
+            window.__simpleaiGalleryPreviewRevealReady = false;
+            window.__simpleaiGalleryPreviewRevealTicks = 0;
+            try { document.documentElement.classList.add('simpai-gallery-toolbox-deferred'); } catch (e) {}
+            return false;
+        }
+        window.__simpleaiGalleryPreviewRevealReady = true;
+        window.__simpleaiGalleryPreviewRevealTicks = 0;
+        try { document.documentElement.classList.remove('simpai-gallery-toolbox-deferred'); } catch (e) {}
+        return true;
+    }
+
+    if (!simpleaiGalleryPreviewWasOpen) {
+        simpleaiGalleryPreviewWasOpen = true;
+        window.__simpleaiGalleryPreviewFirstSeenAt = now;
+        if (simpleaiGalleryPreviewThumbnailSwitchActive()) {
+            window.__simpleaiGalleryPreviewRevealReady = true;
+            window.__simpleaiGalleryPreviewRevealTicks = 2;
+            try { document.documentElement.classList.remove('simpai-gallery-toolbox-deferred'); } catch (e) {}
+            return true;
+        }
+        const stableUntil = now + SIMPLEAI_GALLERY_PREVIEW_STABLE_MS;
+        const pendingUntil = Number(window.__simpleaiGalleryPreviewOpenPendingUntil || 0);
+        if (stableUntil > pendingUntil) {
+            window.__simpleaiGalleryPreviewOpenPendingUntil = stableUntil;
+            simpleaiScheduleGalleryPreviewDeferredReveal();
+        }
+    }
+
+    if (simpleaiGalleryPreviewOpenPending()) {
+        window.__simpleaiGalleryPreviewRevealReady = false;
+        window.__simpleaiGalleryPreviewRevealTicks = 0;
+        try { document.documentElement.classList.add('simpai-gallery-toolbox-deferred'); } catch (e) {}
+        return false;
+    }
+    const ticks = Number(window.__simpleaiGalleryPreviewRevealTicks || 0) + 1;
+    window.__simpleaiGalleryPreviewRevealTicks = ticks;
+    const ready = ticks >= 2;
+    window.__simpleaiGalleryPreviewRevealReady = ready;
+    try { document.documentElement.classList.toggle('simpai-gallery-toolbox-deferred', !ready); } catch (e) {}
+    return ready;
+}
+
+window.simpleaiGalleryPreviewRevealAllowed = simpleaiGalleryPreviewRevealAllowed;
+
 function simpleaiRevealGalleryToolbox(toolbox) {
     if (!toolbox) return;
     try {
@@ -423,7 +964,9 @@ function simpleaiRevealGalleryToolbox(toolbox) {
 
 function simpleaiSyncGalleryToolboxState() {
     const imageToolsDisabled = document.documentElement.classList.contains('simpleai-image-tools-disabled');
-    const hidden = imageToolsDisabled || !simpleaiAnyManagedGalleryPreviewOpen();
+    const previewOpen = simpleaiAnyManagedGalleryPreviewOpen();
+    const revealAllowed = simpleaiUpdateGalleryPreviewRevealAllowed(previewOpen);
+    const hidden = imageToolsDisabled || !(previewOpen && revealAllowed);
     const toolboxes = document.querySelectorAll(
         '#image_toolbox, .toolbox, .gr-group:has(> .styler > button.toolbox_icon_btn)'
     );
@@ -434,7 +977,20 @@ function simpleaiSyncGalleryToolboxState() {
             simpleaiRevealGalleryToolbox(toolbox);
         }
     });
+    if (previewOpen && !revealAllowed) {
+        setTimeout(simpleaiSyncGalleryToolboxState, 80);
+    }
 }
+
+document.addEventListener('pointerdown', function(event) {
+    if (event && event.button != null && event.button !== 0) return;
+    const target = event && event.target ? event.target : null;
+    if (!target || !target.closest) return;
+    if (!simpleaiManagedGalleryRoot(target)) return;
+    if (simpleaiMarkGalleryPreviewOpenPending(target)) {
+        simpleaiSyncGalleryToolboxState();
+    }
+}, true);
 
 function simpleaiSyncGalleryStateSoon() {
     simpleaiSyncGalleryFullscreenState();
@@ -819,8 +1375,28 @@ function simpleaiSyncComparisonSliders() {
 
 document.addEventListener("mousemove", simpleaiComparisonDocumentMouseMove, true);
 document.addEventListener("mouseup", simpleaiComparisonDocumentMouseUp, true);
+document.addEventListener('contextmenu', simpleaiPrepareGalleryOriginalContextMenu, true);
+document.addEventListener('pointerdown', simpleaiHandleGalleryOriginalContextPointerDown, true);
+document.addEventListener('pointerdown', simpleaiPrepareGalleryOriginalContextPointerDown, true);
+document.addEventListener('mousedown', simpleaiPrepareGalleryOriginalContextPointerDown, true);
+document.addEventListener('pointerover', simpleaiTrackGalleryOriginalCopyImage, true);
+document.addEventListener('pointerdown', simpleaiTrackGalleryOriginalCopyImage, true);
+document.addEventListener('pointerdown', simpleaiPrepareLargeNativeImageDrag, true);
+document.addEventListener('pointerup', simpleaiHandleLargeNativeImageDragPointerDone, true);
+document.addEventListener('pointercancel', simpleaiHandleLargeNativeImageDragPointerDone, true);
+document.addEventListener('mouseup', simpleaiHandleLargeNativeImageDragPointerDone, true);
 document.addEventListener('dragstart', simpleaiHandleNativeImageDragStart, true);
-document.addEventListener('dragend', simpleaiRemoveNativeImageDragPreview, true);
+document.addEventListener('dragend', simpleaiHandleNativeImageDragEnd, true);
+document.addEventListener('drop', simpleaiHandleNativeImageDragEnd, true);
+document.addEventListener('keydown', simpleaiHandleGalleryOriginalCopyKeyDown, true);
+document.addEventListener('keyup', simpleaiHandleGalleryOriginalContextKeyUp, true);
+document.addEventListener('keyup', simpleaiHandleLargeNativeImageDragKeyUp, true);
+document.addEventListener('visibilitychange', simpleaiHandleGalleryOriginalContextVisibilityChange, true);
+document.addEventListener('visibilitychange', simpleaiHandleLargeNativeImageDragVisibilityChange, true);
+window.addEventListener('blur', simpleaiHandleLargeNativeImageDragPointerDone, true);
+window.addEventListener('focus', simpleaiHandleLargeNativeImageDragPointerDone, true);
+window.addEventListener('pageshow', simpleaiHandleLargeNativeImageDragPointerDone, true);
+window.addEventListener('pagehide', simpleaiRestoreGalleryOriginalContextImage, true);
 window.addEventListener("resize", () => {
     const scope = simpleaiComparisonSliderScope();
     scope.querySelectorAll?.("#comparison_box").forEach((root) => simpleaiScheduleComparisonSliderSync(root, "window_resize"));
@@ -840,7 +1416,8 @@ document.addEventListener('click', function(event) {
     const target = event.target;
     if (!target || !target.closest) return;
     if (simpleaiManagedGalleryRoot(target)) {
-        setTimeout(simpleaiSyncGalleryStateSoon, 0);
+        simpleaiMarkGalleryPreviewOpenPending(target);
+        simpleaiSyncGalleryStateSoon();
     }
 
     const outputDeleteButton = target.closest('#finished_gallery .delete-button, #final_gallery .delete-button');

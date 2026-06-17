@@ -349,8 +349,6 @@ def reset_simpleai_args():
     cache_ram = _build_comfyd_cache_args(cache_ram_enable, cache_ram_value)
     cache_clear_on_finish = [["--cache-clear-on-finish"]] if ads.get_admin_default('cache_clear_on_finish_checkbox') else []
     has_launch_memory_mode = any(_launch_arg_was_set(flag) for flag in (
-        "--disable-offload-from-vram",
-        "--always-offload-from-vram",
         "--always-gpu",
         "--always-high-vram",
         "--always-normal-vram",
@@ -581,6 +579,10 @@ identity_mode_texts = {
         "cn": '当前节点处于本机模式。您可以直接使用完整功能；如需切换到多用户协作，请先验证管理员身份。导出身份二维码可用于后续再次绑定。',
         "en": "This node is currently in local mode. You can use all features directly. If you want to switch to multi-user collaboration, verify an admin identity first. You can export the identity QR code for future rebinding.",
     },
+    "identity_note_guest_multi": {
+        "cn": '当前已进入多用户模式，但本浏览器仍是游客身份。游客会受到预置、模型下载和个人空间权限限制。',
+        "en": "This node is already in multi-user mode, but the current browser is still a guest. Guest access is limited for presets, model downloads, and personal workspace features.",
+    },
     "status_admin_multi": {
         "cn": '当前为管理员身份（多用户模式）',
         "en": "Current identity: Admin (Multi-user Mode)",
@@ -702,7 +704,7 @@ def get_identity_dialog_note(user_did, lang=None):
         if status == "pending":
             return get_identity_mode_text("identity_note_pending_bound", lang)
         return get_identity_mode_text("identity_note_bound", lang)
-    return get_identity_mode_text("identity_note_mode_switch", lang)
+    return get_identity_mode_text("identity_note_guest_multi", lang)
 
 
 def get_identity_status_title(user_did, lang=None):

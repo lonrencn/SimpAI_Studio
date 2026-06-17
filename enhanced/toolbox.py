@@ -485,8 +485,9 @@ def delete_image(state_params):
     state_params["gallery_preview_open"] = has_media
     label = gallery._gallery_media_label(engine_type, state_params)
     selected_index_update = selected if has_media else None
+    display_gallery = gallery.gallery_display_paths_for_progress(media_gallery, engine_type, user_did, state_params)
     gallery_update = gr_update(value=None, visible=False) if engine_type == "video" else gr_update(
-        value=media_gallery,
+        value=display_gallery,
         allow_preview=True,
         preview=has_media,
         selected_index=selected_index_update,

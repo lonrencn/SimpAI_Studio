@@ -2989,8 +2989,8 @@ html.simpai-gallery-browser-welcome-pending .preview_column > .row.simpai-galler
     visibility: hidden !important;
 }
 
-html:not(.simpai-gallery-browser-welcome-pending) .preview_column:has(#finished_images_catalog > button.label-wrap.open):has(#finished_gallery :is(img, video, .gallery-item, .gallery-container > .preview)) > .row:has(#preview_generating):not(:has(#finished_gallery)),
-html:not(.simpai-gallery-browser-welcome-pending) .preview_column:has(#finished_images_catalog > button.label-wrap[aria-expanded="true"]):has(#finished_gallery :is(img, video, .gallery-item, .gallery-container > .preview)) > .row:has(#preview_generating):not(:has(#finished_gallery)) {
+html.simpai-gallery-browser-has-media .preview_column:has(#finished_images_catalog > button.label-wrap.open):has(#finished_gallery :is(img, video, .gallery-item, .gallery-container > .preview)) > .row:has(#preview_generating):not(:has(#finished_gallery)),
+html.simpai-gallery-browser-has-media .preview_column:has(#finished_images_catalog > button.label-wrap[aria-expanded="true"]):has(#finished_gallery :is(img, video, .gallery-item, .gallery-container > .preview)) > .row:has(#preview_generating):not(:has(#finished_gallery)) {
     display: none !important;
     visibility: hidden !important;
     min-height: 0 !important;
@@ -3000,6 +3000,21 @@ html:not(.simpai-gallery-browser-welcome-pending) .preview_column:has(#finished_
     padding: 0 !important;
     border: 0 !important;
     overflow: hidden !important;
+}
+
+html.simpai-gallery-browser-has-media .preview_column > .row:has(#finished_gallery) #preview_generating,
+html.simpai-gallery-browser-has-media .preview_column > .row:has(#finished_gallery) > :is(.form, .block):has(#preview_generating):not(:has(#finished_gallery)),
+html.simpai-gallery-browser-has-media .preview_column #simpleai_gallery_welcome_guard_placeholder {
+    display: none !important;
+    visibility: hidden !important;
+    min-height: 0 !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
 }
 
 html.simpai-gallery-browser-welcome-pending #simpleai_gallery_welcome_guard_placeholder,
@@ -3542,6 +3557,9 @@ body.simpleai-gallery-fullscreen-open {
 
 #image_toolbox[style*="display: none"],
 #image_toolbox.hidden,
+html.simpai-gallery-toolbox-deferred #image_toolbox,
+html.simpai-gallery-toolbox-deferred .preview_column .toolbox,
+html.simpai-gallery-toolbox-deferred .preview_column .gr-group:has(> .styler > button.toolbox_icon_btn),
 html:not(.simpai-video-result-preview):not(.simpai-comparison-preview):not(.simpai-post-generation-result-surface) #image_toolbox.simpleai-gallery-toolbox-hidden,
 html:not(.simpai-video-result-preview):not(.simpai-comparison-preview):not(.simpai-post-generation-result-surface) .toolbox.simpleai-gallery-toolbox-hidden,
 html:not(.simpai-video-result-preview):not(.simpai-comparison-preview):not(.simpai-post-generation-result-surface) .gr-group.simpleai-gallery-toolbox-hidden:has(> .styler > button.toolbox_icon_btn),
@@ -3552,23 +3570,23 @@ html:not(.simpai-video-result-preview):not(.simpai-comparison-preview):not(.simp
     display: none !important;
 }
 
-html.simpai-post-generation-result-surface .preview_column #image_toolbox:not([style*="display: none"]):not(.hidden):not(.simpleai-gallery-toolbox-hidden),
-html.simpai-post-generation-result-surface .preview_column .toolbox:not([style*="display: none"]):not(.hidden):not(.simpleai-gallery-toolbox-hidden),
-html.simpai-post-generation-result-surface .preview_column .gr-group:not([style*="display: none"]):not(.hidden):not(.simpleai-gallery-toolbox-hidden):has(> .styler > button.toolbox_icon_btn:not(.hidden)) {
+html:not(.simpai-gallery-toolbox-deferred).simpai-post-generation-result-surface .preview_column #image_toolbox:not([style*="display: none"]):not(.hidden):not(.simpleai-gallery-toolbox-hidden),
+html:not(.simpai-gallery-toolbox-deferred).simpai-post-generation-result-surface .preview_column .toolbox:not([style*="display: none"]):not(.hidden):not(.simpleai-gallery-toolbox-hidden),
+html:not(.simpai-gallery-toolbox-deferred).simpai-post-generation-result-surface .preview_column .gr-group:not([style*="display: none"]):not(.hidden):not(.simpleai-gallery-toolbox-hidden):has(> .styler > button.toolbox_icon_btn:not(.hidden)) {
     display: flex !important;
 }
 
-html.simpai-video-result-preview #image_toolbox:not([style*="display: none"]):not(.hidden),
-html.simpai-video-result-preview .preview_column #image_toolbox:not([style*="display: none"]):not(.hidden),
-html.simpai-video-result-preview .preview_column .toolbox:not([style*="display: none"]):not(.hidden),
-html.simpai-video-result-preview .preview_column .gr-group:not([style*="display: none"]):not(.hidden):has(> .styler > button.toolbox_icon_btn) {
+html:not(.simpai-gallery-toolbox-deferred).simpai-video-result-preview #image_toolbox:not([style*="display: none"]):not(.hidden),
+html:not(.simpai-gallery-toolbox-deferred).simpai-video-result-preview .preview_column #image_toolbox:not([style*="display: none"]):not(.hidden),
+html:not(.simpai-gallery-toolbox-deferred).simpai-video-result-preview .preview_column .toolbox:not([style*="display: none"]):not(.hidden),
+html:not(.simpai-gallery-toolbox-deferred).simpai-video-result-preview .preview_column .gr-group:not([style*="display: none"]):not(.hidden):has(> .styler > button.toolbox_icon_btn) {
     display: flex !important;
 }
 
-html.simpai-comparison-preview #image_toolbox:not([style*="display: none"]):not(.hidden),
-html.simpai-comparison-preview .preview_column #image_toolbox:not([style*="display: none"]):not(.hidden),
-html.simpai-comparison-preview .preview_column .toolbox:not([style*="display: none"]):not(.hidden),
-html.simpai-comparison-preview .preview_column .gr-group:not([style*="display: none"]):not(.hidden):has(> .styler > button.toolbox_icon_btn) {
+html:not(.simpai-gallery-toolbox-deferred).simpai-comparison-preview #image_toolbox:not([style*="display: none"]):not(.hidden),
+html:not(.simpai-gallery-toolbox-deferred).simpai-comparison-preview .preview_column #image_toolbox:not([style*="display: none"]):not(.hidden),
+html:not(.simpai-gallery-toolbox-deferred).simpai-comparison-preview .preview_column .toolbox:not([style*="display: none"]):not(.hidden),
+html:not(.simpai-gallery-toolbox-deferred).simpai-comparison-preview .preview_column .gr-group:not([style*="display: none"]):not(.hidden):has(> .styler > button.toolbox_icon_btn) {
     display: flex !important;
 }
 

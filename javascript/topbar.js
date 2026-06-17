@@ -780,6 +780,7 @@ function clearSimpleAIPresetSwitchGalleryHidden(reason) {
         if (/generate|generation|preview/i.test(reasonText)) {
             simpleAIPresetSwitchGalleryIgnoreStatusUntil = Date.now() + 10000;
         }
+        try { setFinishedGalleryBrowserHasMediaState(false, reasonText || "generation_start"); } catch (e) {}
         try { closeSimpleAICatalogLinkedGallery(reasonText || "generation_start", { markWrappers: false }); } catch (e) {}
         simpaiUiTrace("log", "[UI-TRACE] preset_gallery.generation_start_hide", { reason: reason || "generation_start" });
         return;
@@ -800,6 +801,15 @@ function clearSimpleAIPresetSwitchGalleryHidden(reason) {
     });
     clearSimpleAICatalogLinkedGalleryHidden(reason);
     simpaiUiTrace("log", "[UI-TRACE] preset_gallery.clear", { reason: reason || "user_action" });
+}
+
+function allowCatalogOpenDuringPresetSwitch(reason) {
+    simpleAIPresetSwitchGalleryCloseToken += 1;
+    simpleAIPresetSwitchGalleryIgnoreStatusUntil = Date.now() + 1800;
+    try { window.clearTimeout(simpleAIPresetSwitchGalleryCleanupTimer); } catch (e) {}
+    try { document.documentElement.classList.remove("simpai-preset-switch-gallery-suppressed"); } catch (e) {}
+    simpleAIPresetSwitchGalleryHiddenUntil = 0;
+    simpaiUiTrace("log", "[UI-TRACE] preset_gallery.user_catalog_open_allows_clear", { reason: reason || "catalog_open" });
 }
 
 function scheduleSimpleAIPresetGalleryClear(reason) {
@@ -894,8 +904,13 @@ function bindSimpleAIPresetSwitchGalleryClearControls() {
         const catalog = getSimpleAIElementById("finished_images_catalog");
         const catalogRoot = catalog && target.closest("#finished_images_catalog");
         if (!matched) return;
-        if (shouldIgnorePresetGalleryClearClick(evt)) return;
         const catalogLabel = catalog && catalogRoot === catalog ? target.closest("button.label-wrap") : null;
+        const catalogLabelClick = !!(
+            catalog
+            && catalogRoot === catalog
+            && catalogLabel
+        );
+        if (shouldIgnorePresetGalleryClearClick(evt) && !(catalogLabelClick && evt.type === "click" && evt.isTrusted !== false)) return;
         const generateButton = getSimpleAIElementById("generate_button");
         const pointerOverGenerate = simpleAIEventPointWithinElement(evt, generateButton, 2);
         if (
@@ -968,11 +983,6 @@ function bindSimpleAIPresetSwitchGalleryClearControls() {
             simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.boundary_hit_ignored", { event: evt.type });
             return;
         }
-        const catalogLabelClick = !!(
-            catalog
-            && catalogRoot === catalog
-            && catalogLabel
-        );
         if (catalogLabelClick) {
             const catalogIsOpen = isSimpleAIPresetCatalogOpen(catalog);
             const preparedOpen = Date.now() < simpleAIFinishedCatalogPreparedOpenUntil;
@@ -986,6 +996,9 @@ function bindSimpleAIPresetSwitchGalleryClearControls() {
                 return;
             }
             if (catalogWillOpen) {
+                if (isSimpleAIPresetGallerySuppressed() || presetNavProgressActive || document.documentElement.classList.contains("simpai-preset-nav-active")) {
+                    allowCatalogOpenDuringPresetSwitch("catalog_toggle_user_open");
+                }
                 clearFinishedImagesCatalogClosedHitbox("catalog_toggle_preopen");
                 simpleAIFinishedCatalogPreparedOpenUntil = Date.now() + 700;
                 prepareFinishedGallerySurfaceForCatalogOpen("catalog_toggle_preopen");
@@ -1088,7 +1101,12 @@ function simpleAIGalleryFrostTargets() {
 function simpleAIGalleryFrostSignature(gallery) {
     if (!gallery || !gallery.querySelectorAll) return "";
     return Array.from(gallery.querySelectorAll("img, video"))
-        .map((el) => el.currentSrc || el.src || el.poster || "")
+        .map((el) => {
+            const contextPreviewSrc = el.dataset?.simpleaiGalleryOriginalContext === "1"
+                ? (el.dataset.simpleaiGalleryOriginalContextPreviewSrc || "")
+                : "";
+            return contextPreviewSrc || el.currentSrc || el.src || el.poster || "";
+        })
         .filter(Boolean)
         .join("|");
 }
@@ -4866,6 +4884,23 @@ function countExistingFinishedGalleryMedia() {
     return mediaSources.size;
 }
 
+function setFinishedGalleryBrowserHasMediaState(hasMedia, reason) {
+    try {
+        document.documentElement.classList.toggle("simpai-gallery-browser-has-media", !!hasMedia);
+    } catch (e) {}
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.has_media_state", {
+        reason: reason || "gallery_browser",
+        hasMedia: !!hasMedia,
+    });
+}
+
+function hasMountedFinishedGalleryBrowserMedia() {
+    if ((countExistingFinishedGalleryMedia() || 0) > 0) return true;
+    const selector = "img, video, .gallery-item, .gallery-container > .preview, .grid-wrap button, [data-testid='gallery'] button";
+    const finalGallery = getFinishedGalleryBrowserElement("final_gallery") || document.getElementById("final_gallery");
+    return !!(finalGallery && finalGallery.querySelector(selector));
+}
+
 const POST_GENERATION_SUPPORT_SURFACE_TTL_MS = 3200;
 let postGenerationSupportSurfaceTimer = null;
 let postGenerationSupportSurfaceFreshUntil = 0;
@@ -5208,6 +5243,25 @@ function hideWelcomePreviewForFinishedGallery(reason, options) {
     return hidden;
 }
 
+function finishFinishedGalleryMediaSurface(reason) {
+    try { window.clearTimeout(finishedGalleryWelcomeGuardTimer); } catch (e) {}
+    finishedGalleryWelcomeGuardTimer = null;
+    finishedGalleryWelcomeGuardUntil = 0;
+    finishedGalleryWelcomeGuardHoldStaleUntil = 0;
+    setFinishedGalleryBrowserHasMediaState(true, reason || "gallery_media_ready");
+    try { clearSimpleAICatalogLinkedGalleryHidden(reason || "gallery_media_ready"); } catch (e) {}
+    try { removeFinishedGalleryWelcomePlaceholder(); } catch (e) {}
+    try { document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending"); } catch (e) {}
+    setFinishedGalleryOverlayActive(false);
+    const hidden = hideWelcomePreviewForFinishedGallery(reason || "gallery_media_ready");
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.media_surface_ready", {
+        reason: reason || "gallery_media_ready",
+        hidden,
+        media: countExistingFinishedGalleryMedia(),
+    });
+    return hidden;
+}
+
 function setFinishedGalleryOverlayActive(active) {
     try { document.documentElement.classList.toggle("simpai-gallery-browser-overlay-active", !!active); } catch (e) {}
     try {
@@ -5229,6 +5283,11 @@ function shouldReleaseFinishedGalleryWelcomeGuard() {
 function prepareFinishedGallerySurfaceForCatalogOpen(reason) {
     const preview = getWelcomePreviewElement();
     rememberFinishedGalleryWelcomeSource(preview);
+    if (hasMountedFinishedGalleryBrowserMedia()) {
+        finishFinishedGalleryMediaSurface(reason || "catalog_open_ready");
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.surface_prepare_ready", { reason: reason || "catalog_open" });
+        return true;
+    }
     let applied = false;
     getWelcomePreviewGuardNodes().forEach((node) => {
         applied = markWelcomePreviewGuardNode(node) || applied;
@@ -5286,6 +5345,7 @@ function restoreWelcomePreviewAfterCatalogClose(reason) {
 }
 
 function restoreWelcomePreviewForEmptyGalleryBrowser(reason) {
+    setFinishedGalleryBrowserHasMediaState(false, reason || "gallery_browser_empty");
     ["finished_gallery", "final_gallery", "progress_video", "video_player", "comparison_box"].forEach((id) => {
         try { markSimpleAICatalogLinkedGalleryHidden(getFinishedGalleryBrowserElement(id) || document.getElementById(id)); } catch (e) {}
     });
@@ -5314,13 +5374,24 @@ function restoreWelcomePreviewForEmptyGalleryBrowser(reason) {
 }
 window.restoreWelcomePreviewForEmptyGalleryBrowser = restoreWelcomePreviewForEmptyGalleryBrowser;
 
+function shouldIgnoreMountedGalleryMediaForWelcomeGuard(reason, options) {
+    if (options && options.ignoreMountedMedia) return true;
+    if (finishedGalleryBrowserState && finishedGalleryBrowserState.loading) return true;
+    return /gallery_browser_(refresh_start|bridge_start|loading)|catalog_toggle_open/i.test(String(reason || ""));
+}
+
 function applyFinishedGalleryWelcomeGuard(reason, options) {
     const force = !!(options && options.force);
+    const ignoreMountedMedia = shouldIgnoreMountedGalleryMediaForWelcomeGuard(reason, options);
+    if (!ignoreMountedMedia && hasMountedFinishedGalleryBrowserMedia()) {
+        finishFinishedGalleryMediaSurface(reason || "gallery_has_media");
+        return true;
+    }
     if (!force && shouldReleaseFinishedGalleryWelcomeGuard()) {
         releaseFinishedGalleryWelcomeGuard(true, reason || "gallery_ready");
         return true;
     }
-    if (!force && countExistingFinishedGalleryMedia() > 0) {
+    if (!force && !ignoreMountedMedia && countExistingFinishedGalleryMedia() > 0) {
         const preview = getWelcomePreviewElement();
         rememberFinishedGalleryWelcomeSource(preview);
         let applied = false;
@@ -5379,6 +5450,7 @@ function releaseFinishedGalleryWelcomeGuard(hidePreview, reason) {
         try { node.style.removeProperty("visibility"); } catch (e) {}
     });
     if (hidePreview && ((countRenderedFinishedGalleryItems() || 0) > 0 || countExistingFinishedGalleryMedia() > 0)) {
+        setFinishedGalleryBrowserHasMediaState(true, reason || "gallery_done");
         hideWelcomePreviewForFinishedGallery(reason || "gallery_done", { sameRow });
     }
     if (!keepOverlay) {
@@ -5387,9 +5459,14 @@ function releaseFinishedGalleryWelcomeGuard(hidePreview, reason) {
     simpaiUiTrace("log", "[UI-TRACE] gallery_browser.welcome_guard_release", { reason: reason || "gallery_done", keepOverlay, hidePreview: !!hidePreview });
 }
 
-function scheduleFinishedGalleryWelcomeGuard(reason) {
+function scheduleFinishedGalleryWelcomeGuard(reason, options) {
     try { window.clearTimeout(finishedGalleryWelcomeGuardTimer); } catch (e) {}
-    if (shouldReleaseFinishedGalleryWelcomeGuard()) {
+    const ignoreMountedMedia = shouldIgnoreMountedGalleryMediaForWelcomeGuard(reason, options);
+    if (!ignoreMountedMedia && hasMountedFinishedGalleryBrowserMedia()) {
+        finishFinishedGalleryMediaSurface(reason || "gallery_ready");
+        return;
+    }
+    if (!ignoreMountedMedia && shouldReleaseFinishedGalleryWelcomeGuard()) {
         releaseFinishedGalleryWelcomeGuard(true, reason || "gallery_ready");
         return;
     }
@@ -5397,31 +5474,35 @@ function scheduleFinishedGalleryWelcomeGuard(reason) {
         applyFinishedGalleryWelcomeGuard(`${reason || "gallery_loading"}:timeout_keep_welcome`, { force: Date.now() < finishedGalleryWelcomeGuardHoldStaleUntil });
         return;
     }
-    applyFinishedGalleryWelcomeGuard(reason, { force: Date.now() < finishedGalleryWelcomeGuardHoldStaleUntil });
+    applyFinishedGalleryWelcomeGuard(reason, Object.assign({ force: Date.now() < finishedGalleryWelcomeGuardHoldStaleUntil }, options || {}));
     finishedGalleryWelcomeGuardTimer = window.setTimeout(() => {
-        scheduleFinishedGalleryWelcomeGuard(`${reason || "gallery_loading"}+guard`);
+        scheduleFinishedGalleryWelcomeGuard(`${reason || "gallery_loading"}+guard`, options);
     }, 120);
 }
 
 function keepWelcomePreviewUntilFinishedGalleryReady(reason) {
+    setFinishedGalleryBrowserHasMediaState(false, reason || "gallery_loading");
     finishedGalleryWelcomeGuardUntil = Math.max(finishedGalleryWelcomeGuardUntil, Date.now() + 8000);
-    applyFinishedGalleryWelcomeGuard(reason);
-    scheduleFinishedGalleryWelcomeGuard(reason);
+    const options = { ignoreMountedMedia: true };
+    applyFinishedGalleryWelcomeGuard(reason, options);
+    scheduleFinishedGalleryWelcomeGuard(reason, options);
 }
 
 function forceWelcomePreviewUntilFinishedGalleryReady(reason) {
+    setFinishedGalleryBrowserHasMediaState(false, reason || "gallery_loading");
     finishedGalleryWelcomeGuardUntil = Math.max(finishedGalleryWelcomeGuardUntil, Date.now() + 8000);
     finishedGalleryWelcomeGuardHoldStaleUntil = Math.max(finishedGalleryWelcomeGuardHoldStaleUntil, Date.now() + 220);
-    applyFinishedGalleryWelcomeGuard(reason, { force: true });
-    scheduleFinishedGalleryWelcomeGuard(reason);
+    const options = { force: true, ignoreMountedMedia: true };
+    applyFinishedGalleryWelcomeGuard(reason, options);
+    scheduleFinishedGalleryWelcomeGuard(reason, options);
 }
 
 function settleFinishedGalleryWelcomeGuardAfterLoad(reason) {
     [0, 80, 220, 520, 1000, 1600, 2600].forEach((delay) => {
         window.setTimeout(() => {
             try {
-                if (countRenderedFinishedGalleryItems() > 0) {
-                    releaseFinishedGalleryWelcomeGuard(true, `${reason || "gallery_load"}+${delay}ms`);
+                if (hasMountedFinishedGalleryBrowserMedia()) {
+                    finishFinishedGalleryMediaSurface(`${reason || "gallery_load"}+${delay}ms`);
                 } else {
                     clearSimpleAICatalogLinkedGalleryHidden(`${reason || "gallery_load"}+${delay}ms`);
                     applyFinishedGalleryWelcomeGuard(`${reason || "gallery_load"}+${delay}ms`);
@@ -5713,6 +5794,7 @@ function refreshFinishedGalleryBrowser(options) {
 
 function markFinishedGalleryBrowserLoading() {
     finishedGalleryBrowserState.loading = true;
+    setFinishedGalleryBrowserHasMediaState(false, "gallery_browser_loading");
     const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog");
     if (!finishedGalleryBrowserPreloadInFlight && (!catalogRoot || isSimpleAIPresetCatalogOpen(catalogRoot))) {
         keepWelcomePreviewUntilFinishedGalleryReady("gallery_browser_loading");
@@ -5770,6 +5852,7 @@ function syncFinishedGalleryBrowserAfterLoad(stateJson) {
     setFinishedGalleryBrowserStatus(simpleAIGalleryBrowserCountStatus(finishedGalleryBrowserState.loaded, finishedGalleryBrowserState.mediaType));
     try { syncGalleryMediaSwitch(finishedGalleryBrowserState.mediaType, 0, "browser_after_load"); } catch (e) {}
     if (finishedGalleryBrowserState.loaded > 0) {
+        setFinishedGalleryBrowserHasMediaState(true, "gallery_browser_after_load");
         try { clearPostGenerationSupportSurface(); } catch (e) {}
         const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog");
         if (!catalogRoot || isSimpleAIPresetCatalogOpen(catalogRoot)) {
@@ -5794,6 +5877,44 @@ function syncFinishedGalleryBrowserAfterLoad(stateJson) {
             refreshFinishedGalleryBrowser(queued);
         }
     }, 120);
+}
+
+function syncFinishedGalleryBrowserAfterNativeLoad(stat, state, reason) {
+    const params = state && typeof state === "object" ? state : {};
+    try {
+        window.simpleaiTopbarSystemParams = params;
+        if (typeof topbarLastSystemParams !== "undefined") topbarLastSystemParams = params;
+    } catch (e) {}
+    const mode = (params && (params.__gallery_engine_type || params.engine_type)) || getFinishedGalleryBrowserMode();
+    const hasPathList = Array.isArray(params.__main_gallery_browser_paths);
+    const paths = hasPathList ? params.__main_gallery_browser_paths : [];
+    let loaded = hasPathList ? paths.length : null;
+    if (loaded === null) {
+        const statusRoot = getFinishedGalleryBrowserElement("gallery_browser_status");
+        const statusText = statusRoot ? String(statusRoot.textContent || "") : "";
+        const statusCount = parseFinishedCatalogCount(statusText);
+        if (statusCount !== null) loaded = statusCount;
+    }
+    if (loaded === null && hasMountedFinishedGalleryBrowserMedia()) {
+        loaded = countExistingFinishedGalleryMedia() || 0;
+    }
+    if (loaded === null) loaded = 0;
+    finishedGalleryBrowserState.pendingPayload = null;
+    const data = {
+        ok: true,
+        media_type: mode,
+        folder: params.__main_gallery_browser_folder || finishedGalleryBrowserState.folder || "",
+        loaded,
+        next_offset: params.__main_gallery_browser_next_offset || loaded,
+        has_more: !!params.__main_gallery_browser_has_more,
+    };
+    syncFinishedGalleryBrowserAfterLoad(JSON.stringify(data));
+    try { scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery(mode, reason || "gallery_browser_native"); } catch (e) {}
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.native_after_load", {
+        reason: reason || "gallery_browser_native",
+        loaded,
+        mode,
+    });
 }
 
 function bindFinishedGalleryBrowserScroll() {
@@ -5873,6 +5994,7 @@ function scheduleFinishedGalleryBrowserRefresh(mediaType) {
 window.refreshFinishedGalleryBrowser = refreshFinishedGalleryBrowser;
 window.scheduleFinishedGalleryBrowserRefresh = scheduleFinishedGalleryBrowserRefresh;
 window.syncFinishedGalleryBrowserAfterLoad = syncFinishedGalleryBrowserAfterLoad;
+window.syncFinishedGalleryBrowserAfterNativeLoad = syncFinishedGalleryBrowserAfterNativeLoad;
 window.markFinishedGalleryBrowserLoading = markFinishedGalleryBrowserLoading;
 window.syncFinishedGalleryBrowserStatusFromRenderedGallery = syncFinishedGalleryBrowserStatusFromRenderedGallery;
 window.scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery = scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery;
@@ -6779,7 +6901,18 @@ function startPresetStoreCandidatePointerDrag(event, candidate) {
         const moved = drag && hasPointer
             ? Math.hypot(upEvent.clientX - (drag.startClientX || upEvent.clientX), upEvent.clientY - (drag.startClientY || upEvent.clientY))
             : 999;
-        const isClickToggle = drag && hasPointer && moved < 8;
+        const releaseCandidate = upEvent && upEvent.target && upEvent.target.closest
+            ? upEvent.target.closest(".preset-store-candidate")
+            : null;
+        const releaseName = releaseCandidate
+            ? getCleanPresetStoreName(releaseCandidate.dataset.presetBaseName || releaseCandidate.textContent || "")
+            : "";
+        const isSameCandidateClick = !!(
+            drag
+            && releaseName
+            && normalizePresetName(releaseName) === normalizePresetName(drag.name || "")
+        );
+        const isClickToggle = drag && hasPointer && moved < 8 && isSameCandidateClick;
         let insertionIndex = hasPointer ? getPresetStoreDraftInsertionIndex(upEvent.clientX, upEvent.clientY, { bypassCooldown: true }) : -1;
         if (isClickToggle && insertionIndex < 0) {
             insertionIndex = presetStoreDraftState.list.length;
@@ -8711,12 +8844,23 @@ function syncPostGenerationResultControls(stateOverride) {
         } catch (e) {}
         return false;
     };
+    const galleryPreviewRevealAllowed = () => {
+        try {
+            if (typeof window.simpleaiGalleryPreviewRevealAllowed === "function") return window.simpleaiGalleryPreviewRevealAllowed();
+            if (document.documentElement.classList.contains("simpai-gallery-toolbox-deferred")) return false;
+            const pendingUntil = Number(window.__simpleaiGalleryPreviewOpenPendingUntil || 0);
+            if (pendingUntil > Date.now() && window.__simpleaiGalleryPreviewRevealReady === false) return false;
+        } catch (e) {
+            return true;
+        }
+        return true;
+    };
     const stateHasOutput = !!(params && params.__post_generation_has_output);
     const stateHasGalleryOutput = !!(params && params.__post_generation_gallery_output);
     const stateHasVideoOutput = !!(params && params.__post_generation_video_output);
     const stateHasImageOutput = stateHasOutput && !isVideoContext && !stateHasVideoOutput;
     const stateGalleryPreviewOpen = !!(params && params.gallery_preview_open);
-    const singlePreviewOpen = stateGalleryPreviewOpen || hasGallerySinglePreview() || (comparisonVisible && !compareActionBlocked);
+    const singlePreviewOpen = ((stateGalleryPreviewOpen || hasGallerySinglePreview()) && galleryPreviewRevealAllowed()) || (comparisonVisible && !compareActionBlocked);
     const activeGenerationControls = typeof hasSimpleAIActiveGenerationControls === "function" && hasSimpleAIActiveGenerationControls();
     const stateImageUrl = params?.__post_generation_image_url || "";
     const supportSurfaceKey = postGenerationSurfaceKeyFromParams(params);

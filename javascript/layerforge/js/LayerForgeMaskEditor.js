@@ -6,10 +6,13 @@ export class LayerForgeMaskEditor {
         this.container = null;
         this.bgCanvas = null;
         this.maskCanvas = null;
+        this.maskDisplayCanvas = null;
         this.cursorCanvas = null;
         this.ctx = null;
         this.maskCtx = null;
+        this.maskDisplayCtx = null;
         this.cursorCtx = null;
+        this.maskPatternCanvas = null;
         
         this.scale = 1;
         this.panX = 0;
@@ -32,11 +35,51 @@ export class LayerForgeMaskEditor {
         this.injectCSS();
     }
 
+    getMaskPatternCanvas() {
+        if (this.maskPatternCanvas)
+            return this.maskPatternCanvas;
+        const tile = 6;
+        const canvas = document.createElement('canvas');
+        canvas.width = tile * 2;
+        canvas.height = tile * 2;
+        const ctx = canvas.getContext('2d');
+        if (!ctx)
+            return null;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(255,255,255,0.88)';
+        ctx.fillRect(0, 0, tile, tile);
+        ctx.fillRect(tile, tile, tile, tile);
+        this.maskPatternCanvas = canvas;
+        return canvas;
+    }
+
+    refreshMaskDisplay() {
+        if (!this.maskCanvas || !this.maskDisplayCanvas || !this.maskDisplayCtx)
+            return;
+        const width = this.maskDisplayCanvas.width;
+        const height = this.maskDisplayCanvas.height;
+        if (!width || !height)
+            return;
+        const patternCanvas = this.getMaskPatternCanvas();
+        const pattern = patternCanvas ? this.maskDisplayCtx.createPattern(patternCanvas, 'repeat') : null;
+        this.maskDisplayCtx.save();
+        this.maskDisplayCtx.setTransform(1, 0, 0, 1, 0, 0);
+        this.maskDisplayCtx.globalAlpha = 1;
+        this.maskDisplayCtx.globalCompositeOperation = 'source-over';
+        this.maskDisplayCtx.clearRect(0, 0, width, height);
+        this.maskDisplayCtx.fillStyle = pattern || 'rgba(255,255,255,0.70)';
+        this.maskDisplayCtx.fillRect(0, 0, width, height);
+        this.maskDisplayCtx.globalCompositeOperation = 'destination-in';
+        this.maskDisplayCtx.drawImage(this.maskCanvas, 0, 0);
+        this.maskDisplayCtx.globalCompositeOperation = 'source-over';
+        this.maskDisplayCtx.restore();
+    }
+
     injectCSS() {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.type = 'text/css';
-        link.href = new URL('./css/layerforge_mask_editor.css?v=patch1', import.meta.url).href;
+        link.href = new URL('./css/layerforge_mask_editor.css?v=patch63', import.meta.url).href;
         document.head.appendChild(link);
     }
 
@@ -45,6 +88,7 @@ export class LayerForgeMaskEditor {
 
         this.overlay = document.createElement('div');
         this.overlay.className = 'layerforge-mask-editor-overlay';
+        this.overlay.dataset.layerforgeMaskEditorVersion = 'white-checker-mask-3';
         
         // Toolbar
         const toolbar = document.createElement('div');
@@ -242,18 +286,31 @@ export class LayerForgeMaskEditor {
         const bg = createCanvas(this.width, this.height);
         this.bgCanvas = bg.canvas;
         this.bgCanvas.className = 'layerforge-mask-editor-canvas-layer';
+        this.bgCanvas.style.zIndex = '10';
         this.bgCtx = bg.ctx;
         this.bgCtx.drawImage(img, imgX, imgY);
         this.container.appendChild(this.bgCanvas);
         
         const mask = createCanvas(this.width, this.height);
         this.maskCanvas = mask.canvas;
-        this.maskCanvas.className = 'layerforge-mask-editor-canvas-layer';
+        this.maskCanvas.className = 'layerforge-mask-editor-canvas-layer layerforge-mask-editor-mask-data';
+        this.maskCanvas.dataset.layerforgeMaskData = 'true';
+        this.maskCanvas.style.display = 'none';
+        this.maskCanvas.style.pointerEvents = 'none';
         this.maskCtx = mask.ctx;
-        this.container.appendChild(this.maskCanvas);
+
+        const maskDisplay = createCanvas(this.width, this.height);
+        this.maskDisplayCanvas = maskDisplay.canvas;
+        this.maskDisplayCanvas.className = 'layerforge-mask-editor-canvas-layer layerforge-mask-editor-mask-display';
+        this.maskDisplayCanvas.dataset.layerforgeMaskDisplay = 'true';
+        this.maskDisplayCanvas.style.pointerEvents = 'none';
+        this.maskDisplayCanvas.style.zIndex = '20';
+        this.maskDisplayCtx = maskDisplay.ctx;
+        this.container.appendChild(this.maskDisplayCanvas);
         
         if (mImg) {
             this.maskCtx.drawImage(mImg, maskX, maskY);
+            this.refreshMaskDisplay();
             
             this.saveState();
         }
@@ -261,8 +318,11 @@ export class LayerForgeMaskEditor {
         const cursor = createCanvas(this.width, this.height);
         this.cursorCanvas = cursor.canvas;
         this.cursorCanvas.className = 'layerforge-mask-editor-canvas-layer';
+        this.cursorCanvas.style.zIndex = '30';
         this.cursorCtx = cursor.ctx;
         this.container.appendChild(this.cursorCanvas);
+        this.updateTransform();
+        this.refreshMaskDisplay();
         
         this.cursorCanvas.addEventListener('pointerdown', this.handlePointerDown.bind(this));
         window.addEventListener('pointermove', this.handlePointerMove.bind(this));
@@ -324,6 +384,7 @@ export class LayerForgeMaskEditor {
     
     clearMask() {
         this.maskCtx.clearRect(0, 0, this.width, this.height);
+        this.refreshMaskDisplay();
         this.saveState();
     }
     
@@ -338,7 +399,7 @@ export class LayerForgeMaskEditor {
         this.container.style.transformOrigin = 'center center';
         
         // Ensure canvases fill the container and stack correctly
-        [this.bgCanvas, this.maskCanvas, this.cursorCanvas].forEach(c => {
+        [this.bgCanvas, this.maskDisplayCanvas, this.cursorCanvas].forEach(c => {
             if (c) {
                 c.style.width = '100%';
                 c.style.height = '100%';
@@ -413,7 +474,7 @@ export class LayerForgeMaskEditor {
         }
     }
 
-    drawDot(x, y) {
+    drawDot(x, y, refresh = true) {
         // Safety check
         if (typeof this.brushOpacity === 'undefined') this.brushOpacity = 1.0;
         if (typeof this.brushHardness === 'undefined') this.brushHardness = 1.0;
@@ -482,6 +543,9 @@ export class LayerForgeMaskEditor {
         }
         
         this.maskCtx.restore();
+        if (refresh) {
+            this.refreshMaskDisplay();
+        }
     }
     
     handlePointerMove(e) {
@@ -557,8 +621,9 @@ export class LayerForgeMaskEditor {
             const t = i / steps;
             const cx = this.lastDrawPos.x + dx * t;
             const cy = this.lastDrawPos.y + dy * t;
-            this.drawDot(cx, cy);
+            this.drawDot(cx, cy, false);
         }
+        this.refreshMaskDisplay();
     }
     
     saveState() {
@@ -577,6 +642,7 @@ export class LayerForgeMaskEditor {
             img.onload = () => {
                 this.maskCtx.clearRect(0, 0, this.width, this.height);
                 this.maskCtx.drawImage(img, 0, 0);
+                this.refreshMaskDisplay();
             };
         }
     }

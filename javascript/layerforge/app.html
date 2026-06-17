@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/file=javascript/layerforge/js/css/blend_mode_menu.css?v=patch26">
     <link rel="stylesheet" href="/file=javascript/layerforge/js/css/canvas_view.css?v=patch26">
     <link rel="stylesheet" href="/file=javascript/layerforge/js/css/custom_shape_menu.css?v=patch26">
-    <link rel="stylesheet" href="/file=javascript/layerforge/js/css/layerforge_mask_editor.css?v=patch26">
+    <link rel="stylesheet" href="/file=javascript/layerforge/js/css/layerforge_mask_editor.css?v=patch63">
     <link rel="stylesheet" href="/file=javascript/layerforge/js/css/layers_panel.css?v=patch26">
     <style>
         body {
@@ -120,6 +120,7 @@
         <button class="btn" id="cancel-btn">取消</button>
         <button class="btn" id="paint-toggle">彩色画笔</button>
         <button class="btn" id="paint-eraser">橡皮擦</button>
+        <button class="btn" id="pen-selection">钢笔选区</button>
         <input id="paint-color" type="color" value="#ffffff" style="margin-right:10px;">
         <input id="paint-size" type="range" min="1" max="160" value="18" style="width:140px; margin-right:10px;">
         <button class="btn" id="paint-new-layer">新建层</button>
@@ -130,7 +131,7 @@
     <div id="editor-container"></div>
 
     <script type="module">
-        import { createCanvasWidget } from '/file=javascript/layerforge/js/CanvasView.js?v=patch47';
+        import { createCanvasWidget } from '/file=javascript/layerforge/js/CanvasView.js?v=patch63';
         import { app } from '/file=javascript/layerforge/js/comfy_shim.js?v=patch26';
         import { createEmptyImage } from '/file=javascript/layerforge/js/utils/ImageUtils.js?v=patch26';
         import { saveImage } from '/file=javascript/layerforge/js/db.js?v=patch26';
@@ -169,6 +170,12 @@
         let paintColor = '#ffffff';
         let paintSize = 18;
         let paintTool = 'brush';
+        let penSelectionActive = false;
+        let penSelectionPoints = [];
+        let penPreviewPoint = null;
+        let penActivePointerId = null;
+        let penOverlayAnimationFrame = null;
+        let penMaskPatternCanvas = null;
         let paintLayer = null;
         let paintCanvas = null;
         let paintCtx = null;
@@ -245,6 +252,7 @@
                 const toolbar = document.getElementById('toolbar');
                 const paintToggle = document.getElementById('paint-toggle');
                 const paintEraserToggle = document.getElementById('paint-eraser');
+                const penSelectionToggle = document.getElementById('pen-selection');
                 const paintColorInput = document.getElementById('paint-color');
                 const paintSizeInput = document.getElementById('paint-size');
                 const paintNewLayerBtn = document.getElementById('paint-new-layer');
@@ -414,6 +422,40 @@
                     drawBrushCursor(clientX, clientY);
                 };
 
+                const overlayToolActive = () => paintEnabled || penSelectionActive;
+
+                const updateOverlayToolState = () => {
+                    const active = overlayToolActive();
+                    paintToggle.classList.toggle('btn-primary', paintEnabled);
+                    penSelectionToggle.classList.toggle('btn-primary', penSelectionActive);
+                    overlay.style.pointerEvents = active ? 'auto' : 'none';
+                    overlay.style.cursor = active ? (isPanning ? 'grabbing' : 'crosshair') : '';
+                };
+
+                const updateCanvasPointerLock = () => {
+                    if (!canvasInstance?.canvas)
+                        return;
+                    const shouldLockCanvas = (navigator.maxTouchPoints > 0) || (window.matchMedia?.('(max-width: 900px)')?.matches ?? false);
+                    if (!shouldLockCanvas)
+                        return;
+                    if (overlayToolActive()) {
+                        if (previousCanvasPointerEvents === null) {
+                            previousCanvasPointerEvents = canvasInstance.canvas.style.pointerEvents || '';
+                        }
+                        canvasInstance.canvas.style.pointerEvents = 'none';
+                    }
+                    else {
+                        canvasInstance.canvas.style.pointerEvents = previousCanvasPointerEvents ?? '';
+                        previousCanvasPointerEvents = null;
+                    }
+                };
+
+                const setStatusText = (text) => {
+                    const el = document.getElementById('status-text');
+                    if (el)
+                        el.innerText = text;
+                };
+
                 const scheduleLiveRender = () => {
                     if (!canvasInstance || liveRenderPending)
                         return;
@@ -450,10 +492,11 @@
                 };
 
                 const setPaintEnabled = (enabled) => {
+                    if (enabled && penSelectionActive) {
+                        setPenSelectionActive(false);
+                    }
                     paintEnabled = !!enabled;
-                    paintToggle.classList.toggle('btn-primary', paintEnabled);
-                    overlay.style.pointerEvents = paintEnabled ? 'auto' : 'none';
-                    overlay.style.cursor = paintEnabled ? 'crosshair' : '';
+                    updateOverlayToolState();
                     if (paintEnabled) {
                         try {
                             canvasInstance?.canvas?.focus?.({ preventScroll: true });
@@ -461,21 +504,7 @@
                         catch {
                         }
                     }
-                    if (canvasInstance?.canvas) {
-                        const shouldLockCanvas = (navigator.maxTouchPoints > 0) || (window.matchMedia?.('(max-width: 900px)')?.matches ?? false);
-                        if (shouldLockCanvas) {
-                            if (paintEnabled) {
-                                if (previousCanvasPointerEvents === null) {
-                                    previousCanvasPointerEvents = canvasInstance.canvas.style.pointerEvents || '';
-                                }
-                                canvasInstance.canvas.style.pointerEvents = 'none';
-                            }
-                            else {
-                                canvasInstance.canvas.style.pointerEvents = previousCanvasPointerEvents ?? '';
-                                previousCanvasPointerEvents = null;
-                            }
-                        }
-                    }
+                    updateCanvasPointerLock();
                     if (!paintEnabled) {
                         isPainting = false;
                         isPanning = false;
@@ -490,7 +519,9 @@
                         paintPointers.clear();
                         pinchLastDistance = null;
                         pinchLastMid = null;
-                        clearOverlay();
+                        if (!penSelectionActive) {
+                            clearOverlay();
+                        }
                     }
                 };
 
@@ -521,23 +552,33 @@
                         refreshBrushCursor(lastMouseClient.clientX, lastMouseClient.clientY);
                     }
                 });
+                penSelectionToggle.addEventListener('click', () => {
+                    setPenSelectionActive(!penSelectionActive);
+                });
 
                 const ensurePaintLayer = async () => {
                     if (!canvasInstance)
                         return null;
                     syncPaintLayerReference();
                     const bounds = canvasInstance.outputAreaBounds;
-                    const w = Math.max(1, Math.round(bounds.width));
-                    const h = Math.max(1, Math.round(bounds.height));
+                    const defaultW = Math.max(1, Math.round(bounds.width));
+                    const defaultH = Math.max(1, Math.round(bounds.height));
                     if (!paintLayer) {
-                        const img = await createEmptyImage(w, h, 'transparent');
+                        const img = await createEmptyImage(defaultW, defaultH, 'transparent');
                         paintLayer = await canvasInstance.canvasLayers.addLayerWithImage(img, { name: 'Color Paint' }, 'default', bounds);
-                    } else {
-                        paintLayer.x = bounds.x;
-                        paintLayer.y = bounds.y;
-                        paintLayer.width = w;
-                        paintLayer.height = h;
                     }
+                    if (!Number.isFinite(paintLayer.x)) {
+                        paintLayer.x = bounds.x;
+                    }
+                    if (!Number.isFinite(paintLayer.y)) {
+                        paintLayer.y = bounds.y;
+                    }
+                    const w = Math.max(1, Math.round(paintLayer.originalWidth || paintLayer.image?.width || paintLayer.width || defaultW));
+                    const h = Math.max(1, Math.round(paintLayer.originalHeight || paintLayer.image?.height || paintLayer.height || defaultH));
+                    paintLayer.width = w;
+                    paintLayer.height = h;
+                    paintLayer.originalWidth = w;
+                    paintLayer.originalHeight = h;
                     if (!paintCanvas || !paintCtx || paintCanvas.width !== w || paintCanvas.height !== h) {
                         const created = createCanvas(w, h, '2d', { willReadFrequently: true, alpha: true });
                         paintCanvas = created.canvas;
@@ -628,11 +669,307 @@
                     const bounds = canvasInstance.outputAreaBounds;
                     const px = w.x - bounds.x;
                     const py = w.y - bounds.y;
-                    const outW = Math.max(1, Math.round(bounds.width));
-                    const outH = Math.max(1, Math.round(bounds.height));
-                    const cx = Math.max(0, Math.min(outW, px));
-                    const cy = Math.max(0, Math.min(outH, py));
-                    return { x: cx, y: cy };
+                    return { x: px, y: py };
+                };
+
+                const getPaintLayerPoint = (e) => {
+                    const w = getWorldFromClient(e.clientX, e.clientY);
+                    if (!w)
+                        return null;
+                    const baseX = Number.isFinite(paintLayer?.x) ? paintLayer.x : (canvasInstance.outputAreaBounds?.x || 0);
+                    const baseY = Number.isFinite(paintLayer?.y) ? paintLayer.y : (canvasInstance.outputAreaBounds?.y || 0);
+                    return {
+                        x: w.x - baseX,
+                        y: w.y - baseY
+                    };
+                };
+
+                const expandPaintCanvasForPoints = (points) => {
+                    if (!paintCanvas || !paintCtx || !paintLayer || !Array.isArray(points) || !points.length)
+                        return points;
+                    const radius = Math.ceil(paintSize / 2) + 2;
+                    let left = 0;
+                    let top = 0;
+                    let right = paintCanvas.width;
+                    let bottom = paintCanvas.height;
+                    points.forEach((p) => {
+                        if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y))
+                            return;
+                        left = Math.min(left, Math.floor(p.x - radius));
+                        top = Math.min(top, Math.floor(p.y - radius));
+                        right = Math.max(right, Math.ceil(p.x + radius));
+                        bottom = Math.max(bottom, Math.ceil(p.y + radius));
+                    });
+                    if (left === 0 && top === 0 && right === paintCanvas.width && bottom === paintCanvas.height)
+                        return points;
+                    const newW = Math.max(1, right - left);
+                    const newH = Math.max(1, bottom - top);
+                    const created = createCanvas(newW, newH, '2d', { willReadFrequently: true, alpha: true });
+                    if (!created.canvas || !created.ctx)
+                        return points;
+                    const offsetX = -left;
+                    const offsetY = -top;
+                    created.ctx.clearRect(0, 0, newW, newH);
+                    created.ctx.drawImage(paintCanvas, offsetX, offsetY);
+                    paintCanvas = created.canvas;
+                    paintCtx = created.ctx;
+                    paintLayer.x += left;
+                    paintLayer.y += top;
+                    paintLayer.width = newW;
+                    paintLayer.height = newH;
+                    paintLayer.originalWidth = newW;
+                    paintLayer.originalHeight = newH;
+                    paintLayer.image = paintCanvas;
+                    if (lastPaintAnchor && lastPaintAnchor.kind === 'paint') {
+                        lastPaintAnchor.x += offsetX;
+                        lastPaintAnchor.y += offsetY;
+                    }
+                    return points.map((p) => p ? ({ ...p, x: p.x + offsetX, y: p.y + offsetY }) : p);
+                };
+
+                const outputPointToOverlayPoint = (p) => {
+                    if (!p || !canvasInstance?.canvas || !canvasInstance?.outputAreaBounds)
+                        return null;
+                    const zoom = canvasInstance.viewport?.zoom || 1;
+                    const overlayRect = overlay.getBoundingClientRect();
+                    const canvasRect = canvasInstance.canvas.getBoundingClientRect();
+                    if (!overlayRect.width || !overlayRect.height || !canvasRect.width || !canvasRect.height)
+                        return null;
+                    const scaleX = overlay.width / overlayRect.width;
+                    const scaleY = overlay.height / overlayRect.height;
+                    const originCssX = canvasRect.left - overlayRect.left;
+                    const originCssY = canvasRect.top - overlayRect.top;
+                    const bounds = canvasInstance.outputAreaBounds;
+                    const worldX = bounds.x + p.x;
+                    const worldY = bounds.y + p.y;
+                    const canvasCssX = (worldX - canvasInstance.viewport.x) * zoom;
+                    const canvasCssY = (worldY - canvasInstance.viewport.y) * zoom;
+                    return {
+                        x: (originCssX + canvasCssX) * scaleX,
+                        y: (originCssY + canvasCssY) * scaleY
+                    };
+                };
+
+                const overlayCssScale = () => {
+                    const rect = overlay.getBoundingClientRect();
+                    if (!rect.width || !rect.height)
+                        return 1;
+                    return ((overlay.width / rect.width) + (overlay.height / rect.height)) / 2;
+                };
+
+                const penPointDistancePx = (a, b) => {
+                    const pa = outputPointToOverlayPoint(a);
+                    const pb = outputPointToOverlayPoint(b);
+                    if (!pa || !pb)
+                        return Infinity;
+                    return Math.hypot(pa.x - pb.x, pa.y - pb.y);
+                };
+
+                const penCloseSnapPx = () => 14 * overlayCssScale();
+
+                const canClosePenSelection = (point) => {
+                    const first = penSelectionPoints[0];
+                    return !!(point && first && penSelectionPoints.length >= 3 && penPointDistancePx(point, first) <= penCloseSnapPx());
+                };
+
+                const getPenMaskPatternCanvas = () => {
+                    if (penMaskPatternCanvas)
+                        return penMaskPatternCanvas;
+                    const tile = 6;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = tile * 2;
+                    canvas.height = tile * 2;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx)
+                        return null;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+                    ctx.fillRect(0, 0, tile, tile);
+                    ctx.fillRect(tile, tile, tile, tile);
+                    penMaskPatternCanvas = canvas;
+                    return canvas;
+                };
+
+                const stopPenOverlayAnimation = () => {
+                    if (penOverlayAnimationFrame !== null) {
+                        cancelAnimationFrame(penOverlayAnimationFrame);
+                        penOverlayAnimationFrame = null;
+                    }
+                };
+
+                const schedulePenOverlayAnimation = () => {
+                    if (penOverlayAnimationFrame !== null)
+                        return;
+                    penOverlayAnimationFrame = requestAnimationFrame(() => {
+                        penOverlayAnimationFrame = null;
+                        if (penSelectionActive && penSelectionPoints.length) {
+                            renderPenSelectionOverlay();
+                            schedulePenOverlayAnimation();
+                        }
+                    });
+                };
+
+                const renderPenSelectionOverlay = (previewPoint = penPreviewPoint) => {
+                    if (!overlayCtx || !penSelectionActive)
+                        return;
+                    updateOverlaySize();
+                    clearOverlay();
+                    const points = penSelectionPoints
+                        .map(outputPointToOverlayPoint)
+                        .filter(Boolean);
+                    if (!points.length) {
+                        stopPenOverlayAnimation();
+                        return;
+                    }
+                    schedulePenOverlayAnimation();
+                    const previewCloses = previewPoint && canClosePenSelection(previewPoint);
+                    const preview = previewCloses ? points[0] : outputPointToOverlayPoint(previewPoint);
+                    const pathPoints = preview && points.length ? points.concat(preview) : points;
+                    const scale = overlayCssScale();
+                    const dash = 7 * scale;
+                    const gap = 5 * scale;
+
+                    overlayCtx.save();
+                    overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
+                    overlayCtx.lineJoin = 'round';
+                    overlayCtx.lineCap = 'round';
+                    if (pathPoints.length >= 2) {
+                        overlayCtx.beginPath();
+                        overlayCtx.moveTo(pathPoints[0].x, pathPoints[0].y);
+                        for (let i = 1; i < pathPoints.length; i++) {
+                            overlayCtx.lineTo(pathPoints[i].x, pathPoints[i].y);
+                        }
+                        if (previewCloses)
+                            overlayCtx.closePath();
+                        if (previewCloses || points.length >= 3) {
+                            const patternCanvas = getPenMaskPatternCanvas();
+                            overlayCtx.fillStyle = patternCanvas ? overlayCtx.createPattern(patternCanvas, 'repeat') : 'rgba(255,255,255,0.70)';
+                            overlayCtx.fill('evenodd');
+                        }
+                        overlayCtx.lineWidth = 3 * scale;
+                        overlayCtx.setLineDash([dash, gap]);
+                        overlayCtx.lineDashOffset = -((Date.now() / 45) % (dash + gap));
+                        overlayCtx.strokeStyle = 'rgba(0,0,0,0.95)';
+                        overlayCtx.stroke();
+                        overlayCtx.lineWidth = 1.5 * scale;
+                        overlayCtx.lineDashOffset = (Date.now() / 45) % (dash + gap);
+                        overlayCtx.strokeStyle = 'rgba(255,255,255,0.95)';
+                        overlayCtx.stroke();
+                        overlayCtx.setLineDash([]);
+                    }
+                    points.forEach((point, index) => {
+                        const closeHover = index === 0 && canClosePenSelection(previewPoint);
+                        const radius = (index === 0 && penSelectionPoints.length >= 3 ? 5 : 4) * scale;
+                        overlayCtx.beginPath();
+                        overlayCtx.arc(point.x, point.y, radius + (closeHover ? 3 * scale : 0), 0, Math.PI * 2);
+                        overlayCtx.fillStyle = 'rgba(255,255,255,1)';
+                        overlayCtx.fill();
+                        overlayCtx.lineWidth = 1.5 * scale;
+                        overlayCtx.strokeStyle = 'rgba(0,0,0,0.9)';
+                        overlayCtx.stroke();
+                    });
+                    overlayCtx.restore();
+                };
+
+                const commitPenSelectionPath = async () => {
+                    if (!canvasInstance?.maskTool || penSelectionPoints.length < 3)
+                        return false;
+                    const bounds = canvasInstance.outputAreaBounds;
+                    const minX = Math.floor(Math.min(...penSelectionPoints.map((p) => p.x)));
+                    const minY = Math.floor(Math.min(...penSelectionPoints.map((p) => p.y)));
+                    const maxX = Math.ceil(Math.max(...penSelectionPoints.map((p) => p.x)));
+                    const maxY = Math.ceil(Math.max(...penSelectionPoints.map((p) => p.y)));
+                    const w = Math.max(1, maxX - minX);
+                    const h = Math.max(1, maxY - minY);
+                    const created = createCanvas(w, h, '2d', { willReadFrequently: true, alpha: true });
+                    const maskCanvas = created.canvas;
+                    const ctx = created.ctx;
+                    if (!maskCanvas || !ctx)
+                        return false;
+                    ctx.clearRect(0, 0, w, h);
+                    ctx.fillStyle = 'rgba(255,255,255,1)';
+                    ctx.beginPath();
+                    ctx.moveTo(penSelectionPoints[0].x - minX, penSelectionPoints[0].y - minY);
+                    for (let i = 1; i < penSelectionPoints.length; i++) {
+                        ctx.lineTo(penSelectionPoints[i].x - minX, penSelectionPoints[i].y - minY);
+                    }
+                    ctx.closePath();
+                    ctx.fill('evenodd');
+                    canvasInstance.maskTool.mergeMaskCanvas(maskCanvas, bounds.x + minX, bounds.y + minY);
+                    penSelectionPoints = [];
+                    penPreviewPoint = null;
+                    renderPenSelectionOverlay();
+                    setStatusText('钢笔选区已写入遮罩');
+                    return true;
+                };
+
+                function setPenSelectionActive(enabled) {
+                    if (enabled && paintEnabled) {
+                        setPaintEnabled(false);
+                    }
+                    penSelectionActive = !!enabled;
+                    updateOverlayToolState();
+                    updateCanvasPointerLock();
+                    penActivePointerId = null;
+                    penPreviewPoint = null;
+                    if (penSelectionActive) {
+                        try {
+                            canvasInstance?.canvas?.focus?.({ preventScroll: true });
+                        }
+                        catch {
+                        }
+                        renderPenSelectionOverlay();
+                        setStatusText('钢笔选区：单击添加点，双击或点击首点完成，Alt 撤销上一点');
+                    }
+                    else {
+                        penSelectionPoints = [];
+                        stopPenOverlayAnimation();
+                        if (!paintEnabled) {
+                            clearOverlay();
+                        }
+                        setStatusText('Ready');
+                    }
+                }
+
+                const handlePenSelectionPointerDown = async (e) => {
+                    if (!penSelectionActive)
+                        return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try {
+                        overlay.setPointerCapture(e.pointerId);
+                    }
+                    catch {
+                    }
+                    penActivePointerId = e.pointerId;
+                    const point = getPaintPoint(e);
+                    if (!point)
+                        return;
+                    if (e.altKey) {
+                        if (penSelectionPoints.length) {
+                            penSelectionPoints = penSelectionPoints.slice(0, -1);
+                            setStatusText(`钢笔选区：${penSelectionPoints.length} 个点`);
+                        }
+                        renderPenSelectionOverlay(point);
+                        return;
+                    }
+                    if ((e.detail >= 2 && penSelectionPoints.length >= 3) || canClosePenSelection(point)) {
+                        await commitPenSelectionPath();
+                        return;
+                    }
+                    penSelectionPoints = penSelectionPoints.concat(point);
+                    penPreviewPoint = null;
+                    setStatusText(`钢笔选区：${penSelectionPoints.length} 个点`);
+                    renderPenSelectionOverlay();
+                };
+
+                const handlePenSelectionPointerMove = (e) => {
+                    if (!penSelectionActive)
+                        return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    penPreviewPoint = getPaintPoint(e);
+                    renderPenSelectionOverlay();
                 };
 
                 const getSelectedSingleLayer = () => {
@@ -685,8 +1022,8 @@
                     const px = (localX * imgW) / lw;
                     const py = (localY * imgH) / lh;
                     return {
-                        x: Math.max(0, Math.min(imgW, px)),
-                        y: Math.max(0, Math.min(imgH, py)),
+                        x: px,
+                        y: py,
                         scale: ((imgW / lw) + (imgH / lh)) / 2
                     };
                 };
@@ -696,38 +1033,18 @@
                         return;
                     if (paintTool === 'eraser')
                         return;
+                    const as = outputPointToOverlayPoint(a);
+                    const bs = outputPointToOverlayPoint(b);
+                    if (!as || !bs)
+                        return;
                     const zoom = canvasInstance.viewport.zoom || 1;
-                    const canvasEl = canvasInstance.canvas;
-                    if (!canvasEl)
-                        return;
-                    const overlayRect = overlay.getBoundingClientRect();
-                    const canvasRect = canvasEl.getBoundingClientRect();
-                    if (!overlayRect.width || !overlayRect.height || !canvasRect.width || !canvasRect.height)
-                        return;
-
-                    const scaleX = overlay.width / overlayRect.width;
-                    const scaleY = overlay.height / overlayRect.height;
-                    const originCssX = canvasRect.left - overlayRect.left;
-                    const originCssY = canvasRect.top - overlayRect.top;
-                    const bounds = canvasInstance.outputAreaBounds;
-                    const toOverlay = (p) => {
-                        const worldX = bounds.x + p.x;
-                        const worldY = bounds.y + p.y;
-                        const canvasCssX = (worldX - canvasInstance.viewport.x) * zoom;
-                        const canvasCssY = (worldY - canvasInstance.viewport.y) * zoom;
-                        return {
-                            x: (originCssX + canvasCssX) * scaleX,
-                            y: (originCssY + canvasCssY) * scaleY
-                        };
-                    };
-                    const as = toOverlay(a);
-                    const bs = toOverlay(b);
+                    const scale = overlayCssScale();
 
                     overlayCtx.save();
                     overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
                     overlayCtx.globalAlpha = 1;
                     overlayCtx.strokeStyle = paintTool === 'eraser' ? 'rgba(255,255,255,0.75)' : paintColor;
-                    overlayCtx.lineWidth = paintSize * zoom * ((scaleX + scaleY) / 2);
+                    overlayCtx.lineWidth = paintSize * zoom * scale;
                     overlayCtx.lineCap = 'round';
                     overlayCtx.lineJoin = 'round';
                     overlayCtx.beginPath();
@@ -774,10 +1091,17 @@
                 const drawSegment = (fromPt, toPt) => {
                     const target = activeDrawTarget;
                     if (!target || !fromPt || !toPt)
-                        return;
+                        return null;
+                    let drawFrom = fromPt;
+                    let drawTo = toPt;
+                    if (target.kind === 'paint') {
+                        const adjusted = expandPaintCanvasForPoints([fromPt, toPt]);
+                        drawFrom = adjusted?.[0] || fromPt;
+                        drawTo = adjusted?.[1] || toPt;
+                    }
                     const ctx = target.kind === 'paint' ? paintCtx : editLayerCtx;
                     if (!ctx)
-                        return;
+                        return null;
                     ctx.save();
                     ctx.globalAlpha = 1;
                     if (paintTool === 'eraser') {
@@ -793,11 +1117,12 @@
                     ctx.lineCap = 'round';
                     ctx.lineJoin = 'round';
                     ctx.beginPath();
-                    ctx.moveTo(fromPt.x, fromPt.y);
-                    ctx.lineTo(toPt.x, toPt.y);
+                    ctx.moveTo(drawFrom.x, drawFrom.y);
+                    ctx.lineTo(drawTo.x, drawTo.y);
                     ctx.stroke();
                     ctx.restore();
                     scheduleLiveRender();
+                    return drawTo;
                 };
 
                 const commitEditedLayer = async (layer) => {
@@ -847,7 +1172,7 @@
                 };
 
                 overlay.addEventListener('pointerdown', async (e) => {
-                    if (!paintEnabled)
+                    if (!overlayToolActive())
                         return;
                     if (e.pointerType === 'mouse' && e.button === 1) {
                         e.preventDefault();
@@ -873,6 +1198,10 @@
                     if (e.pointerType === 'mouse' && e.button !== 0) {
                         e.preventDefault();
                         e.stopPropagation();
+                        return;
+                    }
+                    if (penSelectionActive) {
+                        await handlePenSelectionPointerDown(e);
                         return;
                     }
                     e.preventDefault();
@@ -931,8 +1260,7 @@
                                 const pt = { x: p.x, y: p.y };
                                 if (e.shiftKey && lastPaintAnchor && lastPaintAnchor.kind === 'layer' && lastPaintAnchor.layerId === selected.id) {
                                     lastPaintPt = { x: lastPaintAnchor.x, y: lastPaintAnchor.y };
-                                    drawSegment(lastPaintPt, pt);
-                                    lastPaintPt = pt;
+                                    lastPaintPt = drawSegment(lastPaintPt, pt) || pt;
                                 }
                                 else {
                                     lastPaintPt = pt;
@@ -949,15 +1277,14 @@
                     if (!paintLayer || !paintCtx)
                         return;
                     activeDrawTarget = { kind: 'paint', layer: paintLayer };
-                    const p = getPaintPoint(e);
+                    const p = getPaintLayerPoint(e);
                     if (!p)
                         return;
                     isPainting = true;
                     paintActivePointerId = e.pointerId;
                     if (e.shiftKey && lastPaintAnchor && lastPaintAnchor.kind === 'paint') {
                         lastPaintPt = { x: lastPaintAnchor.x, y: lastPaintAnchor.y };
-                        drawSegment(lastPaintPt, p);
-                        lastPaintPt = p;
+                        lastPaintPt = drawSegment(lastPaintPt, p) || p;
                     }
                     else {
                         lastPaintPt = p;
@@ -969,7 +1296,7 @@
                 });
 
                 overlay.addEventListener('pointermove', (e) => {
-                    if (!paintEnabled)
+                    if (!overlayToolActive())
                         return;
                     e.preventDefault();
                     e.stopPropagation();
@@ -994,7 +1321,14 @@
                             catch {
                             }
                             canvasInstance.render();
+                            if (penSelectionActive) {
+                                renderPenSelectionOverlay();
+                            }
                         }
+                        return;
+                    }
+                    if (penSelectionActive) {
+                        handlePenSelectionPointerMove(e);
                         return;
                     }
                     if (paintPointers.has(e.pointerId)) {
@@ -1034,15 +1368,14 @@
                             if (!p)
                                 continue;
                             target.scale = p.scale;
-                            drawSegment(lastPaintPt, { x: p.x, y: p.y });
-                            lastPaintPt = { x: p.x, y: p.y };
+                            const nextPoint = { x: p.x, y: p.y };
+                            lastPaintPt = drawSegment(lastPaintPt, nextPoint) || nextPoint;
                         }
                         else {
-                            const p = getPaintPoint(ev);
+                            const p = getPaintLayerPoint(ev);
                             if (!p)
                                 continue;
-                            drawSegment(lastPaintPt, p);
-                            lastPaintPt = p;
+                            lastPaintPt = drawSegment(lastPaintPt, p) || p;
                         }
                     }
                     if (e.pointerType === 'mouse') {
@@ -1051,7 +1384,7 @@
                 }, { passive: false });
 
                 const endPaint = async (e) => {
-                    if (!paintEnabled)
+                    if (!overlayToolActive())
                         return;
                     e.preventDefault();
                     e.stopPropagation();
@@ -1059,15 +1392,31 @@
                         isPanning = false;
                         panPointerId = null;
                         panStart = null;
-                        overlay.style.cursor = 'crosshair';
+                        updateOverlayToolState();
                         try {
                             overlay.releasePointerCapture(e.pointerId);
                         }
                         catch {
                         }
-                        clearOverlay();
-                        if (lastMouseClient) {
+                        if (penSelectionActive) {
+                            renderPenSelectionOverlay();
+                        }
+                        else {
+                            clearOverlay();
+                        }
+                        if (paintEnabled && lastMouseClient) {
                             refreshBrushCursor(lastMouseClient.clientX, lastMouseClient.clientY);
+                        }
+                        return;
+                    }
+                    if (penSelectionActive) {
+                        if (penActivePointerId === e.pointerId) {
+                            penActivePointerId = null;
+                        }
+                        try {
+                            overlay.releasePointerCapture(e.pointerId);
+                        }
+                        catch {
                         }
                         return;
                     }
@@ -1113,25 +1462,66 @@
                 overlay.addEventListener('pointerup', endPaint, { passive: false });
                 overlay.addEventListener('pointercancel', endPaint, { passive: false });
                 overlay.addEventListener('pointerleave', () => {
-                    if (!paintEnabled)
+                    if (!overlayToolActive())
                         return;
-                    clearOverlay();
+                    if (penSelectionActive) {
+                        penPreviewPoint = null;
+                        renderPenSelectionOverlay();
+                    }
+                    else {
+                        clearOverlay();
+                    }
                 }, { passive: true });
                 overlay.addEventListener('contextmenu', (e) => {
-                    if (!paintEnabled)
+                    if (!overlayToolActive())
                         return;
                     e.preventDefault();
                     e.stopPropagation();
                 }, { passive: false });
                 overlay.addEventListener('wheel', (e) => {
-                    if (!paintEnabled)
+                    if (!overlayToolActive())
                         return;
                     e.preventDefault();
                     e.stopPropagation();
                     const zoomFactor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
                     performWheelZoom(e.clientX, e.clientY, zoomFactor);
-                    refreshBrushCursor(e.clientX, e.clientY);
+                    if (penSelectionActive) {
+                        penPreviewPoint = getPaintPoint(e);
+                        renderPenSelectionOverlay();
+                    }
+                    else {
+                        refreshBrushCursor(e.clientX, e.clientY);
+                    }
                 }, { passive: false });
+
+                window.addEventListener('keydown', async (e) => {
+                    if (!penSelectionActive)
+                        return;
+                    const tag = String(e.target?.tagName || '').toLowerCase();
+                    if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable)
+                        return;
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        penSelectionPoints = [];
+                        penPreviewPoint = null;
+                        renderPenSelectionOverlay();
+                        setStatusText('钢笔选区：单击添加点，双击或点击首点完成');
+                    }
+                    else if (e.key === 'Enter') {
+                        if (penSelectionPoints.length >= 3) {
+                            e.preventDefault();
+                            await commitPenSelectionPath();
+                        }
+                    }
+                    else if (e.key === 'Backspace' || e.key === 'Delete') {
+                        if (penSelectionPoints.length) {
+                            e.preventDefault();
+                            penSelectionPoints = penSelectionPoints.slice(0, -1);
+                            renderPenSelectionOverlay();
+                            setStatusText(`钢笔选区：${penSelectionPoints.length} 个点`);
+                        }
+                    }
+                });
 
                 let pendingOverlayResize = false;
                 const scheduleOverlayResize = () => {
@@ -1141,6 +1531,9 @@
                     requestAnimationFrame(() => {
                         pendingOverlayResize = false;
                         updateOverlaySize();
+                        if (penSelectionActive) {
+                            renderPenSelectionOverlay();
+                        }
                     });
                 };
                 const ro = new ResizeObserver(() => scheduleOverlayResize());
@@ -1166,6 +1559,11 @@
                                     paintLayer = null;
                                     paintCanvas = null;
                                     paintCtx = null;
+                                    penSelectionPoints = [];
+                                    penPreviewPoint = null;
+                                    if (penSelectionActive) {
+                                        renderPenSelectionOverlay();
+                                    }
                                 }
                                 
                                 canvasInstance.canvasLayers.addLayerWithImage(img, {}, 'default');
@@ -1272,6 +1670,9 @@
                             lastPaintPt = null;
                             clearOverlay();
                             await commitPaintLayer();
+                        }
+                        if (penSelectionActive && penSelectionPoints.length >= 3) {
+                            await commitPenSelectionPath();
                         }
                         
                         const blob = await canvasInstance.canvasLayers.getFlattenedCanvasAsBlob();

@@ -4,7 +4,7 @@ import { app } from "/file=javascript/layerforge/js/comfy_shim.js?v=patch26";
 import { $el } from "/file=javascript/layerforge/js/comfy_shim.js?v=patch26";
 import { api } from "/file=javascript/layerforge/js/api_shim.js?v=patch26";
 import { addStylesheet, getUrl, loadTemplate } from "/file=javascript/layerforge/js/utils/ResourceManager.js?v=patch26";
-import { Canvas } from "/file=javascript/layerforge/js/Canvas.js?v=patch26";
+import { Canvas } from "/file=javascript/layerforge/js/Canvas.js?v=patch63";
 import { clearAllCanvasStates } from "/file=javascript/layerforge/js/db.js?v=patch26";
 import { ImageCache } from "/file=javascript/layerforge/js/ImageCache.js?v=patch26";
 import { createCanvas } from "/file=javascript/layerforge/js/utils/CommonUtils.js?v=patch26";

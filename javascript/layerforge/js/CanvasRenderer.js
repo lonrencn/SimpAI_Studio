@@ -7,6 +7,11 @@ export class CanvasRenderer {
         this.lastRenderTime = 0;
         this.renderInterval = 1000 / 60;
         this.isDirty = false;
+        this.maskPreviewCanvas = null;
+        this.maskPreviewCtx = null;
+        this.maskPreviewPatternCanvas = null;
+        this.maskStrokeAlphaCanvas = null;
+        this.maskStrokeAlphaCtx = null;
         // Initialize overlay canvases
         this.initOverlay();
         this.initStrokeOverlay();
@@ -83,6 +88,67 @@ export class CanvasRenderer {
             }
         });
     }
+    ensureMaskPreviewCanvas(width, height) {
+        const w = Math.max(1, Math.round(width || 1));
+        const h = Math.max(1, Math.round(height || 1));
+        if (!this.maskPreviewCanvas) {
+            this.maskPreviewCanvas = document.createElement('canvas');
+            this.maskPreviewCtx = this.maskPreviewCanvas.getContext('2d', { willReadFrequently: true });
+        }
+        if (this.maskPreviewCanvas.width !== w || this.maskPreviewCanvas.height !== h) {
+            this.maskPreviewCanvas.width = w;
+            this.maskPreviewCanvas.height = h;
+        }
+        return this.maskPreviewCtx;
+    }
+    getMaskPreviewPatternCanvas() {
+        if (this.maskPreviewPatternCanvas)
+            return this.maskPreviewPatternCanvas;
+        const tile = 6;
+        const canvas = document.createElement('canvas');
+        canvas.width = tile * 2;
+        canvas.height = tile * 2;
+        const ctx = canvas.getContext('2d');
+        if (!ctx)
+            return null;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+        ctx.fillRect(0, 0, tile, tile);
+        ctx.fillRect(tile, tile, tile, tile);
+        this.maskPreviewPatternCanvas = canvas;
+        return canvas;
+    }
+    drawMaskPreview(ctx, maskImage, worldX, worldY) {
+        if (!ctx || !maskImage || !maskImage.width || !maskImage.height)
+            return;
+        const targetWidth = ctx.canvas?.width || this.canvas.offscreenCanvas?.width || this.canvas.canvas.clientWidth;
+        const targetHeight = ctx.canvas?.height || this.canvas.offscreenCanvas?.height || this.canvas.canvas.clientHeight;
+        const previewCtx = this.ensureMaskPreviewCanvas(targetWidth, targetHeight);
+        if (!previewCtx || !this.maskPreviewCanvas)
+            return;
+        const zoom = this.canvas.viewport.zoom || 1;
+        const screenX = (worldX - this.canvas.viewport.x) * zoom;
+        const screenY = (worldY - this.canvas.viewport.y) * zoom;
+        const screenW = maskImage.width * zoom;
+        const screenH = maskImage.height * zoom;
+        previewCtx.setTransform(1, 0, 0, 1, 0, 0);
+        previewCtx.globalAlpha = 1;
+        previewCtx.globalCompositeOperation = 'source-over';
+        previewCtx.clearRect(0, 0, this.maskPreviewCanvas.width, this.maskPreviewCanvas.height);
+
+        const patternCanvas = this.getMaskPreviewPatternCanvas();
+        const pattern = patternCanvas ? previewCtx.createPattern(patternCanvas, 'repeat') : null;
+        previewCtx.fillStyle = pattern || 'rgba(255, 255, 255, 0.70)';
+        previewCtx.fillRect(0, 0, this.maskPreviewCanvas.width, this.maskPreviewCanvas.height);
+        previewCtx.globalCompositeOperation = 'destination-in';
+        previewCtx.drawImage(maskImage, screenX, screenY, screenW, screenH);
+        previewCtx.globalCompositeOperation = 'source-over';
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(this.maskPreviewCanvas, 0, 0);
+        ctx.restore();
+    }
     actualRender() {
         if (this.canvas.offscreenCanvas.width !== this.canvas.canvas.clientWidth ||
             this.canvas.offscreenCanvas.height !== this.canvas.canvas.clientHeight) {
@@ -117,7 +183,7 @@ export class CanvasRenderer {
             // Renderuj maskę w jej pozycji światowej (bez przesunięcia względem bounds)
             const maskWorldX = this.canvas.maskTool.x;
             const maskWorldY = this.canvas.maskTool.y;
-            ctx.drawImage(maskImage, maskWorldX, maskWorldY);
+            this.drawMaskPreview(ctx, maskImage, maskWorldX, maskWorldY);
             ctx.globalAlpha = 1.0;
             ctx.restore();
         }
@@ -679,6 +745,13 @@ export class CanvasRenderer {
             }
             this.strokeOverlayCtx = ctx;
         }
+        if (!this.maskStrokeAlphaCanvas) {
+            this.maskStrokeAlphaCanvas = document.createElement('canvas');
+            this.maskStrokeAlphaCtx = this.maskStrokeAlphaCanvas.getContext('2d');
+            if (!this.maskStrokeAlphaCtx) {
+                throw new Error('Failed to get 2D context for mask stroke alpha canvas');
+            }
+        }
         // Size match main canvas
         this.updateStrokeOverlaySize();
         // Position above main canvas but below cursor overlay
@@ -716,6 +789,10 @@ export class CanvasRenderer {
             this.strokeOverlayCanvas.height = h;
             log.debug(`Stroke overlay resized to ${w}x${h}`);
         }
+        if (this.maskStrokeAlphaCanvas && (this.maskStrokeAlphaCanvas.width !== w || this.maskStrokeAlphaCanvas.height !== h)) {
+            this.maskStrokeAlphaCanvas.width = w;
+            this.maskStrokeAlphaCanvas.height = h;
+        }
     }
     /**
      * Clear the stroke overlay
@@ -724,6 +801,25 @@ export class CanvasRenderer {
         if (!this.strokeOverlayCtx)
             return;
         this.strokeOverlayCtx.clearRect(0, 0, this.strokeOverlayCanvas.width, this.strokeOverlayCanvas.height);
+        if (this.maskStrokeAlphaCtx && this.maskStrokeAlphaCanvas) {
+            this.maskStrokeAlphaCtx.clearRect(0, 0, this.maskStrokeAlphaCanvas.width, this.maskStrokeAlphaCanvas.height);
+        }
+    }
+    renderMaskStrokePreviewFromAlpha() {
+        if (!this.strokeOverlayCtx || !this.strokeOverlayCanvas || !this.maskStrokeAlphaCanvas)
+            return;
+        this.strokeOverlayCtx.save();
+        this.strokeOverlayCtx.setTransform(1, 0, 0, 1, 0, 0);
+        this.strokeOverlayCtx.globalAlpha = 1;
+        this.strokeOverlayCtx.globalCompositeOperation = 'source-over';
+        this.strokeOverlayCtx.clearRect(0, 0, this.strokeOverlayCanvas.width, this.strokeOverlayCanvas.height);
+        const patternCanvas = this.getMaskPreviewPatternCanvas();
+        const pattern = patternCanvas ? this.strokeOverlayCtx.createPattern(patternCanvas, 'repeat') : null;
+        this.strokeOverlayCtx.fillStyle = pattern || 'rgba(255, 255, 255, 0.70)';
+        this.strokeOverlayCtx.fillRect(0, 0, this.strokeOverlayCanvas.width, this.strokeOverlayCanvas.height);
+        this.strokeOverlayCtx.globalCompositeOperation = 'destination-in';
+        this.strokeOverlayCtx.drawImage(this.maskStrokeAlphaCanvas, 0, 0);
+        this.strokeOverlayCtx.restore();
     }
     /**
      * Draw a preview stroke segment onto the stroke overlay in screen space
@@ -746,29 +842,33 @@ export class CanvasRenderer {
         if (strength <= 0) {
             return;
         }
-        this.strokeOverlayCtx.save();
+        const targetCtx = this.maskStrokeAlphaCtx || this.strokeOverlayCtx;
+        if (!targetCtx)
+            return;
+        targetCtx.save();
         // Draw line segment exactly as MaskTool does
-        this.strokeOverlayCtx.beginPath();
-        this.strokeOverlayCtx.moveTo(startScreen.x, startScreen.y);
-        this.strokeOverlayCtx.lineTo(endScreen.x, endScreen.y);
+        targetCtx.beginPath();
+        targetCtx.moveTo(startScreen.x, startScreen.y);
+        targetCtx.lineTo(endScreen.x, endScreen.y);
         // Match the gradient setup from MaskTool's drawLineOnChunk
         if (hardness === 1) {
-            this.strokeOverlayCtx.strokeStyle = `rgba(255, 255, 255, ${strength})`;
+            targetCtx.strokeStyle = `rgba(255, 255, 255, ${strength})`;
         }
         else {
             const innerRadius = brushRadius * hardness;
-            const gradient = this.strokeOverlayCtx.createRadialGradient(endScreen.x, endScreen.y, innerRadius, endScreen.x, endScreen.y, brushRadius);
+            const gradient = targetCtx.createRadialGradient(endScreen.x, endScreen.y, innerRadius, endScreen.x, endScreen.y, brushRadius);
             gradient.addColorStop(0, `rgba(255, 255, 255, ${strength})`);
             gradient.addColorStop(1, `rgba(255, 255, 255, 0)`);
-            this.strokeOverlayCtx.strokeStyle = gradient;
+            targetCtx.strokeStyle = gradient;
         }
         // Match line properties from MaskTool
-        this.strokeOverlayCtx.lineWidth = this.canvas.maskTool.brushSize * zoom;
-        this.strokeOverlayCtx.lineCap = 'round';
-        this.strokeOverlayCtx.lineJoin = 'round';
-        this.strokeOverlayCtx.globalCompositeOperation = 'source-over';
-        this.strokeOverlayCtx.stroke();
-        this.strokeOverlayCtx.restore();
+        targetCtx.lineWidth = this.canvas.maskTool.brushSize * zoom;
+        targetCtx.lineCap = 'round';
+        targetCtx.lineJoin = 'round';
+        targetCtx.globalCompositeOperation = 'source-over';
+        targetCtx.stroke();
+        targetCtx.restore();
+        this.renderMaskStrokePreviewFromAlpha();
     }
     /**
      * Redraws the entire stroke overlay from world coordinates

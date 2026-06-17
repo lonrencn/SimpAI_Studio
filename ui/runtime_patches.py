@@ -232,10 +232,41 @@ def _patch_image_drop_asset(text: str) -> str:
     function simpleai_image_drop_normalize_source(source) {
       const value = String(source || "").trim();
       if (!value) return "";
+      let normalized = value;
       try {
-        return new URL(value, document.baseURI).href;
+        normalized = new URL(value, document.baseURI).href;
       } catch (_) {
-        return value;
+      }
+      return simpleai_image_drop_gallery_original_source(normalized);
+    }
+    function simpleai_image_drop_base64_url_decode_utf8(value) {
+      const text = String(value || "");
+      if (!text) return "";
+      const padded = text.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - text.length % 4) % 4);
+      try {
+        const binary = atob(padded);
+        const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+        if (window.TextDecoder) return new TextDecoder("utf-8").decode(bytes);
+        return decodeURIComponent(Array.from(bytes, (byte) => "%" + byte.toString(16).padStart(2, "0")).join(""));
+      } catch (_) {
+        return "";
+      }
+    }
+    function simpleai_image_drop_gallery_original_source(source) {
+      try {
+        const url = new URL(source, document.baseURI);
+        const filename = decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "");
+        const match = filename.match(/^simpai_gprev__([A-Za-z0-9_-]+)__[0-9a-f]{16}\\.jpg$/);
+        if (!match) return source;
+        const original_path = simpleai_image_drop_base64_url_decode_utf8(match[1]);
+        if (!original_path) return source;
+        const route = "/simpleai/gallery-preview/";
+        const route_index = url.pathname.indexOf(route);
+        const base_path = route_index >= 0 ? url.pathname.slice(0, route_index) : "";
+        const encoded_path = encodeURI(String(original_path).replace(/\\\\/g, "/")).replace(/\\?/g, "%3F").replace(/#/g, "%23");
+        return url.origin + base_path + "/gradio_api/file=" + encoded_path;
+      } catch (_) {
+        return source;
       }
     }
     function simpleai_image_drop_first_url(transfer) {
@@ -309,10 +340,41 @@ def _patch_image_drop_asset(text: str) -> str:
 \t\tfunction simpleai_image_drop_normalize_source(source) {
 \t\t\tconst value = String(source || "").trim();
 \t\t\tif (!value) return "";
+\t\t\tlet normalized = value;
 \t\t\ttry {
-\t\t\t\treturn new URL(value, document.baseURI).href;
+\t\t\t\tnormalized = new URL(value, document.baseURI).href;
 \t\t\t} catch (_) {
-\t\t\t\treturn value;
+\t\t\t}
+\t\t\treturn simpleai_image_drop_gallery_original_source(normalized);
+\t\t}
+\t\tfunction simpleai_image_drop_base64_url_decode_utf8(value) {
+\t\t\tconst text = String(value || "");
+\t\t\tif (!text) return "";
+\t\t\tconst padded = text.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - text.length % 4) % 4);
+\t\t\ttry {
+\t\t\t\tconst binary = atob(padded);
+\t\t\t\tconst bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+\t\t\t\tif (window.TextDecoder) return new TextDecoder("utf-8").decode(bytes);
+\t\t\t\treturn decodeURIComponent(Array.from(bytes, (byte) => "%" + byte.toString(16).padStart(2, "0")).join(""));
+\t\t\t} catch (_) {
+\t\t\t\treturn "";
+\t\t\t}
+\t\t}
+\t\tfunction simpleai_image_drop_gallery_original_source(source) {
+\t\t\ttry {
+\t\t\t\tconst url = new URL(source, document.baseURI);
+\t\t\t\tconst filename = decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "");
+\t\t\t\tconst match = filename.match(/^simpai_gprev__([A-Za-z0-9_-]+)__[0-9a-f]{16}\\.jpg$/);
+\t\t\t\tif (!match) return source;
+\t\t\t\tconst original_path = simpleai_image_drop_base64_url_decode_utf8(match[1]);
+\t\t\t\tif (!original_path) return source;
+\t\t\t\tconst route = "/simpleai/gallery-preview/";
+\t\t\t\tconst route_index = url.pathname.indexOf(route);
+\t\t\t\tconst base_path = route_index >= 0 ? url.pathname.slice(0, route_index) : "";
+\t\t\t\tconst encoded_path = encodeURI(String(original_path).replace(/\\\\/g, "/")).replace(/\\?/g, "%3F").replace(/#/g, "%23");
+\t\t\t\treturn url.origin + base_path + "/gradio_api/file=" + encoded_path;
+\t\t\t} catch (_) {
+\t\t\t\treturn source;
 \t\t\t}
 \t\t}
 \t\tfunction simpleai_image_drop_first_url(transfer) {
