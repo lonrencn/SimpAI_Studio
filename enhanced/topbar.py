@@ -2270,6 +2270,37 @@ def process_after_generation(state_params, generation_task=None, gallery_output=
     return results
 
 
+def refresh_finished_catalog_stat_after_generation(state_params):
+    state_params = state_params if isinstance(state_params, dict) else {}
+    try:
+        state_params.setdefault("__max_per_page", 18)
+        state_params.setdefault("__max_catalog", config.default_image_catalog_max_number)
+        user = state_params.get("user")
+        user_did = user.get_did() if user is not None and hasattr(user, "get_did") else None
+        engine_type = state_params.get("__gallery_engine_type") or state_params.get("engine_type") or "image"
+        engine_type = "video" if engine_type == "video" else "image"
+        time.sleep(0.35)
+        gallery_util.invalidate_output_list_cache(user_did, engine_type)
+        output_list, finished_nums, finished_pages = gallery_util.refresh_output_list(
+            state_params["__max_per_page"],
+            state_params["__max_catalog"],
+            user_did,
+            engine_type,
+        )
+        state_params["__gallery_engine_type"] = engine_type
+        state_params["__output_list"] = output_list
+        state_params["__finished_nums_pages"] = f"{finished_nums},{finished_pages}"
+        if output_list and engine_type == "image":
+            try:
+                gallery_util.refresh_images_catalog(output_list[0].split("/")[0], True, user_did)
+            except Exception as e:
+                logger.error(f"Error in delayed post-generation gallery processing: {e}")
+    except Exception as e:
+        logger.exception("Delayed post-generation gallery stat refresh failed: %s", e)
+        state_params.setdefault("__finished_nums_pages", "0,0")
+    return state_params.get("__finished_nums_pages", "0,0")
+
+
 def sync_message(state_params):
     state_params.update({"__message":system_message})
     return

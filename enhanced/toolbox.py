@@ -1363,13 +1363,27 @@ def open_output_folder(state_params):
         gr.Warning("未找到输出文件夹。" if is_cn else "Output folder not found.", duration=3)
         return skip_update()
 
-    output_list = state_params.get("__output_list", [])
-    if isinstance(output_list, list) and len(output_list) > 0:
-        first_entry = str(output_list[0])
-        date_prefix = first_entry.split("/")[0] if "/" in first_entry else first_entry
-        date_dir = os.path.join(output_dir, "20{}".format(date_prefix))
+    current_folder = ""
+    if state_params.get("gallery_state") == "main_browser":
+        current_folder = str(state_params.get("__main_gallery_browser_folder") or "").strip().replace("\\", "/").strip("/")
+    selected_path = gallery.get_main_gallery_browser_selected_path(state_params)
+    if not current_folder and selected_path:
+        try:
+            current_folder = os.path.basename(os.path.dirname(selected_path))
+        except Exception:
+            current_folder = ""
+    if current_folder:
+        date_dir = os.path.join(output_dir, current_folder if current_folder.startswith("20") else "20{}".format(current_folder))
         if os.path.isdir(date_dir):
             output_dir = date_dir
+    else:
+        output_list = state_params.get("__output_list", [])
+        if isinstance(output_list, list) and len(output_list) > 0:
+            first_entry = str(output_list[0])
+            date_prefix = first_entry.split("/")[0] if "/" in first_entry else first_entry
+            date_dir = os.path.join(output_dir, "20{}".format(date_prefix))
+            if os.path.isdir(date_dir):
+                output_dir = date_dir
 
     try:
         import subprocess

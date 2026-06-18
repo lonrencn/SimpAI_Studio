@@ -4917,23 +4917,7 @@ function parseFinishedCatalogCount(value) {
 }
 
 function syncFinishedCatalogLabelFromRenderedCount(count, mediaType, reason) {
-    if (!Number.isFinite(Number(count)) || Number(count) <= 0) return false;
-    if (typeof refresh_finished_images_catalog_label !== "function") return false;
-    const mode = mediaType === "video" ? "video" : "image";
-    const params = window.simpleaiTopbarSystemParams || (typeof topbarLastSystemParams !== "undefined" ? topbarLastSystemParams : null) || {};
-    const label = getFinishedGalleryBrowserElement("finished_images_catalog")?.querySelector?.("button.label-wrap > span:not(.icon)");
-    const statText = String(params.__finished_nums_pages || "");
-    const renderedCount = Math.max(0, Math.floor(Number(count)));
-    const parts = statText.split(",");
-    const nextStat = `${renderedCount},${parts[1] || ""}`;
-    const labelCount = parseFinishedCatalogCount(label ? label.textContent : "");
-    const labelText = String(label ? label.textContent : "");
-    const labelAlreadyMatches = labelCount === renderedCount
-        && (mode === "video" ? /视频|video/i.test(labelText) : /图片|image|出图/i.test(labelText));
-    if (labelAlreadyMatches) return false;
-    refresh_finished_images_catalog_label(nextStat, mode, { refresh: false });
-    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.label_from_rendered", { reason: reason || "rendered_gallery", mode, count: renderedCount });
-    return true;
+    return false;
 }
 
 function countExistingFinishedGalleryMedia() {
@@ -4972,6 +4956,12 @@ function hasMountedFinishedGalleryBrowserMedia() {
     const selector = "img, video, .gallery-item, .gallery-container > .preview, .grid-wrap button, [data-testid='gallery'] button";
     const finalGallery = getFinishedGalleryBrowserElement("final_gallery") || document.getElementById("final_gallery");
     return !!(finalGallery && finalGallery.querySelector(selector));
+}
+
+function hasFinishedGalleryBrowserLoadedMediaState() {
+    if (!finishedGalleryBrowserState) return false;
+    if (finishedGalleryBrowserState.loading || finishedGalleryBrowserState.pendingPayload) return false;
+    return Number(finishedGalleryBrowserState.loaded || 0) > 0;
 }
 
 const POST_GENERATION_SUPPORT_SURFACE_TTL_MS = 3200;
@@ -5324,6 +5314,7 @@ function shouldHideWelcomePreviewDuringGalleryBrowserLoading(reason, options) {
     const reasonText = String(reason || "");
     const deferredEmpty = /gallery_browser_after_load_empty_deferred/i.test(reasonText);
     if (!deferredEmpty && /timeout_keep_welcome|gallery_browser_after_load_empty|gallery_browser_empty/i.test(reasonText)) return false;
+    if (/gallery_browser_(refresh_start|bridge_start|loading)/i.test(reasonText)) return false;
     if (!/catalog_toggle|gallery_browser_(refresh_start|bridge_start|loading|after_load_empty_deferred)/i.test(reasonText)) return false;
     return getFinishedGalleryBrowserExpectedMediaCount() > 0
         || (countExistingFinishedGalleryMedia() || 0) > 0
@@ -5453,13 +5444,15 @@ function setFinishedGalleryOverlayActive(active) {
 
 function shouldReleaseFinishedGalleryWelcomeGuard() {
     if (Date.now() < finishedGalleryWelcomeGuardHoldStaleUntil) return false;
+    if (!hasFinishedGalleryBrowserLoadedMediaState()) return false;
     return (countRenderedFinishedGalleryItems() || 0) > 0;
 }
 
 function prepareFinishedGallerySurfaceForCatalogOpen(reason) {
     const preview = getWelcomePreviewElement();
     rememberFinishedGalleryWelcomeSource(preview);
-    if (hasMountedFinishedGalleryBrowserMedia()) {
+    const hasLoadedMedia = hasFinishedGalleryBrowserLoadedMediaState();
+    if (hasLoadedMedia && hasMountedFinishedGalleryBrowserMedia()) {
         showMountedFinishedGalleryForCatalogOpen(reason || "catalog_open_ready");
         simpaiUiTrace("log", "[UI-TRACE] gallery_browser.surface_prepare_ready", { reason: reason || "catalog_open" });
         return true;
@@ -5469,7 +5462,7 @@ function prepareFinishedGallerySurfaceForCatalogOpen(reason) {
         applied = markWelcomePreviewGuardNode(node) || applied;
     });
     setFinishedGalleryOverlayActive(true);
-    if ((countRenderedFinishedGalleryItems() || 0) > 0 || countExistingFinishedGalleryMedia() > 0) {
+    if (hasLoadedMedia && ((countRenderedFinishedGalleryItems() || 0) > 0 || countExistingFinishedGalleryMedia() > 0)) {
         finishedGalleryWelcomeGuardHoldStaleUntil = 0;
         try {
             document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
@@ -5564,6 +5557,7 @@ function shouldDeferEmptyGalleryBrowserRestoreDuringOpen(reason) {
     const catalogOpen = !!(catalogRoot && isSimpleAIPresetCatalogOpen(catalogRoot));
     const preparedOpen = Date.now() < simpleAIFinishedCatalogPreparedOpenUntil;
     if (!catalogOpen && !preparedOpen) return false;
+    if (!hasFinishedGalleryBrowserLoadedMediaState()) return false;
     return getFinishedGalleryBrowserExpectedMediaCount(finishedGalleryBrowserState && finishedGalleryBrowserState.mediaType) > 0
         || (countExistingFinishedGalleryMedia() || 0) > 0
         || (countRenderedFinishedGalleryItems() || 0) > 0;
@@ -5594,7 +5588,7 @@ function applyFinishedGalleryWelcomeGuard(reason, options) {
         finishFinishedGalleryMediaSurface(reason || "gallery_has_media");
         return true;
     }
-    if (!force && shouldReleaseFinishedGalleryWelcomeGuard()) {
+    if (!force && !ignoreMountedMedia && shouldReleaseFinishedGalleryWelcomeGuard()) {
         releaseFinishedGalleryWelcomeGuard(true, reason || "gallery_ready");
         return true;
     }
@@ -5753,12 +5747,13 @@ function syncFinishedGalleryBrowserStatusFromRenderedGallery(mediaType, reason) 
         return false;
     }
     if (count > 0 && Date.now() >= finishedGalleryWelcomeGuardHoldStaleUntil) {
-        releaseFinishedGalleryWelcomeGuard(true, reason || "rendered_gallery");
+        if (hasFinishedGalleryBrowserLoadedMediaState()) {
+            releaseFinishedGalleryWelcomeGuard(true, reason || "rendered_gallery");
+        } else {
+            simpaiUiTrace("log", "[UI-TRACE] gallery_browser.status_from_rendered_ignored", { reason: reason || "rendered_gallery", mode, count });
+            return false;
+        }
     }
-    finishedGalleryBrowserState.mediaType = mode;
-    finishedGalleryBrowserState.loaded = count;
-    setFinishedGalleryBrowserStatus(simpleAIGalleryBrowserCountStatus(count, mode));
-    try { syncFinishedCatalogLabelFromRenderedCount(count, mode, reason || "rendered_gallery"); } catch (e) {}
     try { syncGalleryMediaSwitch(mode, 0, "rendered_status"); } catch (e) {}
     simpaiUiTrace("log", "[UI-TRACE] gallery_browser.status_from_rendered", { reason: reason || "rendered_gallery", mode, count });
     return true;
@@ -6109,9 +6104,11 @@ function syncFinishedGalleryBrowserAfterLoad(stateJson) {
 function syncFinishedGalleryBrowserAfterNativeLoad(stat, state, reason) {
     const params = mergeSimpleAITopbarSystemParamsForGallery(state && typeof state === "object" ? state : {}, reason || "gallery_browser_native");
     const mode = (params && (params.__gallery_engine_type || params.engine_type)) || getFinishedGalleryBrowserMode();
+    const nativeStatusText = String(stat || "");
+    const nativeStatusCount = nativeStatusText.indexOf(",") === -1 ? parseFinishedCatalogCount(nativeStatusText) : null;
     const hasPathList = Array.isArray(params.__main_gallery_browser_paths);
     const paths = hasPathList ? params.__main_gallery_browser_paths : [];
-    let loaded = hasPathList ? paths.length : null;
+    let loaded = nativeStatusCount !== null ? nativeStatusCount : (hasPathList ? paths.length : null);
     if (loaded === null) {
         const statusRoot = getFinishedGalleryBrowserElement("gallery_browser_status");
         const statusText = statusRoot ? String(statusRoot.textContent || "") : "";

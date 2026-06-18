@@ -767,8 +767,30 @@ def refresh_output_list(max_per_page, max_catalog, user_did=None, engine_type='i
     with _output_list_cache_lock:
         cached = _output_list_cache.get(cache_key)
         if cache_key in _output_list_inflight:
-            return cached if cached is not None else ([], 0, 0)
-        _output_list_inflight.add(cache_key)
+            if cached is not None:
+                return cached
+            wait_for_inflight = True
+        else:
+            _output_list_inflight.add(cache_key)
+            wait_for_inflight = False
+
+    if wait_for_inflight:
+        wait_until = time.monotonic() + 3.0
+        while time.monotonic() < wait_until:
+            time.sleep(0.03)
+            with _output_list_cache_lock:
+                cached = _output_list_cache.get(cache_key)
+                if cached is not None:
+                    return cached
+                if cache_key not in _output_list_inflight:
+                    break
+        with _output_list_cache_lock:
+            cached = _output_list_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            if cache_key in _output_list_inflight:
+                return ([], 0, 0)
+            _output_list_inflight.add(cache_key)
 
     start_perf = time.perf_counter()
     deadline = time.monotonic() + 2.5
@@ -986,7 +1008,6 @@ def refresh_finished_nums_pages_for_browser(state_params, media_type):
     try:
         user = state_params.get("user")
         user_did = user.get_did() if user is not None and hasattr(user, "get_did") else None
-        invalidate_output_list_cache(user_did, media_type)
         output_list, finished_nums, finished_pages = refresh_output_list(
             state_params["__max_per_page"],
             state_params["__max_catalog"],
@@ -1261,7 +1282,7 @@ def switch_gallery_engine_type(target_engine_type, *args):
             logger.exception("Switch gallery failed to load metadata: choice=%r, error=%s", choice, e)
 
     infobox_state = state_params.get("infobox_state", False)
-    progress_window_update = skip_update() if has_media else _empty_gallery_welcome_update(state_params)
+    progress_window_update = gr_update(visible=False) if has_media else _empty_gallery_welcome_update(state_params)
     if not _is_gallery_media_switch_request_current(request_marker, target_engine_type, state_params):
         return _gallery_media_switch_noop_response()
     display_paths = gallery_display_paths_for_progress(media_paths, target_engine_type, user_did, state_params)
@@ -1359,7 +1380,7 @@ def canvas_refresh_after_run(image_tools_checkbox, state_params):
 
     infobox_state = state_params.get("infobox_state", False)
     label = _gallery_media_label(target_engine_type, state_params)
-    progress_window_update = skip_update() if has_media else _empty_gallery_welcome_update(state_params)
+    progress_window_update = gr_update(visible=False) if has_media else _empty_gallery_welcome_update(state_params)
     display_paths = gallery_display_paths_for_progress(media_paths, target_engine_type, user_did, state_params)
     return [
         dropdown_update(choices=output_list, value=choice, visible=bool(output_list)),
@@ -1572,7 +1593,7 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
         truncated=bool(result.get("truncated")),
         query=payload["query"],
     )
-    progress_window_update = skip_update() if media_paths else _empty_gallery_welcome_update(state_params)
+    progress_window_update = gr_update(visible=False) if media_paths else _empty_gallery_welcome_update(state_params)
     display_paths = gallery_display_paths_for_progress(media_paths, media_type, _user_did_from_state(state_params), state_params)
     return [
         state_json,
@@ -1702,7 +1723,7 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
     prompt_info_value = toolbox.make_infobox_markdown(prompt_meta, state_params.get("__theme", "dark"))
     label = _gallery_media_label(media_type, state_params)
     status = _gallery_browser_count_status(len(media_paths), media_type, state_params)
-    progress_window_update = skip_update() if media_paths else _empty_gallery_welcome_update(state_params)
+    progress_window_update = gr_update(visible=False) if media_paths else _empty_gallery_welcome_update(state_params)
     display_paths = gallery_display_paths_for_progress(media_paths, media_type, _user_did_from_state(state_params), state_params)
 
     return [

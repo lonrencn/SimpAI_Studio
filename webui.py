@@ -260,8 +260,8 @@ def _vlm_model_status_html(version):
     )
 
 
-def _main_vlm_custom_settings_from_state(state):
-    state = state if isinstance(state, dict) else {}
+def _main_vlm_custom_settings_from_state(state, request=None):
+    state = _main_vlm_state_from_request(state, request)
     provider_key = str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["provider"], state, "custom") or "custom").strip() or "custom"
     provider = _main_vlm_provider_by_key(provider_key)
     return {
@@ -287,23 +287,28 @@ def _apply_main_vlm_custom_settings(settings):
     )
 
 
-def _main_vlm_selected_version_from_state(state):
-    state = state if isinstance(state, dict) else {}
+def _main_vlm_selected_version_from_state(state, request=None):
+    state = _main_vlm_state_from_request(state, request)
     saved = ads.get_user_default(MAIN_VLM_USER_VERSION_KEY, state, None)
     if saved:
         return _vlm_resolve_version(saved)
     return _vlm_resolve_version(ads.get_admin_default('vlm_version'))
 
 
-def _main_vlm_save_user_default(key, value, state):
-    if isinstance(state, dict) and state.get("__session") and state.get("ua_hash"):
+def _main_vlm_save_user_default(key, value, state, request=None):
+    state = _main_vlm_state_from_request(state, request)
+    if not (isinstance(state, dict) and state.get("__session") and state.get("ua_hash")):
+        return False
+    try:
         ads.set_user_default_value(key, value, state)
         return True
-    return False
+    except Exception as exc:
+        logger.warning("Main VLM user setting persistence failed for %s: %s", key, exc)
+        return False
 
 
-def _main_vlm_save_admin_version(version, state):
-    state = state if isinstance(state, dict) else {}
+def _main_vlm_save_admin_version(version, state, request=None):
+    state = _main_vlm_state_from_request(state, request)
     try:
         ads.set_admin_default_value('vlm_version', version, state)
         return True
@@ -312,11 +317,11 @@ def _main_vlm_save_admin_version(version, state):
         return False
 
 
-def _main_vlm_save_selected_version(version, state, persist_admin=False):
+def _main_vlm_save_selected_version(version, state, persist_admin=False, request=None):
     version = _vlm_resolve_version(version)
-    _main_vlm_save_user_default(MAIN_VLM_USER_VERSION_KEY, version, state)
+    _main_vlm_save_user_default(MAIN_VLM_USER_VERSION_KEY, version, state, request=request)
     if persist_admin or version == VLM.CUSTOM_VERSION:
-        _main_vlm_save_admin_version(version, state)
+        _main_vlm_save_admin_version(version, state, request=request)
     return version
 
 
@@ -325,6 +330,20 @@ def _main_vlm_custom_message_html(message="", state="info"):
         return ""
     state_class = html.escape(str(state or "info"))
     return f'<div class="describe-vlm-custom-message {state_class}">{html.escape(str(message))}</div>'
+
+
+def _main_vlm_custom_save_message(saved, state=None):
+    if saved is False:
+        message = _main_vlm_text(
+            state,
+            "Custom API settings were not saved because identity state is not ready. Refresh the page and try again.",
+            "Custom API 设置未保存：当前身份状态未就绪，请刷新页面后再试。",
+        )
+        return _main_vlm_custom_message_html(message, "missing")
+    if saved is True:
+        message = _main_vlm_text(state, "Custom API settings saved.", "Custom API 设置已保存。")
+        return _main_vlm_custom_message_html(message, "ready")
+    return ""
 
 
 def build_resolution_video_meta(video_path, source_id, active_source):
@@ -386,6 +405,46 @@ def _get_request_identity_did(request):
     except Exception as e:
         logger.debug(f"[IdentityAccess] status monitor did check failed: {e}")
         return ""
+
+
+def _main_vlm_state_from_request(state, request=None):
+    next_state = dict(state) if isinstance(state, dict) else {}
+    if next_state.get("__session") and next_state.get("ua_hash"):
+        return next_state
+    try:
+        user_agent = _get_request_header(request, "user-agent", "")
+        if user_agent and not next_state.get("ua_hash"):
+            next_state["ua_hash"] = hashlib.sha256(user_agent.encode("utf-8")).hexdigest()
+        sid = str(next_state.get("__session") or _get_request_aitoken(request) or "")
+        ua_hash = str(next_state.get("ua_hash") or "")
+        token = getattr(shared, "token", None)
+        user_did = ""
+        if sid and ua_hash and token is not None and hasattr(token, "check_sstoken_and_get_did"):
+            try:
+                user_did = str(token.check_sstoken_and_get_did(sid, ua_hash) or "")
+            except Exception:
+                user_did = ""
+            if user_did == "Unknown":
+                user_did = ""
+        if not sid and ua_hash and token is not None and hasattr(token, "get_guest_sstoken"):
+            try:
+                sid = str(token.get_guest_sstoken(ua_hash) or "")
+                if hasattr(token, "get_guest_did"):
+                    user_did = str(token.get_guest_did() or "")
+            except Exception:
+                sid = ""
+        if sid:
+            next_state["__session"] = sid
+            next_state.setdefault("sstoken", sid)
+        if user_did and token is not None and hasattr(token, "get_user_context"):
+            try:
+                next_state["user"] = token.get_user_context(user_did)
+            except Exception:
+                pass
+    except Exception as exc:
+        logger.debug("Main VLM request state repair failed: %s", exc)
+    return next_state
+
 
 def _pending_user_access_count():
     try:
@@ -6985,19 +7044,24 @@ with shared.gradio_root:
                         "supports_images": _as_bool(supports_images, True),
                     }
 
-                def _persist_main_vlm_custom_settings(settings, state):
-                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_name"], settings["api_name"], state)
-                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["provider"], settings["provider"], state)
-                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_format"], settings["api_format"], state)
-                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["base_url"], settings["base_url"], state)
-                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["model"], settings["model"], state)
-                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_key"], settings["api_key"], state)
-                    _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["supports_images"], settings["supports_images"], state)
+                def _persist_main_vlm_custom_settings(settings, state, request=None):
+                    saved = [
+                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_name"], settings["api_name"], state, request=request),
+                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["provider"], settings["provider"], state, request=request),
+                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_format"], settings["api_format"], state, request=request),
+                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["base_url"], settings["base_url"], state, request=request),
+                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["model"], settings["model"], state, request=request),
+                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_key"], settings["api_key"], state, request=request),
+                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["supports_images"], settings["supports_images"], state, request=request),
+                    ]
+                    return all(saved)
 
-                def _main_vlm_custom_hint(state=None):
+                def _main_vlm_custom_hint(state=None, saved=None):
+                    if saved is False:
+                        return _main_vlm_custom_save_message(saved, state)
                     missing = VLM.get_custom_missing_settings()
                     if not missing:
-                        return ""
+                        return _main_vlm_custom_save_message(saved, state)
                     text = _main_vlm_text(
                         state,
                         "Fill API Base URL and Model. API Key can stay empty for Ollama/LM Studio.",
@@ -7011,10 +7075,11 @@ with shared.gradio_root:
                 def _describe_vlm_dropdown_update(version):
                     return dropdown_update(choices=_vlm_model_choices(), value=_vlm_model_choice_label(version))
 
-                def load_main_vlm_user_settings(state):
-                    settings = _main_vlm_custom_settings_from_state(state)
+                def load_main_vlm_user_settings(state, request: gr.Request):
+                    state = _main_vlm_state_from_request(state, request)
+                    settings = _main_vlm_custom_settings_from_state(state, request=request)
                     _apply_main_vlm_custom_settings(settings)
-                    version = _main_vlm_selected_version_from_state(state)
+                    version = _main_vlm_selected_version_from_state(state, request=request)
                     vlm.set_version(version)
                     model_choices = [settings["model"]] if settings["model"] else []
                     texts = _main_vlm_ui_texts(state)
@@ -7036,26 +7101,29 @@ with shared.gradio_root:
                         gr_update(value=version),
                     )
 
-                def set_describe_vlm_version(version, state, api_name, provider, api_format, base_url, model, api_key, supports_images):
+                def set_describe_vlm_version(version, state, api_name, provider, api_format, base_url, model, api_key, supports_images, request: gr.Request):
+                    state = _main_vlm_state_from_request(state, request)
                     settings = _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images)
                     _apply_main_vlm_custom_settings(settings)
                     version = _vlm_resolve_version(version)
                     vlm.set_version(version)
-                    _main_vlm_save_selected_version(version, state)
+                    _main_vlm_save_selected_version(version, state, request=request)
+                    saved = None
                     if version == VLM.CUSTOM_VERSION:
-                        _persist_main_vlm_custom_settings(settings, state)
+                        saved = _persist_main_vlm_custom_settings(settings, state, request=request)
                     return (
                         _describe_vlm_dropdown_update(version),
                         _vlm_model_status_html(version),
                         gr_update(visible=version == VLM.CUSTOM_VERSION),
-                        _main_vlm_custom_hint(state) if version == VLM.CUSTOM_VERSION else "",
+                        _main_vlm_custom_hint(state, saved=saved) if version == VLM.CUSTOM_VERSION else "",
                         gr_update(value=version),
                     )
 
-                def set_admin_vlm_version(version, state):
+                def set_admin_vlm_version(version, state, request: gr.Request):
+                    state = _main_vlm_state_from_request(state, request)
                     version = _vlm_resolve_version(version)
                     vlm.set_version(version)
-                    _main_vlm_save_selected_version(version, state, persist_admin=True)
+                    _main_vlm_save_selected_version(version, state, persist_admin=True, request=request)
                     return (
                         _vlm_model_status_html(version),
                         _describe_vlm_dropdown_update(version),
@@ -7063,17 +7131,19 @@ with shared.gradio_root:
                         _main_vlm_custom_hint(state) if version == VLM.CUSTOM_VERSION else "",
                     )
 
-                def sync_main_vlm_custom_settings(api_name, provider, api_format, base_url, model, api_key, supports_images, version, state):
+                def sync_main_vlm_custom_settings(api_name, provider, api_format, base_url, model, api_key, supports_images, version, state, request: gr.Request):
+                    state = _main_vlm_state_from_request(state, request)
                     settings = _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images)
                     _apply_main_vlm_custom_settings(settings)
-                    _persist_main_vlm_custom_settings(settings, state)
+                    saved = _persist_main_vlm_custom_settings(settings, state, request=request)
                     version = _vlm_resolve_version(version)
                     if version == VLM.CUSTOM_VERSION:
                         vlm.set_version(version)
-                        _main_vlm_save_selected_version(version, state)
-                    return _describe_vlm_dropdown_update(version), _vlm_model_status_html(version), _main_vlm_custom_hint(state) if version == VLM.CUSTOM_VERSION else ""
+                        _main_vlm_save_selected_version(version, state, request=request)
+                    return _describe_vlm_dropdown_update(version), _vlm_model_status_html(version), _main_vlm_custom_hint(state, saved=saved) if version == VLM.CUSTOM_VERSION else ""
 
-                def sync_main_vlm_custom_provider(api_name, provider, api_format, base_url, model, api_key, supports_images, version, state):
+                def sync_main_vlm_custom_provider(api_name, provider, api_format, base_url, model, api_key, supports_images, version, state, request: gr.Request):
+                    state = _main_vlm_state_from_request(state, request)
                     provider_data = _main_vlm_provider_by_key(provider)
                     settings = _main_vlm_settings_from_inputs(api_name, provider, provider_data.get("format"), base_url, model, api_key, supports_images)
                     if provider_data["key"] != "custom":
@@ -7081,11 +7151,11 @@ with shared.gradio_root:
                         settings["base_url"] = provider_data.get("base_url") or ""
                         settings["supports_images"] = provider_data.get("supports_images", True) is not False
                     _apply_main_vlm_custom_settings(settings)
-                    _persist_main_vlm_custom_settings(settings, state)
+                    saved = _persist_main_vlm_custom_settings(settings, state, request=request)
                     version = _vlm_resolve_version(version)
                     if version == VLM.CUSTOM_VERSION:
                         vlm.set_version(version)
-                        _main_vlm_save_selected_version(version, state)
+                        _main_vlm_save_selected_version(version, state, request=request)
                     return (
                         gr_update(value=settings["api_name"]),
                         dropdown_update(choices=["openai_compatible"], value=settings["api_format"], visible=False),
@@ -7093,15 +7163,23 @@ with shared.gradio_root:
                         gr_update(value=settings["supports_images"]),
                         _describe_vlm_dropdown_update(version),
                         _vlm_model_status_html(version),
-                        _main_vlm_custom_hint(state) if version == VLM.CUSTOM_VERSION else "",
+                        _main_vlm_custom_hint(state, saved=saved) if version == VLM.CUSTOM_VERSION else "",
                     )
 
-                def fetch_main_vlm_custom_models(api_name, provider, api_format, base_url, model, api_key, supports_images, state):
+                def fetch_main_vlm_custom_models(api_name, provider, api_format, base_url, model, api_key, supports_images, state, request: gr.Request):
+                    state = _main_vlm_state_from_request(state, request)
                     settings = _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images)
                     _apply_main_vlm_custom_settings(settings)
-                    _persist_main_vlm_custom_settings(settings, state)
+                    saved = _persist_main_vlm_custom_settings(settings, state, request=request)
                     vlm.set_version(VLM.CUSTOM_VERSION)
-                    _main_vlm_save_selected_version(VLM.CUSTOM_VERSION, state)
+                    _main_vlm_save_selected_version(VLM.CUSTOM_VERSION, state, request=request)
+                    if not saved:
+                        return (
+                            dropdown_update(choices=[settings["model"]] if settings["model"] else [], value=settings["model"] or None, allow_custom_value=True),
+                            _describe_vlm_dropdown_update(VLM.CUSTOM_VERSION),
+                            _vlm_model_status_html(VLM.CUSTOM_VERSION),
+                            _main_vlm_custom_hint(state, saved=saved),
+                        )
                     result = VLM.list_custom_models(settings["base_url"], settings["api_key"])
                     if not result.get("ok"):
                         message = result.get("details") or result.get("error") or "unknown error"
@@ -7119,7 +7197,7 @@ with shared.gradio_root:
                     if selected != settings["model"]:
                         settings["model"] = selected
                         _apply_main_vlm_custom_settings(settings)
-                        _persist_main_vlm_custom_settings(settings, state)
+                        _persist_main_vlm_custom_settings(settings, state, request=request)
                     model_count = len(result.get('models') or [])
                     message = _main_vlm_text(state, f"Fetched {model_count} model(s).", f"已拉取 {model_count} 个模型。")
                     return (
@@ -7129,12 +7207,19 @@ with shared.gradio_root:
                         _main_vlm_custom_message_html(message, "ready"),
                     )
 
-                def test_main_vlm_custom_api(api_name, provider, api_format, base_url, model, api_key, supports_images, state):
+                def test_main_vlm_custom_api(api_name, provider, api_format, base_url, model, api_key, supports_images, state, request: gr.Request):
+                    state = _main_vlm_state_from_request(state, request)
                     settings = _main_vlm_settings_from_inputs(api_name, provider, api_format, base_url, model, api_key, supports_images)
                     _apply_main_vlm_custom_settings(settings)
-                    _persist_main_vlm_custom_settings(settings, state)
+                    saved = _persist_main_vlm_custom_settings(settings, state, request=request)
                     vlm.set_version(VLM.CUSTOM_VERSION)
-                    _main_vlm_save_selected_version(VLM.CUSTOM_VERSION, state)
+                    _main_vlm_save_selected_version(VLM.CUSTOM_VERSION, state, request=request)
+                    if not saved:
+                        return (
+                            _describe_vlm_dropdown_update(VLM.CUSTOM_VERSION),
+                            _vlm_model_status_html(VLM.CUSTOM_VERSION),
+                            _main_vlm_custom_hint(state, saved=saved),
+                        )
                     missing = VLM.get_custom_missing_settings()
                     if missing:
                         text = _main_vlm_text(state, f"Custom API settings incomplete: {', '.join(missing)}", f"Custom API 设置不完整：{', '.join(missing)}")
@@ -7524,15 +7609,15 @@ with shared.gradio_root:
             gallery_browser_load_evt.then(lambda x, stat, state: None, inputs=[gallery_browser_state, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,stat,state)=>{try{if(state&&typeof state==="object"){state=(typeof mergeSimpleAITopbarSystemParamsForGallery==="function")?mergeSimpleAITopbarSystemParamsForGallery(state,"gallery_browser.load"):state; if(typeof mergeSimpleAITopbarSystemParamsForGallery!=="function"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;}} syncFinishedGalleryBrowserAfterLoad(x); const mode=(state && (state.__gallery_engine_type || state.engine_type)) || (typeof getFinishedGalleryBrowserMode==="function"?getFinishedGalleryBrowserMode():null); refresh_finished_images_catalog_label(stat, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.load.after");}catch(e){console.warn("[UI-TRACE] gallery_browser_load.dom_trace_failed", e);}}')
             gallery_browser_outputs = [gallery_browser_folder, gallery_browser_prev_folder_btn, gallery_browser_next_folder_btn, gallery_browser_status, gallery_browser_more_btn, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat]
             gallery_browser_folder.change(gallery_util.load_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.change"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(x,state,"gallery_browser.folder.change"); traceResultPanelStateSoon("gallery_browser.folder.change");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder.dom_trace_failed", e);}}')
+                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.change"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.folder.change"); traceResultPanelStateSoon("gallery_browser.folder.change");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder.dom_trace_failed", e);}}')
             gallery_browser_prev_folder_btn.click(gallery_util.previous_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.prev"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(x,state,"gallery_browser.folder.prev"); traceResultPanelStateSoon("gallery_browser.folder.prev");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_prev.dom_trace_failed", e);}}')
+                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.prev"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.folder.prev"); traceResultPanelStateSoon("gallery_browser.folder.prev");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_prev.dom_trace_failed", e);}}')
             gallery_browser_next_folder_btn.click(gallery_util.next_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.next"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(x,state,"gallery_browser.folder.next"); traceResultPanelStateSoon("gallery_browser.folder.next");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_next.dom_trace_failed", e);}}')
+                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.next"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.folder.next"); traceResultPanelStateSoon("gallery_browser.folder.next");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_next.dom_trace_failed", e);}}')
             gallery_browser_refresh_btn.click(gallery_util.refresh_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.refresh"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(x,state,"gallery_browser.refresh"); traceResultPanelStateSoon("gallery_browser.refresh");}catch(e){console.warn("[UI-TRACE] gallery_browser_refresh.dom_trace_failed", e);}}')
+                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.refresh"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.refresh"); traceResultPanelStateSoon("gallery_browser.refresh");}catch(e){console.warn("[UI-TRACE] gallery_browser_refresh.dom_trace_failed", e);}}')
             gallery_browser_more_btn.click(gallery_util.load_more_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.more"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(x,state,"gallery_browser.more"); traceResultPanelStateSoon("gallery_browser.more");}catch(e){console.warn("[UI-TRACE] gallery_browser_more.dom_trace_failed", e);}}')
+                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.more"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.more"); traceResultPanelStateSoon("gallery_browser.more");}catch(e){console.warn("[UI-TRACE] gallery_browser_more.dom_trace_failed", e);}}')
             gallery.select(gallery_util.select_gallery, inputs=[gallery_index, image_tools_checkbox, state_topbar, backfill_prompt], outputs=[prompt_info_box, prompt_info_close_btn, prompt_info_container, prompt, negative_prompt, params_note_info, params_note_close_button, params_note_input_name, params_note_delete_button, params_note_regen_button, params_note_preset_button, params_note_box, image_toolbox, state_topbar], show_progress=False) \
                 .then(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){state=(typeof mergeSimpleAITopbarSystemParamsForGallery==="function")?mergeSimpleAITopbarSystemParamsForGallery(state,"gallery.select"):state; if(typeof mergeSimpleAITopbarSystemParamsForGallery!=="function"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;}} syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80);}catch(e){console.warn("[UI-TRACE] gallery_select_compare_sync_failed", e);}}')
             gallery.preview_open(gallery_util.gallery_preview_open, inputs=[image_tools_checkbox, state_topbar], outputs=[image_toolbox, state_topbar], queue=False, show_progress=False)
@@ -8796,6 +8881,8 @@ with shared.gradio_root:
         describe_event.then(lambda: None, js='()=>{refresh_style_localization();}')
 
         def unload_models_clicked(state_is_generating):
+        generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.refresh_finished_catalog_stat_after_generation, inputs=state_topbar, outputs=gallery_index_stat, show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: false}); if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.delayed_label");}catch(e){console.warn("[UI-TRACE] generation_done_delayed_label_failed", e);}}'))
             is_worker_processing = modules.async_worker.worker_processing is not None
             has_pending_tasks = modules.async_worker.pending_tasks > 0
 

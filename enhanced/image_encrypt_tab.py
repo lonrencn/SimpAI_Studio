@@ -172,6 +172,19 @@ def _obfuscate_pil(image: Image.Image | None, password: str | None, decrypt: boo
     return Image.fromarray(out_arr, mode="RGBA")
 
 
+def _save_png_image(image: Image.Image | None, folder: str, prefix: str) -> str | None:
+    if image is None:
+        return None
+
+    _, abs_path, filename = util.generate_temp_filename(folder=folder, extension="png")
+    base_dir = os.path.dirname(abs_path)
+    os.makedirs(base_dir, exist_ok=True)
+    png_name = f"{prefix}_{filename}" if prefix else filename
+    png_path = os.path.join(base_dir, png_name)
+    image.save(png_path, format="PNG")
+    return png_path
+
+
 def add_image_encrypt_tab(
     progress_window,
     progress_gallery,
@@ -188,7 +201,7 @@ def add_image_encrypt_tab(
 ):
     with gr.Tab(label="Image Encrypt", id="image_encrypt_tab", visible=True):
         with gr.Column():
-            input_image = gr.Image(label="Input Image", sources=["upload"], type="pil", elem_id="image_encrypt_input_image", buttons=["download", "fullscreen"])
+            input_image = gr.Image(label="Input Image", sources=["upload"], type="pil", image_mode="RGBA", elem_id="image_encrypt_input_image", buttons=["download", "fullscreen"])
             password = gr.Textbox(label="Password", value="", placeholder="0100")
             save_decrypted = gr.Checkbox(label="Save decrypted image", value=True, container=False)
             with gr.Row():
@@ -212,6 +225,7 @@ def add_image_encrypt_tab(
                 )
 
             result = _obfuscate_pil(image, pw, decrypt=False)
+            result_path = _save_png_image(result, config.temp_path, "encrypted")
             state_params = dict(state_params or {})
             state_params["gallery_state"] = "preview"
             state_params["gallery_preview_open"] = False
@@ -219,7 +233,7 @@ def add_image_encrypt_tab(
                 False,
                 gr.update(visible=False),
                 gr.update(value=None, visible=False),
-                gr.update(value=([result] if result is not None else []), visible=True),
+                gr.update(value=([result_path] if result_path else []), visible=True),
                 gr.update(value=None, visible=False),
                 gr.update(visible=False),
                 gr.update(visible=False, size="sm"),
@@ -255,33 +269,14 @@ def add_image_encrypt_tab(
             result = _obfuscate_pil(image, pw, decrypt=True)
             state_params = dict(state_params or {})
             gallery_index_update = skip_update()
+            result_path = None
             if should_save and result is not None:
                 try:
-                    import modules.flags as flags
-
                     user = state_params.get("user")
                     user_did = user.get_did() if user is not None else None
                     output_root = config.get_user_path_outputs(user_did)
 
-                    target_format = str(output_format or "").strip().lower()
-                    if target_format not in flags.OutputFormat.list():
-                        target_format = config.default_output_format
-
-                    _, abs_path, _ = util.generate_temp_filename(folder=output_root, extension=target_format)
-                    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-                    if target_format == flags.OutputFormat.PNG.value:
-                        result.save(abs_path, format="PNG")
-                    elif target_format == flags.OutputFormat.JPEG.value:
-                        if result.mode == "RGBA":
-                            background = Image.new("RGB", result.size, (255, 255, 255))
-                            background.paste(result, mask=result.getchannel("A"))
-                            background.save(abs_path, format="JPEG", quality=95, optimize=True, progressive=True)
-                        else:
-                            result.convert("RGB").save(abs_path, format="JPEG", quality=95, optimize=True, progressive=True)
-                    elif target_format == flags.OutputFormat.WEBP.value:
-                        result.save(abs_path, format="WEBP", quality=95, lossless=False)
-                    else:
-                        result.save(abs_path, format=target_format)
+                    result_path = _save_png_image(result, output_root, "decrypted")
 
                     try:
                         import enhanced.gallery as gallery_util
@@ -290,7 +285,7 @@ def add_image_encrypt_tab(
                         max_catalog = state_params.get("__max_catalog", config.default_image_catalog_max_number)
                         engine_type = state_params.get("engine_type", "image")
 
-                        saved_dirname = os.path.basename(os.path.dirname(abs_path))
+                        saved_dirname = os.path.basename(os.path.dirname(result_path))
                         if len(saved_dirname) >= 2 and saved_dirname[:2] == "20":
                             output_choice = saved_dirname[2:]
                             gallery_util.refresh_images_catalog(output_choice, True, user_did=user_did)
@@ -303,13 +298,18 @@ def add_image_encrypt_tab(
                         pass
                 except Exception:
                     pass
+            if result is not None and not result_path:
+                try:
+                    result_path = _save_png_image(result, config.temp_path, "decrypted")
+                except Exception:
+                    result_path = None
             state_params["gallery_state"] = "preview"
             state_params["gallery_preview_open"] = False
             return (
                 False,
                 gr.update(visible=False),
                 gr.update(value=None, visible=False),
-                gr.update(value=([result] if result is not None else []), visible=True),
+                gr.update(value=([result_path] if result_path else []), visible=True),
                 gr.update(value=None, visible=False),
                 gr.update(visible=False),
                 gr.update(visible=False, size="sm"),
