@@ -8705,6 +8705,8 @@ with shared.gradio_root:
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(typeof markPostGenerationResultSurfaceWindow==="function") markPostGenerationResultSurfaceWindow(state,"generation_done"); syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),120); setTimeout(()=>syncPostGenerationResultControls(state),420); setTimeout(()=>syncPostGenerationResultControls(state),1200); if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.sync");}catch(e){console.warn("[UI-TRACE] post_generation_result_controls_failed", e);}}'))
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, queue=False, show_progress=False, js='playNotification'))
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, queue=False, show_progress=False, js='refresh_grid_delayed'))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.refresh_finished_catalog_stat_after_generation, inputs=state_topbar, outputs=gallery_index_stat, show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: false}); if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.delayed_label");}catch(e){console.warn("[UI-TRACE] generation_done_delayed_label_failed", e);}}'))
 
         debug_true_state = gr.State(value=True)
         ctrls_preview = [debug_true_state if c == debugging_cn_preprocessor else c for c in ctrls]
@@ -8881,8 +8883,6 @@ with shared.gradio_root:
         describe_event.then(lambda: None, js='()=>{refresh_style_localization();}')
 
         def unload_models_clicked(state_is_generating):
-        generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.refresh_finished_catalog_stat_after_generation, inputs=state_topbar, outputs=gallery_index_stat, show_progress=False))
-        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: false}); if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.delayed_label");}catch(e){console.warn("[UI-TRACE] generation_done_delayed_label_failed", e);}}'))
             is_worker_processing = modules.async_worker.worker_processing is not None
             has_pending_tasks = modules.async_worker.pending_tasks > 0
 
