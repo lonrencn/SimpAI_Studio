@@ -120,6 +120,7 @@ function simpleaiOriginalNativeImageDragSrc(img) {
 }
 
 const SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR = [
+    '#preview_generating img',
     '#finished_gallery img',
     '#final_gallery img',
     '#finished_gallery .gallery-container img',
@@ -141,6 +142,7 @@ const SIMPLEAI_NATIVE_IMAGE_DRAG_PREVIEW_SELECTOR = [
     '#ip_image_4 img'
 ].join(', ');
 const SIMPLEAI_NATIVE_IMAGE_DRAG_CONTAINER_SELECTOR = [
+    '#preview_generating',
     '#finished_gallery',
     '#final_gallery',
     '#scene_input_images',
@@ -173,6 +175,7 @@ let simpleaiGalleryOriginalContextState = null;
 let simpleaiGalleryOriginalCopyImage = null;
 let simpleaiGalleryPreviewDeferredRevealTimer = null;
 let simpleaiGalleryPreviewWasOpen = false;
+let simpleaiManagedNativeImageDragSource = null;
 
 function simpleaiNativeImageDragPreviewImageFromEvent(event) {
     const target = event?.target;
@@ -205,12 +208,72 @@ function simpleaiNativeImageDragPreviewImageFromEvent(event) {
 }
 
 function simpleaiShouldPreventLargeNativeImageDrag(img) {
-    if (simpleaiGalleryDisplayPreviewOriginalSrc(simpleaiMediaSrc(img))) return true;
     const naturalWidth = Number(img?.naturalWidth || 0);
     const naturalHeight = Number(img?.naturalHeight || 0);
     if (!naturalWidth || !naturalHeight) return false;
     return naturalWidth * naturalHeight >= SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PROXY_PIXEL_LIMIT
         || Math.max(naturalWidth, naturalHeight) >= SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PROXY_EDGE_LIMIT;
+}
+
+function simpleaiShouldUseManagedNativeImageDrag(img) {
+    if (!img) return false;
+    if (simpleaiGalleryDisplayPreviewOriginalSrc(simpleaiMediaSrc(img))) return true;
+    if (img.closest?.('#preview_generating')) return true;
+    return simpleaiShouldPreventLargeNativeImageDrag(img);
+}
+
+function simpleaiManagedNativeImageDragSourceFromImage(img) {
+    if (!img) return null;
+    return img.closest?.('.thumbnail-item, .gallery-item, .image-container, .image-frame, .preview, button')
+        || img.parentElement
+        || null;
+}
+
+function simpleaiResetManagedNativeImageDragSource(img, source) {
+    if (source?.dataset?.simpleaiManagedNativeImageDragSource === '1') {
+        try { source.removeAttribute('draggable'); } catch (e) {}
+        try { source.draggable = false; } catch (e) {}
+        try { delete source.dataset.simpleaiManagedNativeImageDragSource; } catch (e) {}
+    }
+    if (img?.dataset?.simpleaiManagedNativeImageDragImage === '1') {
+        try { img.removeAttribute('draggable'); } catch (e) {}
+        try { img.draggable = true; } catch (e) {}
+        try { delete img.dataset.simpleaiManagedNativeImageDragImage; } catch (e) {}
+    }
+}
+
+function simpleaiPrepareManagedNativeImageDragSource(img) {
+    if (!img) return null;
+    const source = simpleaiManagedNativeImageDragSourceFromImage(img);
+    if (!source || source === img) return null;
+    if (!simpleaiShouldUseManagedNativeImageDrag(img)) {
+        simpleaiResetManagedNativeImageDragSource(img, source);
+        return null;
+    }
+    try { img.draggable = false; } catch (e) {}
+    try { img.setAttribute('draggable', 'false'); } catch (e) {}
+    try { img.dataset.simpleaiManagedNativeImageDragImage = '1'; } catch (e) {}
+    try { source.draggable = true; } catch (e) {}
+    try { source.setAttribute('draggable', 'true'); } catch (e) {}
+    try { source.dataset.simpleaiManagedNativeImageDragSource = '1'; } catch (e) {}
+    return source;
+}
+
+function simpleaiPrepareManagedNativeImageDrag(event) {
+    const img = simpleaiNativeImageDragPreviewImageFromEvent(event);
+    const source = simpleaiPrepareManagedNativeImageDragSource(img);
+    if (source) simpleaiManagedNativeImageDragSource = { source, img };
+}
+
+function simpleaiPreparedManagedNativeImageDragImage(target) {
+    const state = simpleaiManagedNativeImageDragSource;
+    const source = state?.source;
+    const img = state?.img;
+    if (!source || !img || !source.isConnected || !img.isConnected) return null;
+    const elem = target instanceof Element ? target : target?.parentElement || null;
+    if (!elem) return img;
+    if (elem === source || source.contains?.(elem) || elem.contains?.(source)) return img;
+    return null;
 }
 
 function simpleaiCreateLargeNativeImageDragState(img) {
@@ -220,25 +283,17 @@ function simpleaiCreateLargeNativeImageDragState(img) {
     const originalSrc = previewOriginalSrc || simpleaiOriginalNativeImageDragSrc(img);
     if (!originalSrc || originalSrc.startsWith('data:image/svg+xml') || displaySrc.startsWith('data:image/svg+xml')) return null;
     simpleaiRestoreLargeNativeImageDragSource();
-    const sourceSwapped = !previewOriginalSrc;
     const state = {
         img,
         originalSrc,
         attrSrc: img.getAttribute?.('src') ?? null,
         attrSrcset: img.getAttribute?.('srcset') ?? null,
         attrSizes: img.getAttribute?.('sizes') ?? null,
-        sourceSwapped,
         started: false,
         restoreTimer: null,
     };
     simpleaiLargeNativeImageDragState = state;
     img.dataset.simpleaiLargeNativeDragProxy = '1';
-    if (sourceSwapped) {
-        img.removeAttribute?.('srcset');
-        img.removeAttribute?.('sizes');
-        img.setAttribute?.('src', SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PLACEHOLDER_SRC);
-        img.src = SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PLACEHOLDER_SRC;
-    }
     return state;
 }
 
@@ -381,19 +436,6 @@ function simpleaiRestoreLargeNativeImageDragSource(state = simpleaiLargeNativeIm
         state.restoreTimer = null;
     }
     const img = state.img;
-    if (state.sourceSwapped) {
-        if (state.attrSrc === null) {
-            img.removeAttribute?.('src');
-            if (state.originalSrc) img.src = state.originalSrc;
-        } else {
-            img.setAttribute?.('src', state.attrSrc);
-            img.src = state.attrSrc;
-        }
-        if (state.attrSrcset === null) img.removeAttribute?.('srcset');
-        else img.setAttribute?.('srcset', state.attrSrcset);
-        if (state.attrSizes === null) img.removeAttribute?.('sizes');
-        else img.setAttribute?.('sizes', state.attrSizes);
-    }
     delete img.dataset.simpleaiLargeNativeDragProxy;
     if (simpleaiLargeNativeImageDragState === state) simpleaiLargeNativeImageDragState = null;
 }
@@ -452,10 +494,8 @@ function simpleaiPrepareGalleryOriginalContextMenu(event) {
 function simpleaiPrepareLargeNativeImageDrag(event) {
     if (event.button !== undefined && event.button !== 0) return;
     const img = simpleaiNativeImageDragPreviewImageFromEvent(event);
-    if (!img || !simpleaiShouldPreventLargeNativeImageDrag(img)) return;
-    const state = simpleaiCreateLargeNativeImageDragState(img);
-    if (!state) return;
-    simpleaiScheduleLargeNativeImageDragRestore(state, SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_PRESTART_RESTORE_MS, { onlyIfNotStarted: true });
+    const source = simpleaiPrepareManagedNativeImageDragSource(img);
+    if (source) simpleaiManagedNativeImageDragSource = { source, img };
 }
 
 function simpleaiRemoveNativeImageDragPreview() {
@@ -465,7 +505,7 @@ function simpleaiRemoveNativeImageDragPreview() {
 function simpleaiCreateNativeImageDragPreview(img) {
     simpleaiRemoveNativeImageDragPreview();
     const activeState = simpleaiLargeNativeImageDragState?.img === img ? simpleaiLargeNativeImageDragState : null;
-    const src = simpleaiGalleryDisplayPreviewOriginalSrc(activeState?.attrSrc || '') ? activeState.attrSrc : simpleaiMediaSrc(img);
+    const src = activeState?.attrSrc || simpleaiMediaSrc(img);
     if (!src) return null;
     const preview = document.createElement('div');
     preview.id = 'simpleai-native-image-drag-preview';
@@ -494,11 +534,14 @@ function simpleaiCreateNativeImageDragPreview(img) {
 }
 
 function simpleaiHandleNativeImageDragStart(event) {
-    const img = simpleaiNativeImageDragPreviewImageFromEvent(event);
+    const img = simpleaiNativeImageDragPreviewImageFromEvent(event)
+        || simpleaiPreparedManagedNativeImageDragImage(event?.target);
     const transfer = event?.dataTransfer;
     if (!img) return;
+    const source = simpleaiPrepareManagedNativeImageDragSource(img);
+    if (source) simpleaiManagedNativeImageDragSource = { source, img };
     let largeDragState = simpleaiLargeNativeImageDragState?.img === img ? simpleaiLargeNativeImageDragState : null;
-    if (!largeDragState && simpleaiGalleryDisplayPreviewOriginalSrc(simpleaiMediaSrc(img))) {
+    if (!largeDragState && simpleaiShouldUseManagedNativeImageDrag(img)) {
         largeDragState = simpleaiCreateLargeNativeImageDragState(img);
     }
     if (largeDragState) {
@@ -522,6 +565,7 @@ function simpleaiHandleNativeImageDragStart(event) {
 function simpleaiHandleNativeImageDragEnd() {
     simpleaiRemoveNativeImageDragPreview();
     simpleaiRestoreLargeNativeImageDragSource();
+    simpleaiManagedNativeImageDragSource = null;
     setTimeout(() => {
         try { delete window.__simpleaiGalleryOriginalDragUrl; } catch (e) {}
     }, 200);
@@ -1380,6 +1424,8 @@ document.addEventListener('pointerdown', simpleaiHandleGalleryOriginalContextPoi
 document.addEventListener('pointerdown', simpleaiPrepareGalleryOriginalContextPointerDown, true);
 document.addEventListener('mousedown', simpleaiPrepareGalleryOriginalContextPointerDown, true);
 document.addEventListener('pointerover', simpleaiTrackGalleryOriginalCopyImage, true);
+document.addEventListener('pointerover', simpleaiPrepareManagedNativeImageDrag, true);
+document.addEventListener('mousedown', simpleaiPrepareManagedNativeImageDrag, true);
 document.addEventListener('pointerdown', simpleaiTrackGalleryOriginalCopyImage, true);
 document.addEventListener('pointerdown', simpleaiPrepareLargeNativeImageDrag, true);
 document.addEventListener('pointerup', simpleaiHandleLargeNativeImageDragPointerDone, true);

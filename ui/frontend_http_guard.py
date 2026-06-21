@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
+import select
+import socket
 from collections.abc import MutableMapping
 from urllib.parse import urlsplit
 
@@ -10,6 +12,8 @@ LOOPBACK_NO_PROXY_HOSTS = ("localhost", "127.0.0.1", "::1", "0.0.0.0")
 _INVALID_HTTP_FILTER_SENTINEL = "_simpai_frontend_invalid_http_filter"
 _H11_DATA_GUARD_SENTINEL = "_simpai_frontend_h11_data_guard"
 _H11_DATA_ORIGINAL_ATTR = "_simpai_original_data_received"
+_PROACTOR_ACCEPT_GUARD_SENTINEL = "_simpai_frontend_threaded_accept_guard"
+_PROACTOR_ACCEPT_ORIGINAL_ATTR = "_simpai_original_accept"
 _PROTOCOL_WARNING_COUNTS: dict[str, int] = {}
 _FRONTEND_HTTP_GUARD_CONFIG = {"host": "127.0.0.1", "port": ""}
 
@@ -153,6 +157,81 @@ def _should_log_protocol_warning(kind: str) -> tuple[bool, int]:
     return count <= 3 or count % 20 == 0, count
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _raw_socket(sock):
+    return getattr(sock, "_sock", sock)
+
+
+def _is_tcp_socket(sock) -> bool:
+    raw = _raw_socket(sock)
+    try:
+        family = raw.family
+        sock_type = raw.type
+    except AttributeError:
+        return False
+    return family in {socket.AF_INET, socket.AF_INET6} and bool(sock_type & socket.SOCK_STREAM)
+
+
+def _threaded_socket_accept(sock):
+    raw = _raw_socket(sock)
+    while True:
+        readable, _, _ = select.select([raw], [], [], 0.25)
+        if not readable:
+            continue
+        try:
+            accepted, address = raw.accept()
+        except (BlockingIOError, InterruptedError):
+            continue
+        accepted.setblocking(False)
+        return accepted, address
+
+
+def _should_patch_windows_proactor_accept() -> bool:
+    if os.name != "nt":
+        return False
+    return _env_flag("SIMPAI_FRONTEND_THREADED_ACCEPT", False)
+
+
+def patch_windows_proactor_accept_threaded(host: str | None = None, port: int | str | None = None) -> bool:
+    if not _should_patch_windows_proactor_accept():
+        return False
+    try:
+        import asyncio
+        from asyncio.windows_events import IocpProactor
+    except Exception:
+        return False
+
+    if getattr(IocpProactor, _PROACTOR_ACCEPT_GUARD_SENTINEL, False):
+        return True
+
+    original_accept = IocpProactor.accept
+    setattr(IocpProactor, _PROACTOR_ACCEPT_ORIGINAL_ATTR, original_accept)
+
+    def accept(self, listener):
+        if not _is_tcp_socket(listener):
+            return original_accept(self, listener)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return original_accept(self, listener)
+        return loop.run_in_executor(None, _threaded_socket_accept, listener)
+
+    IocpProactor.accept = accept
+    setattr(IocpProactor, _PROACTOR_ACCEPT_GUARD_SENTINEL, True)
+    logging.getLogger("uvicorn.error").info(
+        "[SimpAI-frontHTTP] Windows Proactor TCP accept uses threaded Winsock accept. host=%s port=%s",
+        host or "127.0.0.1",
+        port or "",
+    )
+    return True
+
+
 def patch_uvicorn_h11_protocol_probe(host: str | None = None, port: int | str | None = None) -> None:
     try:
         from uvicorn.protocols.http.h11_impl import H11Protocol
@@ -200,6 +279,7 @@ def configure_frontend_http_guard(host: str | None = None, port: int | str | Non
     ensure_loopback_no_proxy(extra_hosts=[host])
     _FRONTEND_HTTP_GUARD_CONFIG["host"] = host or "127.0.0.1"
     _FRONTEND_HTTP_GUARD_CONFIG["port"] = str(port or "")
+    patch_windows_proactor_accept_threaded(host, port)
     patch_uvicorn_h11_protocol_probe(host, port)
     logger = logging.getLogger("uvicorn.error")
     existing = getattr(logger, _INVALID_HTTP_FILTER_SENTINEL, None)

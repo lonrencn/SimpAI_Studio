@@ -919,7 +919,7 @@ def extension_summary() -> dict[str, object]:
 def extension_config_states_dir(*, create: bool = False) -> Path:
     config = ensure_config()
     base = Path(getattr(config, "path_userhome", "") or ".")
-    path = base / "config" / "forge_neo_extension_states"
+    path = base / "forge_neo" / "forge_neo_extension_states"
     if create:
         path.mkdir(parents=True, exist_ok=True)
     return path

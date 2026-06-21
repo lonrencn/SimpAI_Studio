@@ -55,6 +55,15 @@ get_layout_update_label_inter = lambda t,v,x,z:gr_update(label=t, value='' if v 
 get_layout_update_label_and_choice_visible_inter = lambda t,l,v,x,y,z:dropdown_update(label=t, choices=l, value=v, visible=x not in y, interactive=x not in z) if t else dropdown_update(choices=l, value=v, visible=x not in y, interactive=x not in z)
 get_layout_update_and_visible_inter = lambda v,x,y,z:gr_update(value=v, visible=x not in y, interactive=x not in z)
 
+def _value_with_default_alias(source_dict, key, default=None):
+    if not isinstance(source_dict, dict):
+        return default
+    value = source_dict.get(key, None)
+    if value is not None:
+        return value
+    return source_dict.get(f"default_{key}", default)
+
+
 def scene_disvisible_with_optional_inputs(scenes):
     if not isinstance(scenes, dict):
         return []
@@ -949,7 +958,7 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
         if 'prompt_panel_checkbox' in inter:
             inter.remove('prompt_panel_checkbox')
     results.append(get_layout_toggle_visible_inter('prompt_panel_checkbox', visible, inter))
-    enhance_checkbox_value = presetdata_dict.get('enhance_checkbox', False)
+    enhance_checkbox_value = _value_with_default_alias(presetdata_dict, 'enhance_checkbox', False)
     results.append(get_layout_update_and_visible_inter(enhance_checkbox_value, 'enhance_checkbox', visible, inter))
     if is_scene_frontend:
         scenes = enginedata_dict.get("scene_frontend", {})
@@ -1027,10 +1036,11 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
     results.append(update_value_if_existed("backfill_prompt"))
     results.append(update_value_if_existed("translation_methods"))
     results.append(False if template_engine not in ['Fooocus', 'Comfy'] and task_method and '_aio' not in task_method else update_value_if_existed("input_image_checkbox"))
+    quick_enhance_value = _value_with_default_alias(presetdata_dict, 'quick_enhance', False)
     if engine_type == 'video':
-        results.append(gr_update(visible=False))
+        results.append(gr_update(value=False, visible=False))
     else:
-        results.append(gr_update(visible=True))
+        results.append(gr_update(value=bool(quick_enhance_value), visible=True))
 
     def _finish_results():
         state_params.pop("switch_scene_theme", None)
@@ -1397,12 +1407,12 @@ def load_parameter_button_click(raw_metadata: dict | str, is_generating: bool, i
 
     for i in range(modules.config.default_max_lora_number):
         get_lora(f'lora_combined_{i + 1}', f'LoRA {i + 1}', loaded_parameter_dict, results, performance_filename)
-    results.append(loaded_parameter_dict.get('enhance_checkbox', False))
-    results.append(loaded_parameter_dict.get('enhance_enabled_1', False))
-    results.append(loaded_parameter_dict.get('enhance_enabled_2', False))
-    results.append(loaded_parameter_dict.get('enhance_enabled_3', False))
-    results.append(loaded_parameter_dict.get('enhance_uov_method', 'Disabled'))
-    results.append(loaded_parameter_dict.get('enhance_uov_strength', 0.2))
+    results.append(_value_with_default_alias(loaded_parameter_dict, 'enhance_checkbox', False))
+    results.append(_value_with_default_alias(loaded_parameter_dict, 'enhance_enabled_1', False))
+    results.append(_value_with_default_alias(loaded_parameter_dict, 'enhance_enabled_2', False))
+    results.append(_value_with_default_alias(loaded_parameter_dict, 'enhance_enabled_3', False))
+    results.append(_value_with_default_alias(loaded_parameter_dict, 'enhance_uov_method', 'Disabled'))
+    results.append(_value_with_default_alias(loaded_parameter_dict, 'enhance_uov_strength', 0.2))
 
     return results
 

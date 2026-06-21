@@ -834,7 +834,7 @@ def _coerce_value(key: str, value: Any) -> Any:
 def settings_path() -> Path:
     config = ensure_config()
     base = Path(getattr(config, "path_userhome", "") or ".")
-    path = base / "config" / "forge_neo_settings.json"
+    path = base / "forge_neo" / "forge_neo_settings.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -942,7 +942,7 @@ def sysinfo_snapshot() -> dict[str, Any]:
 def sysinfo_path() -> Path:
     config = ensure_config()
     base = Path(getattr(config, "path_userhome", "") or ".")
-    path = base / "config" / "forge_neo_sysinfo.json"
+    path = base / "forge_neo" / "forge_neo_sysinfo.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 

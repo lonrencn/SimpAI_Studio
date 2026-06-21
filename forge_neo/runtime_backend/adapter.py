@@ -15,7 +15,7 @@ from typing import Any
 import args_manager
 from PIL import Image
 
-from forge_neo.adetailer_compat import adetailer_default_args
+from forge_neo.adetailer_compat import adetailer_default_args, adetailer_normalized_args
 from forge_neo.bootstrap import ensure_shared_token
 from forge_neo.dynamic_prompts_compat import DYNAMIC_PROMPTS_SCRIPT_BASE_NAME, dynamic_prompts_arg_dict, dynamic_prompts_arg_list
 from forge_neo.regional_prompter_compat import regional_prompter_arg_dict, regional_prompter_arg_list
@@ -1287,69 +1287,7 @@ def _source_set_alwayson_default(scripts: dict[str, Any], name: str, value: dict
 
 
 def _source_adetailer_arg_dict(value: object) -> dict[str, object]:
-    data = dict(value) if isinstance(value, dict) else {}
-    normalized = adetailer_default_args(**data)
-    guidance_value = data.get("ad_controlnet_guidance_start_end")
-    if isinstance(guidance_value, (list, tuple)) and len(guidance_value) >= 2:
-        guidance_start_raw, guidance_end_raw = guidance_value[0], guidance_value[1]
-    else:
-        guidance_start_raw = data.get("ad_controlnet_guidance_start", 0.0)
-        guidance_end_raw = data.get("ad_controlnet_guidance_end", 1.0)
-    mask_filter_method = str(normalized.get("ad_mask_filter_method") or "Area")
-    if mask_filter_method not in {"Area", "Confidence"}:
-        mask_filter_method = "Area"
-    mask_merge_invert = str(normalized.get("ad_mask_merge_invert") or "None")
-    if mask_merge_invert not in {"None", "Merge", "Merge and Invert"}:
-        mask_merge_invert = "None"
-    normalized["ad_model"] = str(normalized.get("ad_model") or "None")
-    normalized["ad_model_classes"] = str(normalized.get("ad_model_classes") or "")
-    normalized["ad_tab_enable"] = _bool_value(normalized.get("ad_tab_enable"), True)
-    normalized["ad_prompt"] = str(normalized.get("ad_prompt") or "")
-    normalized["ad_negative_prompt"] = str(normalized.get("ad_negative_prompt") or "")
-    normalized["ad_confidence"] = _clamped_float(normalized.get("ad_confidence", 0.3), 0.3, minimum=0.0, maximum=1.0)
-    normalized["ad_mask_filter_method"] = mask_filter_method
-    normalized["ad_mask_k"] = _clamped_int(normalized.get("ad_mask_k", 0), 0, minimum=0, maximum=10)
-    normalized["ad_mask_min_ratio"] = _clamped_float(normalized.get("ad_mask_min_ratio", 0.0), 0.0, minimum=0.0, maximum=1.0)
-    normalized["ad_mask_max_ratio"] = _clamped_float(normalized.get("ad_mask_max_ratio", 1.0), 1.0, minimum=0.0, maximum=1.0)
-    normalized["ad_x_offset"] = _clamped_int(normalized.get("ad_x_offset", 0), 0, minimum=-200, maximum=200)
-    normalized["ad_y_offset"] = _clamped_int(normalized.get("ad_y_offset", 0), 0, minimum=-200, maximum=200)
-    normalized["ad_mask_merge_invert"] = mask_merge_invert
-    normalized["ad_mask_blur"] = _clamped_int(normalized.get("ad_mask_blur", 4), 4, minimum=0, maximum=256)
-    normalized["ad_dilate_erode"] = _clamped_int(normalized.get("ad_dilate_erode", 4), 4, minimum=-256, maximum=256)
-    normalized["ad_denoising_strength"] = _clamped_float(normalized.get("ad_denoising_strength", 0.5), 0.5, minimum=0.0, maximum=1.0)
-    normalized["ad_inpaint_only_masked"] = _bool_value(normalized.get("ad_inpaint_only_masked"), True)
-    normalized["ad_inpaint_only_masked_padding"] = _clamped_int(
-        normalized.get("ad_inpaint_only_masked_padding", 32),
-        32,
-        minimum=0,
-        maximum=512,
-    )
-    normalized["ad_use_inpaint_width_height"] = _bool_value(normalized.get("ad_use_inpaint_width_height"), False)
-    normalized["ad_inpaint_width"] = _clamped_int(normalized.get("ad_inpaint_width", 512), 512, minimum=64, maximum=2048)
-    normalized["ad_inpaint_height"] = _clamped_int(normalized.get("ad_inpaint_height", 512), 512, minimum=64, maximum=2048)
-    normalized["ad_use_steps"] = _bool_value(normalized.get("ad_use_steps"), False)
-    normalized["ad_steps"] = _clamped_int(normalized.get("ad_steps", 20), 20, minimum=1, maximum=150)
-    normalized["ad_use_cfg_scale"] = _bool_value(normalized.get("ad_use_cfg_scale"), False)
-    normalized["ad_cfg_scale"] = _clamped_float(normalized.get("ad_cfg_scale", 4.0), 4.0, minimum=1.0, maximum=24.0)
-    normalized["ad_use_checkpoint"] = _bool_value(normalized.get("ad_use_checkpoint"), False)
-    normalized["ad_checkpoint"] = str(normalized.get("ad_checkpoint") or "Use same checkpoint")
-    normalized["ad_use_vae"] = _bool_value(normalized.get("ad_use_vae"), False)
-    normalized["ad_vae"] = str(normalized.get("ad_vae") or "Use same VAE")
-    normalized["ad_use_sampler"] = _bool_value(normalized.get("ad_use_sampler"), False)
-    normalized["ad_sampler"] = str(normalized.get("ad_sampler") or "Use same sampler")
-    normalized["ad_scheduler"] = str(normalized.get("ad_scheduler") or "Use same scheduler")
-    normalized["ad_use_noise_multiplier"] = _bool_value(normalized.get("ad_use_noise_multiplier"), False)
-    normalized["ad_noise_multiplier"] = _clamped_float(normalized.get("ad_noise_multiplier", 1.0), 1.0, minimum=0.5, maximum=1.5)
-    normalized["ad_restore_face"] = _bool_value(normalized.get("ad_restore_face"), False)
-    normalized["ad_controlnet_model"] = str(normalized.get("ad_controlnet_model") or "None")
-    normalized["ad_controlnet_module"] = str(normalized.get("ad_controlnet_module") or "None")
-    normalized["ad_controlnet_weight"] = _clamped_float(normalized.get("ad_controlnet_weight", 1.0), 1.0, minimum=0.0, maximum=1.0)
-    normalized["ad_controlnet_guidance_start_end"] = [
-        _clamped_float(guidance_start_raw, 0.0, minimum=0.0, maximum=1.0),
-        _clamped_float(guidance_end_raw, 1.0, minimum=0.0, maximum=1.0),
-    ]
-    normalized["is_api"] = True
-    return normalized
+    return adetailer_normalized_args(value)
 
 
 def _source_adetailer_args(request: object) -> list[object]:

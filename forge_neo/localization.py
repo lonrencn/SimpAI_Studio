@@ -98,7 +98,7 @@ def build_localization_template(lang: object | None = None) -> dict[str, str]:
 
 def localization_template_path() -> Path:
     config = ensure_config()
-    base = Path(getattr(config, "path_userhome", "") or ".") / "config"
+    base = Path(getattr(config, "path_userhome", "") or ".") / "forge_neo"
     base.mkdir(parents=True, exist_ok=True)
     return base / "forge_neo_localization_template.json"
 

@@ -257,7 +257,7 @@ def script_dropdown_choices(repo_root: Path | None = None, *, is_img2img: bool =
 def script_body_cache_path() -> Path:
     config = ensure_config()
     base = Path(getattr(config, "path_userhome", "") or ".")
-    path = base / "config" / "forge_neo_script_bodies.json"
+    path = base / "forge_neo" / "forge_neo_script_bodies.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 

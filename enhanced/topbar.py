@@ -2189,6 +2189,8 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
 
     state_params["gallery_state"]='preview'
     state_params["gallery_preview_open"] = False
+    gallery_util.clear_main_gallery_browser_state(state_params)
+    gallery_util.clear_post_generation_compare_state(state_params)
     state_params["__skip_gallery_browser_refresh_once"] = False
     state_params["preset_store"]=False
     state_params["identity_dialog"]=False
@@ -2230,6 +2232,7 @@ def process_after_generation(state_params, generation_task=None, gallery_output=
     engine_type = state_params["engine_type"]
     state_params["__gallery_engine_type"] = engine_type
     state_params["gallery_preview_open"] = False
+    gallery_util.clear_main_gallery_browser_state(state_params)
     gallery_util.invalidate_output_list_cache(user_did, engine_type)
     output_list, finished_nums, finished_pages = gallery_util.refresh_output_list(max_per_page, max_catalog, user_did, engine_type)
     state_params.update({"__output_list": output_list})
@@ -2242,6 +2245,8 @@ def process_after_generation(state_params, generation_task=None, gallery_output=
         no_current_output = not bool(task_had_output)
     if no_current_output:
         state_params["gallery_state"] = 'preview'
+    else:
+        state_params["gallery_state"] = 'finished_index'
     state_params["__skip_gallery_browser_refresh_once"] = bool(no_current_output)
     # generate_button, stop_button, skip_button, state_is_generating
     results = [gr.update(visible=True, interactive=True)] + [gr.update(visible=False, interactive=False), gr.update(visible=False, interactive=False), False]
@@ -2290,6 +2295,9 @@ def refresh_finished_catalog_stat_after_generation(state_params):
         state_params["__gallery_engine_type"] = engine_type
         state_params["__output_list"] = output_list
         state_params["__finished_nums_pages"] = f"{finished_nums},{finished_pages}"
+        gallery_util.clear_main_gallery_browser_state(state_params)
+        if state_params.get("gallery_state") == "main_browser":
+            state_params["gallery_state"] = "finished_index"
         if output_list and engine_type == "image":
             try:
                 gallery_util.refresh_images_catalog(output_list[0].split("/")[0], True, user_did)
@@ -2392,6 +2400,7 @@ def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpain
     state_params["gallery_preview_open"] = False
     state_params["__skip_gallery_browser_refresh_once"] = True
     gallery_util.invalidate_main_gallery_browser_requests(state_params, "preset_switch")
+    gallery_util.clear_main_gallery_browser_state(state_params)
     gallery_util.clear_post_generation_compare_state(state_params)
 
     config_preset = config.try_get_preset_content(resolved_preset, state_params["user"].get_did())

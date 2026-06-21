@@ -18,7 +18,14 @@ import gradio as gr
 from PIL import Image, ImageDraw
 
 import args_manager
-from forge_neo.adetailer_compat import ADETAILER_ARG_DEFAULTS, adetailer_model_names, adetailer_preferred_model, adetailer_version
+from forge_neo.adetailer_compat import (
+    ADETAILER_ARG_DEFAULTS,
+    adetailer_load_state,
+    adetailer_model_names,
+    adetailer_preferred_model,
+    adetailer_reset_state,
+    adetailer_version,
+)
 from forge_neo.aesthetic_enhancement import aesthetic_gallery_values, aesthetic_summary_html
 from forge_neo.aesthetic_enhancement import aesthetic_qwen_analysis_defaults, aesthetic_qwen_analyze, aesthetic_qwen_connection_status
 from forge_neo.checkpoint_hashes import calculate_checkpoint_hashes, checkpoint_hashes_html
@@ -8193,8 +8200,45 @@ def _adetailer_control_key(unit_index: int, field_name: str) -> str:
     return f"adetailer_unit_{unit_index + 1}_{field_name}"
 
 
-def _adetailer_default(field_name: str, fallback: object = None) -> object:
-    return ADETAILER_ARG_DEFAULTS.get(field_name, fallback)
+def _adetailer_initial_state() -> dict[str, object]:
+    return adetailer_load_state()
+
+
+def _adetailer_default(field_name: str, fallback: object = None, values: Mapping[str, object] | None = None) -> object:
+    if isinstance(values, Mapping) and field_name in values:
+        return values[field_name]
+    value = ADETAILER_ARG_DEFAULTS.get(field_name, fallback)
+    if value is None and fallback is not None:
+        return fallback
+    return value
+
+
+def _adetailer_unit_initial_values(
+    state: Mapping[str, object] | None,
+    unit_index: int,
+    default_model: str,
+) -> dict[str, object]:
+    units = state.get("units") if isinstance(state, Mapping) else None
+    unit = units[unit_index] if isinstance(units, list) and 0 <= unit_index < len(units) and isinstance(units[unit_index], Mapping) else {}
+    values: dict[str, object] = {}
+    guidance = unit.get("ad_controlnet_guidance_start_end") if isinstance(unit, Mapping) else None
+    for field_name in ADETAILER_UNIT_FIELD_NAMES:
+        if field_name == "ad_tab_enable":
+            fallback = unit_index == 0
+        elif field_name == "ad_model":
+            fallback = default_model
+        elif field_name == "ad_checkpoint":
+            fallback = "Use same checkpoint"
+        elif field_name == "ad_vae":
+            fallback = "Use same VAE"
+        elif field_name == "ad_controlnet_guidance_start":
+            fallback = guidance[0] if isinstance(guidance, (list, tuple)) and len(guidance) >= 2 else 0.0
+        elif field_name == "ad_controlnet_guidance_end":
+            fallback = guidance[1] if isinstance(guidance, (list, tuple)) and len(guidance) >= 2 else 1.0
+        else:
+            fallback = ADETAILER_ARG_DEFAULTS.get(field_name, "")
+        values[field_name] = unit.get(field_name, fallback) if isinstance(unit, Mapping) else fallback
+    return values
 
 
 def _adetailer_model_classes_visible(model: object) -> bool:
@@ -8213,12 +8257,28 @@ def _adetailer_unit_controls(controls: dict[str, gr.components.Component]) -> li
     return result
 
 
+def _adetailer_default_control_updates(default_model: str) -> list[object]:
+    adetailer_reset_state()
+    updates: list[object] = [False, False]
+    for unit_index in range(ADETAILER_UNIT_COUNT):
+        unit_default_model = default_model if unit_index == 0 else "None"
+        values = _adetailer_unit_initial_values({}, unit_index, unit_default_model)
+        for field_name in ADETAILER_UNIT_FIELD_NAMES:
+            value = values.get(field_name)
+            if field_name == "ad_model_classes":
+                updates.append(gr.update(value=str(value or ""), visible=_adetailer_model_classes_visible(unit_default_model)))
+            else:
+                updates.append(value)
+    return updates
+
+
 def _create_adetailer_unit_controls(
     controls: dict[str, gr.components.Component],
     prefix: str,
     unit_index: int,
     ad_model_choices: list[str],
     default_model: str,
+    default_values: Mapping[str, object],
     checkpoint_choices: list[object],
     vae_choices: list[object],
     sampler_choices: list[object],
@@ -8229,6 +8289,7 @@ def _create_adetailer_unit_controls(
     key = partial(_adetailer_control_key, unit_index)
     elem = partial(_forge_elem, prefix)
     suffix = "" if unit_index == 0 else f" {unit_index + 1}"
+    ad_model_default = str(_adetailer_default("ad_model", default_model, default_values) or default_model)
 
     def store(field_name: str, component: gr.components.Component) -> gr.components.Component:
         controls[key(field_name)] = component
@@ -8238,7 +8299,7 @@ def _create_adetailer_unit_controls(
         store(
             "ad_tab_enable",
             gr.Checkbox(
-                unit_index == 0,
+                bool(_adetailer_default("ad_tab_enable", unit_index == 0, default_values)),
                 label=_label(f"Enable this tab ({unit_index + 1})", f"启用此单元 ({unit_index + 1})"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_tab_enable"),
             ),
@@ -8247,7 +8308,7 @@ def _create_adetailer_unit_controls(
         "ad_model",
         gr.Dropdown(
             ad_model_choices,
-            value=default_model,
+            value=ad_model_default,
             label=_label(f"ADetailer detector{suffix}", f"ADetailer 检测模型{suffix}"),
             allow_custom_value=True,
             elem_id=elem(f"adetailer_unit_{unit_index + 1}_model"),
@@ -8257,8 +8318,8 @@ def _create_adetailer_unit_controls(
         "ad_model_classes",
         gr.Textbox(
             label=_label(f"ADetailer detector classes{suffix}", f"ADetailer 检测类别{suffix}"),
-            value="",
-            visible=_adetailer_model_classes_visible(default_model),
+            value=str(_adetailer_default("ad_model_classes", "", default_values) or ""),
+            visible=_adetailer_model_classes_visible(ad_model_default),
             lines=1,
             max_lines=1,
             elem_id=elem(f"adetailer_unit_{unit_index + 1}_model_classes"),
@@ -8275,6 +8336,7 @@ def _create_adetailer_unit_controls(
         "ad_prompt",
         gr.Textbox(
             label=_label(f"ADetailer prompt{suffix}", f"ADetailer 提示词{suffix}"),
+            value=str(_adetailer_default("ad_prompt", "", default_values) or ""),
             lines=3,
             placeholder=_label(
                 f"ADetailer Prompt{suffix}\n(if blank, the original prompt is used)",
@@ -8287,6 +8349,7 @@ def _create_adetailer_unit_controls(
         "ad_negative_prompt",
         gr.Textbox(
             label=_label(f"ADetailer negative prompt{suffix}", f"ADetailer 反向提示词{suffix}"),
+            value=str(_adetailer_default("ad_negative_prompt", "", default_values) or ""),
             lines=2,
             placeholder=_label(
                 f"ADetailer Negative Prompt{suffix}\n(if blank, the original negative prompt is used)",
@@ -8302,7 +8365,7 @@ def _create_adetailer_unit_controls(
             gr.Slider(
                 0.0,
                 1.0,
-                value=float(_adetailer_default("ad_confidence", 0.3)),
+                value=float(_adetailer_default("ad_confidence", 0.3, default_values)),
                 step=0.01,
                 label=_label(f"Detection model confidence threshold{suffix}", f"检测模型置信阈值{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_confidence"),
@@ -8312,7 +8375,7 @@ def _create_adetailer_unit_controls(
             "ad_mask_filter_method",
             gr.Radio(
                 ["Area", "Confidence"],
-                value=str(_adetailer_default("ad_mask_filter_method", "Area")),
+                value=str(_adetailer_default("ad_mask_filter_method", "Area", default_values)),
                 label=_label(f"Method to filter top k masks{suffix}", f"Top K 蒙版筛选方式{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_mask_filter_method"),
             ),
@@ -8322,7 +8385,7 @@ def _create_adetailer_unit_controls(
             gr.Slider(
                 0,
                 10,
-                value=int(_adetailer_default("ad_mask_k", 0)),
+                value=int(_adetailer_default("ad_mask_k", 0, default_values)),
                 step=1,
                 label=_label(f"Mask only the top k (0 to disable){suffix}", f"仅使用前 K 个蒙版，0 为关闭{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_mask_k"),
@@ -8334,7 +8397,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     0.0,
                     1.0,
-                    value=float(_adetailer_default("ad_mask_min_ratio", 0.0)),
+                    value=float(_adetailer_default("ad_mask_min_ratio", 0.0, default_values)),
                     step=0.001,
                     label=_label(f"Mask min area ratio{suffix}", f"蒙版区域最小比率{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_mask_min_ratio"),
@@ -8345,7 +8408,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     0.0,
                     1.0,
-                    value=float(_adetailer_default("ad_mask_max_ratio", 1.0)),
+                    value=float(_adetailer_default("ad_mask_max_ratio", 1.0, default_values)),
                     step=0.001,
                     label=_label(f"Mask max area ratio{suffix}", f"蒙版区域最大比率{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_mask_max_ratio"),
@@ -8359,7 +8422,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     -200,
                     200,
-                    value=int(_adetailer_default("ad_x_offset", 0)),
+                    value=int(_adetailer_default("ad_x_offset", 0, default_values)),
                     step=1,
                     label=_label(f"Mask X offset{suffix}", f"蒙版 X 偏移{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_x_offset"),
@@ -8370,7 +8433,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     -200,
                     200,
-                    value=int(_adetailer_default("ad_y_offset", 0)),
+                    value=int(_adetailer_default("ad_y_offset", 0, default_values)),
                     step=1,
                     label=_label(f"Mask Y offset{suffix}", f"蒙版 Y 偏移{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_y_offset"),
@@ -8381,7 +8444,7 @@ def _create_adetailer_unit_controls(
             gr.Slider(
                 -128,
                 128,
-                value=int(_adetailer_default("ad_dilate_erode", 4)),
+                value=int(_adetailer_default("ad_dilate_erode", 4, default_values)),
                 step=4,
                 label=_label(f"Mask erosion (-) / dilation (+){suffix}", f"蒙版腐蚀 (-) / 膨胀 (+){suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_dilate_erode"),
@@ -8391,7 +8454,7 @@ def _create_adetailer_unit_controls(
             "ad_mask_merge_invert",
             gr.Radio(
                 ["None", "Merge", "Merge and Invert"],
-                value=str(_adetailer_default("ad_mask_merge_invert", "None")),
+                value=str(_adetailer_default("ad_mask_merge_invert", "None", default_values)),
                 label=_label(f"Mask merge mode{suffix}", f"蒙版合并模式{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_mask_merge_invert"),
             ),
@@ -8404,7 +8467,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     0,
                     64,
-                    value=int(_adetailer_default("ad_mask_blur", 4)),
+                    value=int(_adetailer_default("ad_mask_blur", 4, default_values)),
                     step=1,
                     label=_label(f"Inpaint mask blur{suffix}", f"重绘蒙版边缘模糊度{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_mask_blur"),
@@ -8415,7 +8478,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     0.0,
                     1.0,
-                    value=float(_adetailer_default("ad_denoising_strength", 0.5)),
+                    value=float(_adetailer_default("ad_denoising_strength", 0.5, default_values)),
                     step=0.01,
                     label=_label(f"Inpaint denoising strength{suffix}", f"局部重绘幅度{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_denoising_strength"),
@@ -8424,7 +8487,7 @@ def _create_adetailer_unit_controls(
         store(
             "ad_inpaint_only_masked",
             gr.Checkbox(
-                bool(_adetailer_default("ad_inpaint_only_masked", True)),
+                bool(_adetailer_default("ad_inpaint_only_masked", True, default_values)),
                 label=_label(f"Inpaint only masked{suffix}", f"仅重绘蒙版内容{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_inpaint_only_masked"),
             ),
@@ -8434,7 +8497,7 @@ def _create_adetailer_unit_controls(
             gr.Slider(
                 0,
                 256,
-                value=int(_adetailer_default("ad_inpaint_only_masked_padding", 32)),
+                value=int(_adetailer_default("ad_inpaint_only_masked_padding", 32, default_values)),
                 step=4,
                 label=_label(f"Inpaint only masked padding, pixels{suffix}", f"仅重绘蒙版区域边缘预留像素{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_inpaint_padding"),
@@ -8443,7 +8506,7 @@ def _create_adetailer_unit_controls(
         store(
             "ad_use_inpaint_width_height",
             gr.Checkbox(
-                bool(_adetailer_default("ad_use_inpaint_width_height", False)),
+                bool(_adetailer_default("ad_use_inpaint_width_height", False, default_values)),
                 label=_label(f"Use separate width/height{suffix}", f"使用独立重绘宽高{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_use_inpaint_size"),
             ),
@@ -8454,7 +8517,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     64,
                     2048,
-                    value=int(_adetailer_default("ad_inpaint_width", 512)),
+                    value=int(_adetailer_default("ad_inpaint_width", 512, default_values)),
                     step=4,
                     label=_label(f"Inpaint width{suffix}", f"重绘宽度{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_inpaint_width"),
@@ -8465,7 +8528,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     64,
                     2048,
-                    value=int(_adetailer_default("ad_inpaint_height", 512)),
+                    value=int(_adetailer_default("ad_inpaint_height", 512, default_values)),
                     step=4,
                     label=_label(f"Inpaint height{suffix}", f"重绘高度{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_inpaint_height"),
@@ -8475,7 +8538,7 @@ def _create_adetailer_unit_controls(
             store(
                 "ad_use_steps",
                 gr.Checkbox(
-                    bool(_adetailer_default("ad_use_steps", False)),
+                    bool(_adetailer_default("ad_use_steps", False, default_values)),
                     label=_label(f"Use separate steps{suffix}", f"使用独立迭代步数{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_use_steps"),
                 ),
@@ -8485,7 +8548,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     1,
                     150,
-                    value=int(_adetailer_default("ad_steps", 28)),
+                    value=int(_adetailer_default("ad_steps", 28, default_values)),
                     step=1,
                     label=_label(f"ADetailer steps{suffix}", f"After Detailer 迭代步数{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_steps"),
@@ -8495,7 +8558,7 @@ def _create_adetailer_unit_controls(
             store(
                 "ad_use_cfg_scale",
                 gr.Checkbox(
-                    bool(_adetailer_default("ad_use_cfg_scale", False)),
+                    bool(_adetailer_default("ad_use_cfg_scale", False, default_values)),
                     label=_label(f"Use separate CFG scale{suffix}", f"使用独立提示词引导系数{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_use_cfg"),
                 ),
@@ -8505,7 +8568,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     0.0,
                     30.0,
-                    value=float(_adetailer_default("ad_cfg_scale", 7.0)),
+                    value=float(_adetailer_default("ad_cfg_scale", 7.0, default_values)),
                     step=0.5,
                     label=_label(f"ADetailer CFG scale{suffix}", f"After Detailer 提示词引导系数{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_cfg_scale"),
@@ -8514,7 +8577,7 @@ def _create_adetailer_unit_controls(
         store(
             "ad_use_checkpoint",
             gr.Checkbox(
-                bool(_adetailer_default("ad_use_checkpoint", False)),
+                bool(_adetailer_default("ad_use_checkpoint", False, default_values)),
                 label=_label(f"Use separate checkpoint{suffix}", f"使用独立模型{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_use_checkpoint"),
             ),
@@ -8523,7 +8586,7 @@ def _create_adetailer_unit_controls(
             "ad_checkpoint",
             gr.Dropdown(
                 checkpoint_choices,
-                value="Use same checkpoint",
+                value=str(_adetailer_default("ad_checkpoint", "Use same checkpoint", default_values)),
                 label=_label(f"ADetailer checkpoint{suffix}", f"After Detailer 模型{suffix}"),
                 allow_custom_value=True,
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_checkpoint"),
@@ -8532,7 +8595,7 @@ def _create_adetailer_unit_controls(
         store(
             "ad_use_vae",
             gr.Checkbox(
-                bool(_adetailer_default("ad_use_vae", False)),
+                bool(_adetailer_default("ad_use_vae", False, default_values)),
                 label=_label(f"Use separate VAE{suffix}", f"使用独立 VAE{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_use_vae"),
             ),
@@ -8541,7 +8604,7 @@ def _create_adetailer_unit_controls(
             "ad_vae",
             gr.Dropdown(
                 vae_choices,
-                value="Use same VAE",
+                value=str(_adetailer_default("ad_vae", "Use same VAE", default_values)),
                 label=_label(f"ADetailer VAE{suffix}", f"After Detailer 使用的 VAE{suffix}"),
                 allow_custom_value=True,
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_vae"),
@@ -8550,7 +8613,7 @@ def _create_adetailer_unit_controls(
         store(
             "ad_use_sampler",
             gr.Checkbox(
-                bool(_adetailer_default("ad_use_sampler", False)),
+                bool(_adetailer_default("ad_use_sampler", False, default_values)),
                 label=_label(f"Use separate sampler{suffix}", f"使用独立采样方法{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_use_sampler"),
             ),
@@ -8560,7 +8623,7 @@ def _create_adetailer_unit_controls(
                 "ad_sampler",
                 gr.Dropdown(
                     sampler_choices,
-                    value=str(_adetailer_default("ad_sampler", "DPM++ 2M Karras")),
+                    value=str(_adetailer_default("ad_sampler", "DPM++ 2M Karras", default_values)),
                     label=_label(f"ADetailer sampler{suffix}", f"After Detailer 采样方法{suffix}"),
                     allow_custom_value=True,
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_sampler"),
@@ -8570,7 +8633,7 @@ def _create_adetailer_unit_controls(
                 "ad_scheduler",
                 gr.Dropdown(
                     scheduler_choices,
-                    value=str(_adetailer_default("ad_scheduler", "Use same scheduler")),
+                    value=str(_adetailer_default("ad_scheduler", "Use same scheduler", default_values)),
                     label=_label(f"ADetailer scheduler{suffix}", f"ADetailer scheduler{suffix}"),
                     allow_custom_value=True,
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_scheduler"),
@@ -8580,7 +8643,7 @@ def _create_adetailer_unit_controls(
             store(
                 "ad_use_noise_multiplier",
                 gr.Checkbox(
-                    bool(_adetailer_default("ad_use_noise_multiplier", False)),
+                    bool(_adetailer_default("ad_use_noise_multiplier", False, default_values)),
                     label=_label(f"Use separate noise multiplier{suffix}", f"使用独立噪声参数{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_use_noise_multiplier"),
                 ),
@@ -8590,7 +8653,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     0.5,
                     1.5,
-                    value=float(_adetailer_default("ad_noise_multiplier", 1.0)),
+                    value=float(_adetailer_default("ad_noise_multiplier", 1.0, default_values)),
                     step=0.01,
                     label=_label(f"Noise multiplier for img2img{suffix}", f"图生图噪声倍率{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_noise_multiplier"),
@@ -8599,7 +8662,7 @@ def _create_adetailer_unit_controls(
         store(
             "ad_restore_face",
             gr.Checkbox(
-                bool(_adetailer_default("ad_restore_face", False)),
+                bool(_adetailer_default("ad_restore_face", False, default_values)),
                 label=_label(f"Restore faces after ADetailer{suffix}", f"在 After Detailer 之后修复面部{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_restore_face"),
             ),
@@ -8610,7 +8673,7 @@ def _create_adetailer_unit_controls(
             "ad_controlnet_model",
             gr.Dropdown(
                 controlnet_model_choices,
-                value="None",
+                value=str(_adetailer_default("ad_controlnet_model", "None", default_values)),
                 label=_label(f"ControlNet model{suffix}", f"ControlNet 模型{suffix}"),
                 allow_custom_value=True,
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_controlnet_model"),
@@ -8620,7 +8683,7 @@ def _create_adetailer_unit_controls(
             "ad_controlnet_module",
             gr.Dropdown(
                 controlnet_module_choices,
-                value="None",
+                value=str(_adetailer_default("ad_controlnet_module", "None", default_values)),
                 label=_label(f"ControlNet module{suffix}", f"ControlNet 预处理器{suffix}"),
                 allow_custom_value=True,
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_controlnet_module"),
@@ -8631,7 +8694,7 @@ def _create_adetailer_unit_controls(
             gr.Slider(
                 0.0,
                 1.0,
-                value=float(_adetailer_default("ad_controlnet_weight", 1.0)),
+                value=float(_adetailer_default("ad_controlnet_weight", 1.0, default_values)),
                 step=0.01,
                 label=_label(f"ControlNet weight{suffix}", f"ControlNet 权重{suffix}"),
                 elem_id=elem(f"adetailer_unit_{unit_index + 1}_controlnet_weight"),
@@ -8643,7 +8706,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     0.0,
                     1.0,
-                    value=float(_adetailer_default("ad_controlnet_guidance_start", 0.0)),
+                    value=float(_adetailer_default("ad_controlnet_guidance_start", 0.0, default_values)),
                     step=0.01,
                     label=_label(f"ControlNet guidance start{suffix}", f"ControlNet 引导介入时机{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_controlnet_guidance_start"),
@@ -8654,7 +8717,7 @@ def _create_adetailer_unit_controls(
                 gr.Slider(
                     0.0,
                     1.0,
-                    value=float(_adetailer_default("ad_controlnet_guidance_end", 1.0)),
+                    value=float(_adetailer_default("ad_controlnet_guidance_end", 1.0, default_values)),
                     step=0.01,
                     label=_label(f"ControlNet guidance end{suffix}", f"ControlNet 引导结束时机{suffix}"),
                     elem_id=elem(f"adetailer_unit_{unit_index + 1}_controlnet_guidance_end"),
@@ -8663,6 +8726,9 @@ def _create_adetailer_unit_controls(
 
 
 def _create_adetailer_controls(controls: dict[str, gr.components.Component], prefix: str, *, is_img2img: bool, model_choices) -> None:
+    initial_state = _adetailer_initial_state()
+    adetailer_enabled_default = bool(initial_state.get("enabled", False)) if isinstance(initial_state, Mapping) else False
+    adetailer_skip_img2img_default = bool(initial_state.get("skip_img2img", False)) if is_img2img and isinstance(initial_state, Mapping) else False
     ad_model_choices = adetailer_model_names(include_none=True)
     adetailer_default_model = adetailer_preferred_model()
     if adetailer_default_model not in ad_model_choices:
@@ -8675,7 +8741,7 @@ def _create_adetailer_controls(controls: dict[str, gr.components.Component], pre
     controlnet_module_choices = _controlnet_preprocessor_choices("All")
 
     with InputAccordion(
-        False,
+        adetailer_enabled_default,
         label=_label("ADetailer", "ADetailer"),
         visible=adetailer_available(),
         elem_id=_forge_elem(prefix, "adetailer"),
@@ -8684,15 +8750,21 @@ def _create_adetailer_controls(controls: dict[str, gr.components.Component], pre
         controls["adetailer_enabled"] = adetailer_enabled
         with gr.Row(elem_classes=["forge-neo-integrated-row"]):
             controls["adetailer_skip_img2img"] = gr.Checkbox(
-                False,
+                adetailer_skip_img2img_default,
                 label=_label("Skip img2img", "跳过 img2img"),
                 visible=is_img2img,
                 elem_id=_forge_elem(prefix, "adetailer_skip_img2img"),
+            )
+            controls["adetailer_restore_defaults"] = gr.Button(
+                _label("Restore defaults", "恢复默认值"),
+                variant="secondary",
+                elem_id=_forge_elem(prefix, "adetailer_restore_defaults"),
             )
             gr.Markdown(f"v{adetailer_version()}", elem_id=_forge_elem(prefix, "adetailer_version"))
         with gr.Tabs(elem_id=_forge_elem(prefix, "adetailer_tabs"), elem_classes=["forge-neo-mode-tabs", "forge-neo-adetailer-tabs"]):
             for unit_index in range(ADETAILER_UNIT_COUNT):
                 default_model = adetailer_default_model if unit_index == 0 else "None"
+                default_values = _adetailer_unit_initial_values(initial_state, unit_index, default_model)
                 with gr.Tab(_label(f"Unit {unit_index + 1}", f"单元 {unit_index + 1}"), elem_id=_forge_elem(prefix, f"adetailer_unit_{unit_index + 1}")):
                     _create_adetailer_unit_controls(
                         controls,
@@ -8700,6 +8772,7 @@ def _create_adetailer_controls(controls: dict[str, gr.components.Component], pre
                         unit_index,
                         ad_model_choices,
                         default_model,
+                        default_values,
                         checkpoint_choices,
                         vae_choices,
                         sampler_choices,
@@ -8707,6 +8780,13 @@ def _create_adetailer_controls(controls: dict[str, gr.components.Component], pre
                         controlnet_model_choices,
                         controlnet_module_choices,
                     )
+        controls["adetailer_restore_defaults"].click(
+            partial(_adetailer_default_control_updates, adetailer_default_model),
+            inputs=[],
+            outputs=_adetailer_unit_controls(controls),
+            show_progress=False,
+            queue=False,
+        )
 
     unit_one = partial(_adetailer_control_key, 0)
     controls["adetailer_model"] = controls[unit_one("ad_model")]

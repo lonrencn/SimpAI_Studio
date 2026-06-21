@@ -55,10 +55,9 @@ def _load_local_settings():
             return {"user": {}, "admin": {}}
         user = data.get("user", {})
         admin = data.get("admin", {})
-        return {
-            "user": user if isinstance(user, dict) else {},
-            "admin": admin if isinstance(admin, dict) else {},
-        }
+        data["user"] = user if isinstance(user, dict) else {}
+        data["admin"] = admin if isinstance(admin, dict) else {}
+        return data
     except Exception:
         return {"user": {}, "admin": {}}
 

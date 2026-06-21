@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import ast
+import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 import urllib.request
@@ -33,6 +35,10 @@ ADETAILER_MODEL_DOWNLOAD_URLS = {
     model_name: f"{ADETAILER_MODELSCOPE_BASE_URL}/{model_name}"
     for model_name in ADETAILER_BUILTIN_MODELS
 }
+ADETAILER_STATE_SCHEMA_VERSION = 1
+ADETAILER_STATE_UNIT_COUNT = 4
+ADETAILER_STATE_FILENAME = "forge_neo_adetailer_state.json"
+ADETAILER_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 ADETAILER_ARG_LABELS = (
     ("ad_model", "ADetailer model"),
     ("ad_model_classes", "ADetailer model classes"),
@@ -124,6 +130,200 @@ def adetailer_default_args(**overrides: Any) -> dict[str, Any]:
         if key in data:
             data[key] = value
     return data
+
+
+def adetailer_state_path(*, create_parent: bool = False) -> Path:
+    from forge_neo.bootstrap import ensure_config
+
+    config = ensure_config(test_stub=os.environ.get("FORGE_NEO_TEST_TOKEN_STUB") == "1")
+    base = Path(getattr(config, "path_userhome", "") or ".")
+    path = base / "forge_neo" / ADETAILER_STATE_FILENAME
+    if create_parent:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def adetailer_sidecar_path(image_path: str | os.PathLike[str]) -> Path:
+    return Path(image_path).with_suffix(".adetailer.json")
+
+
+def adetailer_normalized_args(value: object) -> dict[str, Any]:
+    data = dict(value) if isinstance(value, dict) else {}
+    normalized = adetailer_default_args(**data)
+    guidance_value = data.get("ad_controlnet_guidance_start_end")
+    if isinstance(guidance_value, (list, tuple)) and len(guidance_value) >= 2:
+        guidance_start_raw, guidance_end_raw = guidance_value[0], guidance_value[1]
+    else:
+        guidance_start_raw = data.get("ad_controlnet_guidance_start", 0.0)
+        guidance_end_raw = data.get("ad_controlnet_guidance_end", 1.0)
+
+    mask_filter_method = str(normalized.get("ad_mask_filter_method") or "Area")
+    if mask_filter_method not in {"Area", "Confidence"}:
+        mask_filter_method = "Area"
+    mask_merge_invert = str(normalized.get("ad_mask_merge_invert") or "None")
+    if mask_merge_invert not in {"None", "Merge", "Merge and Invert"}:
+        mask_merge_invert = "None"
+
+    normalized["ad_model"] = str(normalized.get("ad_model") or "None")
+    normalized["ad_model_classes"] = str(normalized.get("ad_model_classes") or "")
+    normalized["ad_tab_enable"] = _bool_value(normalized.get("ad_tab_enable"), True)
+    normalized["ad_prompt"] = str(normalized.get("ad_prompt") or "")
+    normalized["ad_negative_prompt"] = str(normalized.get("ad_negative_prompt") or "")
+    normalized["ad_confidence"] = _clamped_float(normalized.get("ad_confidence", 0.3), 0.3, minimum=0.0, maximum=1.0)
+    normalized["ad_mask_filter_method"] = mask_filter_method
+    normalized["ad_mask_k"] = _clamped_int(normalized.get("ad_mask_k", 0), 0, minimum=0, maximum=10)
+    normalized["ad_mask_min_ratio"] = _clamped_float(normalized.get("ad_mask_min_ratio", 0.0), 0.0, minimum=0.0, maximum=1.0)
+    normalized["ad_mask_max_ratio"] = _clamped_float(normalized.get("ad_mask_max_ratio", 1.0), 1.0, minimum=0.0, maximum=1.0)
+    normalized["ad_x_offset"] = _clamped_int(normalized.get("ad_x_offset", 0), 0, minimum=-200, maximum=200)
+    normalized["ad_y_offset"] = _clamped_int(normalized.get("ad_y_offset", 0), 0, minimum=-200, maximum=200)
+    normalized["ad_mask_merge_invert"] = mask_merge_invert
+    normalized["ad_mask_blur"] = _clamped_int(normalized.get("ad_mask_blur", 4), 4, minimum=0, maximum=256)
+    normalized["ad_dilate_erode"] = _clamped_int(normalized.get("ad_dilate_erode", 4), 4, minimum=-256, maximum=256)
+    normalized["ad_denoising_strength"] = _clamped_float(normalized.get("ad_denoising_strength", 0.5), 0.5, minimum=0.0, maximum=1.0)
+    normalized["ad_inpaint_only_masked"] = _bool_value(normalized.get("ad_inpaint_only_masked"), True)
+    normalized["ad_inpaint_only_masked_padding"] = _clamped_int(normalized.get("ad_inpaint_only_masked_padding", 32), 32, minimum=0, maximum=512)
+    normalized["ad_use_inpaint_width_height"] = _bool_value(normalized.get("ad_use_inpaint_width_height"), False)
+    normalized["ad_inpaint_width"] = _clamped_int(normalized.get("ad_inpaint_width", 512), 512, minimum=64, maximum=2048)
+    normalized["ad_inpaint_height"] = _clamped_int(normalized.get("ad_inpaint_height", 512), 512, minimum=64, maximum=2048)
+    normalized["ad_use_steps"] = _bool_value(normalized.get("ad_use_steps"), False)
+    normalized["ad_steps"] = _clamped_int(normalized.get("ad_steps", 20), 20, minimum=1, maximum=150)
+    normalized["ad_use_cfg_scale"] = _bool_value(normalized.get("ad_use_cfg_scale"), False)
+    normalized["ad_cfg_scale"] = _clamped_float(normalized.get("ad_cfg_scale", 4.0), 4.0, minimum=1.0, maximum=24.0)
+    normalized["ad_use_checkpoint"] = _bool_value(normalized.get("ad_use_checkpoint"), False)
+    normalized["ad_checkpoint"] = str(normalized.get("ad_checkpoint") or "Use same checkpoint")
+    normalized["ad_use_vae"] = _bool_value(normalized.get("ad_use_vae"), False)
+    normalized["ad_vae"] = str(normalized.get("ad_vae") or "Use same VAE")
+    normalized["ad_use_sampler"] = _bool_value(normalized.get("ad_use_sampler"), False)
+    normalized["ad_sampler"] = str(normalized.get("ad_sampler") or "Use same sampler")
+    normalized["ad_scheduler"] = str(normalized.get("ad_scheduler") or "Use same scheduler")
+    normalized["ad_use_noise_multiplier"] = _bool_value(normalized.get("ad_use_noise_multiplier"), False)
+    normalized["ad_noise_multiplier"] = _clamped_float(normalized.get("ad_noise_multiplier", 1.0), 1.0, minimum=0.5, maximum=1.5)
+    normalized["ad_restore_face"] = _bool_value(normalized.get("ad_restore_face"), False)
+    normalized["ad_controlnet_model"] = str(normalized.get("ad_controlnet_model") or "None")
+    normalized["ad_controlnet_module"] = str(normalized.get("ad_controlnet_module") or "None")
+    normalized["ad_controlnet_weight"] = _clamped_float(normalized.get("ad_controlnet_weight", 1.0), 1.0, minimum=0.0, maximum=1.0)
+    normalized["ad_controlnet_guidance_start_end"] = [
+        _clamped_float(guidance_start_raw, 0.0, minimum=0.0, maximum=1.0),
+        _clamped_float(guidance_end_raw, 1.0, minimum=0.0, maximum=1.0),
+    ]
+    normalized["is_api"] = True
+    return normalized
+
+
+def adetailer_state_payload(
+    *,
+    enabled: object,
+    skip_img2img: object,
+    args: object,
+    mode: object = "",
+    include_empty_units: bool = False,
+) -> dict[str, Any]:
+    units = _normalized_units(args)
+    if not units and include_empty_units:
+        units = [adetailer_default_args(ad_tab_enable=index == 0) for index in range(ADETAILER_STATE_UNIT_COUNT)]
+    payload: dict[str, Any] = {
+        "schema": ADETAILER_STATE_SCHEMA_VERSION,
+        "extension": ADETAILER_EXTENSION_DIRNAME,
+        "version": adetailer_version(),
+        "enabled": _bool_value(enabled, False),
+        "skip_img2img": _bool_value(skip_img2img, False),
+        "mode": str(mode or ""),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if units:
+        payload["units"] = units[:ADETAILER_STATE_UNIT_COUNT]
+    return payload
+
+
+def adetailer_load_state() -> dict[str, Any]:
+    path = adetailer_state_path()
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    units = _normalized_units(data.get("units"))
+    result = {
+        "schema": ADETAILER_STATE_SCHEMA_VERSION,
+        "extension": str(data.get("extension") or ADETAILER_EXTENSION_DIRNAME),
+        "version": str(data.get("version") or ""),
+        "enabled": _bool_value(data.get("enabled"), False),
+        "skip_img2img": _bool_value(data.get("skip_img2img"), False),
+        "mode": str(data.get("mode") or ""),
+        "updated_at": str(data.get("updated_at") or ""),
+    }
+    if units:
+        result["units"] = units[:ADETAILER_STATE_UNIT_COUNT]
+    return result
+
+
+def adetailer_save_state(
+    *,
+    enabled: object,
+    skip_img2img: object,
+    args: object,
+    mode: object = "",
+) -> Path:
+    units = _normalized_units(args)
+    if not units:
+        existing_units = adetailer_load_state().get("units")
+        if isinstance(existing_units, list):
+            units = _normalized_units(existing_units)
+    payload = adetailer_state_payload(
+        enabled=enabled,
+        skip_img2img=skip_img2img,
+        args=units,
+        mode=mode,
+    )
+    path = adetailer_state_path(create_parent=True)
+    _write_json_file(path, payload)
+    return path
+
+
+def adetailer_save_request_state(request: object) -> Path:
+    return adetailer_save_state(
+        enabled=bool(getattr(request, "adetailer_enabled", False)),
+        skip_img2img=bool(getattr(request, "adetailer_skip_img2img", False)),
+        args=getattr(request, "adetailer_args", []) or [],
+        mode=str(getattr(request, "mode", "") or ""),
+    )
+
+
+def adetailer_reset_state() -> bool:
+    path = adetailer_state_path()
+    if not path.exists():
+        return False
+    try:
+        path.unlink()
+    except OSError:
+        return False
+    return True
+
+
+def adetailer_write_image_sidecars(image_paths: list[str] | tuple[str, ...], request: object) -> list[str]:
+    if not bool(getattr(request, "adetailer_enabled", False)):
+        return []
+    args = getattr(request, "adetailer_args", []) or []
+    if not _normalized_units(args):
+        return []
+    payload = adetailer_state_payload(
+        enabled=True,
+        skip_img2img=bool(getattr(request, "adetailer_skip_img2img", False)),
+        args=args,
+        mode=str(getattr(request, "mode", "") or ""),
+    )
+    written: list[str] = []
+    for item in list(image_paths or []):
+        path = Path(str(item))
+        if path.suffix.lower() not in ADETAILER_IMAGE_SUFFIXES or not path.exists():
+            continue
+        sidecar = adetailer_sidecar_path(path)
+        _write_json_file(sidecar, payload)
+        written.append(str(sidecar))
+    return written
 
 
 def adetailer_model_names(*, include_none: bool = True) -> list[str]:
@@ -249,6 +449,52 @@ def _adetailer_model_basename(model_name: object) -> str:
     if basename != name or "/" in name or "\\" in name:
         return ""
     return basename
+
+
+def _bool_value(value: object, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return bool(default)
+    text = str(value).strip().lower()
+    if text in {"true", "1", "yes", "on"}:
+        return True
+    if text in {"false", "0", "no", "off"}:
+        return False
+    return bool(default)
+
+
+def _clamped_int(value: object, default: int, *, minimum: int, maximum: int) -> int:
+    try:
+        result = int(float(str(value).strip())) if value not in (None, "") else int(default)
+    except Exception:
+        result = int(default)
+    return max(minimum, min(maximum, result))
+
+
+def _clamped_float(value: object, default: float, *, minimum: float, maximum: float) -> float:
+    try:
+        result = float(value) if value not in (None, "") else float(default)
+    except Exception:
+        result = float(default)
+    return max(minimum, min(maximum, result))
+
+
+def _normalized_units(args: object) -> list[dict[str, Any]]:
+    if isinstance(args, dict):
+        items = [args]
+    elif isinstance(args, (list, tuple)):
+        items = [item for item in args if isinstance(item, dict)]
+    else:
+        items = []
+    return [adetailer_normalized_args(item) for item in items]
+
+
+def _write_json_file(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(f"{path.name}.tmp")
+    temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(temp, path)
 
 
 def _json_schema_type(value: Any) -> str:

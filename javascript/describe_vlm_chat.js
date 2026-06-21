@@ -1444,6 +1444,99 @@
             .filter(Boolean);
     }
 
+    function firstUriFromList(text) {
+        return String(text || '').split(/\r?\n/).map((line) => line.trim()).find((line) => line && !line.startsWith('#')) || '';
+    }
+
+    function firstHtmlImageSrc(html) {
+        if (!html) return '';
+        try {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const src = doc.querySelector('img[src]')?.getAttribute('src') || '';
+            if (src) return src;
+        } catch (err) {}
+        const match = String(html).match(/<img\b[^>]*\bsrc=["']?([^"'\s>]+)/i);
+        return match ? match[1] : '';
+    }
+
+    function base64UrlDecodeUtf8(value) {
+        const text = String(value || '');
+        if (!text) return '';
+        const padded = text.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - text.length % 4) % 4);
+        try {
+            const binary = atob(padded);
+            const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+            if (window.TextDecoder) return new TextDecoder('utf-8').decode(bytes);
+            return decodeURIComponent(Array.from(bytes, (byte) => `%${byte.toString(16).padStart(2, '0')}`).join(''));
+        } catch (err) {
+            return '';
+        }
+    }
+
+    function galleryOriginalSource(source) {
+        try {
+            const url = new URL(source, document.baseURI);
+            const fileName = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() || '');
+            const match = fileName.match(/^simpai_gprev__([A-Za-z0-9_-]+)__[0-9a-f]{16}\.jpg$/);
+            if (!match) return source;
+            const originalPath = base64UrlDecodeUtf8(match[1]);
+            if (!originalPath) return source;
+            const route = '/simpleai/gallery-preview/';
+            const routeIndex = url.pathname.indexOf(route);
+            const basePath = routeIndex >= 0 ? url.pathname.slice(0, routeIndex) : '';
+            const encodedPath = encodeURI(String(originalPath).replace(/\\/g, '/')).replace(/\?/g, '%3F').replace(/#/g, '%23');
+            return `${url.origin}${basePath}/gradio_api/file=${encodedPath}`;
+        } catch (err) {
+            return source;
+        }
+    }
+
+    function normalizeImageDropSource(source) {
+        const value = String(source || '').trim();
+        if (!value) return '';
+        let normalized = value;
+        try {
+            normalized = new URL(value, document.baseURI).href;
+        } catch (err) {}
+        return galleryOriginalSource(normalized);
+    }
+
+    function firstImageDropUrl(dataTransfer) {
+        if (!dataTransfer || typeof dataTransfer.getData !== 'function') return '';
+        const custom = normalizeImageDropSource(dataTransfer.getData('application/x-simpleai-gallery-original-url'));
+        if (custom) return custom;
+        const uri = normalizeImageDropSource(firstUriFromList(dataTransfer.getData('text/uri-list')));
+        if (uri) return uri;
+        const htmlSrc = normalizeImageDropSource(firstHtmlImageSrc(dataTransfer.getData('text/html')));
+        if (htmlSrc) return htmlSrc;
+        return normalizeImageDropSource(dataTransfer.getData('text/plain'));
+    }
+
+    async function imageFileFromDropUrl(source) {
+        if (!source) return null;
+        try {
+            const response = await fetch(source, { credentials: 'same-origin' });
+            if (!response.ok) return null;
+            const blob = await response.blob();
+            const mime = blob.type || 'image/png';
+            if (mime && !mime.toLowerCase().startsWith('image/')) return null;
+            const rawExt = (mime.split('/')[1] || 'png').split(';')[0].replace('svg+xml', 'svg');
+            const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+            return new File([blob], `dropped-image.${ext}`, { type: mime });
+        } catch (err) {
+            return null;
+        }
+    }
+
+    async function collectDroppedImageFiles(dataTransfer) {
+        const url = firstImageDropUrl(dataTransfer);
+        if (url) {
+            const file = await imageFileFromDropUrl(url);
+            if (file) return [file];
+        }
+        return collectClipboardImageFiles(dataTransfer);
+    }
+
     function modalIsOpen() {
         const modal = document.getElementById('describe_vlm_chat_modal');
         return !!modal && !modal.hidden;
@@ -1817,7 +1910,7 @@
 
     document.addEventListener('dragover', (evt) => {
         if (!modalIsOpen() || !eventInsideModal(evt)) return;
-        const hasImage = collectClipboardImageFiles(evt.dataTransfer).length > 0;
+        const hasImage = collectClipboardImageFiles(evt.dataTransfer).length > 0 || !!firstImageDropUrl(evt.dataTransfer);
         if (!hasImage) return;
         evt.preventDefault();
         document.getElementById('describe_vlm_chat_modal')?.classList.add('is-drag-over');
@@ -1827,9 +1920,9 @@
         document.getElementById('describe_vlm_chat_modal')?.classList.remove('is-drag-over');
     });
 
-    document.addEventListener('drop', (evt) => {
+    document.addEventListener('drop', async (evt) => {
         if (!modalIsOpen() || !eventInsideModal(evt)) return;
-        const files = collectClipboardImageFiles(evt.dataTransfer);
+        const files = await collectDroppedImageFiles(evt.dataTransfer);
         if (!files.length) return;
         evt.preventDefault();
         document.getElementById('describe_vlm_chat_modal')?.classList.remove('is-drag-over');

@@ -17,6 +17,10 @@ except Exception:
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 VIDEO_EXTS = {".webm", ".mp4", ".mov", ".mkv"}
 DATE_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+RECENT_IMAGE_STABILITY_WINDOW_SECONDS = 2.0
+RECENT_IMAGE_STABILITY_SLEEP_SECONDS = 0.03
+MEDIA_DIMENSION_CACHE_MAX = 4096
+_MEDIA_DIMENSION_CACHE = {}
 
 
 def _file_preview_url(path):
@@ -112,10 +116,64 @@ def _read_image_size(path):
     if Image is None:
         return None, None
     try:
+        stat = os.stat(path)
+        cache_key = ("image", os.path.abspath(path))
+        cached = _MEDIA_DIMENSION_CACHE.get(cache_key)
+        if cached and cached[:2] == (stat.st_mtime_ns, stat.st_size):
+            return cached[2], cached[3]
         with Image.open(path) as image:
-            return image.size
+            width, height = image.size
+        if len(_MEDIA_DIMENSION_CACHE) >= MEDIA_DIMENSION_CACHE_MAX:
+            _MEDIA_DIMENSION_CACHE.clear()
+        _MEDIA_DIMENSION_CACHE[cache_key] = (stat.st_mtime_ns, stat.st_size, width, height)
+        return width, height
     except Exception:
         return None, None
+
+
+def _read_video_size(path, mime=None):
+    try:
+        from modules import canvas_workbench_assets
+
+        metadata = canvas_workbench_assets._probe_media_metadata(path, mime or "video/mp4")
+        width = int(metadata.get("width") or 0)
+        height = int(metadata.get("height") or 0)
+        if width > 0 and height > 0:
+            return width, height
+    except Exception:
+        pass
+    return None, None
+
+
+def _is_recent_image_ready(path, now=None):
+    if Image is None:
+        return True
+    try:
+        stat_before = os.stat(path)
+    except OSError:
+        return False
+    if stat_before.st_size <= 0:
+        return False
+    age = float(now if now is not None else time.time()) - float(stat_before.st_mtime)
+    if age > RECENT_IMAGE_STABILITY_WINDOW_SECONDS:
+        return True
+    time.sleep(RECENT_IMAGE_STABILITY_SLEEP_SECONDS)
+    try:
+        stat_mid = os.stat(path)
+    except OSError:
+        return False
+    if stat_mid.st_size != stat_before.st_size or stat_mid.st_mtime_ns != stat_before.st_mtime_ns:
+        return False
+    try:
+        with Image.open(path) as image:
+            image.verify()
+    except Exception:
+        return False
+    try:
+        stat_after = os.stat(path)
+    except OSError:
+        return False
+    return stat_after.st_size == stat_mid.st_size and stat_after.st_mtime_ns == stat_mid.st_mtime_ns
 
 
 def _media_item(path, root, media_type, include_dimensions=False, include_metadata=False):
@@ -125,12 +183,15 @@ def _media_item(path, root, media_type, include_dimensions=False, include_metada
         return None
     width = None
     height = None
-    if media_type == "image" and include_dimensions:
-        width, height = _read_image_size(path)
     rel = os.path.relpath(path, root).replace(os.sep, "/")
     name = os.path.basename(path)
     folder = rel.split("/", 1)[0] if "/" in rel else ""
     mime = mimetypes.guess_type(path)[0] or ("video/mp4" if media_type == "video" else "image/png")
+    if include_dimensions:
+        if media_type == "image":
+            width, height = _read_image_size(path)
+        elif media_type == "video":
+            width, height = _read_video_size(path, mime)
     item = {
         "id": rel,
         "name": name,
@@ -161,6 +222,7 @@ def list_output_media(payload=None, state_params=None):
     folder = str(payload.get("folder") or "").strip().replace("\\", "/").strip("/")
     query = str(payload.get("query") or "").strip().lower()
     include_dimensions = bool(payload.get("include_dimensions", True))
+    include_video_dimensions = bool(payload.get("include_video_dimensions", False))
     include_metadata = bool(payload.get("include_metadata", False))
     max_seconds = _clamped_float(payload.get("max_seconds"), 3.0, 0.5, 12.0)
     root = _outputs_root(state_params)
@@ -194,6 +256,8 @@ def list_output_media(payload=None, state_params=None):
                 path = os.path.abspath(os.path.join(dirpath, filename))
                 if not _is_allowed_file(path, media_type):
                     continue
+                if media_type == "image" and not _is_recent_image_ready(path, time.time()):
+                    continue
                 if query:
                     rel_text = os.path.relpath(path, root).replace(os.sep, "/").lower()
                     if query not in filename.lower() and query not in rel_text:
@@ -205,7 +269,7 @@ def list_output_media(payload=None, state_params=None):
                     path,
                     root,
                     media_type,
-                    include_dimensions=include_dimensions,
+                    include_dimensions=include_dimensions and (media_type == "image" or include_video_dimensions),
                     include_metadata=include_metadata,
                 )
                 if item:
@@ -232,6 +296,8 @@ def list_output_media(payload=None, state_params=None):
         "offset": offset,
         "next_offset": next_offset if has_more else None,
         "limit": limit,
+        "include_dimensions": include_dimensions,
+        "include_video_dimensions": include_video_dimensions,
     }
 
 

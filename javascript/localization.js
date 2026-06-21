@@ -1096,6 +1096,33 @@ function refresh_finished_images_catalog_label(value, type, options) {
     if (!label || typeof value === "undefined" || value === null) {
         return;
     }
+    var requestedType = type == "video" ? "video" : (type == "image" ? "image" : "");
+    var activeGalleryType = "";
+    var galleryBrowserBusy = false;
+    try {
+        if (typeof finishedGalleryBrowserState !== "undefined" && finishedGalleryBrowserState) {
+            galleryBrowserBusy = !!(finishedGalleryBrowserState.loading || finishedGalleryBrowserState.pendingPayload);
+            var pendingPayload = finishedGalleryBrowserState.pendingPayload || null;
+            if (pendingPayload && pendingPayload.media_type) {
+                activeGalleryType = pendingPayload.media_type == "video" ? "video" : "image";
+            } else if (finishedGalleryBrowserState.mediaType) {
+                activeGalleryType = finishedGalleryBrowserState.mediaType == "video" ? "video" : "image";
+            }
+        }
+        if (typeof getActiveGalleryMediaSwitchLock === "function") {
+            var mediaLock = getActiveGalleryMediaSwitchLock();
+            if (mediaLock && mediaLock.mode) activeGalleryType = mediaLock.mode == "video" ? "video" : "image";
+        }
+        if (!activeGalleryType && typeof getFinishedGalleryBrowserMode === "function") {
+            activeGalleryType = getFinishedGalleryBrowserMode(requestedType || undefined);
+        }
+    } catch (e) {}
+    if (activeGalleryType == "video" && (galleryBrowserBusy || is_finished_images_catalog_open())) {
+        requestedType = "video";
+    } else if (!requestedType && activeGalleryType) {
+        requestedType = activeGalleryType;
+    }
+    type = requestedType || "image";
     var translation = getTranslation("Finished Images Catalog");
     if (typeof translation == "undefined") {
         translation = "Finished Images Catalog";

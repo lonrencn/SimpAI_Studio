@@ -16,7 +16,7 @@ import modules.meta_parser as meta_parser
 import modules.regen_manifest as regen_manifest
 import shared
 from enhanced.logger import format_name
-from ui.update_helpers import gr_update, skip_update
+from ui.update_helpers import dropdown_update, gr_update, skip_update
 
 logger = logging.getLogger(format_name(__name__))
 
@@ -140,7 +140,7 @@ def refresh_dropdown(context: Any = None, current_value: Any = None):
     preset_name = _get_preset_name(context)
     choices = [entry["name"] for entry in _profile_entries(user_did, preset_name)]
     selected = _clean_name(current_value)
-    return gr_update(choices=choices, value=selected if selected in choices else None, allow_custom_value=True)
+    return dropdown_update(choices=choices, value=selected if selected in choices else None, allow_custom_value=True)
 
 
 def _state_preset_json(state_params: dict[str, Any], user_did: str, preset_name: str) -> dict[str, Any]:

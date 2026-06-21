@@ -64,6 +64,8 @@ let galleryMediaSwitchLockedUntil = 0;
 let galleryMediaSwitchStatusSyncSeq = 0;
 let finishedGalleryBrowserRefreshTimer = null;
 let finishedGalleryBrowserBridgeRetryTimer = null;
+let finishedGalleryBrowserRequestWatchdogTimer = null;
+let finishedGalleryBrowserLabelRefreshPausedUntil = 0;
 let finishedGalleryWelcomeGuardTimer = null;
 let finishedGalleryWelcomeGuardUntil = 0;
 let finishedGalleryWelcomeGuardHoldStaleUntil = 0;
@@ -79,6 +81,8 @@ const finishedGalleryBrowserState = {
     folder: "",
     userFolder: "",
     folders: [],
+    paths: [],
+    dimensions: {},
     loaded: 0,
     hasMore: false,
     nextOffset: 0,
@@ -86,12 +90,23 @@ const finishedGalleryBrowserState = {
     pendingPayload: null,
     queuedOptions: null,
     activeRequestId: 0,
+    bridgeMismatchRetryKey: "",
+    bridgeMismatchRetryCount: 0,
+    keepCatalogOpenRequestId: 0,
+    keepCatalogOpenUntil: 0,
+    keepCatalogOpenReason: "",
 };
 let simpleaiGalleryFrostBound = false;
 let simpleaiGalleryFrostObserver = null;
 let simpleaiGalleryFrostRefreshRaf = 0;
 let simpleaiGalleryFrostUserPreference = true;
+let simpleaiGalleryFrostRevealHoldUntil = 0;
+let simpleaiGalleryFrostRevealHoldRequestId = 0;
+let simpleaiGalleryFrostRevealHoldFolder = "";
+let simpleaiGalleryFrostRevealHoldMode = "";
 let finishedGalleryBrowserFolderDisplayRaf = 0;
+let finishedGalleryBrowserEmptyMediaStyleInstalled = false;
+let finishedGalleryResolutionBadgeTimer = null;
 let simpleAIPresetSwitchGalleryHiddenUntil = 0;
 let simpleAIPresetSwitchGalleryCleanupTimer = null;
 let simpleAIPresetSwitchGalleryClearBound = false;
@@ -102,7 +117,23 @@ let simpleAIPresetSwitchGalleryCloseToken = 0;
 let simpleAIPresetSwitchGalleryClearToken = 0;
 let simpleAIPresetSwitchGalleryIgnoreStatusUntil = 0;
 let simpleAIFinishedCatalogPreparedOpenUntil = 0;
+let simpleAIFinishedCatalogPreparedCloseUntil = 0;
+let simpleAIFinishedCatalogForceOpenUntil = 0;
+let simpleAIFinishedCatalogPointerCloseBlockUntil = 0;
 let simpleAICatalogGhostPointerBlockUntil = 0;
+let finishedGalleryBrowserEarlyOpenRefreshTimer = null;
+let finishedGalleryBrowserSuppressNativeFolderChangeUntil = 0;
+let finishedGalleryBrowserSuppressNativeFolderChangeValue = "";
+let finishedGalleryBrowserSuppressNativeFolderChangeSourceRequestId = 0;
+let finishedGalleryBrowserIgnoredNativeFolderChangeUntil = 0;
+let finishedGalleryBrowserIgnoredNativeFolderChangeValue = "";
+let finishedGalleryBrowserVisibleLoadingUntil = 0;
+let finishedGalleryBrowserVisibleLoadingKey = "";
+let finishedGalleryBrowserSilentLoadingUntil = 0;
+let finishedGalleryBrowserSilentLoadingText = "";
+let finishedGalleryBrowserStatusObserver = null;
+let finishedGalleryBrowserStatusObservedRoot = null;
+let finishedGalleryBrowserStatusObserverApplying = false;
 const SIMPLEAI_COMPARE_BUTTON_ICON = "🔍";
 const SIMPLEAI_PRESET_SWITCH_GALLERY_IDS = [
     "finished_gallery",
@@ -138,6 +169,7 @@ const SIMPLEAI_CATALOG_LINKED_SURFACE_IDS = [
 const SIMPLEAI_PRESET_SWITCH_GALLERY_SUPPRESS_MS = 1600;
 const SIMPLEAI_PRESET_SWITCH_GALLERY_RETRY_DELAYS = [40, 120, 260, 520, 900];
 const SIMPLEAI_PRESET_SWITCH_STATUS_RETRY_DELAYS = [120, 420, 760];
+const SIMPLEAI_GALLERY_BROWSER_FOLDER_STORAGE_KEY = "simpai.galleryBrowser.folder";
 
 function isSimpleAIPresetGallerySuppressed() {
     try {
@@ -257,6 +289,9 @@ function markSimpleAICatalogLinkedGalleryHidden(el, options) {
 
 function clearSimpleAICatalogLinkedGalleryHiddenElement(el, allowWrapper=false) {
     if (!el) return false;
+    try {
+        if (el.dataset.simpleaiGalleryBrowserEmptyMediaHidden === "1") return false;
+    } catch (e) {}
     let owned = false;
     try {
         owned = el.dataset.simpleaiCatalogLinkedGalleryHidden === "1"
@@ -276,7 +311,26 @@ function clearSimpleAICatalogLinkedGalleryHiddenElement(el, allowWrapper=false) 
     return true;
 }
 
+function shouldKeepCatalogLinkedGalleryHidden(reason) {
+    const reasonText = String(reason || "");
+    if (/catalog_toggle_open|catalog_open_restore|catalog_prepared_open_restore|catalog_open_ready|gallery_browser_more_bridge/.test(reasonText)) {
+        return false;
+    }
+    if (Date.now() < simpleAIFinishedCatalogPreparedCloseUntil) return true;
+    try {
+        if (document.documentElement.classList.contains("simpai-main-gallery-browser-closed")) return true;
+    } catch (e) {}
+    const catalog = getSimpleAIAppElement("finished_images_catalog") || document.getElementById("finished_images_catalog");
+    if (catalog && !isSimpleAIPresetCatalogOpen(catalog)) return true;
+    return false;
+}
+
 function clearSimpleAICatalogLinkedGalleryHidden(reason) {
+    if (shouldKeepCatalogLinkedGalleryHidden(reason)) {
+        simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.clear_skipped_closed", { reason: reason || "catalog_open" });
+        return false;
+    }
+    try { document.documentElement.classList.remove("simpai-main-gallery-browser-closed"); } catch (e) {}
     try {
         document.querySelectorAll("[data-simpleai-catalog-linked-gallery-wrapper-hidden='1']").forEach((node) => {
             clearSimpleAICatalogLinkedGalleryHiddenElement(node, true);
@@ -286,6 +340,7 @@ function clearSimpleAICatalogLinkedGalleryHidden(reason) {
         try { clearSimpleAICatalogLinkedGalleryHiddenElement(getSimpleAIElementById(id)); } catch (e) {}
     });
     simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.clear", { reason: reason || "catalog_open" });
+    return true;
 }
 
 function clearSimpleAICatalogLinkedGalleryWrappers(reason) {
@@ -312,7 +367,8 @@ function getSimpleAIPresetCatalogBodies(root) {
     });
 }
 
-function setSimpleAIPresetCatalogBodiesCollapsed(root, collapsed) {
+function setSimpleAIPresetCatalogBodiesCollapsed(root, collapsed, options) {
+    const force = !!(options && options.force);
     getSimpleAIPresetCatalogBodies(root).forEach((child) => {
         if (!child || !child.style) return;
         if (collapsed) {
@@ -329,7 +385,7 @@ function setSimpleAIPresetCatalogBodiesCollapsed(root, collapsed) {
         } else {
             let owned = false;
             try { owned = child.dataset.simpleaiPresetSwitchCatalogBodyCollapsed === "1"; } catch (e) {}
-            if (!owned) return;
+            if (!owned && !force) return;
             try { delete child.dataset.simpleaiPresetSwitchCatalogBodyCollapsed; } catch (e) {}
             try { child.removeAttribute("aria-hidden"); } catch (e) {}
             try { child.style.removeProperty("display"); } catch (e) {}
@@ -413,6 +469,7 @@ function bindSimpleAIPresetCatalogCollapseGuard(root) {
 
 function markSimpleAIPresetCatalogCollapsed(root) {
     if (!root) return false;
+    try { coverSimpleAIGalleryFrostTargetsForCatalog("catalog_collapse"); } catch (e) {}
     try { root.dataset.simpleaiPresetSwitchCatalogCollapsed = "1"; } catch (e) {}
     try { root.classList.add("simpai-preset-switch-catalog-collapsed"); } catch (e) {}
     bindSimpleAIPresetCatalogCollapseGuard(root);
@@ -428,16 +485,368 @@ function markSimpleAIPresetCatalogCollapsed(root) {
     return true;
 }
 
-function clearSimpleAIPresetCatalogCollapsed(root) {
+function clearSimpleAIPresetCatalogCollapsed(root, options) {
     if (!root) return false;
     try { delete root.dataset.simpleaiPresetSwitchCatalogCollapsed; } catch (e) {}
     try { root.classList.remove("simpai-preset-switch-catalog-collapsed"); } catch (e) {}
-    setSimpleAIPresetCatalogBodiesCollapsed(root, false);
+    setSimpleAIPresetCatalogBodiesCollapsed(root, false, options);
     return true;
+}
+
+function readPersistedFinishedGalleryBrowserFolder() {
+    try {
+        return normalizeFinishedGalleryBrowserFolderValue(window.localStorage.getItem(SIMPLEAI_GALLERY_BROWSER_FOLDER_STORAGE_KEY) || "");
+    } catch (e) {
+        return "";
+    }
+}
+
+function persistFinishedGalleryBrowserFolder(folder) {
+    const value = normalizeFinishedGalleryBrowserFolderValue(folder || "");
+    try {
+        if (value) window.localStorage.setItem(SIMPLEAI_GALLERY_BROWSER_FOLDER_STORAGE_KEY, value);
+        else window.localStorage.removeItem(SIMPLEAI_GALLERY_BROWSER_FOLDER_STORAGE_KEY);
+    } catch (e) {}
+    return value;
+}
+
+function restoreFinishedGalleryBrowserPersistedFolder(reason) {
+    const folder = readPersistedFinishedGalleryBrowserFolder();
+    if (!folder) return "";
+    const existingParams = topbarLastSystemParams && typeof topbarLastSystemParams === "object"
+        ? topbarLastSystemParams
+        : (window.simpleaiTopbarSystemParams && typeof window.simpleaiTopbarSystemParams === "object" ? window.simpleaiTopbarSystemParams : null);
+    const existingFolder = normalizeFinishedGalleryBrowserFolderValue(
+        finishedGalleryBrowserState.userFolder
+        || finishedGalleryBrowserState.folder
+        || (existingParams && existingParams.__main_gallery_browser_folder)
+        || ""
+    );
+    if (existingFolder) return existingFolder;
+    finishedGalleryBrowserState.folder = folder;
+    finishedGalleryBrowserState.userFolder = folder;
+    try { setFinishedGalleryBrowserNativeFolderDisplay(folder); } catch (e) {}
+    try {
+        let params = existingParams;
+        if (!params) params = {};
+        if (!params.__main_gallery_browser_folder) params.__main_gallery_browser_folder = folder;
+        if (!params.gallery_state) params.gallery_state = "main_browser";
+        if (!params.__gallery_engine_type && !params.engine_type) params.__gallery_engine_type = getFinishedGalleryBrowserMode();
+        topbarLastSystemParams = params;
+        window.simpleaiTopbarSystemParams = params;
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.persisted_folder_restored", {
+            reason: reason || "persisted_folder",
+            folder,
+        });
+    } catch (e) {}
+    return folder;
+}
+
+const SIMPLEAI_GALLERY_BROWSER_PARAM_KEYS = [
+    "__main_gallery_browser_key",
+    "__main_gallery_browser_paths",
+    "__main_gallery_browser_dimensions",
+    "__main_gallery_browser_folder",
+    "__main_gallery_browser_folders",
+    "__main_gallery_browser_next_offset",
+    "__main_gallery_browser_has_more",
+    "__main_gallery_browser_request_folder",
+    "__main_gallery_browser_request_input_folder",
+    "__main_gallery_browser_request_id",
+    "__main_gallery_browser_active_request_id",
+    "__main_gallery_browser_request_action",
+    "__main_gallery_browser_request_media_type",
+    "__main_gallery_browser_bridge_payload",
+    "__main_gallery_browser_noop_response",
+    "__main_gallery_browser_request_ignored",
+];
+
+function clearFinishedGalleryBrowserParamsForResultState(params, reason) {
+    if (!params || typeof params !== "object") return params;
+    const state = String(params.gallery_state || "");
+    const hasPostGenerationState = !!(
+        params.__post_generation_has_output
+        || params.__post_generation_gallery_output
+        || params.__post_generation_video_output
+        || params.__post_generation_compare_ready
+        || params.__post_generation_compare_visible
+        || params.__post_generation_image_url
+    );
+    const resultState = hasPostGenerationState || (state && state !== "main_browser");
+    if (!resultState) return params;
+    SIMPLEAI_GALLERY_BROWSER_PARAM_KEYS.forEach((key) => {
+        try { delete params[key]; } catch (e) {}
+    });
+    if (hasPostGenerationState && params.gallery_state === "main_browser") {
+        params.gallery_state = "finished_index";
+    }
+    if (hasPostGenerationState) {
+        resetFinishedGalleryBrowserRuntimeForResultState(reason || "result_state");
+    }
+    try {
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.topbar_params_stripped", {
+            reason: reason || "result_state",
+            gallery_state: params.gallery_state || state,
+            post_generation: hasPostGenerationState,
+        });
+    } catch (e) {}
+    return params;
+}
+
+function hasOwnFinishedGalleryBrowserParamKey(params) {
+    if (!params || typeof params !== "object") return false;
+    return SIMPLEAI_GALLERY_BROWSER_PARAM_KEYS.some((key) => Object.prototype.hasOwnProperty.call(params, key));
+}
+
+function clearFinishedGalleryBrowserParamsForIndexState(params, reason) {
+    if (!params || typeof params !== "object") return params;
+    const hadBrowserState = params.gallery_state === "main_browser" || hasOwnFinishedGalleryBrowserParamKey(params);
+    SIMPLEAI_GALLERY_BROWSER_PARAM_KEYS.forEach((key) => {
+        try { delete params[key]; } catch (e) {}
+    });
+    if (params.gallery_state === "main_browser" || !params.gallery_state) {
+        params.gallery_state = "finished_index";
+    }
+    resetFinishedGalleryBrowserRuntimeForResultState(reason || "finished_index");
+    try {
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.index_params_stripped", {
+            reason: reason || "finished_index",
+            had_browser_state: hadBrowserState,
+            gallery_state: params.gallery_state || "",
+        });
+    } catch (e) {}
+    return params;
+}
+window.clearFinishedGalleryBrowserParamsForIndexState = clearFinishedGalleryBrowserParamsForIndexState;
+
+function shouldPreserveFinishedGalleryBrowserStateDuringMerge(incoming, reason) {
+    if (incoming && typeof incoming === "object" && incoming.gallery_state === "main_browser") return true;
+    if (incoming && typeof incoming === "object" && hasOwnFinishedGalleryBrowserParamKey(incoming)) return true;
+    return /^gallery_browser(?:[._]|$)/.test(String(reason || ""));
+}
+
+function resetFinishedGalleryBrowserRuntimeForResultState(reason) {
+    try {
+        try { clearFinishedGalleryBrowserCatalogOpenIntent(reason || "result_state"); } catch (_e) {}
+        finishedGalleryBrowserState.loading = false;
+        finishedGalleryBrowserState.pendingPayload = null;
+        finishedGalleryBrowserState.queuedOptions = null;
+        finishedGalleryBrowserState.restoreScrollTop = null;
+        finishedGalleryBrowserState.folder = "";
+        finishedGalleryBrowserState.userFolder = "";
+        finishedGalleryBrowserState.paths = [];
+        finishedGalleryBrowserState.dimensions = {};
+        finishedGalleryBrowserState.loaded = 0;
+        finishedGalleryBrowserState.nextOffset = 0;
+        finishedGalleryBrowserState.hasMore = false;
+        finishedGalleryBrowserPreloadInFlight = false;
+        syncFinishedGalleryBrowserMoreButton();
+        setFinishedGalleryBrowserStatus("");
+        try { setFinishedGalleryBrowserNativeFolderDisplay(""); } catch (e) {}
+        try { releaseFinishedGalleryWelcomeGuard(false, reason || "result_state"); } catch (e) {}
+        try {
+            simpaiUiTrace("log", "[UI-TRACE] gallery_browser.runtime_reset_for_result", {
+                reason: reason || "result_state",
+            });
+        } catch (e) {}
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function isFinishedGalleryBrowserParamsContext(params) {
+    if (!params || typeof params !== "object") return false;
+    if (params.gallery_state === "main_browser") return true;
+    return hasOwnFinishedGalleryBrowserParamKey(params);
+}
+
+function preserveFinishedGalleryBrowserFolderInParams(params, reason) {
+    if (!params || typeof params !== "object") return params;
+    clearFinishedGalleryBrowserParamsForResultState(params, reason || "topbar_params");
+    if (!isFinishedGalleryBrowserParamsContext(params)) return params;
+    if (params.__main_gallery_browser_folder) return params;
+    const folder = normalizeFinishedGalleryBrowserFolderValue(
+        finishedGalleryBrowserState.userFolder
+        || finishedGalleryBrowserState.folder
+        || ""
+    );
+    if (!folder) return params;
+    params.__main_gallery_browser_folder = folder;
+    if (!params.gallery_state) params.gallery_state = "main_browser";
+    if (!params.__gallery_engine_type && !params.engine_type) params.__gallery_engine_type = getFinishedGalleryBrowserMode();
+    if (!Array.isArray(params.__main_gallery_browser_folders) && Array.isArray(finishedGalleryBrowserState.folders)) {
+        params.__main_gallery_browser_folders = finishedGalleryBrowserState.folders;
+    }
+    if (!Array.isArray(params.__main_gallery_browser_paths) && Array.isArray(finishedGalleryBrowserState.paths)) {
+        params.__main_gallery_browser_paths = finishedGalleryBrowserState.paths;
+    }
+    if (!params.__main_gallery_browser_dimensions && finishedGalleryBrowserState.dimensions && typeof finishedGalleryBrowserState.dimensions === "object") {
+        params.__main_gallery_browser_dimensions = finishedGalleryBrowserState.dimensions;
+    }
+    if (params.__main_gallery_browser_next_offset === undefined && finishedGalleryBrowserState.nextOffset !== undefined) {
+        params.__main_gallery_browser_next_offset = finishedGalleryBrowserState.nextOffset;
+    }
+    if (params.__main_gallery_browser_has_more === undefined) {
+        params.__main_gallery_browser_has_more = !!finishedGalleryBrowserState.hasMore;
+    }
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.topbar_folder_preserved", {
+        reason: reason || "topbar_params",
+        folder,
+    });
+    return params;
+}
+
+function scheduleFinishedGalleryBrowserEarlyOpenRefresh(reason) {
+    window.clearTimeout(finishedGalleryBrowserEarlyOpenRefreshTimer);
+    const currentParams = topbarLastSystemParams || window.simpleaiTopbarSystemParams || {};
+    const paramsFolder = normalizeFinishedGalleryBrowserFolderValue((currentParams && currentParams.__main_gallery_browser_folder) || "");
+    const existingFolder = normalizeFinishedGalleryBrowserFolderValue(
+        finishedGalleryBrowserState.userFolder
+        || finishedGalleryBrowserState.folder
+        || paramsFolder
+        || ""
+    );
+    const openFolder = existingFolder;
+    finishedGalleryBrowserEarlyOpenRefreshTimer = window.setTimeout(() => {
+        finishedGalleryBrowserEarlyOpenRefreshTimer = null;
+        const root = getFinishedGalleryBrowserElement("finished_images_catalog");
+        if (root && !isSimpleAIPresetCatalogOpen(root)) {
+            ensureSimpleAIPresetCatalogOpen(root, "catalog_toggle_open_capture");
+        }
+        try { clearSimpleAICatalogLinkedGalleryHidden("catalog_toggle_open_capture"); } catch (e) {}
+        try { keepWelcomePreviewUntilFinishedGalleryReady("catalog_toggle_open_capture"); } catch (e) {}
+        const folderRoot = getFinishedGalleryBrowserElement("gallery_browser_folder");
+        const folder = (folderRoot ? readGalleryBrowserFolderValue(folderRoot) : "") || openFolder || "";
+        const latestParams = topbarLastSystemParams || window.simpleaiTopbarSystemParams || currentParams || {};
+        const preferBridge = shouldPreferFinishedGalleryBrowserBridge(latestParams, folder);
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.early_open_refresh", {
+            reason: reason || "catalog_toggle_preopen",
+            folder,
+            preferBridge,
+        });
+        refreshFinishedGalleryBrowser({
+            reset: true,
+            force: true,
+            allowClosedCatalog: true,
+            preferBridge,
+            folder: folder || undefined,
+        });
+    }, 90);
+}
+
+function shouldPreferFinishedGalleryBrowserBridge(currentParams, requestedFolder) {
+    const params = currentParams && typeof currentParams === "object" ? currentParams : {};
+    const normalizedRequest = normalizeFinishedGalleryBrowserFolderValue(requestedFolder || "");
+    const paramsFolder = normalizeFinishedGalleryBrowserFolderValue((params && params.__main_gallery_browser_folder) || "");
+    const localFolder = normalizeFinishedGalleryBrowserFolderValue(finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "");
+    const currentFolder = paramsFolder || localFolder;
+    const paramsPaths = Array.isArray(params.__main_gallery_browser_paths) ? params.__main_gallery_browser_paths : null;
+    const paramsFolders = Array.isArray(params.__main_gallery_browser_folders) ? params.__main_gallery_browser_folders : null;
+    const localPaths = Array.isArray(finishedGalleryBrowserState.paths) ? finishedGalleryBrowserState.paths : [];
+    const localFolders = Array.isArray(finishedGalleryBrowserState.folders) ? finishedGalleryBrowserState.folders : [];
+    const hasPaths = (paramsPaths && paramsPaths.length > 0) || localPaths.length > 0;
+    const hasFolders = (paramsFolders && paramsFolders.length > 0) || localFolders.length > 0;
+    if (Date.now() < simpleAIFinishedCatalogPreparedOpenUntil && (!hasFolders || !hasPaths)) return true;
+    const loaded = Number(finishedGalleryBrowserState.loaded || 0);
+    if (!currentFolder || (normalizedRequest && currentFolder !== normalizedRequest)) return false;
+    if (loaded >= 36 && (!hasFolders || !hasPaths)) return true;
+    return false;
+}
+
+function isSimpleAIPresetCatalogRestoreCurrent(root) {
+    if (!root) return false;
+    let collapsed = false;
+    try {
+        collapsed = root.dataset.simpleaiPresetSwitchCatalogCollapsed === "1"
+            || root.classList.contains("simpai-preset-switch-catalog-collapsed")
+            || root.dataset.simpleaiFinishedCatalogHitboxCollapsed === "1"
+            || root.classList.contains("simpai-finished-catalog-hitbox-collapsed")
+            || root.dataset.simpleaiPresetSwitchGalleryHidden === "1";
+    } catch (e) {}
+    if (collapsed) return false;
+    const bodyVisible = isSimpleAIPresetCatalogBodyVisible(root);
+    if (!bodyVisible) return false;
+    try {
+        const label = root.querySelector(":scope > button.label-wrap") || root.querySelector("button.label-wrap");
+        if (!label) return true;
+        const aria = label.getAttribute("aria-expanded");
+        return label.classList.contains("open") && aria !== "false";
+    } catch (e) {
+        return true;
+    }
+}
+
+function ensureSimpleAIPresetCatalogOpen(root, reason) {
+    if (!root) return false;
+    const alreadyOpen = isSimpleAIPresetCatalogRestoreCurrent(root);
+    if (!alreadyOpen) {
+        try { coverSimpleAIGalleryFrostTargetsForCatalog(reason || "catalog_open_restore"); } catch (e) {}
+    }
+    if (alreadyOpen) return true;
+    try { document.documentElement.classList.remove("simpai-main-gallery-browser-closed"); } catch (e) {}
+    clearSimpleAIPresetCatalogCollapsed(root, { force: true });
+    try { clearSimpleAIPresetGalleryHiddenElement(root); } catch (e) {}
+    try { clearFinishedImagesCatalogClosedHitbox(reason || "catalog_open_restore"); } catch (e) {}
+    try {
+        const label = root.querySelector(":scope > button.label-wrap") || root.querySelector("button.label-wrap");
+        if (label) {
+            label.classList.add("open");
+            label.setAttribute("aria-expanded", "true");
+            try { label.open = true; } catch (e) {}
+        }
+    } catch (e) {}
+    setSimpleAIPresetCatalogBodiesCollapsed(root, false, { force: true });
+    simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.open_restored", { reason: reason || "catalog_open_restore" });
+    return isSimpleAIPresetCatalogOpen(root);
+}
+
+function scheduleSimpleAIPresetCatalogPreparedOpenRestore(root, reason) {
+    simpleAIFinishedCatalogPreparedOpenUntil = Math.max(simpleAIFinishedCatalogPreparedOpenUntil, Date.now() + 1600);
+    [30, 90, 180, 360, 700, 1200, 1600].forEach((delay) => {
+        window.setTimeout(() => {
+            if (Date.now() > simpleAIFinishedCatalogPreparedOpenUntil) return;
+            if (Date.now() < simpleAIFinishedCatalogPreparedCloseUntil) return;
+            const latestRoot = getFinishedGalleryBrowserElement("finished_images_catalog") || root;
+            if (!latestRoot) return;
+            if (!isSimpleAIPresetCatalogBodyVisible(latestRoot)) {
+                ensureSimpleAIPresetCatalogOpen(latestRoot, `${reason || "catalog_prepared_open_restore"}+${delay}ms`);
+            }
+            try { clearSimpleAICatalogLinkedGalleryHidden(`${reason || "catalog_prepared_open_restore"}+${delay}ms`); } catch (e) {}
+        }, delay);
+    });
+}
+
+function scheduleFinishedGalleryBrowserCatalogOpenRestore(reason) {
+    simpleAIFinishedCatalogForceOpenUntil = Math.max(simpleAIFinishedCatalogForceOpenUntil, Date.now() + 1400);
+    [40, 120, 260, 520, 1000, 1400].forEach((delay) => {
+        window.setTimeout(() => {
+            if (Date.now() > simpleAIFinishedCatalogForceOpenUntil) return;
+            if (Date.now() < simpleAIFinishedCatalogPreparedCloseUntil) return;
+            const root = getFinishedGalleryBrowserElement("finished_images_catalog") || document.getElementById("finished_images_catalog");
+            if (!root) return;
+            ensureSimpleAIPresetCatalogOpen(root, `${reason || "catalog_open_restore"}+${delay}ms`);
+            try { clearSimpleAICatalogLinkedGalleryHidden(`${reason || "catalog_open_restore"}+${delay}ms`); } catch (e) {}
+        }, delay);
+    });
 }
 
 function collapseSimpleAIFinishedGalleryCatalog(root) {
     return markSimpleAIPresetCatalogCollapsed(root);
+}
+
+function isSimpleAIPresetCatalogBodyVisible(root) {
+    if (!root) return false;
+    try {
+        return getSimpleAIPresetCatalogBodies(root).some((body) => {
+            const rect = body.getBoundingClientRect ? body.getBoundingClientRect() : null;
+            const style = window.getComputedStyle ? window.getComputedStyle(body) : null;
+            if (style && (style.display === "none" || style.visibility === "hidden")) return false;
+            return !!rect && rect.width > 0 && rect.height > 2;
+        });
+    } catch (e) {
+        return false;
+    }
 }
 
 function isSimpleAIPresetCatalogOpen(root) {
@@ -448,12 +857,7 @@ function isSimpleAIPresetCatalogOpen(root) {
             if (label.classList.contains("open")) return true;
             if (label.getAttribute("aria-expanded") === "true") return true;
         }
-        return getSimpleAIPresetCatalogBodies(root).some((body) => {
-            const rect = body.getBoundingClientRect ? body.getBoundingClientRect() : null;
-            const style = window.getComputedStyle ? window.getComputedStyle(body) : null;
-            if (style && (style.display === "none" || style.visibility === "hidden")) return false;
-            return !!rect && rect.width > 0 && rect.height > 2;
-        });
+        return isSimpleAIPresetCatalogBodyVisible(root);
     } catch (e) {
         return false;
     }
@@ -477,9 +881,23 @@ function scheduleSimpleAIPresetCatalogReopenAfterClear(root, reason) {
 function closeSimpleAICatalogLinkedGallery(reason, options) {
     const reasonText = String(reason || "");
     const markWrappers = !(options && options.markWrappers === false);
+    const resetBrowserState = !(options && options.resetBrowserState === false);
+    const collapseCatalog = !(options && options.collapseCatalog === false);
+    window.clearTimeout(finishedGalleryBrowserEarlyOpenRefreshTimer);
+    finishedGalleryBrowserEarlyOpenRefreshTimer = null;
+    try { clearFinishedGalleryBrowserCatalogOpenIntent(reason || "catalog_close"); } catch (e) {}
+    simpleAIFinishedCatalogPreparedOpenUntil = 0;
+    simpleAIFinishedCatalogForceOpenUntil = 0;
+    let catalogCollapsed = false;
+    if (collapseCatalog) {
+        try {
+            const catalog = getSimpleAIElementById("finished_images_catalog") || document.getElementById("finished_images_catalog");
+            catalogCollapsed = collapseSimpleAIFinishedGalleryCatalog(catalog);
+        } catch (e) {}
+    }
     try { releaseFinishedGalleryWelcomeGuard(false, reason || "catalog_close"); } catch (e) {}
     try { collapseFinishedImagesCatalogClosedHitbox(reason || "catalog_close"); } catch (e) {}
-    resetSimpleAIGalleryBrowserStateForPresetSwitch();
+    if (resetBrowserState) resetSimpleAIGalleryBrowserStateForPresetSwitch();
     closeSimpleAIManagedGalleryPreviews();
     try {
         if (typeof closeModal === "function") closeModal();
@@ -488,6 +906,7 @@ function closeSimpleAICatalogLinkedGallery(reason, options) {
         document.documentElement.classList.remove("simpleai-gallery-fullscreen-open");
         document.documentElement.classList.remove("simpai-video-result-preview");
         document.documentElement.classList.remove("simpai-comparison-preview");
+        document.documentElement.classList.add("simpai-main-gallery-browser-closed");
         document.body.classList.remove("simpleai-gallery-fullscreen-open");
     } catch (e) {}
     try {
@@ -505,7 +924,7 @@ function closeSimpleAICatalogLinkedGallery(reason, options) {
         clearSimpleAICatalogLinkedGalleryWrappers(reasonText || "catalog_close_no_wrapper");
     }
     try { restoreWelcomePreviewAfterCatalogClose(reason || "catalog_close"); } catch (e) {}
-    simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.close", { reason: reason || "catalog_close", markWrappers });
+    simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.close", { reason: reason || "catalog_close", markWrappers, resetBrowserState, collapseCatalog, catalogCollapsed });
 }
 
 function closeSimpleAISceneTransientEditorsForPresetSwitch(reason) {
@@ -683,6 +1102,7 @@ function resetSimpleAIGalleryBrowserStateForPresetSwitch() {
     try { window.clearTimeout(finishedGalleryBrowserRefreshTimer); } catch (e) {}
     try { window.clearTimeout(finishedGalleryBrowserBridgeRetryTimer); } catch (e) {}
     try {
+        clearFinishedGalleryBrowserCatalogOpenIntent("gallery_browser_runtime_reset");
         finishedGalleryBrowserState.loading = false;
         finishedGalleryBrowserState.pendingPayload = null;
         finishedGalleryBrowserState.queuedOptions = null;
@@ -911,6 +1331,9 @@ function bindSimpleAIPresetSwitchGalleryClearControls() {
         "#gallery_videos_btn",
         "#gallery_browser_refresh_btn",
         "#gallery_browser_more_btn",
+        "#gallery_browser_prev_folder_btn",
+        "#gallery_browser_next_folder_btn",
+        "#gallery_browser_folder",
         "#canvas_gallery_refresh_btn",
         "#gallery_browser_toolbar",
         "#finished_gallery_browser_panel",
@@ -920,8 +1343,9 @@ function bindSimpleAIPresetSwitchGalleryClearControls() {
         const target = evt && evt.target ? evt.target : null;
         if (!target || !target.closest) return;
         const matched = target.closest(selector);
-        const catalog = getSimpleAIElementById("finished_images_catalog");
-        const catalogRoot = catalog && target.closest("#finished_images_catalog");
+        const directCatalogRoot = target.closest("#finished_images_catalog");
+        const catalog = getSimpleAIElementById("finished_images_catalog") || directCatalogRoot;
+        const catalogRoot = catalog && directCatalogRoot;
         if (!matched) return;
         const catalogLabel = catalog && catalogRoot === catalog ? target.closest("button.label-wrap") : null;
         const catalogLabelClick = !!(
@@ -929,7 +1353,18 @@ function bindSimpleAIPresetSwitchGalleryClearControls() {
             && catalogRoot === catalog
             && catalogLabel
         );
-        if (shouldIgnorePresetGalleryClearClick(evt) && !(catalogLabelClick && evt.type === "click" && evt.isTrusted !== false)) return;
+        const catalogRootClick = !!(
+            catalog
+            && target === catalog
+            && matched === catalog
+            && catalogRoot === catalog
+            && !catalogLabel
+        );
+        if (
+            shouldIgnorePresetGalleryClearClick(evt)
+            && !(catalogLabelClick && evt.type === "click")
+            && !(catalogRootClick && evt.type === "click")
+        ) return;
         const generateButton = getSimpleAIElementById("generate_button");
         const pointerOverGenerate = simpleAIEventPointWithinElement(evt, generateButton, 2);
         if (
@@ -947,6 +1382,42 @@ function bindSimpleAIPresetSwitchGalleryClearControls() {
         if (evt.type === "pointerdown" && isSimpleAICatalogLinkedGhostTarget(target, matched, catalog, catalogLabel)) {
             blockSimpleAICatalogGhostPointerEvent(evt, "catalog_hidden_surface_pointer", matched);
             return;
+        }
+        const galleryBrowserControlInteraction = target.closest([
+            "#gallery_images_btn",
+            "#gallery_videos_btn",
+            "#gallery_browser_refresh_btn",
+            "#gallery_browser_more_btn",
+            "#gallery_browser_prev_folder_btn",
+            "#gallery_browser_next_folder_btn",
+            "#gallery_browser_folder",
+            "#gallery_browser_toolbar",
+            "#finished_gallery_browser_panel",
+        ].join(","));
+        if (
+            galleryBrowserControlInteraction
+            && catalog
+            && isSimpleAIPresetCatalogOpen(catalog)
+            && isFinishedImagesCatalogClosedHitboxCollapsed()
+        ) {
+            clearFinishedImagesCatalogClosedHitbox("gallery_browser_control_pointer");
+            simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.browser_control_pointer_allowed", {
+                event: evt.type,
+                matched: matched.id || matched.className || matched.tagName || "",
+            });
+        }
+        if (catalogRootClick && evt.type === "click") {
+            const label = catalog.querySelector(":scope > button.label-wrap") || catalog.querySelector("button.label-wrap");
+            if (label && typeof label.click === "function") {
+                try { evt.preventDefault(); } catch (e) {}
+                try { evt.stopPropagation(); } catch (e) {}
+                try { evt.stopImmediatePropagation(); } catch (e) {}
+                label.click();
+                simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.boundary_click_redirected", {
+                    matched: matched.id || matched.className || matched.tagName || "",
+                });
+                return;
+            }
         }
         const staleCatalogSurface = !!(
             catalog
@@ -1003,19 +1474,37 @@ function bindSimpleAIPresetSwitchGalleryClearControls() {
             return;
         }
         if (catalogLabelClick) {
-            const catalogIsOpen = isSimpleAIPresetCatalogOpen(catalog);
-            const preparedOpen = Date.now() < simpleAIFinishedCatalogPreparedOpenUntil;
-            const catalogWillOpen = preparedOpen || !catalogIsOpen;
+            const catalogBodyOpen = isSimpleAIPresetCatalogBodyVisible(catalog);
+            const catalogLabelClaimsOpen = isSimpleAIPresetCatalogOpen(catalog);
+            const catalogIsOpen = catalogBodyOpen;
+            const catalogWillOpen = !catalogIsOpen;
             const catalogWasCollapsed = catalog.dataset.simpleaiPresetSwitchCatalogCollapsed === "1";
+            if (evt.type === "click" && Date.now() < simpleAIFinishedCatalogPointerCloseBlockUntil) {
+                try { evt.preventDefault(); } catch (e) {}
+                try { evt.stopPropagation(); } catch (e) {}
+                try { evt.stopImmediatePropagation(); } catch (e) {}
+                simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.pointer_close_followup_blocked", {
+                    open: catalogIsOpen,
+                });
+                return;
+            }
             if (evt.type === "pointerdown") {
                 if (catalogIsOpen) {
                     simpleAIFinishedCatalogPreparedOpenUntil = 0;
-                    try { evt.preventDefault(); } catch (e) {}
-                    try { evt.stopPropagation(); } catch (e) {}
-                    try { evt.stopImmediatePropagation(); } catch (e) {}
+                    simpleAIFinishedCatalogPointerCloseBlockUntil = Date.now() + 260;
                     simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.pointer_preclose_deferred", {
                         open: catalogIsOpen,
                         reason: "wait_for_click",
+                    });
+                    try { evt.preventDefault(); } catch (e) {}
+                    try { evt.stopPropagation(); } catch (e) {}
+                    try { evt.stopImmediatePropagation(); } catch (e) {}
+                    simpleAIFinishedCatalogPreparedCloseUntil = Date.now() + 900;
+                    try { collapseSimpleAIFinishedGalleryCatalog(catalog); } catch (e) {}
+                    try { resetPostGenerationResultSurfaceState("catalog_toggle_pointer_close"); } catch (e) {}
+                    try { closeSimpleAICatalogLinkedGallery("catalog_toggle_pointer_close", { resetBrowserState: false }); } catch (e) {}
+                    simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.pointer_close_applied", {
+                        open: catalogIsOpen,
                     });
                     return;
                 }
@@ -1029,20 +1518,43 @@ function bindSimpleAIPresetSwitchGalleryClearControls() {
                 return;
             }
             if (catalogWillOpen) {
+                simpleAIFinishedCatalogPreparedCloseUntil = 0;
                 if (isSimpleAIPresetGallerySuppressed() || presetNavProgressActive || document.documentElement.classList.contains("simpai-preset-nav-active")) {
                     allowCatalogOpenDuringPresetSwitch("catalog_toggle_user_open");
                 }
+                try { coverSimpleAIGalleryFrostTargetsForCatalog("catalog_toggle_preopen"); } catch (e) {}
                 clearFinishedImagesCatalogClosedHitbox("catalog_toggle_preopen");
                 simpleAIFinishedCatalogPreparedOpenUntil = Date.now() + 700;
                 prepareFinishedGallerySurfaceForCatalogOpen("catalog_toggle_preopen");
+                scheduleFinishedGalleryBrowserEarlyOpenRefresh("catalog_toggle_preopen");
                 clearSimpleAIPresetSwitchGalleryHidden(`click:${(matched && (matched.id || matched.className || matched.tagName)) || catalog.id || catalog.tagName}`);
                 if (catalogWasCollapsed) {
                     scheduleSimpleAIPresetCatalogReopenAfterClear(catalog, "click_clear");
                 }
+                if (catalogLabelClaimsOpen && !catalogBodyOpen) {
+                    try {
+                        const label = catalog.querySelector(":scope > button.label-wrap") || catalog.querySelector("button.label-wrap");
+                        if (label) {
+                            label.classList.remove("open");
+                            label.setAttribute("aria-expanded", "false");
+                            try { label.open = false; } catch (e) {}
+                        }
+                    } catch (e) {}
+                    simpaiUiTrace("log", "[UI-TRACE] catalog_gallery.open_semistate_normalized", {
+                        reason: "catalog_toggle_preopen",
+                    });
+                }
+                clearSimpleAIPresetCatalogCollapsed(catalog, { force: true });
+                scheduleSimpleAIPresetCatalogPreparedOpenRestore(catalog, "catalog_toggle_open_prepared");
             } else {
+                try { evt.preventDefault(); } catch (e) {}
+                try { evt.stopPropagation(); } catch (e) {}
+                try { evt.stopImmediatePropagation(); } catch (e) {}
                 simpleAIFinishedCatalogPreparedOpenUntil = 0;
+                simpleAIFinishedCatalogPreparedCloseUntil = Date.now() + 700;
+                try { collapseSimpleAIFinishedGalleryCatalog(catalog); } catch (e) {}
                 try { resetPostGenerationResultSurfaceState("catalog_toggle_preclose"); } catch (e) {}
-                closeSimpleAICatalogLinkedGallery("catalog_toggle_preclose");
+                closeSimpleAICatalogLinkedGallery("catalog_toggle_preclose", { resetBrowserState: false });
             }
             return;
         }
@@ -1083,6 +1595,8 @@ window.closeSimpleAIOpenGalleriesForPresetSwitch = closeSimpleAIOpenGalleriesFor
 window.clearSimpleAIPresetSwitchGalleryHidden = clearSimpleAIPresetSwitchGalleryHidden;
 window.scheduleSimpleAIPresetGalleryClear = scheduleSimpleAIPresetGalleryClear;
 window.clearSimpleAICompareReadyState = clearSimpleAICompareReadyState;
+window.ensureSimpleAIPresetCatalogOpen = ensureSimpleAIPresetCatalogOpen;
+try { bindSimpleAIPresetSwitchGalleryClearControls(); } catch (e) {}
 
 function isSimpleAIGalleryFrostEnabled() {
     return simpleaiGalleryFrostUserPreference !== false;
@@ -1260,6 +1774,57 @@ function simpleAIGalleryIsMultiBrowseMode(gallery) {
     return items.length > 1 || syncSimpleAIGenerationGalleryMode(gallery, simpleAIGalleryFrostSignature(gallery), "frost_mode");
 }
 
+function getSimpleAIGalleryFrostRevealContext() {
+    const params = window.simpleaiTopbarSystemParams || {};
+    return {
+        requestId: Number(finishedGalleryBrowserState && finishedGalleryBrowserState.activeRequestId || 0),
+        folder: normalizeFinishedGalleryBrowserFolderValue(
+            (finishedGalleryBrowserState && (finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder))
+            || params.__main_gallery_browser_folder
+            || ""
+        ),
+        mode: getFinishedGalleryBrowserMode(
+            (finishedGalleryBrowserState && finishedGalleryBrowserState.mediaType)
+            || params.__gallery_engine_type
+            || params.engine_type
+        ),
+    };
+}
+
+function rememberSimpleAIGalleryFrostRevealIntent(reason) {
+    const context = getSimpleAIGalleryFrostRevealContext();
+    simpleaiGalleryFrostRevealHoldUntil = Date.now() + 12000;
+    simpleaiGalleryFrostRevealHoldRequestId = context.requestId;
+    simpleaiGalleryFrostRevealHoldFolder = context.folder;
+    simpleaiGalleryFrostRevealHoldMode = context.mode;
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.frost_reveal_hold", {
+        reason: reason || "user_reveal",
+        requestId: context.requestId,
+        folder: context.folder,
+        mode: context.mode,
+    });
+}
+
+function clearSimpleAIGalleryFrostRevealHold(reason) {
+    simpleaiGalleryFrostRevealHoldUntil = 0;
+    simpleaiGalleryFrostRevealHoldRequestId = 0;
+    simpleaiGalleryFrostRevealHoldFolder = "";
+    simpleaiGalleryFrostRevealHoldMode = "";
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.frost_reveal_hold_clear", {
+        reason: reason || "clear",
+    });
+}
+
+function shouldPreserveSimpleAIGalleryFrostReveal(gallery) {
+    if (!gallery || gallery.getAttribute("data-sai-frost-revealed") !== "1") return false;
+    if (Date.now() > simpleaiGalleryFrostRevealHoldUntil) return false;
+    const context = getSimpleAIGalleryFrostRevealContext();
+    if (simpleaiGalleryFrostRevealHoldRequestId && context.requestId && simpleaiGalleryFrostRevealHoldRequestId !== context.requestId) return false;
+    if (simpleaiGalleryFrostRevealHoldFolder && context.folder && simpleaiGalleryFrostRevealHoldFolder !== context.folder) return false;
+    if (simpleaiGalleryFrostRevealHoldMode && context.mode && simpleaiGalleryFrostRevealHoldMode !== context.mode) return false;
+    return true;
+}
+
 function syncSimpleAIGalleryFrostMode(gallery) {
     if (!gallery || !gallery.classList) return false;
     const active = simpleAIGalleryIsMultiBrowseMode(gallery);
@@ -1270,7 +1835,9 @@ function syncSimpleAIGalleryFrostMode(gallery) {
     if (!active) {
         try { gallery.setAttribute("data-sai-frost-revealed", "1"); } catch (e) {}
     } else if (changed) {
-        try { gallery.removeAttribute("data-sai-frost-revealed"); } catch (e) {}
+        if (!shouldPreserveSimpleAIGalleryFrostReveal(gallery)) {
+            try { gallery.removeAttribute("data-sai-frost-revealed"); } catch (e) {}
+        }
     }
     return active;
 }
@@ -1286,6 +1853,7 @@ function resetSimpleAIGalleryFrostForNewMedia(force) {
         }
         if (force || gallery.__simpleaiGalleryFrostSignature !== signature) {
             gallery.__simpleaiGalleryFrostSignature = signature;
+            if (shouldPreserveSimpleAIGalleryFrostReveal(gallery)) return;
             try { gallery.removeAttribute("data-sai-frost-revealed"); } catch (e) {}
         }
     });
@@ -1295,6 +1863,29 @@ function revealAllSimpleAIGalleryFrostTargets() {
     simpleAIGalleryFrostTargets().forEach((gallery) => {
         try { gallery.setAttribute("data-sai-frost-revealed", "1"); } catch (e) {}
     });
+    try { scheduleFinishedGalleryResolutionBadges("gallery_frost_reveal_all"); } catch (e) {}
+}
+
+function coverSimpleAIGalleryFrostTargetsForCatalog(reason) {
+    if (!isSimpleAIGalleryFrostEnabled()) return false;
+    clearSimpleAIGalleryFrostRevealHold(reason || "catalog_frost_cover");
+    let covered = 0;
+    simpleAIGalleryFrostTargets().forEach((gallery) => {
+        try {
+            if (!gallery) return;
+            const active = syncSimpleAIGalleryFrostMode(gallery);
+            if (!active) return;
+            if (gallery.getAttribute("data-sai-frost-revealed") === "1") covered += 1;
+            gallery.removeAttribute("data-sai-frost-revealed");
+        } catch (e) {}
+    });
+    if (covered > 0) {
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.frost_recovered_for_catalog", {
+            reason: reason || "catalog_frost_cover",
+            covered,
+        });
+    }
+    return covered > 0;
 }
 
 function simpleAIGalleryFrostText(en, cn) {
@@ -1469,11 +2060,13 @@ function setSimpleAIGalleryFrostEnabled(enabled, options) {
     } catch (e) {}
     syncSimpleAIGalleryFrostCheckbox();
     syncSimpleAIGalleryFrostSettingCheckbox(next, options?.persist !== false && options?.source !== "setting-checkbox" && options?.source !== "system");
+    if (next && options?.reset) clearSimpleAIGalleryFrostRevealHold("frost_toggle_reset");
     if (next) resetSimpleAIGalleryFrostForNewMedia(!!options?.reset);
     else revealAllSimpleAIGalleryFrostTargets();
     try {
         window.dispatchEvent(new CustomEvent("simpleai-gallery-frost-change", { detail: { enabled: next } }));
     } catch (e) {}
+    try { scheduleFinishedGalleryResolutionBadges("gallery_frost_toggle"); } catch (e) {}
 }
 
 function revealSimpleAIGalleryFrostArea(target) {
@@ -1482,6 +2075,8 @@ function revealSimpleAIGalleryFrostArea(target) {
     if (!gallery || !syncSimpleAIGalleryFrostMode(gallery)) return false;
     if (!gallery || gallery.getAttribute("data-sai-frost-revealed") === "1") return false;
     gallery.setAttribute("data-sai-frost-revealed", "1");
+    rememberSimpleAIGalleryFrostRevealIntent("gallery_click");
+    try { scheduleFinishedGalleryResolutionBadges("gallery_frost_reveal"); } catch (e) {}
     return true;
 }
 
@@ -3127,6 +3722,7 @@ async function refresh_identity_qrcode(nickname, did, memo, user_qrcode) {
     }
 }
 
+
 function refresh_topbar_status_js(system_params) {
     markUiAction("refresh_topbar_status_js");
     try {
@@ -3154,6 +3750,7 @@ function refresh_topbar_status_js(system_params) {
     if (!Object.prototype.hasOwnProperty.call(system_params, "__canvas_preset_catalog") && previousSystemParams.__canvas_preset_catalog) {
         system_params.__canvas_preset_catalog = previousSystemParams.__canvas_preset_catalog;
     }
+    preserveFinishedGalleryBrowserFolderInParams(system_params, "refresh_topbar_status_js");
     topbarLastSystemParams = system_params;
     window.simpleaiTopbarSystemParams = system_params;
     try {
@@ -3292,7 +3889,7 @@ function refresh_topbar_status_js(system_params) {
         try { document.documentElement.classList.remove("simpai-video-result-preview"); } catch (e) {}
     }
     if (image_num_pages) {
-	refresh_finished_images_catalog_label(image_num_pages, gen_type);
+	refresh_finished_images_catalog_label(image_num_pages, gen_type, {refresh: false});
     }
     refresh_identity_center_label(system_params["user_role"]);
     const user_qr = system_params["user_qr"];
@@ -3310,21 +3907,29 @@ function refresh_topbar_status_js(system_params) {
 
 function mergeSimpleAITopbarSystemParamsForGallery(system_params, reason) {
     const incoming = system_params && typeof system_params === "object" ? system_params : null;
-    const previous = (window.simpleaiTopbarSystemParams && typeof window.simpleaiTopbarSystemParams === "object")
+    let previous = (window.simpleaiTopbarSystemParams && typeof window.simpleaiTopbarSystemParams === "object")
         ? window.simpleaiTopbarSystemParams
         : (topbarLastSystemParams && typeof topbarLastSystemParams === "object" ? topbarLastSystemParams : null);
     if (!incoming) {
         return previous || {};
     }
+    const preserveBrowserState = shouldPreserveFinishedGalleryBrowserStateDuringMerge(incoming, reason);
     const incomingHasPreset = Object.prototype.hasOwnProperty.call(incoming, "__preset")
         || Object.prototype.hasOwnProperty.call(incoming, "preset");
     const previousHasPreset = !!(previous && (
         Object.prototype.hasOwnProperty.call(previous, "__preset")
         || Object.prototype.hasOwnProperty.call(previous, "preset")
     ));
+    if (previous && !preserveBrowserState) {
+        previous = clearFinishedGalleryBrowserParamsForIndexState(Object.assign({}, previous), reason || "gallery_state_merge");
+    }
     const merged = (!incomingHasPreset && previousHasPreset)
         ? Object.assign({}, previous, incoming)
         : incoming;
+    if (!preserveBrowserState && (merged.gallery_state === "main_browser" || hasOwnFinishedGalleryBrowserParamKey(merged))) {
+        clearFinishedGalleryBrowserParamsForIndexState(merged, reason || "gallery_state_merge");
+    }
+    preserveFinishedGalleryBrowserFolderInParams(merged, reason || "gallery_browser");
     topbarLastSystemParams = merged;
     window.simpleaiTopbarSystemParams = merged;
     try {
@@ -3335,6 +3940,7 @@ function mergeSimpleAITopbarSystemParamsForGallery(system_params, reason) {
             reason: reason || "gallery_browser",
             incoming_keys: Object.keys(incoming || {}).length,
             merged: merged !== incoming,
+            preserve_browser_state: preserveBrowserState,
             preset: merged && merged.__preset,
             is_scene: !!(merged && (merged.__is_scene_frontend || merged.scene_frontend)),
         });
@@ -4740,6 +5346,11 @@ function beginGalleryMediaSwitchRequest(mode, lockMs) {
         startedAt: Date.now(),
     };
     syncGalleryMediaSwitch(normalizedMode, lockMs || 1500, "user_request");
+    try {
+        if (isFinishedGalleryBrowserRequestBusy()) {
+            cancelFinishedGalleryBrowserPendingRequest(`media_switch_request_busy_${normalizedMode}`, { mediaType: normalizedMode });
+        }
+    } catch (e) {}
     return marker;
 }
 window.beginGalleryMediaSwitchRequest = beginGalleryMediaSwitchRequest;
@@ -4774,22 +5385,36 @@ function isFinishedGalleryNativeToolbarExpected() {
 
 function getFinishedGalleryBrowserMode(preferred) {
     if (preferred === "video" || preferred === "image") return preferred;
+    const activeLock = getActiveGalleryMediaSwitchLock();
+    if (activeLock && (activeLock.mode === "video" || activeLock.mode === "image")) return activeLock.mode;
+    const switchRoot = getFinishedGalleryBrowserElement("gallery_media_switch_row");
+    if (switchRoot) {
+        const activeButton = switchRoot.querySelector("#gallery_videos_btn.active, #gallery_videos_btn[aria-pressed='true'], #gallery_images_btn.active, #gallery_images_btn[aria-pressed='true']");
+        if (activeButton && activeButton.id === "gallery_videos_btn") return "video";
+        if (activeButton && activeButton.id === "gallery_images_btn") return "image";
+        if (switchRoot.dataset && switchRoot.dataset.mode === "video") return "video";
+        if (switchRoot.dataset && switchRoot.dataset.mode === "image") return "image";
+    }
     const params = topbarLastSystemParams || window.simpleaiTopbarSystemParams || {};
     if (params && (params.__gallery_engine_type === "video" || params.engine_type === "video")) return "video";
     if (params && (params.__gallery_engine_type === "image" || params.engine_type === "image")) return "image";
-    const switchRoot = getFinishedGalleryBrowserElement("gallery_media_switch_row");
-    if (switchRoot && switchRoot.dataset && switchRoot.dataset.mode === "video") return "video";
     return "image";
 }
 
 function readGalleryBrowserFolderValue(root) {
     if (!root) return "";
+    const datasetValue = root.dataset && (root.dataset.simpleaiGalleryBrowserFolder || root.dataset.saiFolderLabel);
+    if (datasetValue) return String(datasetValue || "").trim();
+    const attrValue = root.getAttribute("data-value") || root.getAttribute("data-sai-folder-label");
+    if (attrValue) return String(attrValue || "").trim();
     const input = root.querySelector('input[role="listbox"], input');
     const raw = input ? (input.value || input.getAttribute("value") || "") : "";
     const value = String(raw || "").trim();
     if (value) return value;
     const params = topbarLastSystemParams || window.simpleaiTopbarSystemParams || {};
-    return String(params && params.__main_gallery_browser_folder || "").trim();
+    const stateValue = String(params && params.__main_gallery_browser_folder || "").trim();
+    if (stateValue) return stateValue;
+    return "";
 }
 
 function syncGalleryBrowserFolderDisplay() {
@@ -4797,10 +5422,15 @@ function syncGalleryBrowserFolderDisplay() {
     if (!root) return false;
     const value = readGalleryBrowserFolderValue(root);
     if (value) {
+        persistFinishedGalleryBrowserFolder(value);
+        root.dataset.simpleaiGalleryBrowserFolder = value;
         root.setAttribute("data-sai-folder-label", value);
+        root.setAttribute("data-value", value);
         root.setAttribute("title", value);
     } else {
+        delete root.dataset.simpleaiGalleryBrowserFolder;
         root.removeAttribute("data-sai-folder-label");
+        root.removeAttribute("data-value");
         root.removeAttribute("title");
     }
     return true;
@@ -4855,17 +5485,366 @@ function parseFinishedGalleryBrowserState(value) {
     }
 }
 
-function setFinishedGalleryBrowserStatus(text, isError) {
-    const status = document.querySelector("#finished_gallery_browser_panel [data-gallery-browser-status]")
+function normalizeFinishedGalleryBrowserFolderValue(value) {
+    return String(value || "").trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+}
+
+function getFinishedGalleryBrowserControlElements(root) {
+    if (!root) return [];
+    const elements = [];
+    try {
+        if (root.matches && root.matches("button, input, select, textarea")) elements.push(root);
+    } catch (e) {}
+    try {
+        root.querySelectorAll("button, input, select, textarea").forEach((node) => elements.push(node));
+    } catch (e) {}
+    return Array.from(new Set(elements));
+}
+
+function setFinishedGalleryBrowserControlDisabled(root, disabled) {
+    if (!root) return false;
+    const blocked = !!disabled;
+    try { root.classList.toggle("is-disabled", blocked); } catch (e) {}
+    try { root.setAttribute("aria-disabled", blocked ? "true" : "false"); } catch (e) {}
+    getFinishedGalleryBrowserControlElements(root).forEach((node) => {
+        try { node.disabled = blocked; } catch (e) {}
+        try { node.setAttribute("aria-disabled", blocked ? "true" : "false"); } catch (e) {}
+    });
+    return true;
+}
+
+function isFinishedGalleryBrowserRequestBusy() {
+    return !!(finishedGalleryBrowserState && (finishedGalleryBrowserState.loading || finishedGalleryBrowserState.pendingPayload));
+}
+
+function clearFinishedGalleryBrowserRequestWatchdog() {
+    try { window.clearTimeout(finishedGalleryBrowserRequestWatchdogTimer); } catch (e) {}
+    finishedGalleryBrowserRequestWatchdogTimer = null;
+}
+
+function scheduleFinishedGalleryBrowserRequestWatchdog(requestId, reason, timeoutMs) {
+    const expectedRequestId = Number(requestId || 0);
+    if (!expectedRequestId) return false;
+    clearFinishedGalleryBrowserRequestWatchdog();
+    finishedGalleryBrowserRequestWatchdogTimer = window.setTimeout(() => {
+        finishedGalleryBrowserRequestWatchdogTimer = null;
+        if (Number(finishedGalleryBrowserState.activeRequestId || 0) !== expectedRequestId) return;
+        if (!isFinishedGalleryBrowserRequestBusy()) return;
+        const renderedCount = countExistingFinishedGalleryMedia();
+        cancelFinishedGalleryBrowserPendingRequest("gallery_browser_request_timeout", { clearStatus: false });
+        if (renderedCount > 0) {
+            setFinishedGalleryBrowserHasMediaState(true, "gallery_browser_request_timeout");
+            try { releaseFinishedGalleryWelcomeGuard(true, "gallery_browser_request_timeout"); } catch (e) {}
+        }
+        setFinishedGalleryBrowserStatus(getFinishedGalleryBrowserStableStatusText());
+        simpaiUiTrace("warn", "[UI-TRACE] gallery_browser.request_watchdog_timeout", {
+            reason: reason || "gallery_browser_request",
+            request_id: expectedRequestId,
+            renderedCount,
+        });
+    }, Number(timeoutMs || 15000));
+    return true;
+}
+
+function cancelFinishedGalleryBrowserPendingRequest(reason, options) {
+    if (!finishedGalleryBrowserState) return false;
+    const hadBusy = !!(finishedGalleryBrowserState.loading || finishedGalleryBrowserState.pendingPayload || finishedGalleryBrowserState.queuedOptions);
+    if (!hadBusy) return false;
+    const opts = options || {};
+    const nextRequestId = ++finishedGalleryBrowserRequestSeq;
+    try { window.clearTimeout(finishedGalleryBrowserBridgeRetryTimer); } catch (e) {}
+    finishedGalleryBrowserBridgeRetryTimer = null;
+    clearFinishedGalleryBrowserRequestWatchdog();
+    finishedGalleryBrowserState.activeRequestId = nextRequestId;
+    finishedGalleryBrowserState.loading = false;
+    finishedGalleryBrowserState.pendingPayload = null;
+    finishedGalleryBrowserState.queuedOptions = null;
+    finishedGalleryBrowserState.bridgeRetryCount = 0;
+    finishedGalleryBrowserPreloadInFlight = false;
+    if (opts.mediaType) finishedGalleryBrowserState.mediaType = getFinishedGalleryBrowserMode(opts.mediaType);
+    if (opts.clearStatus !== false) setFinishedGalleryBrowserStatus("");
+    syncFinishedGalleryBrowserMoreButton();
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.pending_request_cancelled", {
+        reason: reason || "request_cancel",
+        requestId: nextRequestId,
+        mediaType: finishedGalleryBrowserState.mediaType || "",
+    });
+    return true;
+}
+window.cancelFinishedGalleryBrowserPendingRequest = cancelFinishedGalleryBrowserPendingRequest;
+
+function isFinishedGalleryBrowserBusyGuardTarget(target) {
+    if (!target || !target.closest) return false;
+    return !!target.closest([
+        "#gallery_browser_folder",
+        "#gallery_browser_prev_folder_btn",
+        "#gallery_browser_next_folder_btn",
+        "#gallery_browser_refresh_btn",
+        "#gallery_browser_more_btn",
+        "#gallery_images_btn",
+        "#gallery_videos_btn",
+        "#finished_gallery_browser_panel [data-gallery-browser-folder]",
+        "#finished_gallery_browser_panel [data-gallery-browser-refresh]",
+        "#finished_gallery_browser_panel [data-gallery-browser-more]",
+    ].join(","));
+}
+
+function currentFinishedGalleryBrowserFolderForAction() {
+    const params = window.simpleaiTopbarSystemParams || {};
+    return normalizeFinishedGalleryBrowserFolderValue(
+        (finishedGalleryBrowserState && (finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder))
+        || params.__main_gallery_browser_folder
+        || ""
+    );
+}
+
+function refreshFinishedGalleryBrowserLatest(options, reason) {
+    const opts = Object.assign({
+        reset: true,
+        force: true,
+        preferBridge: true,
+        replaceActive: true,
+        silentStatus: true,
+    }, options || {});
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.latest_request", {
+        reason: reason || "latest_request",
+        folder: opts.folder || "",
+        mediaType: opts.mediaType || "",
+    });
+    return refreshFinishedGalleryBrowser(opts);
+}
+
+function handleFinishedGalleryBrowserBusyInteraction(event) {
+    const target = event && event.target ? event.target : null;
+    if (!target || !target.closest) return false;
+    const currentFolder = currentFinishedGalleryBrowserFolderForAction();
+    const folders = Array.isArray(finishedGalleryBrowserState && finishedGalleryBrowserState.folders) ? finishedGalleryBrowserState.folders : [];
+    const prevButton = target.closest("#gallery_browser_prev_folder_btn");
+    if (prevButton) {
+        const folder = computeFinishedGalleryBrowserStepTargetFolder(currentFolder, folders, "gallery_browser.folder.prev");
+        if (folder) return refreshFinishedGalleryBrowserLatest({ folder }, "busy_prev_folder");
+        return true;
+    }
+    const nextButton = target.closest("#gallery_browser_next_folder_btn");
+    if (nextButton) {
+        const folder = computeFinishedGalleryBrowserStepTargetFolder(currentFolder, folders, "gallery_browser.folder.next");
+        if (folder) return refreshFinishedGalleryBrowserLatest({ folder }, "busy_next_folder");
+        return true;
+    }
+    if (target.closest("#gallery_browser_refresh_btn, #finished_gallery_browser_panel [data-gallery-browser-refresh]")) {
+        return refreshFinishedGalleryBrowserLatest({ folder: currentFolder }, "busy_refresh");
+    }
+    if (target.closest("#gallery_images_btn")) {
+        return refreshFinishedGalleryBrowserLatest({ folder: currentFolder, mediaType: "image" }, "busy_media_image");
+    }
+    if (target.closest("#gallery_videos_btn")) {
+        return refreshFinishedGalleryBrowserLatest({ folder: currentFolder, mediaType: "video" }, "busy_media_video");
+    }
+    if (event && event.type === "change") {
+        const folderRoot = target.closest("#gallery_browser_folder, #finished_gallery_browser_panel [data-gallery-browser-folder]");
+        if (folderRoot) {
+            const value = normalizeFinishedGalleryBrowserFolderValue(target.value || readGalleryBrowserFolderValue(folderRoot) || "");
+            if (value) return refreshFinishedGalleryBrowserLatest({ folder: value }, "busy_folder_change");
+        }
+    }
+    if (target.closest("#gallery_browser_more_btn, #finished_gallery_browser_panel [data-gallery-browser-more]")) {
+        return true;
+    }
+    return false;
+}
+
+function guardFinishedGalleryBrowserBusyInteraction(event) {
+    if (!isFinishedGalleryBrowserRequestBusy()) return;
+    if (event && event.type === "keydown" && !["Enter", " "].includes(event.key || "")) return;
+    const target = event && event.target ? event.target : null;
+    if (!isFinishedGalleryBrowserBusyGuardTarget(target)) return;
+    if (target && target.closest && target.closest("#gallery_browser_folder, #finished_gallery_browser_panel [data-gallery-browser-folder]") && event.type !== "change") return;
+    const handled = handleFinishedGalleryBrowserBusyInteraction(event);
+    try { event.preventDefault(); } catch (e) {}
+    try { event.stopPropagation(); } catch (e) {}
+    try { event.stopImmediatePropagation(); } catch (e) {}
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.busy_control_interaction_replaced", {
+        type: event && event.type ? event.type : "",
+        handled: !!handled,
+    });
+}
+
+function bindFinishedGalleryBrowserBusyControlGuard() {
+    const app = typeof gradioApp === "function" ? gradioApp() : document;
+    const root = app || document;
+    if (!root || root.__simpleaiGalleryBrowserBusyGuardBound) return false;
+    root.__simpleaiGalleryBrowserBusyGuardBound = true;
+    window.__simpleaiGalleryBrowserBusyGuardBound = true;
+    ["click", "keydown", "change"].forEach((eventName) => {
+        try { root.addEventListener(eventName, guardFinishedGalleryBrowserBusyInteraction, true); } catch (e) {}
+    });
+    return true;
+}
+
+function getFinishedGalleryBrowserStatusRoot() {
+    return document.querySelector("#finished_gallery_browser_panel [data-gallery-browser-status]")
         || getFinishedGalleryBrowserElement("gallery_browser_status")
         || document.getElementById("gallery_browser_status");
+}
+
+function getFinishedGalleryBrowserStatusTarget(status) {
+    if (!status) return null;
+    return status.querySelector ? (status.querySelector(".prose, .md, p") || status) : status;
+}
+
+function isFinishedGalleryBrowserLoadingText(text) {
+    return /Loading|加载中|继续加载/i.test(String(text || ""));
+}
+
+function getFinishedGalleryBrowserStableStatusText() {
+    const status = getFinishedGalleryBrowserStatusRoot();
+    const statusText = status ? String(status.textContent || "").trim() : "";
+    if (statusText && !isFinishedGalleryBrowserLoadingText(statusText)) return statusText;
+    const loaded = Number(finishedGalleryBrowserState && finishedGalleryBrowserState.loaded || 0);
+    if (Number.isFinite(loaded)) {
+        return simpleAIGalleryBrowserCountStatus(Math.max(0, loaded), finishedGalleryBrowserState && finishedGalleryBrowserState.mediaType);
+    }
+    return "";
+}
+
+function applyFinishedGalleryBrowserSilentLoadingStatus(reason) {
+    if (finishedGalleryBrowserStatusObserverApplying) return false;
+    if (Date.now() >= finishedGalleryBrowserSilentLoadingUntil) return false;
+    const status = getFinishedGalleryBrowserStatusRoot();
+    const target = getFinishedGalleryBrowserStatusTarget(status);
+    if (!target) return false;
+    const currentText = String(target.textContent || "");
+    if (!isFinishedGalleryBrowserLoadingText(currentText)) return false;
+    finishedGalleryBrowserStatusObserverApplying = true;
+    try {
+        target.textContent = finishedGalleryBrowserSilentLoadingText || "";
+        if (status) status.classList.toggle("is-error", false);
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.loading_status_suppressed", {
+            reason: reason || "gallery_browser_status",
+            text: currentText,
+        });
+    } catch (e) {
+    } finally {
+        finishedGalleryBrowserStatusObserverApplying = false;
+    }
+    return true;
+}
+
+function syncFinishedGalleryBrowserBusyClassFromStatus(reason) {
+    const status = getFinishedGalleryBrowserStatusRoot();
+    const statusText = status ? String(status.textContent || "").trim() : "";
+    if (isFinishedGalleryBrowserLoadingText(statusText)) return false;
+    if (isFinishedGalleryBrowserRequestBusy()) return false;
+    if (!document.documentElement.classList.contains("simpai-gallery-browser-request-busy")) return false;
+    syncFinishedGalleryBrowserMoreButton();
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.busy_class_released_from_status", {
+        reason: reason || "status_sync",
+        status: statusText,
+    });
+    return true;
+}
+
+function installFinishedGalleryBrowserStatusObserver() {
+    if (typeof MutationObserver !== "function") return false;
+    const status = getFinishedGalleryBrowserStatusRoot();
+    if (!status) return false;
+    if (finishedGalleryBrowserStatusObserver && finishedGalleryBrowserStatusObservedRoot === status) return true;
+    if (finishedGalleryBrowserStatusObserver) {
+        try { finishedGalleryBrowserStatusObserver.disconnect(); } catch (e) {}
+    }
+    finishedGalleryBrowserStatusObservedRoot = status;
+    finishedGalleryBrowserStatusObserver = new MutationObserver(() => {
+        const suppressed = applyFinishedGalleryBrowserSilentLoadingStatus("status_mutation");
+        if (!suppressed) syncFinishedGalleryBrowserBusyClassFromStatus("status_mutation");
+    });
+    try {
+        finishedGalleryBrowserStatusObserver.observe(status, { childList: true, characterData: true, subtree: true });
+        return true;
+    } catch (e) {
+        finishedGalleryBrowserStatusObservedRoot = null;
+        finishedGalleryBrowserStatusObserver = null;
+        return false;
+    }
+}
+
+function beginFinishedGalleryBrowserSilentLoadingStatus(text, durationMs) {
+    finishedGalleryBrowserSilentLoadingText = String(text || "");
+    finishedGalleryBrowserSilentLoadingUntil = Date.now() + Math.max(400, Number(durationMs || 2600));
+    installFinishedGalleryBrowserStatusObserver();
+    applyFinishedGalleryBrowserSilentLoadingStatus("silent_begin");
+}
+
+function getFinishedGalleryBrowserLoadingStatusKey(text) {
+    const pending = finishedGalleryBrowserState && finishedGalleryBrowserState.pendingPayload;
+    const mediaType = getFinishedGalleryBrowserMode(
+        (pending && pending.media_type)
+        || (finishedGalleryBrowserState && finishedGalleryBrowserState.mediaType)
+    );
+    const folder = normalizeFinishedGalleryBrowserFolderValue(
+        (pending && pending.folder)
+        || (finishedGalleryBrowserState && (finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder))
+        || ""
+    );
+    const requestId = Number(
+        (pending && pending.request_id)
+        || (finishedGalleryBrowserState && finishedGalleryBrowserState.activeRequestId)
+        || 0
+    );
+    const phase = /more/i.test(String(text || "")) ? "more" : "reset";
+    return [requestId || "current", mediaType || "image", folder || "recent", phase].join("|");
+}
+
+function isFinishedGalleryBrowserSamePendingRequest(mediaType, folder, reset) {
+    const pending = finishedGalleryBrowserState && finishedGalleryBrowserState.pendingPayload;
+    if (!finishedGalleryBrowserState || !finishedGalleryBrowserState.loading || !pending) return false;
+    const pendingMode = getFinishedGalleryBrowserMode(pending.media_type || finishedGalleryBrowserState.mediaType);
+    const targetMode = getFinishedGalleryBrowserMode(mediaType || finishedGalleryBrowserState.mediaType);
+    if (pendingMode !== targetMode) return false;
+    const pendingFolder = normalizeFinishedGalleryBrowserFolderValue(pending.folder || finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "");
+    const targetFolder = normalizeFinishedGalleryBrowserFolderValue(folder || "");
+    if (pendingFolder && targetFolder && pendingFolder !== targetFolder) return false;
+    const pendingReset = pending.reset !== false;
+    return pendingReset === (reset !== false);
+}
+
+function setFinishedGalleryBrowserStatus(text, isError) {
+    const status = getFinishedGalleryBrowserStatusRoot();
     if (!status) return;
     if (isError && /bridge/i.test(String(text || ""))) {
         text = "";
         isError = false;
     }
     text = simpleAIGalleryBrowserStatusText(text, finishedGalleryBrowserState && finishedGalleryBrowserState.mediaType);
-    const target = status.querySelector ? (status.querySelector(".prose, .md, p") || status) : status;
+    const target = getFinishedGalleryBrowserStatusTarget(status);
+    if (!target) return;
+    const currentText = String(target.textContent || "");
+    const loadingText = isFinishedGalleryBrowserLoadingText(text);
+    if (loadingText && Date.now() < finishedGalleryBrowserSilentLoadingUntil) {
+        const preservedText = finishedGalleryBrowserSilentLoadingText || (isFinishedGalleryBrowserLoadingText(currentText) ? "" : currentText);
+        beginFinishedGalleryBrowserSilentLoadingStatus(preservedText, 2600);
+        return;
+    }
+    if (!loadingText && text) {
+        finishedGalleryBrowserSilentLoadingUntil = 0;
+        finishedGalleryBrowserSilentLoadingText = "";
+        if (!finishedGalleryBrowserState.loading && !finishedGalleryBrowserState.pendingPayload) {
+            finishedGalleryBrowserVisibleLoadingUntil = 0;
+            finishedGalleryBrowserVisibleLoadingKey = "";
+        }
+        syncFinishedGalleryBrowserBusyClassFromStatus("set_status");
+    }
+    if (loadingText) {
+        const loadingKey = getFinishedGalleryBrowserLoadingStatusKey(text);
+        if (loadingKey && loadingKey === finishedGalleryBrowserVisibleLoadingKey && Date.now() < finishedGalleryBrowserVisibleLoadingUntil) return;
+        if (Date.now() < finishedGalleryBrowserVisibleLoadingUntil && !finishedGalleryBrowserVisibleLoadingKey) return;
+        finishedGalleryBrowserVisibleLoadingKey = loadingKey;
+        finishedGalleryBrowserVisibleLoadingUntil = Date.now() + 5200;
+    }
+    if (!text && isFinishedGalleryBrowserLoadingText(currentText) && Date.now() < finishedGalleryBrowserVisibleLoadingUntil) {
+        return;
+    }
+    if (currentText === (text || "") && status.classList.contains("is-error") === !!isError) return;
+    installFinishedGalleryBrowserStatusObserver();
     target.textContent = text || "";
     status.classList.toggle("is-error", !!isError);
 }
@@ -4920,9 +5899,45 @@ function syncFinishedCatalogLabelFromRenderedCount(count, mediaType, reason) {
     return false;
 }
 
+function scheduleFinishedGalleryBrowserCatalogLabelSync(value, mediaType, reason, requestId) {
+    const stat = String(value || "").trim();
+    if (!stat || typeof refresh_finished_images_catalog_label !== "function") return false;
+    const mode = getFinishedGalleryBrowserMode(mediaType);
+    const expectedRequestId = Number(requestId || finishedGalleryBrowserState.activeRequestId || 0);
+    const expectedFolder = normalizeFinishedGalleryBrowserFolderValue(
+        finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || ""
+    );
+    const apply = (delay) => {
+        window.setTimeout(() => {
+            try {
+                if (expectedRequestId && Number(finishedGalleryBrowserState.activeRequestId || 0) !== expectedRequestId) return;
+                if (getFinishedGalleryBrowserMode(finishedGalleryBrowserState.mediaType) !== mode) return;
+                const currentFolder = normalizeFinishedGalleryBrowserFolderValue(
+                    finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || ""
+                );
+                if (expectedFolder && currentFolder && currentFolder !== expectedFolder) return;
+                refresh_finished_images_catalog_label(stat, mode, { refresh: false });
+            } catch (e) {}
+        }, delay);
+    };
+    [0, 80, 220].forEach(apply);
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.catalog_label_sync_scheduled", {
+        reason: reason || "gallery_browser",
+        stat,
+        mode,
+        requestId: expectedRequestId,
+    });
+    return true;
+}
+
 function countExistingFinishedGalleryMedia() {
     const gallery = getFinishedGalleryBrowserElement("finished_gallery");
     if (!gallery) return 0;
+    try {
+        if (gallery.dataset.simpleaiGalleryBrowserEmptyMediaHidden === "1") return 0;
+        const style = window.getComputedStyle ? window.getComputedStyle(gallery) : null;
+        if (style && (style.display === "none" || style.visibility === "hidden")) return 0;
+    } catch (e) {}
     if (gallery.querySelector(".gallery-container > .preview")) return 1;
     const itemSelectors = [
         ".grid-wrap .gallery-item",
@@ -4941,6 +5956,45 @@ function countExistingFinishedGalleryMedia() {
     return mediaSources.size;
 }
 
+function markFinishedGalleryBrowserRenderedMediaEmpty(reason) {
+    if (!finishedGalleryBrowserEmptyMediaStyleInstalled) {
+        finishedGalleryBrowserEmptyMediaStyleInstalled = true;
+        try {
+            const style = document.createElement("style");
+            style.id = "simpleai-gallery-browser-empty-media-style";
+            const selectors = [
+                "#finished_gallery[data-simpleai-gallery-browser-empty-media-hidden='1']",
+                "#final_gallery[data-simpleai-gallery-browser-empty-media-hidden='1']",
+                "#progress_video[data-simpleai-gallery-browser-empty-media-hidden='1']",
+                "#video_player[data-simpleai-gallery-browser-empty-media-hidden='1']"
+            ].join(",");
+            style.textContent = selectors + "{display:none!important;pointer-events:none!important;visibility:hidden!important;}";
+            document.head.appendChild(style);
+        } catch (e) {}
+    }
+    ["finished_gallery", "final_gallery", "progress_video", "video_player"].forEach((id) => {
+        const node = getFinishedGalleryBrowserElement(id) || document.getElementById(id);
+        if (!node) return;
+        try { node.dataset.simpleaiGalleryBrowserEmptyMediaHidden = "1"; } catch (e) {}
+        try { markSimpleAICatalogLinkedGalleryHidden(node, { markWrappers: true }); } catch (e) {}
+    });
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.empty_media_hidden", { reason: reason || "gallery_browser_empty" });
+}
+
+function releaseFinishedGalleryBrowserRenderedMediaEmpty(reason) {
+    ["finished_gallery", "final_gallery", "progress_video", "video_player"].forEach((id) => {
+        const node = getFinishedGalleryBrowserElement(id) || document.getElementById(id);
+        if (!node) return;
+        let owned = false;
+        try { owned = node.dataset.simpleaiGalleryBrowserEmptyMediaHidden === "1"; } catch (e) {}
+        if (!owned) return;
+        try { delete node.dataset.simpleaiGalleryBrowserEmptyMediaHidden; } catch (e) {}
+        try { clearSimpleAICatalogLinkedGalleryHiddenElement(node); } catch (e) {}
+    });
+    try { clearSimpleAICatalogLinkedGalleryWrappers(reason || "gallery_browser_load"); } catch (e) {}
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.empty_media_released", { reason: reason || "gallery_browser_load" });
+}
+
 function setFinishedGalleryBrowserHasMediaState(hasMedia, reason) {
     try {
         document.documentElement.classList.toggle("simpai-gallery-browser-has-media", !!hasMedia);
@@ -4955,6 +6009,11 @@ function hasMountedFinishedGalleryBrowserMedia() {
     if ((countExistingFinishedGalleryMedia() || 0) > 0) return true;
     const selector = "img, video, .gallery-item, .gallery-container > .preview, .grid-wrap button, [data-testid='gallery'] button";
     const finalGallery = getFinishedGalleryBrowserElement("final_gallery") || document.getElementById("final_gallery");
+    try {
+        if (finalGallery && finalGallery.dataset.simpleaiGalleryBrowserEmptyMediaHidden === "1") return false;
+        const style = finalGallery && window.getComputedStyle ? window.getComputedStyle(finalGallery) : null;
+        if (style && (style.display === "none" || style.visibility === "hidden")) return false;
+    } catch (e) {}
     return !!(finalGallery && finalGallery.querySelector(selector));
 }
 
@@ -5142,6 +6201,63 @@ function isFinishedGalleryBrowserOpenOrLoading() {
     );
 }
 
+function markFinishedGalleryBrowserCatalogOpenIntent(requestId, reason) {
+    const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog") || document.getElementById("finished_images_catalog");
+    const preparedOpen = Date.now() < simpleAIFinishedCatalogPreparedOpenUntil;
+    const catalogOpen = !catalogRoot || preparedOpen || isSimpleAIPresetCatalogOpen(catalogRoot);
+    if (!catalogOpen) return false;
+    finishedGalleryBrowserState.keepCatalogOpenRequestId = Number(requestId || 0);
+    finishedGalleryBrowserState.keepCatalogOpenUntil = Date.now() + 10000;
+    finishedGalleryBrowserState.keepCatalogOpenReason = reason || "gallery_browser_request";
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.catalog_open_intent", {
+        reason: reason || "gallery_browser_request",
+        requestId: Number(requestId || 0),
+        preparedOpen,
+    });
+    return true;
+}
+
+function clearFinishedGalleryBrowserCatalogOpenIntent(reason) {
+    const hadIntent = !!(
+        Number(finishedGalleryBrowserState.keepCatalogOpenRequestId || 0)
+        || Number(finishedGalleryBrowserState.keepCatalogOpenUntil || 0)
+        || finishedGalleryBrowserState.keepCatalogOpenReason
+    );
+    finishedGalleryBrowserState.keepCatalogOpenRequestId = 0;
+    finishedGalleryBrowserState.keepCatalogOpenUntil = 0;
+    finishedGalleryBrowserState.keepCatalogOpenReason = "";
+    simpleAIFinishedCatalogPreparedOpenUntil = 0;
+    simpleAIFinishedCatalogForceOpenUntil = 0;
+    if (hadIntent) {
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.catalog_open_intent_cleared", {
+            reason: reason || "catalog_close",
+        });
+    }
+    return hadIntent;
+}
+
+function shouldRestoreFinishedGalleryBrowserCatalogOpen(requestId) {
+    const until = Number(finishedGalleryBrowserState.keepCatalogOpenUntil || 0);
+    if (!until || Date.now() > until) return false;
+    const expected = Number(finishedGalleryBrowserState.keepCatalogOpenRequestId || 0);
+    const incoming = Number(requestId || 0);
+    if (expected && incoming && expected !== incoming) return false;
+    return true;
+}
+
+function restoreFinishedGalleryBrowserCatalogOpenAfterLoad(requestId, reason) {
+    if (!shouldRestoreFinishedGalleryBrowserCatalogOpen(requestId)) return false;
+    const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog") || document.getElementById("finished_images_catalog");
+    if (!catalogRoot) return false;
+    const restored = ensureSimpleAIPresetCatalogOpen(catalogRoot, reason || "gallery_browser_after_load");
+    scheduleFinishedGalleryBrowserCatalogOpenRestore(reason || "gallery_browser_after_load");
+    finishedGalleryBrowserState.keepCatalogOpenRequestId = 0;
+    finishedGalleryBrowserState.keepCatalogOpenUntil = 0;
+    finishedGalleryBrowserState.keepCatalogOpenReason = "";
+    try { clearSimpleAICatalogLinkedGalleryHidden(reason || "gallery_browser_after_load"); } catch (e) {}
+    return restored;
+}
+
 function removeFinishedGalleryWelcomePlaceholder() {
     try {
         const placeholder = document.getElementById("simpleai_gallery_welcome_guard_placeholder");
@@ -5314,7 +6430,10 @@ function shouldHideWelcomePreviewDuringGalleryBrowserLoading(reason, options) {
     const reasonText = String(reason || "");
     const deferredEmpty = /gallery_browser_after_load_empty_deferred/i.test(reasonText);
     if (!deferredEmpty && /timeout_keep_welcome|gallery_browser_after_load_empty|gallery_browser_empty/i.test(reasonText)) return false;
-    if (/gallery_browser_(refresh_start|bridge_start|loading)/i.test(reasonText)) return false;
+    const switchingFolder = /gallery_browser_(refresh_start|bridge_start|loading)/i.test(reasonText);
+    if (switchingFolder) {
+        return true;
+    }
     if (!/catalog_toggle|gallery_browser_(refresh_start|bridge_start|loading|after_load_empty_deferred)/i.test(reasonText)) return false;
     return getFinishedGalleryBrowserExpectedMediaCount() > 0
         || (countExistingFinishedGalleryMedia() || 0) > 0
@@ -5429,6 +6548,27 @@ function showMountedFinishedGalleryForCatalogOpen(reason) {
     return hidden;
 }
 
+function shouldRefreshFinishedGalleryMediaSurface() {
+    try {
+        if (document.documentElement.classList.contains("simpai-gallery-browser-welcome-pending")) return true;
+        if (document.documentElement.classList.contains("simpai-gallery-browser-loading-silent")) return true;
+        if (document.documentElement.classList.contains("simpai-gallery-browser-overlay-active")) return true;
+    } catch (e) {}
+    const preview = getWelcomePreviewElement();
+    if (!preview) return false;
+    try {
+        const style = window.getComputedStyle ? window.getComputedStyle(preview) : null;
+        const rect = preview.getBoundingClientRect ? preview.getBoundingClientRect() : null;
+        const visible = !preview.hidden
+            && (!style || (style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0"))
+            && !!rect && rect.width > 0 && rect.height > 0;
+        if (!visible) return false;
+        return isFinishedGalleryWelcomeSource(getFinishedGalleryPreviewImageSource(preview));
+    } catch (e) {
+        return false;
+    }
+}
+
 function setFinishedGalleryOverlayActive(active) {
     try { document.documentElement.classList.toggle("simpai-gallery-browser-overlay-active", !!active); } catch (e) {}
     try {
@@ -5479,6 +6619,10 @@ function prepareFinishedGallerySurfaceForCatalogOpen(reason) {
 }
 
 function restoreWelcomePreviewAfterCatalogClose(reason) {
+    try { window.clearTimeout(finishedGalleryWelcomeGuardTimer); } catch (e) {}
+    finishedGalleryWelcomeGuardTimer = null;
+    finishedGalleryWelcomeGuardUntil = 0;
+    finishedGalleryWelcomeGuardHoldStaleUntil = 0;
     const preview = getWelcomePreviewElement();
     rememberFinishedGalleryWelcomeSource(preview);
     const shouldRestorePreviewImage = shouldRestoreFinishedGalleryWelcomeImageForReason(reason);
@@ -5524,6 +6668,8 @@ function restoreWelcomePreviewAfterCatalogClose(reason) {
 
 function restoreWelcomePreviewForEmptyGalleryBrowser(reason) {
     setFinishedGalleryBrowserHasMediaState(false, reason || "gallery_browser_empty");
+    markFinishedGalleryBrowserRenderedMediaEmpty(reason || "gallery_browser_empty");
+    try { releaseFinishedGalleryWelcomeGuard(false, reason || "gallery_browser_empty_done"); } catch (e) {}
     ["finished_gallery", "final_gallery", "progress_video", "video_player", "comparison_box"].forEach((id) => {
         try { markSimpleAICatalogLinkedGalleryHidden(getFinishedGalleryBrowserElement(id) || document.getElementById(id)); } catch (e) {}
     });
@@ -5582,6 +6728,12 @@ function shouldIgnoreMountedGalleryMediaForWelcomeGuard(reason, options) {
 }
 
 function applyFinishedGalleryWelcomeGuard(reason, options) {
+    if (shouldKeepCatalogLinkedGalleryHidden(reason)) {
+        try { releaseFinishedGalleryWelcomeGuard(false, `${reason || "gallery_loading"}:catalog_closed`); } catch (e) {}
+        try { setFinishedGalleryOverlayActive(false); } catch (e) {}
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.welcome_guard_skip_closed", { reason: reason || "gallery_loading" });
+        return false;
+    }
     const force = !!(options && options.force);
     const ignoreMountedMedia = shouldIgnoreMountedGalleryMediaForWelcomeGuard(reason, options);
     if (!ignoreMountedMedia && hasMountedFinishedGalleryBrowserMedia()) {
@@ -5715,11 +6867,44 @@ function forceWelcomePreviewUntilFinishedGalleryReady(reason) {
 }
 
 function settleFinishedGalleryWelcomeGuardAfterLoad(reason) {
+    let mediaSurfaceFinished = false;
+    let staleSettleLogged = false;
+    const settleRequestId = Number(finishedGalleryBrowserState.activeRequestId || 0);
+    const settleFolder = normalizeFinishedGalleryBrowserFolderValue(
+        finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || ""
+    );
+    const settleMediaType = getFinishedGalleryBrowserMode(finishedGalleryBrowserState.mediaType);
+    const settleLoaded = Number(finishedGalleryBrowserState.loaded || 0);
+    const isCurrentSettle = () => {
+        if (settleLoaded <= 0) return false;
+        if (Number(finishedGalleryBrowserState.loaded || 0) <= 0) return false;
+        if (settleRequestId && Number(finishedGalleryBrowserState.activeRequestId || 0) !== settleRequestId) return false;
+        const currentFolder = normalizeFinishedGalleryBrowserFolderValue(
+            finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || ""
+        );
+        if (settleFolder && currentFolder && currentFolder !== settleFolder) return false;
+        if (settleMediaType && getFinishedGalleryBrowserMode(finishedGalleryBrowserState.mediaType) !== settleMediaType) return false;
+        return true;
+    };
     [0, 80, 220, 520, 1000, 1600, 2600].forEach((delay) => {
         window.setTimeout(() => {
             try {
+                if (!isCurrentSettle()) {
+                    if (!staleSettleLogged) {
+                        staleSettleLogged = true;
+                        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.welcome_guard_stale_settle_ignored", {
+                            reason: reason || "gallery_load",
+                            requestId: settleRequestId,
+                            folder: settleFolder,
+                            mediaType: settleMediaType,
+                        });
+                    }
+                    return;
+                }
                 if (hasMountedFinishedGalleryBrowserMedia()) {
+                    if (mediaSurfaceFinished && !shouldRefreshFinishedGalleryMediaSurface()) return;
                     finishFinishedGalleryMediaSurface(`${reason || "gallery_load"}+${delay}ms`);
+                    mediaSurfaceFinished = true;
                 } else {
                     clearSimpleAICatalogLinkedGalleryHidden(`${reason || "gallery_load"}+${delay}ms`);
                     applyFinishedGalleryWelcomeGuard(`${reason || "gallery_load"}+${delay}ms`);
@@ -5786,12 +6971,35 @@ function getFinishedGalleryBrowserContentParent(root) {
     return body.querySelector(":scope > .column") || body.querySelector(".column") || body;
 }
 
+function setFinishedGalleryBrowserNativeFolderDisplay(folder) {
+    const value = String(folder || "").trim();
+    const root = getFinishedGalleryBrowserElement("gallery_browser_folder") || document.getElementById("gallery_browser_folder");
+    if (!root || !value) return false;
+    persistFinishedGalleryBrowserFolder(value);
+    try { root.dataset.simpleaiGalleryBrowserFolder = value; } catch (e) {}
+    try { root.setAttribute("data-sai-folder-label", value); } catch (e) {}
+    try { root.setAttribute("data-value", value); } catch (e) {}
+    try { root.setAttribute("title", value); } catch (e) {}
+    const input = root.querySelector('input[role="listbox"], input');
+    if (input) {
+        try { input.value = value; } catch (e) {}
+        try { input.setAttribute("value", value); } catch (e) {}
+    }
+    const select = root.querySelector("select");
+    if (select && Array.from(select.options || []).some((option) => option.value === value)) {
+        try { select.value = value; } catch (e) {}
+    }
+    scheduleGalleryBrowserFolderDisplaySync();
+    return true;
+}
+
 function updateFinishedGalleryBrowserFolders(data) {
     const select = document.querySelector("#finished_gallery_browser_panel [data-gallery-browser-folder]");
-    if (!select) return;
     const folders = Array.isArray(data?.folders) ? data.folders : finishedGalleryBrowserState.folders;
     finishedGalleryBrowserState.folders = folders || [];
     const selected = data?.folder || finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "";
+    setFinishedGalleryBrowserNativeFolderDisplay(selected);
+    if (!select) return;
     const previous = select.value;
     select.innerHTML = "";
     if (!folders || !folders.length) {
@@ -5871,11 +7079,17 @@ function syncFinishedGalleryBrowserControls() {
         select.__simpleaiMainGalleryBrowserBound = true;
         select.addEventListener("change", () => {
             clearSimpleAIPresetSwitchGalleryHidden("gallery_browser_folder_change");
+            const previousFolder = normalizeFinishedGalleryBrowserFolderValue(finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "");
+            const silentStatus = shouldSilenceFinishedGalleryBrowserLoadingStatus({}, true, select.value, previousFolder);
             finishedGalleryBrowserState.userFolder = select.value;
             finishedGalleryBrowserState.folder = select.value;
             select.dataset.userSelectedFolder = select.value;
-            setFinishedGalleryBrowserStatus("Loading...");
-            refreshFinishedGalleryBrowser({ folder: select.value, reset: true, force: true });
+            if (silentStatus) {
+                beginFinishedGalleryBrowserSilentLoadingStatus(getFinishedGalleryBrowserStableStatusText(), 2600);
+            } else {
+                setFinishedGalleryBrowserStatus("Loading...");
+            }
+            refreshFinishedGalleryBrowser({ folder: select.value, reset: true, force: true, silentStatus });
         });
     }
     if (refresh && !refresh.__simpleaiMainGalleryBrowserBound) {
@@ -5896,12 +7110,437 @@ function syncFinishedGalleryBrowserControls() {
 }
 
 function syncFinishedGalleryBrowserMoreButton() {
+    const loading = isFinishedGalleryBrowserRequestBusy();
+    try { document.documentElement.classList.toggle("simpai-gallery-browser-request-busy", loading); } catch (e) {}
+    const folders = Array.isArray(finishedGalleryBrowserState.folders) ? finishedGalleryBrowserState.folders : [];
+    const folder = finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "";
+    const folderIndex = folders.indexOf(folder);
+    const hasFolderList = folders.length > 0 && folderIndex >= 0;
+    const hasNewer = !hasFolderList || folderIndex > 0;
+    const hasOlder = !hasFolderList || folderIndex + 1 < folders.length;
+    [
+        ["gallery_browser_folder", false],
+        ["gallery_browser_prev_folder_btn", !hasNewer],
+        ["gallery_browser_next_folder_btn", !hasOlder],
+        ["gallery_browser_refresh_btn", false],
+        ["gallery_browser_more_btn", !finishedGalleryBrowserState.hasMore],
+        ["gallery_images_btn", false],
+        ["gallery_videos_btn", false],
+    ].forEach(([id, disabled]) => {
+        setFinishedGalleryBrowserControlDisabled(getFinishedGalleryBrowserElement(id) || document.getElementById(id), disabled);
+    });
+    const fallbackSelect = document.querySelector("#finished_gallery_browser_panel [data-gallery-browser-folder]");
+    if (fallbackSelect) fallbackSelect.disabled = false;
+    const refresh = document.querySelector("#finished_gallery_browser_panel [data-gallery-browser-refresh]");
+    if (refresh) {
+        refresh.disabled = false;
+        refresh.classList.toggle("is-disabled", refresh.disabled);
+    }
     const more = document.querySelector("#finished_gallery_browser_panel [data-gallery-browser-more]");
     if (more) {
-        more.disabled = finishedGalleryBrowserState.loading || !finishedGalleryBrowserState.hasMore;
+        more.disabled = !finishedGalleryBrowserState.hasMore;
         more.classList.toggle("is-disabled", more.disabled);
     }
     try { syncFinishedGalleryBrowserLocalizedControls(); } catch (e) {}
+}
+
+function parseFinishedGalleryStatTotal(value) {
+    const text = String(value || "").trim();
+    if (!text) return null;
+    const first = text.split(",")[0];
+    const parsed = Number.parseInt(first, 10);
+    if (Number.isFinite(parsed)) return Math.max(0, parsed);
+    return parseFinishedCatalogCount(text);
+}
+
+function normalizeFinishedGalleryBrowserDimensions(value) {
+    const result = {};
+    if (!value || typeof value !== "object") return result;
+    Object.entries(value).forEach(([path, dimensions]) => {
+        const source = dimensions && typeof dimensions === "object" ? dimensions : {};
+        const width = Math.round(Number(source.width || source[0] || 0));
+        const height = Math.round(Number(source.height || source[1] || 0));
+        if (!path || !(width > 0 && height > 0)) return;
+        result[String(path)] = {
+            width,
+            height,
+            media_type: source.media_type || source.mediaType || "",
+        };
+    });
+    return result;
+}
+
+function mergeFinishedGalleryBrowserDimensions(incoming, reset) {
+    const normalized = normalizeFinishedGalleryBrowserDimensions(incoming);
+    if (reset) {
+        finishedGalleryBrowserState.dimensions = normalized;
+        return normalized;
+    }
+    finishedGalleryBrowserState.dimensions = Object.assign({}, finishedGalleryBrowserState.dimensions || {}, normalized);
+    return finishedGalleryBrowserState.dimensions;
+}
+
+function finishedGalleryBrowserDimensionForPath(path) {
+    if (!path) return null;
+    const dimensions = finishedGalleryBrowserState.dimensions || {};
+    return dimensions[String(path)] || null;
+}
+
+function finishedGalleryVideoDimensionsFromHost(host) {
+    const video = host?.matches?.("video") ? host : host?.querySelector?.("video");
+    if (!video) return null;
+    const width = Math.round(Number(video.videoWidth || 0));
+    const height = Math.round(Number(video.videoHeight || 0));
+    return width > 0 && height > 0 ? { width, height, media_type: "video" } : null;
+}
+
+function mediaResolutionElementFromHost(host) {
+    if (!host) return null;
+    return host?.matches?.("img, video") ? host : (host?.querySelector?.("img, video") || null);
+}
+
+function applyFinishedGalleryResolutionBadge(host, path, options) {
+    if (!host) return false;
+    const media = mediaResolutionElementFromHost(host);
+    const dimensions = finishedGalleryBrowserDimensionForPath(path)
+        || mediaResolutionDimensionsFromElement(media)
+        || finishedGalleryVideoDimensionsFromHost(host);
+    if (dimensions && typeof window.simpleaiApplyMediaResolutionBadge === "function") {
+        return window.simpleaiApplyMediaResolutionBadge(host, dimensions);
+    }
+    if (options?.keepExistingOnMissing) return false;
+    if (typeof window.simpleaiClearMediaResolutionBadge === "function") {
+        return window.simpleaiClearMediaResolutionBadge(host);
+    }
+    return false;
+}
+
+function clearFinishedGalleryResolutionBadges(root, keepHost) {
+    if (!root || !root.querySelectorAll) return false;
+    let cleared = false;
+    root.querySelectorAll(".simpai-media-resolution-badge").forEach((badge) => {
+        try {
+            if (keepHost && keepHost.contains && keepHost.contains(badge)) return;
+            if (!badge.hidden) {
+                badge.hidden = true;
+                cleared = true;
+            }
+        } catch (e) {}
+    });
+    return cleared;
+}
+
+function clearFinishedGalleryPreviewResolutionBadges(gallery, keepHost) {
+    if (!gallery || !gallery.querySelector) return false;
+    const preview = gallery.querySelector(".gallery-container > .preview");
+    return preview ? clearFinishedGalleryResolutionBadges(preview, keepHost) : false;
+}
+
+function mediaResolutionDimensionsFromElement(node) {
+    if (!node) return null;
+    const width = Math.round(Number(node.naturalWidth || node.videoWidth || 0));
+    const height = Math.round(Number(node.naturalHeight || node.videoHeight || 0));
+    if (!(width > 8 && height > 8)) return null;
+    return { width, height, media_type: node.tagName === "VIDEO" ? "video" : "image" };
+}
+
+function visibleGeneratedPreviewMediaHost(gallery) {
+    if (!gallery || !gallery.querySelectorAll) return null;
+    const candidates = Array.from(gallery.querySelectorAll(".preview .media-button, .media-button, button:has(img), button:has(video), img, video"));
+    for (const candidate of candidates) {
+        try {
+            const style = window.getComputedStyle ? window.getComputedStyle(candidate) : null;
+            const rect = candidate.getBoundingClientRect ? candidate.getBoundingClientRect() : null;
+            if (style && (style.display === "none" || style.visibility === "hidden")) continue;
+            if (rect && !(rect.width > 8 && rect.height > 8)) continue;
+            const media = candidate.matches?.("img, video") ? candidate : candidate.querySelector?.("img, video");
+            if (!mediaResolutionDimensionsFromElement(media)) continue;
+            return candidate.matches?.("img, video") ? (candidate.parentElement || candidate) : candidate;
+        } catch (e) {}
+    }
+    return null;
+}
+
+function syncPostGenerationPreviewResolutionBadge(gallery, reason) {
+    if (!gallery) return false;
+    const host = visibleGeneratedPreviewMediaHost(gallery);
+    const media = mediaResolutionElementFromHost(host);
+    const dimensions = mediaResolutionDimensionsFromElement(media);
+    if (!host || !dimensions || typeof window.simpleaiApplyMediaResolutionBadge !== "function") {
+        clearFinishedGalleryPreviewResolutionBadges(gallery);
+        return false;
+    }
+    clearFinishedGalleryPreviewResolutionBadges(gallery, host);
+    const applied = window.simpleaiApplyMediaResolutionBadge(host, dimensions);
+    if (applied) {
+        simpaiUiTrace("log", "[UI-TRACE] post_generation.resolution_badge_synced", {
+            reason: reason || "post_generation",
+            width: dimensions.width,
+            height: dimensions.height,
+        });
+    }
+    return applied;
+}
+
+function selectedFinishedGalleryPreviewIndex(gallery) {
+    const thumbs = Array.from(gallery?.querySelectorAll?.(".gallery-container > .preview .thumbnails > .thumbnail-item") || []);
+    const index = thumbs.findIndex((item) => item.classList.contains("selected") || item.getAttribute("aria-selected") === "true" || item.dataset?.selected === "true");
+    if (index >= 0) return index;
+    try {
+        if (typeof selected_gallery_index === "function") {
+            const globalIndex = selected_gallery_index();
+            if (Number.isFinite(globalIndex) && globalIndex >= 0) return globalIndex;
+        }
+    } catch (e) {}
+    return -1;
+}
+
+function syncFinishedGalleryGridResolutionBadges(gallery, gridItems, paths, reason) {
+    if (!gallery || !gridItems || !gridItems.length) return false;
+    let applied = 0;
+    gridItems.forEach((item, index) => {
+        if (applyFinishedGalleryResolutionBadge(item, paths && paths[index], { keepExistingOnMissing: true })) {
+            applied += 1;
+        }
+    });
+    if (applied > 0) {
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.grid_resolution_badges_synced", {
+            reason: reason || "gallery_grid",
+            applied,
+            grid: gridItems.length,
+            paths: Array.isArray(paths) ? paths.length : 0,
+        });
+    }
+    return applied > 0;
+}
+
+function syncFinishedGalleryResolutionBadges(reason) {
+    const gallery = getFinishedGalleryBrowserElement("finished_gallery") || document.getElementById("finished_gallery");
+    if (!gallery) return false;
+    const hasBrowserPaths = Array.isArray(finishedGalleryBrowserState.paths) && finishedGalleryBrowserState.paths.length > 0;
+    const paths = hasBrowserPaths ? finishedGalleryBrowserState.paths : [];
+    const gridItems = Array.from(gallery.querySelectorAll(".grid-wrap .gallery-item"));
+    const previewButton = gallery.querySelector(".gallery-container > .preview .media-button");
+    if (gridItems.length) {
+        const gridApplied = syncFinishedGalleryGridResolutionBadges(gallery, gridItems, paths, reason);
+
+        if (hasBrowserPaths && previewButton) {
+            const previewIndex = selectedFinishedGalleryPreviewIndex(gallery);
+            applyFinishedGalleryResolutionBadge(previewButton, previewIndex >= 0 ? paths[previewIndex] : "");
+        }
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.resolution_badges_synced", {
+            reason: reason || "gallery_browser",
+            paths: paths.length,
+            grid: gridItems.length,
+            applied: gridApplied,
+        });
+        return gridApplied || hasBrowserPaths;
+    }
+    if (hasBrowserPaths && previewButton) {
+        const previewIndex = selectedFinishedGalleryPreviewIndex(gallery);
+        const applied = applyFinishedGalleryResolutionBadge(previewButton, previewIndex >= 0 ? paths[previewIndex] : "", { keepExistingOnMissing: true });
+        if (applied) {
+            simpaiUiTrace("log", "[UI-TRACE] gallery_browser.preview_resolution_badge_synced", {
+                reason: reason || "gallery_browser",
+                paths: paths.length,
+            });
+        }
+        return applied;
+    }
+    const postGenerationSurface = document.documentElement.classList.contains("simpai-post-generation-result-surface")
+        || document.documentElement.classList.contains("simpai-comparison-preview");
+    const galleryBrowserOverlayActive = document.documentElement.classList.contains("simpai-gallery-browser-overlay-active")
+        || !!gallery.closest?.(".simpai-gallery-browser-overlay-row");
+    const hasGeneratedPreviewMedia = !!visibleGeneratedPreviewMediaHost(gallery);
+    if (postGenerationSurface) {
+        return syncPostGenerationPreviewResolutionBadge(gallery, reason || "post_generation");
+    }
+    if (hasGeneratedPreviewMedia && !galleryBrowserOverlayActive) {
+        return syncPostGenerationPreviewResolutionBadge(gallery, reason || "generated_preview");
+    }
+    clearFinishedGalleryPreviewResolutionBadges(gallery);
+    return false;
+}
+window.syncFinishedGalleryResolutionBadges = syncFinishedGalleryResolutionBadges;
+
+function scheduleFinishedGalleryResolutionBadges(reason) {
+    window.clearTimeout(finishedGalleryResolutionBadgeTimer);
+    finishedGalleryResolutionBadgeTimer = window.setTimeout(() => {
+        finishedGalleryResolutionBadgeTimer = null;
+        syncFinishedGalleryResolutionBadges(reason || "raf");
+        window.setTimeout(() => syncFinishedGalleryResolutionBadges(reason || "settled"), 160);
+    }, 80);
+}
+
+function isFinishedGalleryResolutionBadgeMutation(mutation) {
+    if (!mutation) return false;
+    const target = mutation.target;
+    try {
+        if (target && target.nodeType === 1 && target.closest?.(".simpai-media-resolution-badge")) return true;
+    } catch (e) {}
+    const nodes = [
+        ...Array.from(mutation.addedNodes || []),
+        ...Array.from(mutation.removedNodes || []),
+    ];
+    if (!nodes.length) return false;
+    return nodes.every((node) => {
+        try {
+            if (node.nodeType === 3) return true;
+            if (node.nodeType !== 1) return false;
+            return !!(
+                node.matches?.(".simpai-media-resolution-badge")
+                || node.closest?.(".simpai-media-resolution-badge")
+            );
+        } catch (e) {
+            return false;
+        }
+    });
+}
+
+function bindFinishedGalleryResolutionBadgeObserver() {
+    const gallery = getFinishedGalleryBrowserElement("finished_gallery") || document.getElementById("finished_gallery");
+    if (!gallery || gallery.dataset.simpleaiResolutionBadgeObserver === "1") return false;
+    gallery.dataset.simpleaiResolutionBadgeObserver = "1";
+    const observer = new MutationObserver((mutations) => {
+        if (mutations.length && mutations.every(isFinishedGalleryResolutionBadgeMutation)) return;
+        scheduleFinishedGalleryResolutionBadges("gallery_dom_mutation");
+    });
+    observer.observe(gallery, { childList: true, subtree: true });
+    gallery.addEventListener("loadedmetadata", (event) => {
+        if (event.target && event.target.tagName === "VIDEO") {
+            scheduleFinishedGalleryResolutionBadges("gallery_video_metadata");
+        }
+    }, true);
+    gallery.addEventListener("load", (event) => {
+        if (event.target && event.target.tagName === "IMG") {
+            scheduleFinishedGalleryResolutionBadges("gallery_image_load");
+        }
+    }, true);
+    gallery.addEventListener("click", (event) => {
+        if (event.target?.closest?.(".thumbnail-item, .gallery-item, .media-button")) {
+            scheduleFinishedGalleryResolutionBadges("gallery_click");
+        }
+    }, true);
+    scheduleFinishedGalleryResolutionBadges("gallery_observer_bind");
+    return true;
+}
+
+function syncFinishedGalleryBrowserTopbarState(data, reason) {
+    const previous = topbarLastSystemParams || window.simpleaiTopbarSystemParams || {};
+    const mediaType = (data && data.media_type) || finishedGalleryBrowserState.mediaType || getFinishedGalleryBrowserMode();
+    const folder = (data && data.folder) || finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "";
+    if (folder) persistFinishedGalleryBrowserFolder(folder);
+    const next = Object.assign({}, previous, {
+        __gallery_engine_type: mediaType,
+        engine_type: mediaType,
+        gallery_state: "main_browser",
+        __main_gallery_browser_folder: folder,
+        __main_gallery_browser_next_offset: finishedGalleryBrowserState.nextOffset || 0,
+        __main_gallery_browser_has_more: !!finishedGalleryBrowserState.hasMore,
+    });
+    if (data && Array.isArray(data.paths)) {
+        next.__main_gallery_browser_paths = data.paths;
+    } else if (Number(finishedGalleryBrowserState.loaded || 0) === 0) {
+        next.__main_gallery_browser_paths = [];
+    }
+    if (data && data.dimensions && typeof data.dimensions === "object") {
+        next.__main_gallery_browser_dimensions = data.dimensions;
+    } else if (finishedGalleryBrowserState.dimensions && typeof finishedGalleryBrowserState.dimensions === "object") {
+        next.__main_gallery_browser_dimensions = finishedGalleryBrowserState.dimensions;
+    }
+    if (data && Array.isArray(data.folders)) {
+        next.__main_gallery_browser_folders = data.folders;
+    } else if (Array.isArray(finishedGalleryBrowserState.folders)) {
+        next.__main_gallery_browser_folders = finishedGalleryBrowserState.folders;
+    }
+    window.simpleaiTopbarSystemParams = next;
+    topbarLastSystemParams = next;
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.topbar_state_write", {
+        reason: reason || "gallery_browser",
+        folder,
+        mediaType,
+        loaded: finishedGalleryBrowserState.loaded,
+    });
+    return next;
+}
+
+function readFinishedGalleryBrowserPayloadBridgeValue() {
+    const root = getFinishedGalleryBrowserElement("gallery_browser_payload") || document.getElementById("gallery_browser_payload");
+    const field = root && root.querySelector ? root.querySelector("textarea, input") : null;
+    return field ? String(field.value || field.getAttribute("value") || "") : "";
+}
+
+function writeFinishedGalleryBrowserPayloadBridge(body, payload) {
+    const text = String(body || "");
+    const root = getFinishedGalleryBrowserElement("gallery_browser_payload") || document.getElementById("gallery_browser_payload");
+    const field = root && root.querySelector ? root.querySelector("textarea, input") : null;
+    if (!field) return false;
+    const writeValue = (value) => {
+        try {
+            const proto = Object.getPrototypeOf(field);
+            const descriptor = proto ? Object.getOwnPropertyDescriptor(proto, "value") : null;
+            if (descriptor && descriptor.set) descriptor.set.call(field, value);
+            else field.value = value;
+        } catch (e) {
+            try { field.value = value; } catch (_e) {}
+        }
+        try { field.setAttribute("value", value); } catch (e) {}
+        try {
+            field.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+        } catch (e) {
+            try { field.dispatchEvent(new Event("input", { bubbles: true })); } catch (_e) {}
+        }
+        try { field.dispatchEvent(new Event("change", { bubbles: true })); } catch (e) {}
+        try { field.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "Enter" })); } catch (e) {}
+    };
+    writeValue("");
+    writeValue(text);
+    try { field.dispatchEvent(new Event("blur", { bubbles: true })); } catch (e) {}
+    try {
+        root.dataset.simpleaiGalleryBrowserPayloadRequestId = String(payload && payload.request_id || "");
+        root.dataset.simpleaiGalleryBrowserPayloadFolder = String(payload && payload.folder || "");
+    } catch (e) {}
+    if (typeof setGradioTextboxValue === "function") {
+        try { setGradioTextboxValue("gallery_browser_payload", text); } catch (e) {}
+    }
+    return readFinishedGalleryBrowserPayloadBridgeValue() === text;
+}
+
+function getFinishedGalleryBrowserPendingPayloadText() {
+    const pending = finishedGalleryBrowserState && finishedGalleryBrowserState.pendingPayload;
+    if (pending && typeof pending === "object") {
+        try { return JSON.stringify(pending); } catch (e) {}
+    }
+    return readFinishedGalleryBrowserPayloadBridgeValue();
+}
+window.getFinishedGalleryBrowserPendingPayloadText = getFinishedGalleryBrowserPendingPayloadText;
+
+function isFinishedGalleryBrowserLoadingStatusVisible() {
+    const root = getFinishedGalleryBrowserStatusRoot();
+    const text = root ? String(root.textContent || "") : "";
+    return isFinishedGalleryBrowserLoadingText(text);
+}
+
+function shouldSilenceFinishedGalleryBrowserLoadingStatus(options, reset, requestedFolder, previousFolder) {
+    if (options && options.silentStatus) return true;
+    if (reset === false) return false;
+    const targetFolder = normalizeFinishedGalleryBrowserFolderValue(requestedFolder || "");
+    if (!targetFolder) return false;
+    const currentFolder = normalizeFinishedGalleryBrowserFolderValue(
+        previousFolder
+        || finishedGalleryBrowserState.userFolder
+        || finishedGalleryBrowserState.folder
+        || (window.simpleaiTopbarSystemParams && window.simpleaiTopbarSystemParams.__main_gallery_browser_folder)
+        || ""
+    );
+    if (!currentFolder || currentFolder === targetFolder) return false;
+    const hasKnownMedia = Number(finishedGalleryBrowserState.loaded || 0) > 0
+        || (Array.isArray(finishedGalleryBrowserState.paths) && finishedGalleryBrowserState.paths.length > 0)
+        || countExistingFinishedGalleryMedia() > 0;
+    if (hasKnownMedia) return true;
+    const statusRoot = getFinishedGalleryBrowserElement("gallery_browser_status") || document.getElementById("gallery_browser_status");
+    const statusText = statusRoot ? String(statusRoot.textContent || "").trim() : "";
+    return !!statusText && !isFinishedGalleryBrowserLoadingText(statusText);
 }
 
 function refreshFinishedGalleryBrowser(options) {
@@ -5916,38 +7555,67 @@ function refreshFinishedGalleryBrowser(options) {
     }
     if (!syncFinishedGalleryBrowserControls()) return false;
     const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog");
-    const catalogOpen = !catalogRoot || isSimpleAIPresetCatalogOpen(catalogRoot);
+    const catalogOpen = !catalogRoot || isSimpleAIPresetCatalogOpen(catalogRoot) || Date.now() < simpleAIFinishedCatalogPreparedOpenUntil;
     if (!opts.allowClosedCatalog && catalogRoot && !catalogOpen) return false;
     const shouldGuardSurface = catalogOpen && !opts.preload;
     const mediaType = getFinishedGalleryBrowserMode(opts.mediaType);
+    const optionFolderValue = opts.folder !== undefined ? normalizeFinishedGalleryBrowserFolderValue(opts.folder || "") : "";
+    const reset = opts.reset !== false;
+    const previousFolderForStatus = normalizeFinishedGalleryBrowserFolderValue(
+        finishedGalleryBrowserState.userFolder
+        || finishedGalleryBrowserState.folder
+        || (window.simpleaiTopbarSystemParams && window.simpleaiTopbarSystemParams.__main_gallery_browser_folder)
+        || ""
+    );
+    if (optionFolderValue) {
+        finishedGalleryBrowserState.userFolder = optionFolderValue;
+        finishedGalleryBrowserState.folder = optionFolderValue;
+        setFinishedGalleryBrowserNativeFolderDisplay(optionFolderValue);
+    }
+    const select = document.querySelector("#finished_gallery_browser_panel [data-gallery-browser-folder]");
+    const requestedFolder = optionFolderValue
+        ? optionFolderValue
+        : (select && select.value ? select.value : finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "");
+    const shouldPreferBridgeForState = !!opts.preferBridge || (
+        opts.reset !== false
+        && shouldPreferFinishedGalleryBrowserBridge(topbarLastSystemParams || window.simpleaiTopbarSystemParams || {}, requestedFolder)
+    );
+    const silentStatus = shouldSilenceFinishedGalleryBrowserLoadingStatus(opts, reset, requestedFolder, previousFolderForStatus);
+    if (silentStatus) {
+        beginFinishedGalleryBrowserSilentLoadingStatus(getFinishedGalleryBrowserStableStatusText(), reset ? 3200 : 1600);
+    }
     try { syncGalleryMediaSwitch(mediaType, 0, "browser_refresh"); } catch (e) {}
-    if (opts.reset !== false && shouldGuardSurface) keepWelcomePreviewUntilFinishedGalleryReady("gallery_browser_refresh_start");
+    if (isFinishedGalleryBrowserRequestBusy()) {
+        if (opts.replaceActive && reset) {
+            finishedGalleryBrowserState.queuedOptions = null;
+            finishedGalleryBrowserState.bridgeRetryCount = 0;
+            finishedGalleryBrowserPreloadInFlight = false;
+        } else if (opts.folder !== undefined || opts.force) {
+            finishedGalleryBrowserState.queuedOptions = Object.assign({}, opts, { force: true });
+            simpaiUiTrace("log", "[UI-TRACE] gallery_browser.request_queued", {
+                folder: opts.folder || requestedFolder || "",
+                mediaType,
+            });
+            return false;
+        } else {
+            return false;
+        }
+    }
+    if (!silentStatus && opts.reset !== false && shouldGuardSurface) keepWelcomePreviewUntilFinishedGalleryReady("gallery_browser_refresh_start");
     const nativeButtonId = opts.reset === false ? "gallery_browser_more_btn" : "gallery_browser_refresh_btn";
-    if (typeof clickGradioButton === "function" && getFinishedGalleryBrowserElement(nativeButtonId)) {
+    if (!shouldPreferBridgeForState && typeof clickGradioButton === "function" && getFinishedGalleryBrowserElement(nativeButtonId)) {
         const nativeRoot = getFinishedGalleryBrowserElement(nativeButtonId);
         const nativeButton = nativeRoot && nativeRoot.matches && nativeRoot.matches("button") ? nativeRoot : nativeRoot?.querySelector?.("button");
         if (nativeButton && nativeButton.disabled) return false;
         return clickGradioButton(nativeButtonId);
     }
     window.clearTimeout(finishedGalleryBrowserBridgeRetryTimer);
-    if (finishedGalleryBrowserState.loading) {
-        if (opts.folder !== undefined || opts.force) {
-            finishedGalleryBrowserState.queuedOptions = Object.assign({}, opts, { force: true });
-        }
-        return false;
-    }
-    const reset = opts.reset !== false;
     if (!reset && !finishedGalleryBrowserState.hasMore) return false;
-    const select = document.querySelector("#finished_gallery_browser_panel [data-gallery-browser-folder]");
     const grid = getFinishedGalleryGridWrap();
-    const requestedFolder = opts.folder !== undefined
-        ? opts.folder
-        : (select && select.value ? select.value : finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder);
-    if (opts.folder !== undefined) {
-        finishedGalleryBrowserState.userFolder = opts.folder;
-        finishedGalleryBrowserState.folder = opts.folder;
-    }
     const requestId = ++finishedGalleryBrowserRequestSeq;
+    if (catalogOpen && !opts.preload) {
+        markFinishedGalleryBrowserCatalogOpenIntent(requestId, "gallery_browser_bridge_request");
+    }
     const payload = {
         media_type: mediaType,
         folder: requestedFolder,
@@ -5955,7 +7623,9 @@ function refreshFinishedGalleryBrowser(options) {
         limit: opts.limit || 36,
         reset: reset,
         query: opts.query || "",
-        request_id: requestId
+        request_id: requestId,
+        silent_status: silentStatus,
+        clear_compare: !(opts.preload || opts.preservePostGenerationCompare)
     };
     if (grid) {
         finishedGalleryBrowserState.restoreScrollTop = reset ? 0 : grid.scrollTop;
@@ -5964,14 +7634,33 @@ function refreshFinishedGalleryBrowser(options) {
     finishedGalleryBrowserState.activeRequestId = requestId;
     finishedGalleryBrowserState.loading = true;
     finishedGalleryBrowserPreloadInFlight = !!opts.preload && !catalogOpen;
+    scheduleFinishedGalleryBrowserRequestWatchdog(requestId, "gallery_browser_bridge_request", 15000);
     syncFinishedGalleryBrowserMoreButton();
-    if (reset && shouldGuardSurface) keepWelcomePreviewUntilFinishedGalleryReady("gallery_browser_bridge_start");
-    setFinishedGalleryBrowserStatus(reset ? "Loading..." : "Loading more...");
+    if (!silentStatus && reset && shouldGuardSurface) keepWelcomePreviewUntilFinishedGalleryReady("gallery_browser_bridge_start");
+    if (!silentStatus) setFinishedGalleryBrowserStatus(reset ? "Loading..." : "Loading more...");
     const body = JSON.stringify(payload);
-    const canSet = typeof setGradioTextboxValue === "function" && setGradioTextboxValue("gallery_browser_payload", body);
+    const canSet = writeFinishedGalleryBrowserPayloadBridge(body, payload);
     const scheduled = canSet && typeof clickGradioButton === "function";
     if (scheduled) {
         window.setTimeout(() => {
+            if (Number(finishedGalleryBrowserState.activeRequestId || 0) !== requestId) {
+                simpaiUiTrace("log", "[UI-TRACE] gallery_browser.payload_bridge_stale_timer_ignored", {
+                    request_id: requestId,
+                    activeRequestId: finishedGalleryBrowserState.activeRequestId || 0,
+                });
+                return;
+            }
+            if (readFinishedGalleryBrowserPayloadBridgeValue() !== body && !writeFinishedGalleryBrowserPayloadBridge(body, payload)) {
+                finishedGalleryBrowserState.loading = false;
+                finishedGalleryBrowserPreloadInFlight = false;
+                syncFinishedGalleryBrowserMoreButton();
+                if (!silentStatus) setFinishedGalleryBrowserStatus("");
+                simpaiUiTrace("warn", "[UI-TRACE] gallery_browser.payload_bridge_write_failed", {
+                    folder: payload.folder,
+                    request_id: payload.request_id,
+                });
+                return;
+            }
             const clicked = clickGradioButton("gallery_browser_load_btn");
             if (clicked) {
                 finishedGalleryBrowserState.bridgeRetryCount = 0;
@@ -5981,7 +7670,7 @@ function refreshFinishedGalleryBrowser(options) {
                 finishedGalleryBrowserState.loading = false;
                 finishedGalleryBrowserPreloadInFlight = false;
                 syncFinishedGalleryBrowserMoreButton();
-                setFinishedGalleryBrowserStatus("");
+                if (!silentStatus) setFinishedGalleryBrowserStatus("");
                 if (opts.retry !== false && finishedGalleryBrowserState.bridgeRetryCount < 8) {
                     finishedGalleryBrowserState.bridgeRetryCount += 1;
                     const retryOpts = Object.assign({}, opts, { delay: 350, retry: true });
@@ -5991,13 +7680,13 @@ function refreshFinishedGalleryBrowser(options) {
                     }, retryOpts.delay);
                 }
             }
-        }, 40);
+        }, 220);
     }
     if (!scheduled) {
         finishedGalleryBrowserState.loading = false;
         finishedGalleryBrowserPreloadInFlight = false;
         syncFinishedGalleryBrowserMoreButton();
-        setFinishedGalleryBrowserStatus("");
+        if (!silentStatus) setFinishedGalleryBrowserStatus("");
         if (opts.retry !== false && finishedGalleryBrowserState.bridgeRetryCount < 8) {
             finishedGalleryBrowserState.bridgeRetryCount += 1;
             const retryOpts = Object.assign({}, opts, { delay: 350, retry: true });
@@ -6010,11 +7699,154 @@ function refreshFinishedGalleryBrowser(options) {
     return !!scheduled;
 }
 
-function markFinishedGalleryBrowserLoading() {
+function computeFinishedGalleryBrowserStepTargetFolder(baseFolder, folders, action) {
+    const folderList = Array.isArray(folders)
+        ? folders.map((item) => normalizeFinishedGalleryBrowserFolderValue(item)).filter(Boolean)
+        : [];
+    const current = normalizeFinishedGalleryBrowserFolderValue(baseFolder || "");
+    if (!current || !folderList.length) return "";
+    const index = folderList.indexOf(current);
+    if (index < 0) return "";
+    const actionText = String(action || "");
+    const delta = /folder\.prev|\.prev/i.test(actionText) ? -1 : (/folder\.next|\.next/i.test(actionText) ? 1 : 0);
+    if (!delta) return "";
+    const targetIndex = Math.max(0, Math.min(folderList.length - 1, index + delta));
+    return folderList[targetIndex] || "";
+}
+
+function markFinishedGalleryBrowserProgrammaticFolderChange(folder, requestId, reason) {
+    const value = normalizeFinishedGalleryBrowserFolderValue(folder || "");
+    if (!value) return false;
+    finishedGalleryBrowserSuppressNativeFolderChangeValue = value;
+    finishedGalleryBrowserSuppressNativeFolderChangeSourceRequestId = Number(requestId || 0);
+    finishedGalleryBrowserSuppressNativeFolderChangeUntil = Date.now() + 1800;
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.native_folder_change_suppressed_mark", {
+        reason: reason || "gallery_browser_native",
+        folder: value,
+        requestId: Number(requestId || 0),
+    });
+    return true;
+}
+
+function shouldIgnoreFinishedGalleryBrowserNativeFolderChange(folder) {
+    const value = normalizeFinishedGalleryBrowserFolderValue(folder || "");
+    if (Date.now() > finishedGalleryBrowserSuppressNativeFolderChangeUntil) return false;
+    const sourceRequestId = Number(finishedGalleryBrowserSuppressNativeFolderChangeSourceRequestId || 0);
+    if (sourceRequestId && Number(finishedGalleryBrowserState.activeRequestId || 0) === sourceRequestId && finishedGalleryBrowserState.loading) {
+        return true;
+    }
+    return !!value && value === finishedGalleryBrowserSuppressNativeFolderChangeValue;
+}
+
+function beginFinishedGalleryBrowserNativeRequest(action, folder, state) {
+    const requestId = ++finishedGalleryBrowserRequestSeq;
+    const reason = action || "gallery_browser.native";
+    const nextState = state && typeof state === "object" ? state : {};
+    try { delete nextState.__main_gallery_browser_request_ignored; } catch (e) {}
+    const stateMode = nextState.__gallery_engine_type || nextState.engine_type;
+    const mediaType = getFinishedGalleryBrowserMode(stateMode);
+    const inputFolder = normalizeFinishedGalleryBrowserFolderValue(folder || "");
+    const stateFolder = normalizeFinishedGalleryBrowserFolderValue(nextState.__main_gallery_browser_folder || finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "");
+    const preferStateFolder = /\.more|gallery_browser\.more|\.refresh|gallery_browser\.refresh|\.prev|gallery_browser\.folder\.prev|\.next|gallery_browser\.folder\.next/.test(String(reason));
+    const normalizedFolder = preferStateFolder ? (stateFolder || inputFolder) : (inputFolder || stateFolder);
+    const stepFolderAction = /\.prev|\.next|folder\.prev|folder\.next/.test(String(reason));
+    const reset = !/\.more|gallery_browser\.more/.test(String(reason));
+    const payloadFolder = stepFolderAction ? "" : normalizedFolder;
+    const stepFolders = stepFolderAction
+        ? (Array.isArray(nextState.__main_gallery_browser_folders) ? nextState.__main_gallery_browser_folders : finishedGalleryBrowserState.folders)
+        : null;
+    const stepTargetFolder = stepFolderAction ? computeFinishedGalleryBrowserStepTargetFolder(normalizedFolder, stepFolders, reason) : "";
+    const statusTargetFolder = stepTargetFolder || payloadFolder || normalizedFolder;
+    const duplicatePendingRequest = isFinishedGalleryBrowserSamePendingRequest(mediaType, statusTargetFolder, reset);
+    const silentStatus = duplicatePendingRequest || shouldSilenceFinishedGalleryBrowserLoadingStatus({}, reset, statusTargetFolder, stateFolder);
+    if (silentStatus) {
+        beginFinishedGalleryBrowserSilentLoadingStatus(getFinishedGalleryBrowserStableStatusText(), reset ? 3200 : 1600);
+    }
+    if (duplicatePendingRequest) {
+        nextState.__main_gallery_browser_request_ignored = true;
+        nextState.__main_gallery_browser_request_id = finishedGalleryBrowserState.activeRequestId || requestId;
+        nextState.__main_gallery_browser_request_action = reason;
+        nextState.__main_gallery_browser_request_folder = statusTargetFolder;
+        nextState.__main_gallery_browser_request_input_folder = inputFolder;
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.native_duplicate_request_suppressed", {
+            request_id: nextState.__main_gallery_browser_request_id,
+            folder: statusTargetFolder,
+            action: reason,
+        });
+        return nextState;
+    }
+    if (/folder\.change/i.test(String(reason)) && shouldIgnoreFinishedGalleryBrowserNativeFolderChange(inputFolder || normalizedFolder)) {
+        finishedGalleryBrowserIgnoredNativeFolderChangeUntil = Date.now() + 2200;
+        finishedGalleryBrowserIgnoredNativeFolderChangeValue = inputFolder || normalizedFolder;
+        nextState.__main_gallery_browser_request_ignored = true;
+        nextState.__main_gallery_browser_request_id = requestId;
+        nextState.__main_gallery_browser_request_action = reason;
+        nextState.__main_gallery_browser_request_folder = inputFolder || normalizedFolder;
+        nextState.__main_gallery_browser_request_input_folder = inputFolder;
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.native_folder_change_suppressed", {
+            request_id: requestId,
+            folder: inputFolder || normalizedFolder,
+            sourceRequestId: finishedGalleryBrowserSuppressNativeFolderChangeSourceRequestId,
+        });
+        return nextState;
+    }
+    finishedGalleryBrowserState.activeRequestId = requestId;
     finishedGalleryBrowserState.loading = true;
-    setFinishedGalleryBrowserHasMediaState(false, "gallery_browser_loading");
+    finishedGalleryBrowserState.pendingPayload = {
+        request_id: requestId,
+        media_type: mediaType,
+        folder: payloadFolder,
+        reset,
+        native_action: reason,
+        silent_status: silentStatus,
+    };
+    finishedGalleryBrowserState.mediaType = mediaType;
+    scheduleFinishedGalleryBrowserRequestWatchdog(requestId, reason, 15000);
+    if (payloadFolder) {
+        finishedGalleryBrowserState.folder = payloadFolder;
+        finishedGalleryBrowserState.userFolder = payloadFolder;
+        persistFinishedGalleryBrowserFolder(payloadFolder);
+    }
+    finishedGalleryBrowserPreloadInFlight = false;
+    nextState.__main_gallery_browser_request_id = requestId;
+    nextState.__main_gallery_browser_request_action = reason;
+    nextState.__main_gallery_browser_request_folder = normalizedFolder;
+    nextState.__main_gallery_browser_request_input_folder = inputFolder;
+    nextState.__main_gallery_browser_request_media_type = mediaType;
+    nextState.__main_gallery_browser_active_request_id = requestId;
+    if (stepFolderAction) {
+        const targetFolder = stepTargetFolder;
+        if (targetFolder && targetFolder !== normalizedFolder) {
+            markFinishedGalleryBrowserProgrammaticFolderChange(targetFolder, requestId, reason);
+        }
+    }
+    window.__simpleaiGalleryBrowserNativeRequest = {
+        request_id: requestId,
+        action: reason,
+        folder: normalizedFolder,
+        media_type: mediaType,
+        started_at: Date.now(),
+    };
+    syncFinishedGalleryBrowserMoreButton();
     const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog");
-    if (!finishedGalleryBrowserPreloadInFlight && (!catalogRoot || isSimpleAIPresetCatalogOpen(catalogRoot))) {
+    const catalogOpen = !catalogRoot || isSimpleAIPresetCatalogOpen(catalogRoot) || Date.now() < simpleAIFinishedCatalogPreparedOpenUntil;
+    if (catalogOpen && !silentStatus) {
+        markFinishedGalleryBrowserCatalogOpenIntent(requestId, reason);
+        keepWelcomePreviewUntilFinishedGalleryReady("gallery_browser_loading");
+    }
+    if (!silentStatus) setFinishedGalleryBrowserStatus(reset ? "Loading..." : "Loading more...");
+    simpaiUiTrace("log", "[UI-TRACE] gallery_browser.native_request_start", window.__simpleaiGalleryBrowserNativeRequest);
+    return nextState;
+}
+window.beginFinishedGalleryBrowserNativeRequest = beginFinishedGalleryBrowserNativeRequest;
+
+function markFinishedGalleryBrowserLoading() {
+    const pending = finishedGalleryBrowserState && finishedGalleryBrowserState.pendingPayload;
+    const silentStatus = !!(pending && pending.silent_status);
+    finishedGalleryBrowserState.loading = true;
+    if (!silentStatus) setFinishedGalleryBrowserHasMediaState(false, "gallery_browser_loading");
+    const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog");
+    if (!silentStatus && !finishedGalleryBrowserPreloadInFlight && (!catalogRoot || isSimpleAIPresetCatalogOpen(catalogRoot))) {
         keepWelcomePreviewUntilFinishedGalleryReady("gallery_browser_loading");
     }
     syncFinishedGalleryBrowserMoreButton();
@@ -6023,6 +7855,7 @@ function markFinishedGalleryBrowserLoading() {
 function syncFinishedGalleryBrowserAfterLoad(stateJson) {
     const data = parseFinishedGalleryBrowserState(stateJson);
     if (data && data.stale) {
+        clearFinishedGalleryBrowserRequestWatchdog();
         finishedGalleryBrowserState.loading = false;
         finishedGalleryBrowserPreloadInFlight = false;
         finishedGalleryBrowserState.pendingPayload = null;
@@ -6031,45 +7864,145 @@ function syncFinishedGalleryBrowserAfterLoad(stateJson) {
         syncFinishedGalleryBrowserMoreButton();
         setFinishedGalleryBrowserStatus("");
         try { closeSimpleAIOpenGalleriesForPresetSwitch("gallery_browser_stale_after_preset", { suppressMs: 700 }); } catch (e) {}
-        return;
+        return false;
     }
     if (data && data.request_id && Number(data.request_id) !== finishedGalleryBrowserState.activeRequestId) {
-        return;
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.stale_load_ignored", {
+            request_id: data.request_id,
+            activeRequestId: finishedGalleryBrowserState.activeRequestId,
+        });
+        return false;
     }
     finishedGalleryBrowserState.loading = false;
     finishedGalleryBrowserPreloadInFlight = false;
+    clearFinishedGalleryBrowserRequestWatchdog();
     if (!data) {
         setFinishedGalleryBrowserStatus("Browser state parse failed.", true);
         syncFinishedGalleryBrowserMoreButton();
-        return;
+        return false;
     }
     if (data.ok === false) {
         setFinishedGalleryBrowserStatus(data.error || "Media browser failed.", true);
         syncFinishedGalleryBrowserMoreButton();
-        return;
+        return true;
     }
+    const pendingPayload = finishedGalleryBrowserState.pendingPayload;
+    const pendingFolder = pendingPayload && pendingPayload.folder;
+    const pendingRequestId = Number(pendingPayload && pendingPayload.request_id || 0);
+    const responseRequestId = Number(data.request_id || pendingRequestId || finishedGalleryBrowserState.activeRequestId || 0);
+    finishedGalleryBrowserState.pendingPayload = null;
     const queuedBeforeApply = finishedGalleryBrowserState.queuedOptions;
     if (queuedBeforeApply && queuedBeforeApply.folder !== undefined && queuedBeforeApply.folder !== data.folder) {
         finishedGalleryBrowserState.queuedOptions = null;
         refreshFinishedGalleryBrowser(queuedBeforeApply);
-        return;
+        return false;
     }
-    const pendingFolder = finishedGalleryBrowserState.pendingPayload && finishedGalleryBrowserState.pendingPayload.folder;
-    const resolvedFolder = pendingFolder || data.folder || finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "";
-    const loadedMediaType = data.media_type || finishedGalleryBrowserState.mediaType;
+    const dataFolder = normalizeFinishedGalleryBrowserFolderValue(data.folder || "");
+    const pendingFolderNormalized = normalizeFinishedGalleryBrowserFolderValue(pendingFolder || "");
+    if (pendingRequestId && data.request_id && Number(data.request_id) !== pendingRequestId) {
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.bridge_request_mismatch_ignored", {
+            request_id: data.request_id,
+            pendingRequestId,
+            dataFolder,
+            pendingFolder: pendingFolderNormalized,
+        });
+        syncFinishedGalleryBrowserMoreButton();
+        return false;
+    }
+    if (pendingFolderNormalized && dataFolder && dataFolder !== pendingFolderNormalized) {
+        simpaiUiTrace("warn", "[UI-TRACE] gallery_browser.folder_response_mismatch_ignored", {
+            dataFolder,
+            pendingFolder: pendingFolderNormalized,
+            request_id: data.request_id || null,
+            pendingRequestId,
+        });
+        finishedGalleryBrowserState.folder = pendingFolderNormalized;
+        finishedGalleryBrowserState.userFolder = pendingFolderNormalized;
+        setFinishedGalleryBrowserNativeFolderDisplay(pendingFolderNormalized);
+        const retryKey = `${pendingFolderNormalized}|${finishedGalleryBrowserState.mediaType || data.media_type || ""}`;
+        const canRetry = finishedGalleryBrowserState.bridgeMismatchRetryKey !== retryKey
+            || Number(finishedGalleryBrowserState.bridgeMismatchRetryCount || 0) < 1;
+        finishedGalleryBrowserState.bridgeMismatchRetryKey = retryKey;
+        finishedGalleryBrowserState.bridgeMismatchRetryCount = Number(finishedGalleryBrowserState.bridgeMismatchRetryCount || 0) + 1;
+        if (canRetry) {
+            if (!pendingPayload?.silent_status && !isFinishedGalleryBrowserLoadingStatusVisible()) {
+                setFinishedGalleryBrowserStatus("Loading...");
+            }
+            if (!pendingPayload?.silent_status) keepWelcomePreviewUntilFinishedGalleryReady("gallery_browser_loading");
+            window.setTimeout(() => {
+                refreshFinishedGalleryBrowser({
+                    folder: pendingFolderNormalized,
+                    reset: true,
+                    force: true,
+                    preferBridge: true,
+                    retry: false,
+                    silentStatus: true,
+                });
+            }, 260);
+        } else {
+            if (!pendingPayload?.silent_status) setFinishedGalleryBrowserStatus("");
+            try { releaseFinishedGalleryWelcomeGuard(false, "gallery_browser_response_mismatch_retry_exhausted"); } catch (e) {}
+        }
+        syncFinishedGalleryBrowserMoreButton();
+        return false;
+    }
+    const resolvedFolder = dataFolder || pendingFolderNormalized || finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "";
+    const loadedMediaType = getFinishedGalleryBrowserMode(data.media_type || finishedGalleryBrowserState.mediaType);
+    const activeMediaLock = getActiveGalleryMediaSwitchLock();
+    if (activeMediaLock && activeMediaLock.mode && activeMediaLock.mode !== loadedMediaType) {
+        finishedGalleryBrowserState.loading = false;
+        finishedGalleryBrowserPreloadInFlight = false;
+        finishedGalleryBrowserState.pendingPayload = null;
+        syncFinishedGalleryBrowserMoreButton();
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.media_lock_response_ignored", {
+            responseMode: loadedMediaType,
+            requestedMode: activeMediaLock.mode,
+            folder: resolvedFolder,
+            request_id: data.request_id || null,
+        });
+        window.setTimeout(() => {
+            refreshFinishedGalleryBrowserLatest({
+                folder: resolvedFolder,
+                mediaType: activeMediaLock.mode,
+            }, "media_switch_locked_mode_after_load");
+        }, 0);
+        return false;
+    }
     if (!shouldSkipGalleryMediaSwitchCallback(loadedMediaType, { source: "browser_after_load" })) {
         finishedGalleryBrowserState.mediaType = loadedMediaType;
     }
     finishedGalleryBrowserState.folder = resolvedFolder;
     finishedGalleryBrowserState.userFolder = resolvedFolder;
+    finishedGalleryBrowserState.bridgeMismatchRetryKey = "";
+    finishedGalleryBrowserState.bridgeMismatchRetryCount = 0;
     finishedGalleryBrowserState.loaded = Number(data.loaded || 0);
     finishedGalleryBrowserState.hasMore = !!data.has_more;
     finishedGalleryBrowserState.nextOffset = Number(data.next_offset || finishedGalleryBrowserState.loaded || 0);
     if (Array.isArray(data.folders)) finishedGalleryBrowserState.folders = data.folders;
+    if (Array.isArray(data.paths)) finishedGalleryBrowserState.paths = data.paths;
+    if (data.dimensions && typeof data.dimensions === "object") {
+        mergeFinishedGalleryBrowserDimensions(data.dimensions, true);
+    }
     updateFinishedGalleryBrowserFolders(Object.assign({}, data, { folder: resolvedFolder }));
+    syncFinishedGalleryBrowserTopbarState(Object.assign({}, data, { folder: resolvedFolder }), "gallery_browser_after_load");
     setFinishedGalleryBrowserStatus(simpleAIGalleryBrowserCountStatus(finishedGalleryBrowserState.loaded, finishedGalleryBrowserState.mediaType));
+    scheduleFinishedGalleryBrowserCatalogLabelSync(
+        data.finished_nums_pages || data.finishedNumsPages || "",
+        finishedGalleryBrowserState.mediaType,
+        "gallery_browser_after_load",
+        responseRequestId
+    );
     try { syncGalleryMediaSwitch(finishedGalleryBrowserState.mediaType, 0, "browser_after_load"); } catch (e) {}
+    restoreFinishedGalleryBrowserCatalogOpenAfterLoad(responseRequestId, "gallery_browser_after_load");
+    const catalogRootAfterRestore = getFinishedGalleryBrowserElement("finished_images_catalog");
+    if (catalogRootAfterRestore && !isSimpleAIPresetCatalogOpen(catalogRootAfterRestore)) {
+        try { closeSimpleAICatalogLinkedGallery("gallery_browser_after_load_catalog_closed", { resetBrowserState: false }); } catch (e) {}
+        try { collapseFinishedImagesCatalogClosedHitbox("gallery_browser_after_load_catalog_closed"); } catch (e) {}
+        syncFinishedGalleryBrowserMoreButton();
+        return true;
+    }
     if (finishedGalleryBrowserState.loaded > 0) {
+        releaseFinishedGalleryBrowserRenderedMediaEmpty("gallery_browser_after_load");
         setFinishedGalleryBrowserHasMediaState(true, "gallery_browser_after_load");
         try { clearPostGenerationSupportSurface(); } catch (e) {}
         const catalogRoot = getFinishedGalleryBrowserElement("finished_images_catalog");
@@ -6077,6 +8010,7 @@ function syncFinishedGalleryBrowserAfterLoad(stateJson) {
             settleFinishedGalleryWelcomeGuardAfterLoad("gallery_browser_after_load");
         }
     } else {
+        markFinishedGalleryBrowserRenderedMediaEmpty("gallery_browser_after_load_empty");
         if (shouldDeferEmptyGalleryBrowserRestoreDuringOpen("gallery_browser_after_load_empty")) {
             deferEmptyGalleryBrowserRestoreDuringOpen("gallery_browser_after_load_empty_deferred");
         } else {
@@ -6084,6 +8018,8 @@ function syncFinishedGalleryBrowserAfterLoad(stateJson) {
         }
     }
     syncFinishedGalleryBrowserMoreButton();
+    syncFinishedGalleryResolutionBadges("gallery_browser_after_load");
+    scheduleFinishedGalleryResolutionBadges("gallery_browser_after_load");
     window.setTimeout(() => {
         const grid = getFinishedGalleryGridWrap();
         if (grid && typeof finishedGalleryBrowserState.restoreScrollTop === "number") {
@@ -6098,17 +8034,244 @@ function syncFinishedGalleryBrowserAfterLoad(stateJson) {
         if (queued && (queued.folder !== undefined || queued.force)) {
             refreshFinishedGalleryBrowser(queued);
         }
+        scheduleFinishedGalleryResolutionBadges("gallery_browser_after_load_settled");
     }, 120);
+    return true;
+}
+
+function syncFinishedGalleryBrowserAfterMediaSwitch(browserStateJson, stat, mode, state, reason) {
+    if (arguments.length < 5) {
+        reason = state;
+        state = mode;
+        mode = stat;
+        stat = browserStateJson;
+        browserStateJson = "";
+    }
+    const browserData = parseFinishedGalleryBrowserState(browserStateJson);
+    if (browserData && browserData.ok !== false && (browserData.folder || browserData.media_type || Array.isArray(browserData.paths))) {
+        const dataMode = getFinishedGalleryBrowserMode(browserData.media_type || mode);
+        const dataFolder = normalizeFinishedGalleryBrowserFolderValue(browserData.folder || "");
+        const dataPaths = Array.isArray(browserData.paths) ? browserData.paths : [];
+        const dataLoaded = Number.isFinite(Number(browserData.loaded)) ? Number(browserData.loaded) : dataPaths.length;
+        const data = Object.assign({}, browserData, {
+            media_type: dataMode,
+            folder: dataFolder || finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "",
+            loaded: Math.max(0, Math.floor(dataLoaded)),
+            paths: dataPaths,
+            dimensions: browserData.dimensions && typeof browserData.dimensions === "object" ? browserData.dimensions : {},
+            folders: Array.isArray(browserData.folders) ? browserData.folders : finishedGalleryBrowserState.folders,
+            next_offset: browserData.next_offset || dataLoaded,
+            has_more: !!browserData.has_more,
+        });
+        if (!data.request_id) delete data.request_id;
+        const applied = syncFinishedGalleryBrowserAfterLoad(JSON.stringify(data));
+        if (applied !== false) {
+            try { scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery(dataMode, reason || "gallery_media_switch"); } catch (e) {}
+            return true;
+        }
+    }
+    const previousMediaType = finishedGalleryBrowserState.mediaType;
+    const previousLoaded = Number(finishedGalleryBrowserState.loaded || 0);
+    const renderedCount = countRenderedFinishedGalleryItems();
+    const params = state && typeof state === "object"
+        ? mergeSimpleAITopbarSystemParamsForGallery(state, reason || "gallery_media_switch")
+        : (topbarLastSystemParams || window.simpleaiTopbarSystemParams || {});
+    const mediaType = getFinishedGalleryBrowserMode(mode || (params && (params.__gallery_engine_type || params.engine_type)));
+    const statTotal = parseFinishedGalleryStatTotal(stat || (params && params.__finished_nums_pages));
+    const statePaths = Array.isArray(params && params.__main_gallery_browser_paths) ? params.__main_gallery_browser_paths : null;
+    const stateFolders = Array.isArray(params && params.__main_gallery_browser_folders) ? params.__main_gallery_browser_folders : null;
+    const stateDimensions = params && params.__main_gallery_browser_dimensions && typeof params.__main_gallery_browser_dimensions === "object"
+        ? params.__main_gallery_browser_dimensions
+        : null;
+    const paramsFolder = normalizeFinishedGalleryBrowserFolderValue(params && params.__main_gallery_browser_folder || "");
+    const folder = paramsFolder || finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "";
+    const mainBrowserActive = !!(params && params.gallery_state === "main_browser");
+    if (!mainBrowserActive) {
+        finishedGalleryBrowserState.loading = false;
+        finishedGalleryBrowserState.pendingPayload = null;
+        finishedGalleryBrowserState.queuedOptions = null;
+        finishedGalleryBrowserState.restoreScrollTop = null;
+        finishedGalleryBrowserState.mediaType = mediaType;
+        finishedGalleryBrowserState.folder = "";
+        finishedGalleryBrowserState.userFolder = "";
+        finishedGalleryBrowserState.paths = [];
+        finishedGalleryBrowserState.dimensions = {};
+        finishedGalleryBrowserState.loaded = statTotal !== null ? statTotal : 0;
+        finishedGalleryBrowserState.nextOffset = 0;
+        finishedGalleryBrowserState.hasMore = false;
+        finishedGalleryBrowserPreloadInFlight = false;
+        clearFinishedGalleryBrowserParamsForResultState(params, reason || "gallery_media_switch.index");
+        syncFinishedGalleryBrowserMoreButton();
+        setFinishedGalleryBrowserStatus("");
+        try { setFinishedGalleryBrowserNativeFolderDisplay(""); } catch (e) {}
+        try { syncGalleryMediaSwitch(mediaType, 0, reason || "gallery_media_switch.index"); } catch (e) {}
+        syncFinishedGalleryResolutionBadges(reason || "gallery_media_switch.index");
+        scheduleFinishedGalleryResolutionBadges(reason || "gallery_media_switch.index");
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.media_switch_index_state", {
+            reason: reason || "gallery_media_switch",
+            mediaType,
+            statTotal,
+        });
+        return true;
+    }
+    const staleEmptyStatePaths = mainBrowserActive
+        && statePaths
+        && statePaths.length === 0
+        && previousMediaType === mediaType
+        && previousLoaded > 0
+        && renderedCount > 0;
+    const usableStatePaths = staleEmptyStatePaths ? null : statePaths;
+    if (mainBrowserActive) {
+        finishedGalleryBrowserState.loading = false;
+        finishedGalleryBrowserState.pendingPayload = null;
+        finishedGalleryBrowserState.queuedOptions = null;
+        finishedGalleryBrowserState.mediaType = mediaType;
+        finishedGalleryBrowserState.folder = folder;
+        finishedGalleryBrowserState.userFolder = folder;
+        if (stateFolders) finishedGalleryBrowserState.folders = stateFolders;
+        if (usableStatePaths) {
+            finishedGalleryBrowserState.paths = usableStatePaths;
+            finishedGalleryBrowserState.loaded = usableStatePaths.length;
+        }
+        if (stateDimensions) mergeFinishedGalleryBrowserDimensions(stateDimensions, true);
+        syncFinishedGalleryBrowserTopbarState({
+            media_type: mediaType,
+            folder,
+            paths: usableStatePaths || finishedGalleryBrowserState.paths || [],
+            dimensions: stateDimensions || finishedGalleryBrowserState.dimensions || {},
+            folders: stateFolders || finishedGalleryBrowserState.folders || [],
+            next_offset: params && params.__main_gallery_browser_next_offset,
+            has_more: !!(params && params.__main_gallery_browser_has_more),
+        }, reason || "gallery_media_switch");
+        syncFinishedGalleryBrowserMoreButton();
+    }
+    const loaded = mainBrowserActive
+        ? (usableStatePaths ? usableStatePaths.length : (mediaType === previousMediaType ? Number(finishedGalleryBrowserState.loaded || previousLoaded || 0) : 0))
+        : (statTotal !== null ? statTotal : (usableStatePaths ? usableStatePaths.length : 0));
+    finishedGalleryBrowserState.loading = false;
+    finishedGalleryBrowserState.pendingPayload = null;
+    finishedGalleryBrowserState.queuedOptions = null;
+    finishedGalleryBrowserState.mediaType = mediaType;
+    finishedGalleryBrowserState.folder = folder;
+    finishedGalleryBrowserState.userFolder = folder;
+    finishedGalleryBrowserState.loaded = Number(loaded || 0);
+    finishedGalleryBrowserState.hasMore = !!(params && params.__main_gallery_browser_has_more) && mediaType === (params.__gallery_engine_type || params.engine_type);
+    finishedGalleryBrowserState.nextOffset = Number((params && params.__main_gallery_browser_next_offset) || finishedGalleryBrowserState.loaded || 0);
+    if (stateFolders) finishedGalleryBrowserState.folders = stateFolders;
+    if (usableStatePaths) finishedGalleryBrowserState.paths = usableStatePaths;
+    if (stateDimensions) mergeFinishedGalleryBrowserDimensions(stateDimensions, true);
+    const topbarData = { media_type: mediaType, folder };
+    if (usableStatePaths) topbarData.paths = usableStatePaths;
+    else if (finishedGalleryBrowserState.loaded === 0) topbarData.paths = [];
+    topbarData.dimensions = stateDimensions || finishedGalleryBrowserState.dimensions || {};
+    if (stateFolders) topbarData.folders = stateFolders;
+    syncFinishedGalleryBrowserTopbarState(topbarData, reason || "gallery_media_switch");
+    setFinishedGalleryBrowserStatus(simpleAIGalleryBrowserCountStatus(finishedGalleryBrowserState.loaded, mediaType));
+    scheduleFinishedGalleryBrowserCatalogLabelSync(stat || (params && params.__finished_nums_pages) || "", mediaType, reason || "gallery_media_switch", params && params.__main_gallery_browser_request_id);
+    restoreFinishedGalleryBrowserCatalogOpenAfterLoad(params && params.__main_gallery_browser_request_id, reason || "gallery_media_switch");
+    if (finishedGalleryBrowserState.loaded > 0) {
+        releaseFinishedGalleryBrowserRenderedMediaEmpty(reason || "gallery_media_switch");
+        setFinishedGalleryBrowserHasMediaState(true, reason || "gallery_media_switch");
+        settleFinishedGalleryWelcomeGuardAfterLoad(reason || "gallery_media_switch");
+    } else {
+        markFinishedGalleryBrowserRenderedMediaEmpty(reason || "gallery_media_switch_empty");
+        restoreWelcomePreviewForEmptyGalleryBrowser(reason || "gallery_media_switch_empty");
+    }
+    syncFinishedGalleryBrowserMoreButton();
+    syncFinishedGalleryResolutionBadges(reason || "gallery_media_switch");
+    scheduleFinishedGalleryResolutionBadges(reason || "gallery_media_switch");
+    return true;
+}
+window.syncFinishedGalleryBrowserAfterMediaSwitch = syncFinishedGalleryBrowserAfterMediaSwitch;
+
+function getFinishedGalleryBrowserFolderFromPath(pathValue) {
+    const parts = String(pathValue || "").replace(/\\/g, "/").split("/").filter(Boolean);
+    return parts.length >= 2 ? parts[parts.length - 2] : "";
+}
+
+function inferFinishedGalleryBrowserNativeFolder(params, folders, reason) {
+    const nativeRequest = window.__simpleaiGalleryBrowserNativeRequest || {};
+    const action = String(reason || nativeRequest.action || "");
+    const requestFolder = normalizeFinishedGalleryBrowserFolderValue(nativeRequest.folder || "");
+    let folder = normalizeFinishedGalleryBrowserFolderValue(params && params.__main_gallery_browser_folder || finishedGalleryBrowserState.folder || "");
+    if (/folder\.change/i.test(action) && requestFolder) return requestFolder;
+    const baseFolder = requestFolder || folder;
+    const folderList = Array.isArray(folders) ? folders.map((item) => normalizeFinishedGalleryBrowserFolderValue(item)).filter(Boolean) : [];
+    const index = folderList.indexOf(baseFolder);
+    if (/folder\.next/i.test(action) && index >= 0 && index + 1 < folderList.length) {
+        folder = folderList[index + 1];
+    } else if (/folder\.prev/i.test(action) && index > 0) {
+        folder = folderList[index - 1];
+    }
+    return folder;
 }
 
 function syncFinishedGalleryBrowserAfterNativeLoad(stat, state, reason) {
-    const params = mergeSimpleAITopbarSystemParamsForGallery(state && typeof state === "object" ? state : {}, reason || "gallery_browser_native");
+    const rawState = state && typeof state === "object" ? state : {};
+    if (/folder\.change/i.test(String(reason || ""))
+        && Date.now() < finishedGalleryBrowserIgnoredNativeFolderChangeUntil
+        && !rawState.__main_gallery_browser_request_id) {
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.native_folder_change_followup_ignored", {
+            reason: reason || "gallery_browser_native",
+            folder: finishedGalleryBrowserIgnoredNativeFolderChangeValue,
+        });
+        return false;
+    }
+    if (rawState.__main_gallery_browser_noop_response || rawState.__main_gallery_browser_request_ignored) {
+        try { delete rawState.__main_gallery_browser_noop_response; } catch (e) {}
+        try { delete rawState.__main_gallery_browser_request_ignored; } catch (e) {}
+        try { delete rawState.__main_gallery_browser_request_folder; } catch (e) {}
+        try { delete rawState.__main_gallery_browser_request_input_folder; } catch (e) {}
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.native_noop_ignored", {
+            reason: reason || "gallery_browser_native",
+        });
+        return false;
+    }
+    const requestId = Number(rawState.__main_gallery_browser_request_id || 0);
+    if (requestId && finishedGalleryBrowserState.activeRequestId && requestId !== Number(finishedGalleryBrowserState.activeRequestId || 0)) {
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.native_stale_ignored", {
+            reason: reason || "gallery_browser_native",
+            requestId,
+            activeRequestId: finishedGalleryBrowserState.activeRequestId,
+        });
+        window.setTimeout(() => {
+            try {
+                const folder = finishedGalleryBrowserState.userFolder || finishedGalleryBrowserState.folder || "";
+                if (folder) refreshFinishedGalleryBrowser({ folder, reset: true, force: true, silentStatus: true });
+            } catch (e) {}
+        }, 0);
+        return false;
+    }
+    const params = mergeSimpleAITopbarSystemParamsForGallery(rawState, reason || "gallery_browser_native");
     const mode = (params && (params.__gallery_engine_type || params.engine_type)) || getFinishedGalleryBrowserMode();
     const nativeStatusText = String(stat || "");
     const nativeStatusCount = nativeStatusText.indexOf(",") === -1 ? parseFinishedCatalogCount(nativeStatusText) : null;
     const hasPathList = Array.isArray(params.__main_gallery_browser_paths);
-    const paths = hasPathList ? params.__main_gallery_browser_paths : [];
+    let paths = hasPathList ? params.__main_gallery_browser_paths : (Array.isArray(finishedGalleryBrowserState.paths) ? finishedGalleryBrowserState.paths : []);
+    const folders = Array.isArray(params.__main_gallery_browser_folders) ? params.__main_gallery_browser_folders : finishedGalleryBrowserState.folders;
+    const dimensions = params.__main_gallery_browser_dimensions && typeof params.__main_gallery_browser_dimensions === "object"
+        ? params.__main_gallery_browser_dimensions
+        : (finishedGalleryBrowserState.dimensions || {});
+    const resolvedFolder = inferFinishedGalleryBrowserNativeFolder(params, folders, reason);
+    const firstPathFolder = getFinishedGalleryBrowserFolderFromPath(paths && paths[0]);
+    if (resolvedFolder && firstPathFolder && firstPathFolder !== resolvedFolder) {
+        paths = [];
+    }
+    const moreAction = /\.more|gallery_browser\.more/.test(String(reason || (window.__simpleaiGalleryBrowserNativeRequest || {}).action || ""));
+    const preserveExistingMorePage = moreAction
+        && nativeStatusCount === 0
+        && Array.isArray(paths)
+        && paths.length > 0
+        && (!resolvedFolder || !firstPathFolder || firstPathFolder === resolvedFolder);
     let loaded = nativeStatusCount !== null ? nativeStatusCount : (hasPathList ? paths.length : null);
+    if (preserveExistingMorePage) {
+        loaded = paths.length;
+        simpaiUiTrace("warn", "[UI-TRACE] gallery_browser.native_more_empty_preserved", {
+            reason: reason || "gallery_browser_native",
+            folder: resolvedFolder,
+            loaded,
+        });
+    }
     if (loaded === null) {
         const statusRoot = getFinishedGalleryBrowserElement("gallery_browser_status");
         const statusText = statusRoot ? String(statusRoot.textContent || "") : "";
@@ -6119,22 +8282,46 @@ function syncFinishedGalleryBrowserAfterNativeLoad(stat, state, reason) {
         loaded = countExistingFinishedGalleryMedia() || 0;
     }
     if (loaded === null) loaded = 0;
-    finishedGalleryBrowserState.pendingPayload = null;
     const data = {
         ok: true,
         media_type: mode,
-        folder: params.__main_gallery_browser_folder || finishedGalleryBrowserState.folder || "",
+        folder: resolvedFolder,
         loaded,
+        paths,
+        dimensions,
+        folders,
         next_offset: params.__main_gallery_browser_next_offset || loaded,
-        has_more: !!params.__main_gallery_browser_has_more,
+        has_more: loaded >= 36 && !!params.__main_gallery_browser_has_more,
+        request_id: requestId || finishedGalleryBrowserState.activeRequestId || null,
     };
-    syncFinishedGalleryBrowserAfterLoad(JSON.stringify(data));
+    const missingNativeStatePaths = !!resolvedFolder
+        && loaded > 0
+        && (!hasPathList || !Array.isArray(paths) || !paths.length);
+    const needsCompleteStateBridgeRefresh = !!resolvedFolder && (
+        missingNativeStatePaths
+        || (loaded >= 36 && (!Array.isArray(paths) || !paths.length || !Array.isArray(folders) || !folders.length))
+    );
+    const applied = syncFinishedGalleryBrowserAfterLoad(JSON.stringify(data));
+    if (applied === false) return false;
+    scheduleFinishedGalleryBrowserCatalogLabelSync(
+        params.__finished_nums_pages || stat || "",
+        mode,
+        reason || "gallery_browser_native",
+        requestId || finishedGalleryBrowserState.activeRequestId || 0
+    );
+    if (preserveExistingMorePage || needsCompleteStateBridgeRefresh) {
+        window.setTimeout(() => {
+            refreshFinishedGalleryBrowser({ folder: resolvedFolder, reset: true, force: true, preferBridge: true, silentStatus: true });
+        }, 0);
+    }
     try { scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery(mode, reason || "gallery_browser_native"); } catch (e) {}
     simpaiUiTrace("log", "[UI-TRACE] gallery_browser.native_after_load", {
         reason: reason || "gallery_browser_native",
         loaded,
         mode,
+        requestId,
     });
+    return true;
 }
 
 function bindFinishedGalleryBrowserScroll() {
@@ -6142,6 +8329,7 @@ function bindFinishedGalleryBrowserScroll() {
     if (!grid || grid.__simpleaiMainGalleryBrowserScrollBound) return;
     grid.__simpleaiMainGalleryBrowserScrollBound = true;
     grid.addEventListener("scroll", () => {
+        if (isFinishedGalleryBrowserRequestBusy()) return;
         const moreRoot = getFinishedGalleryBrowserElement("gallery_browser_more_btn");
         const moreButton = moreRoot && moreRoot.matches && moreRoot.matches("button") ? moreRoot : moreRoot?.querySelector?.("button");
         if (!moreButton || moreButton.disabled) return;
@@ -6152,30 +8340,84 @@ function bindFinishedGalleryBrowserScroll() {
     }, { passive: true });
 }
 
+function bindFinishedGalleryBrowserNativeMoreBridge() {
+    const root = getFinishedGalleryBrowserElement("gallery_browser_more_btn") || document.getElementById("gallery_browser_more_btn");
+    const button = root && root.matches && root.matches("button") ? root : root?.querySelector?.("button");
+    if (!button || button.__simpleaiGalleryBrowserMoreBridgeBound) return false;
+    button.__simpleaiGalleryBrowserMoreBridgeBound = true;
+    button.addEventListener("click", (event) => {
+        if (finishedGalleryBrowserState.loading || finishedGalleryBrowserState.pendingPayload || !finishedGalleryBrowserState.hasMore) return;
+        if (button.disabled || button.getAttribute("aria-disabled") === "true") return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        clearSimpleAIPresetSwitchGalleryHidden("gallery_browser_more_bridge");
+        refreshFinishedGalleryBrowser({ reset: false, force: true, preferBridge: true });
+    }, true);
+    return true;
+}
+
 function bindFinishedGalleryBrowserControls() {
+    bindFinishedGalleryBrowserBusyControlGuard();
     const ready = syncFinishedGalleryBrowserControls();
     if (!ready) return;
     bindFinishedGalleryBrowserScroll();
+    bindFinishedGalleryBrowserNativeMoreBridge();
+    bindFinishedGalleryResolutionBadgeObserver();
     const root = getFinishedGalleryBrowserElement("finished_images_catalog");
     const label = root ? root.querySelector(":scope > button.label-wrap") || root.querySelector("button.label-wrap") : null;
     if (label && !label.__simpleaiGalleryBrowserOpenBound) {
         label.__simpleaiGalleryBrowserOpenBound = true;
         label.addEventListener("click", () => {
+            try {
+                label.__simpleaiGalleryBrowserWasOpenBeforeClick = !!(root && isSimpleAIPresetCatalogBodyVisible(root));
+            } catch (e) {
+                label.__simpleaiGalleryBrowserWasOpenBeforeClick = false;
+            }
+        }, true);
+        label.addEventListener("click", () => {
+            window.clearTimeout(finishedGalleryBrowserEarlyOpenRefreshTimer);
+            finishedGalleryBrowserEarlyOpenRefreshTimer = null;
+            const wasOpenBeforeClick = !!label.__simpleaiGalleryBrowserWasOpenBeforeClick;
             window.setTimeout(() => {
                 const latestRoot = getFinishedGalleryBrowserElement("finished_images_catalog") || root;
-                if (!isSimpleAIPresetCatalogOpen(latestRoot)) {
-                    closeSimpleAICatalogLinkedGallery("catalog_toggle_close");
+                const preparedOpen = Date.now() < simpleAIFinishedCatalogPreparedOpenUntil;
+                const preparedClose = Date.now() < simpleAIFinishedCatalogPreparedCloseUntil;
+                if (wasOpenBeforeClick || preparedClose) {
+                    simpleAIFinishedCatalogPreparedOpenUntil = 0;
+                    simpleAIFinishedCatalogPreparedCloseUntil = Date.now() + 700;
+                    if (latestRoot) {
+                        try { collapseSimpleAIFinishedGalleryCatalog(latestRoot); } catch (e) {}
+                    }
+                    closeSimpleAICatalogLinkedGallery("catalog_toggle_close", { resetBrowserState: false });
                     return;
                 }
+                if (!isSimpleAIPresetCatalogOpen(latestRoot) && !preparedOpen) {
+                    if (latestRoot) {
+                        ensureSimpleAIPresetCatalogOpen(latestRoot, "catalog_toggle_open_click_state");
+                    }
+                }
+                if (preparedOpen && latestRoot && !isSimpleAIPresetCatalogOpen(latestRoot)) {
+                    ensureSimpleAIPresetCatalogOpen(latestRoot, "catalog_toggle_open_prepared");
+                }
+                simpleAIFinishedCatalogPreparedCloseUntil = 0;
+                finishedGalleryBrowserLabelRefreshPausedUntil = Date.now() + 1800;
+                window.clearTimeout(finishedGalleryBrowserRefreshTimer);
+                finishedGalleryBrowserRefreshTimer = null;
                 keepWelcomePreviewUntilFinishedGalleryReady("catalog_toggle_open");
                 clearSimpleAICatalogLinkedGalleryHidden("catalog_toggle_open");
                 const folder = getFinishedGalleryBrowserElement("gallery_browser_folder");
                 const select = folder ? folder.querySelector("select") : null;
+                const selectedFolder = folder ? readGalleryBrowserFolderValue(folder) : "";
+                const requestedFolder = selectedFolder || (select && select.value ? select.value : "") || "";
+                const currentParams = topbarLastSystemParams || window.simpleaiTopbarSystemParams || {};
+                const shouldPreferBridge = shouldPreferFinishedGalleryBrowserBridge(currentParams, requestedFolder);
                 refreshFinishedGalleryBrowser({
                     reset: true,
                     force: true,
                     allowClosedCatalog: true,
-                    folder: select && select.value ? select.value : undefined,
+                    preferBridge: shouldPreferBridge,
+                    folder: requestedFolder || undefined,
                 });
             }, 30);
         });
@@ -6188,6 +8430,14 @@ function bindFinishedGalleryBrowserControls() {
 
 function scheduleFinishedGalleryBrowserRefresh(mediaType) {
     if (isSimpleAIPresetGallerySuppressed()) return false;
+    if (isFinishedGalleryBrowserRequestBusy() || Date.now() < finishedGalleryBrowserLabelRefreshPausedUntil) {
+        simpaiUiTrace("log", "[UI-TRACE] gallery_browser.label_refresh_skipped_during_open", {
+            mediaType: mediaType || "",
+            loading: !!(finishedGalleryBrowserState && finishedGalleryBrowserState.loading),
+            pending: !!(finishedGalleryBrowserState && finishedGalleryBrowserState.pendingPayload),
+        });
+        return false;
+    }
     const mode = getFinishedGalleryBrowserMode(mediaType);
     const request = window.__simpleaiGalleryMediaSwitchRequest || null;
     const guard = {
@@ -8464,6 +10714,7 @@ function revealPostGenerationResultNode(node, displayValue) {
 function ensurePostGenerationImageSurface(resultEl, reason) {
     const gallery = resultEl || getSimpleAIAppElement("finished_gallery");
     if (!gallery || !gallery.closest) return false;
+    try { document.documentElement.classList.remove("simpai-main-gallery-browser-closed"); } catch (e) {}
     try { clearPostGenerationSupportSurface(); } catch (e) {}
     const row = gallery.closest(".row");
     const form = gallery.closest(".form, .block");
@@ -8518,6 +10769,105 @@ function ensurePostGenerationImageSurface(resultEl, reason) {
     });
     return true;
 }
+
+function preparePostGenerationComparisonSurfaceState(params, reason) {
+    const reasonText = reason || "comparison_surface";
+    try { clearFinishedGalleryBrowserCatalogOpenIntent(reasonText); } catch (e) {}
+    let preparedParams = null;
+    try {
+        preparedParams = params && typeof params === "object"
+            ? clearFinishedGalleryBrowserParamsForIndexState(params, reasonText)
+            : null;
+        if (preparedParams) {
+            preparedParams.gallery_state = "finished_index";
+            preparedParams.gallery_preview_open = true;
+            preparedParams.__post_generation_has_output = true;
+            preparedParams.__post_generation_gallery_output = true;
+            preparedParams.__post_generation_video_output = false;
+            preparedParams.__post_generation_compare_ready = true;
+            preparedParams.__post_generation_compare_visible = true;
+            preparedParams.__post_generation_compare_cleared = false;
+            topbarLastSystemParams = preparedParams;
+            window.simpleaiTopbarSystemParams = preparedParams;
+        } else {
+            resetFinishedGalleryBrowserRuntimeForResultState(reasonText);
+        }
+    } catch (e) {}
+    try {
+        finishedGalleryBrowserState.loading = false;
+        finishedGalleryBrowserState.pendingPayload = null;
+        finishedGalleryBrowserState.queuedOptions = null;
+        finishedGalleryBrowserPreloadInFlight = false;
+        syncFinishedGalleryBrowserMoreButton();
+        setFinishedGalleryBrowserStatus("");
+    } catch (e) {}
+    const catalog = getSimpleAIAppElement("finished_images_catalog") || document.getElementById("finished_images_catalog");
+    if (catalog) {
+        try { collapseSimpleAIFinishedGalleryCatalog(catalog); } catch (e) {}
+        try { collapseFinishedImagesCatalogClosedHitbox(reasonText); } catch (e) {}
+    }
+    ["finished_gallery", "final_gallery", "progress_video", "video_player"].forEach((id) => {
+        try { markPostGenerationCollapsedNode(getSimpleAIAppElement(id) || document.getElementById(id)); } catch (e) {}
+    });
+    try { clearSimpleAICatalogLinkedGalleryWrappers(reasonText); } catch (e) {}
+    try {
+        document.documentElement.classList.remove("simpai-gallery-browser-has-media");
+        document.documentElement.classList.remove("simpai-gallery-browser-overlay-active");
+        document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
+        document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+        document.documentElement.classList.remove("simpai-video-result-preview");
+        document.documentElement.classList.remove("simpai-main-gallery-browser-closed");
+    } catch (e) {}
+    simpaiUiTrace("log", "[UI-TRACE] comparison_surface.prepare", { reason: reasonText });
+    return preparedParams || true;
+}
+window.preparePostGenerationComparisonSurfaceState = preparePostGenerationComparisonSurfaceState;
+
+function ensurePostGenerationComparisonSurface(comparisonBox, reason) {
+    const box = comparisonBox || getSimpleAIAppElement("comparison_box") || document.getElementById("comparison_box");
+    if (!box || !box.closest) return false;
+    try { suppressFinishedGalleryWelcomeGuardForComparison(reason || "comparison_surface"); } catch (e) {}
+    try { preparePostGenerationComparisonSurfaceState(topbarLastSystemParams || window.simpleaiTopbarSystemParams || null, reason || "comparison_surface"); } catch (e) {}
+    try { clearPostGenerationSupportSurface(); } catch (e) {}
+    try { removePostGenerationMissingGalleryPlaceholder(); } catch (e) {}
+    try { clearSimpleAICatalogLinkedGalleryWrappers("comparison_surface"); } catch (e) {}
+    const row = box.closest(".row");
+    const form = box.closest(".form, .block");
+    const previewColumn = box.closest(".preview_column");
+    try { setSimpleAIPreviewFitHeightVariable(previewColumn); } catch (e) {}
+    if (row) {
+        revealPostGenerationResultNode(row, "flex");
+        try { row.dataset.simpleaiPostGenerationSurface = "1"; } catch (e) {}
+        try { row.style.setProperty("min-height", simpleAIPreviewFitHeightVar(), "important"); } catch (e) {}
+        try { row.style.setProperty("height", simpleAIPreviewFitHeightVar(), "important"); } catch (e) {}
+        try { row.style.setProperty("overflow", "hidden", "important"); } catch (e) {}
+    }
+    if (form && form !== box) {
+        revealPostGenerationResultNode(form, "flex");
+        try { form.style.setProperty("flex", "1 1 0", "important"); } catch (e) {}
+        try { form.style.setProperty("min-width", "0", "important"); } catch (e) {}
+        try { form.style.setProperty("height", "100%", "important"); } catch (e) {}
+        try { form.style.setProperty("min-height", "0px", "important"); } catch (e) {}
+    }
+    revealPostGenerationResultNode(box, "block");
+    try { box.style.setProperty("height", simpleAIPreviewFitHeightVar(), "important"); } catch (e) {}
+    try { box.style.setProperty("min-height", simpleAIPreviewFitHeightVar(), "important"); } catch (e) {}
+    try { box.style.setProperty("max-height", simpleAIPreviewFitHeightVar(), "important"); } catch (e) {}
+    try { box.style.setProperty("overflow", "hidden", "important"); } catch (e) {}
+    const collapsedPreview = collapseWelcomePreviewForPostGenerationSurface(box);
+    try {
+        document.documentElement.classList.add("simpai-comparison-preview");
+        document.documentElement.classList.add("simpai-post-generation-result-surface");
+        document.documentElement.classList.remove("simpai-video-result-preview");
+    } catch (e) {}
+    simpaiUiTrace("log", "[UI-TRACE] comparison_surface.ensure", {
+        reason: reason || "comparison_surface",
+        collapsedPreview,
+        row: row ? { cls: String(row.className || ""), data: row.dataset?.simpleaiPostGenerationSurface || "" } : null,
+    });
+    return true;
+}
+window.ensurePostGenerationComparisonSurface = ensurePostGenerationComparisonSurface;
 
 function isWelcomePreviewSuppressedByUserSetting() {
     try {
@@ -8986,20 +11336,103 @@ function syncPostGenerationResultControls(stateOverride) {
     }
     if (stateOverride && typeof stateOverride === "object") {
         try {
+            clearFinishedGalleryBrowserParamsForResultState(stateOverride, "post_generation_result_controls");
             topbarLastSystemParams = stateOverride;
             window.simpleaiTopbarSystemParams = stateOverride;
         } catch (e) {}
     }
-    const params = (stateOverride && typeof stateOverride === "object")
+    let params = (stateOverride && typeof stateOverride === "object")
         ? stateOverride
         : (topbarLastSystemParams && typeof topbarLastSystemParams === "object" ? topbarLastSystemParams : null);
+    const normalizePostGenerationStateFromRenderedOutput = (candidateParams, reason) => {
+        const candidate = candidateParams && typeof candidateParams === "object" ? candidateParams : {};
+        const catalog = find("finished_images_catalog");
+        if (catalog && isSimpleAIPresetCatalogOpen(catalog)) return candidateParams;
+        const gallery = find("finished_gallery") || find("final_gallery");
+        if (!gallery || !gallery.querySelectorAll) return candidateParams;
+        const mediaNodes = Array.from(gallery.querySelectorAll("img, video")).filter((node) => {
+            const src = node.currentSrc || node.src || node.getAttribute("src") || "";
+            if (!src || /welcome/i.test(src)) return false;
+            const width = Number(node.naturalWidth || node.videoWidth || 0);
+            const height = Number(node.naturalHeight || node.videoHeight || 0);
+            return width > 8 && height > 8;
+        });
+        const itemCount = gallery.querySelectorAll(".grid-wrap .gallery-item, .gallery-container > .preview").length || mediaNodes.length;
+        if (!mediaNodes.length || itemCount > 8) return candidateParams;
+        const source = mediaNodes[0].currentSrc || mediaNodes[0].src || mediaNodes[0].getAttribute("src") || "";
+        const browserPaths = Array.isArray(candidate.__main_gallery_browser_paths) ? candidate.__main_gallery_browser_paths : [];
+        const normalizeText = (text) => {
+            let value = String(text || "");
+            try { value = decodeURIComponent(value); } catch (e) {}
+            return value.replace(/\\/g, "/").toLowerCase();
+        };
+        const sourceText = normalizeText(source);
+        const matchesBrowserPath = browserPaths.some((path) => {
+            const normalizedPath = normalizeText(path);
+            const name = normalizedPath.split("/").pop();
+            return !!(name && sourceText.includes(name));
+        });
+        if (matchesBrowserPath) return candidateParams;
+        const hasBrowserState = candidate.gallery_state === "main_browser" || hasOwnFinishedGalleryBrowserParamKey(candidate);
+        const gallerySignature = getSimpleAIGalleryMediaSignature(gallery);
+        const hasRenderedGenerationSignature = !!(
+            gallerySignature
+            && (
+                gallery.dataset?.simpleaiGenerationResultSignature === gallerySignature
+                || gallery.closest?.("[data-simpleai-generation-result-surface='1'], [data-simpleai-post-generation-surface='1']")
+            )
+        );
+        const hasResultSurface = !!document.querySelector(
+            ".preview_column > .row[data-simpleai-generation-result-surface='1'], .preview_column > .row[data-simpleai-post-generation-surface='1']"
+        );
+        const shouldNormalizeRenderedOutput = hasBrowserState || hasRenderedGenerationSignature || hasResultSurface;
+        if (!shouldNormalizeRenderedOutput) return candidateParams;
+        const nextParams = Object.assign({}, candidate);
+        clearFinishedGalleryBrowserParamsForIndexState(nextParams, reason || "rendered_generation_output");
+        nextParams.gallery_state = "finished_index";
+        nextParams.gallery_preview_open = true;
+        nextParams.__post_generation_has_output = true;
+        nextParams.__post_generation_gallery_output = true;
+        nextParams.__post_generation_video_output = false;
+        nextParams.__post_generation_image_url = source;
+        const compareBtn = find("compare_btn");
+        const compareReady = !!(
+            compareBtn
+            && (
+                compareBtn.dataset?.simpleaiCompareReady === "1"
+                || compareBtn.classList?.contains("simpleai-compare-ready")
+                || compareBtn.classList?.contains("primary")
+            )
+        );
+        nextParams.__post_generation_compare_visible = !!compareBtn;
+        nextParams.__post_generation_compare_ready = compareReady || !!nextParams.__post_generation_compare_ready;
+        nextParams.__post_generation_compare_cleared = !nextParams.__post_generation_compare_ready;
+        topbarLastSystemParams = nextParams;
+        window.simpleaiTopbarSystemParams = nextParams;
+        try { document.documentElement.classList.remove("simpai-main-gallery-browser-closed"); } catch (e) {}
+        simpaiUiTrace("log", "[UI-TRACE] post_generation_state.normalized_from_rendered_output", {
+            reason: reason || "rendered_generation_output",
+            itemCount,
+            hasSource: !!source,
+        });
+        return nextParams;
+    };
+    params = normalizePostGenerationStateFromRenderedOutput(params, "post_generation_result_controls");
     const engineType = params?.__gallery_engine_type || params?.engine_type || params?.default_engine?.engine_type || "";
     const isVideoContext = engineType === "video";
-    const isMainGalleryBrowser = params?.gallery_state === "main_browser";
     const domImageToolsEnabled = readSimpleAIImageToolsEnabledFromDom();
     const stateImageToolsEnabled = domImageToolsEnabled === null ? !(params && params.__image_tools_enabled === false) : domImageToolsEnabled;
     syncSimpleAIImageToolsEnabledClass(stateImageToolsEnabled);
     const stateCompareCleared = !!(params && params.__post_generation_compare_cleared);
+    const comparisonBox = find("comparison_box");
+    const postGenerationCompareAvailable = !!(
+        params
+        && params.__post_generation_has_output
+        && params.__post_generation_compare_ready
+        && params.__post_generation_compare_visible
+        && !stateCompareCleared
+    );
+    const isMainGalleryBrowser = params?.gallery_state === "main_browser" && !postGenerationCompareAvailable;
     const compareActionBlocked = isMainGalleryBrowser || stateCompareCleared || !stateImageToolsEnabled || isVideoContext;
     const elementState = (el) => {
         if (!el) return null;
@@ -9027,7 +11460,6 @@ function syncPostGenerationResultControls(stateOverride) {
             previews: el.querySelectorAll ? el.querySelectorAll(".gallery-container > .preview").length : 0,
         };
     };
-    const comparisonBox = find("comparison_box");
     const comparisonVisible = !!comparisonBox && isVisible(comparisonBox);
     if (comparisonVisible && compareActionBlocked) {
         clearSimpleAICompareReadyState(isMainGalleryBrowser ? "main_gallery_browser" : "compare_source_cleared");
@@ -9038,10 +11470,12 @@ function syncPostGenerationResultControls(stateOverride) {
         hideElement(find("image_toolbox"));
         hideElement(comparisonBox);
     }
+    const comparisonShouldBeVisible = !!comparisonBox && comparisonVisible && !compareActionBlocked;
     try {
-        document.documentElement.classList.toggle("simpai-comparison-preview", comparisonVisible && !compareActionBlocked);
+        document.documentElement.classList.toggle("simpai-comparison-preview", comparisonShouldBeVisible);
     } catch (e) {}
-    if (comparisonVisible && !compareActionBlocked) {
+    if (comparisonShouldBeVisible) {
+        try { ensurePostGenerationComparisonSurface(comparisonBox, "comparison_visible"); } catch (e) {}
         suppressFinishedGalleryWelcomeGuardForComparison("comparison_visible");
         showElement(find("image_toolbox"));
         const compareBtn = find("compare_btn");
@@ -9390,7 +11824,14 @@ function syncGenerationResultGallerySurface(reason) {
         const currentSignature = getSimpleAIGalleryMediaSignature(gallery);
         if (!currentSignature) return;
         const hiddenSignature = gallery.dataset?.simpleaiCatalogLinkedGalleryHiddenSignature || "";
-        if (hiddenSignature && hiddenSignature === currentSignature) return;
+        const galleryNeedsReveal = !!(
+            gallery.dataset?.simpleaiCatalogLinkedGalleryHidden === "1"
+            || gallery.dataset?.simpleaiCatalogLinkedGalleryWrapperHidden === "1"
+            || gallery.dataset?.simpleaiPostGenerationSurface !== "1"
+            || gallery.classList?.contains("simpai-catalog-linked-gallery-hidden")
+            || document.documentElement.classList.contains("simpai-main-gallery-browser-closed")
+        );
+        if (hiddenSignature && hiddenSignature === currentSignature && !galleryNeedsReveal) return;
         const row = gallery.closest(".row");
         if (row && !row.contains(preview)) return;
         const form = gallery.closest(".form, .block");
@@ -9398,11 +11839,16 @@ function syncGenerationResultGallerySurface(reason) {
         if (row) {
             revealSimpleAIGenerationResultNode(row, "flex");
             try { row.dataset.simpleaiGenerationResultSurface = "1"; } catch (e) {}
+            try { row.dataset.simpleaiPostGenerationSurface = "1"; } catch (e) {}
         }
-        if (form && form !== gallery) revealSimpleAIGenerationResultNode(form, "block");
+        if (form && form !== gallery) {
+            revealSimpleAIGenerationResultNode(form, "block");
+            try { form.dataset.simpleaiPostGenerationSurface = "1"; } catch (e) {}
+        }
         revealSimpleAIGenerationResultNode(gallery, "block");
         try { syncSimpleAIGenerationGalleryMode(gallery, currentSignature, reason || "generation_result_surface"); } catch (e) {}
         try {
+            gallery.dataset.simpleaiPostGenerationSurface = "1";
             gallery.dataset.simpleaiGenerationResultSignature = currentSignature;
             gallery.dataset.simpleaiCatalogLinkedGalleryHiddenSignature = currentSignature;
         } catch (e) {}
@@ -9410,6 +11856,7 @@ function syncGenerationResultGallerySurface(reason) {
     });
     if (changed) {
         try {
+            document.documentElement.classList.remove("simpai-main-gallery-browser-closed");
             document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
             document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
         } catch (e) {}

@@ -2436,7 +2436,7 @@
                 ? sketchHotkeyActive
                 : fullscreenMode
                 || panFloatingMode
-                || (historyAction && hasImage && (sketchHotkeyActive && pointerInsideEditor || eventTargetInsideEditor(event)))
+                || (historyAction && hasImage && (pointerInsideEditor || event.target?.closest?.(".simpai-sketch")))
                 || ((event.code === "KeyS" || event.code === "KeyF" || event.code === "KeyQ") && sketchHotkeyActive && pointerInsideEditor && hasImage);
             if (!wantsSketchHotkey) return;
             if (shouldHandleSketchHistoryHotkey(event, historyAction)) {

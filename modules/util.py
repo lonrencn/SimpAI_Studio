@@ -790,25 +790,31 @@ def apply_wildcards(wildcard_text, rng, i, read_wildcards_in_order) -> str:
     return wildcard_text
 
 
+def format_media_size_info(width, height, aspect_ratios=None, include_recommended=True) -> str:
+    width = int(width)
+    height = int(height)
+    if width <= 0 or height <= 0:
+        raise ValueError("width and height must be positive")
+    gcd = math.gcd(width, height)
+    lcm_ratio = f'{width // gcd}:{height // gcd}'
+    size_info = f'{width} x {height} | {lcm_ratio}'
+
+    if include_recommended and aspect_ratios:
+        ratio = round(width / height, 2)
+        closest_ratio = min(aspect_ratios, key=lambda x: abs(ratio - float(x.split('*')[0]) / float(x.split('*')[1])))
+        recommended_width, recommended_height = map(int, closest_ratio.split('*'))
+        recommended_gcd = math.gcd(recommended_width, recommended_height)
+        recommended_lcm_ratio = f'{recommended_width // recommended_gcd}:{recommended_height // recommended_gcd}'
+        size_info += f'     /     {recommended_width} x {recommended_height} | {recommended_lcm_ratio}'
+
+    return size_info
+
+
 def get_image_size_info(image: np.ndarray, aspect_ratios: list) -> str:
     try:
         image = Image.fromarray(np.uint8(image))
         width, height = image.size
-        ratio = round(width / height, 2)
-        gcd = math.gcd(width, height)
-        lcm_ratio = f'{width // gcd}:{height // gcd}'
-        size_info = f'Image Size: {width} x {height}, Ratio: {ratio}, {lcm_ratio}'
-
-        closest_ratio = min(aspect_ratios, key=lambda x: abs(ratio - float(x.split('*')[0]) / float(x.split('*')[1])))
-        recommended_width, recommended_height = map(int, closest_ratio.split('*'))
-        recommended_ratio = round(recommended_width / recommended_height, 2)
-        recommended_gcd = math.gcd(recommended_width, recommended_height)
-        recommended_lcm_ratio = f'{recommended_width // recommended_gcd}:{recommended_height // recommended_gcd}'
-
-        size_info = f'{width} x {height} | {lcm_ratio}'
-        size_info += f'     /     {recommended_width} x {recommended_height} | {recommended_lcm_ratio}'
-
-        return size_info
+        return format_media_size_info(width, height, aspect_ratios)
     except Exception as e:
         return f'Error reading image: {e}'
 

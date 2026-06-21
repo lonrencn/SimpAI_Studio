@@ -332,7 +332,7 @@ def gallery_display_paths_for_progress(media_paths, engine_type="image", user_di
 
 
 def _gallery_media_switch_noop_response():
-    return [skip_update()] * 12
+    return [skip_update()] * 13
 
 
 def _parse_gallery_media_switch_marker(marker, fallback_mode=None):
@@ -545,6 +545,31 @@ def clear_post_generation_output_state(state_params):
 def clear_post_generation_result_state(state_params):
     state_params = clear_post_generation_compare_state(state_params)
     return clear_post_generation_output_state(state_params)
+
+
+def clear_main_gallery_browser_state(state_params):
+    if not isinstance(state_params, dict):
+        return state_params
+    for key in (
+        "__main_gallery_browser_key",
+        "__main_gallery_browser_paths",
+        "__main_gallery_browser_dimensions",
+        "__main_gallery_browser_folder",
+        "__main_gallery_browser_folders",
+        "__main_gallery_browser_next_offset",
+        "__main_gallery_browser_has_more",
+        "__main_gallery_browser_request_folder",
+        "__main_gallery_browser_request_input_folder",
+        "__main_gallery_browser_request_id",
+        "__main_gallery_browser_active_request_id",
+        "__main_gallery_browser_request_action",
+        "__main_gallery_browser_request_media_type",
+        "__main_gallery_browser_bridge_payload",
+        "__main_gallery_browser_noop_response",
+        "__main_gallery_browser_request_ignored",
+    ):
+        state_params.pop(key, None)
+    return state_params
 
 
 def should_preserve_post_generation_compare_for_choice(state_params, choice):
@@ -1058,6 +1083,9 @@ def images_list_update(choice, image_tools_checkbox, state_params):
     # state_params.update({"infobox_state": 0})
     state_params.update({"note_box_state": ['',0,0]})
     state_params["gallery_preview_open"] = False
+    if state_params.get("gallery_state") == "main_browser":
+        state_params["gallery_state"] = "finished_index"
+    clear_main_gallery_browser_state(state_params)
     if not should_preserve_post_generation_compare_for_choice(state_params, choice):
         clear_post_generation_result_state(state_params)
     state_params['identity_dialog'] = False
@@ -1167,6 +1195,9 @@ def images_list_select(choice, image_tools_checkbox, state_params, evt: gr.Event
 
 
 def images_list_fill_gallery(choice, state_params):
+    if state_params.get("gallery_state") == "main_browser":
+        state_params["gallery_state"] = "finished_index"
+    clear_main_gallery_browser_state(state_params)
     user_did = state_params["user"].get_did()
     engine_type = get_gallery_engine_type(state_params)
     if not choice or engine_type not in ("image", "video"):
@@ -1225,6 +1256,113 @@ def switch_gallery_engine_type(target_engine_type, *args):
     max_per_page = state_params["__max_per_page"]
     max_catalog = state_params["__max_catalog"]
     user_did = state_params["user"].get_did()
+    was_main_browser = state_params.get("gallery_state") == "main_browser"
+    if not was_main_browser:
+        clear_main_gallery_browser_state(state_params)
+
+    if was_main_browser:
+        folder = str(state_params.get("__main_gallery_browser_folder") or "").strip().replace("\\", "/").strip("/")
+        result = canvas_workbench_media_gallery.list_output_media(
+            {
+                "media_type": target_engine_type,
+                "folder": folder,
+                "offset": 0,
+                "limit": 36,
+                "include_dimensions": target_engine_type == "image",
+                "include_metadata": False,
+                "max_seconds": 3.0,
+            },
+            state_params,
+        )
+        folders = result.get("folders") or state_params.get("__main_gallery_browser_folders") or []
+        if result.get("ok"):
+            folder = result.get("folder") or folder
+            if not folder:
+                first_items = result.get("items") or []
+                if first_items:
+                    folder = str(first_items[0].get("folder") or "").strip()
+                elif folders:
+                    folder = folders[0]
+            if folder and not result.get("folder"):
+                result = canvas_workbench_media_gallery.list_output_media(
+                    {
+                        "media_type": target_engine_type,
+                        "folder": folder,
+                        "offset": 0,
+                        "limit": 36,
+                        "include_dimensions": target_engine_type == "image",
+                        "include_metadata": False,
+                        "max_seconds": 3.0,
+                    },
+                    state_params,
+                )
+                folders = result.get("folders") or folders
+        else:
+            folder = folder or (folders[0] if folders else "")
+
+        items = result.get("items") if result.get("ok") else []
+        dimensions = _main_gallery_browser_dimensions_from_items(items)
+        media_paths = []
+        for item in items or []:
+            path = item.get("path") if isinstance(item, dict) else None
+            if path:
+                media_paths.append(path)
+
+        state_params["__gallery_engine_type"] = target_engine_type
+        state_params["gallery_preview_open"] = False
+        state_params["gallery_state"] = "main_browser"
+        state_params["identity_dialog"] = False
+        clear_post_generation_result_state(state_params)
+        state_params.update({"note_box_state": ['', 0, 0]})
+        state_params["__main_gallery_browser_key"] = "{}|{}".format(target_engine_type, folder)
+        state_params["__main_gallery_browser_paths"] = media_paths
+        state_params["__main_gallery_browser_dimensions"] = dimensions
+        state_params["__main_gallery_browser_folder"] = folder
+        state_params["__main_gallery_browser_folders"] = folders
+        state_params["__main_gallery_browser_next_offset"] = result.get("next_offset") if result.get("ok") else len(media_paths)
+        state_params["__main_gallery_browser_has_more"] = bool(result.get("has_more")) if result.get("ok") else False
+        state_params["__finished_nums_pages"] = refresh_finished_nums_pages_for_browser(state_params, target_engine_type)
+
+        choice = _catalog_choice_from_folder(folder) if folder else None
+        state_params["prompt_info"] = [choice, 0]
+        set_selected_gallery_media_path(state_params, media_paths[0] if media_paths else None)
+
+        infobox_state = state_params.get("infobox_state", False)
+        prompt_meta = read_embedded_metadata_from_file(media_paths[0], target_engine_type) if media_paths else None
+        prompt_info_value = toolbox.make_infobox_markdown(prompt_meta, state_params.get("__theme", "dark"))
+        label = _gallery_media_label(target_engine_type, state_params)
+        progress_window_update = gr_update(visible=False) if media_paths else _empty_gallery_welcome_update(state_params)
+        display_paths = gallery_display_paths_for_progress(media_paths, target_engine_type, user_did, state_params)
+        toolbox_update = _hide_image_toolbox_for_gallery_grid(state_params, "media_switch.main_browser")
+
+        state_json = _main_gallery_browser_state_json(
+            media_type=target_engine_type,
+            folder=folder,
+            loaded=len(media_paths),
+            paths=media_paths,
+            dimensions=dimensions,
+            folders=folders,
+            next_offset=state_params["__main_gallery_browser_next_offset"],
+            has_more=state_params["__main_gallery_browser_has_more"],
+            finished_nums_pages=state_params["__finished_nums_pages"],
+        )
+
+        return [
+            skip_update(),
+            gr_update(visible=True, open=True),
+            gr_update(value=display_paths, visible=bool(media_paths), label=label, allow_preview=True, preview=False, selected_index=None, fit_columns=False),
+            progress_window_update,
+            gr_update(value=None, visible=False),
+            gr_update(visible=False),
+            toolbox_update,
+            gr_update(value=prompt_info_value, visible=infobox_state),
+            gr_update(visible=infobox_state),
+            gr_update(visible=infobox_state),
+            state_json,
+            state_params,
+            state_params["__finished_nums_pages"],
+        ]
+
     state_params["__gallery_engine_type"] = target_engine_type
     state_params["gallery_preview_open"] = False
     state_params["gallery_state"] = "finished_index"
@@ -1297,6 +1435,7 @@ def switch_gallery_engine_type(target_engine_type, *args):
         gr_update(value=prompt_info_value, visible=infobox_state),
         gr_update(visible=infobox_state),
         gr_update(visible=infobox_state),
+        "",
         state_params,
         state_params["__finished_nums_pages"],
     ]
@@ -1442,6 +1581,34 @@ def _main_gallery_browser_state_json(**kwargs):
     return json.dumps(payload, ensure_ascii=False)
 
 
+def _main_gallery_browser_dimensions_from_items(items):
+    dimensions = {}
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        path = item.get("path")
+        try:
+            width = int(item.get("width") or 0)
+            height = int(item.get("height") or 0)
+        except Exception:
+            width = 0
+            height = 0
+        if path and width > 0 and height > 0:
+            dimensions[path] = {
+                "width": width,
+                "height": height,
+                "media_type": item.get("media_type") or "",
+            }
+    return dimensions
+
+
+def _main_gallery_browser_merge_dimensions(existing, items):
+    dimensions = existing if isinstance(existing, dict) else {}
+    dimensions = dict(dimensions)
+    dimensions.update(_main_gallery_browser_dimensions_from_items(items))
+    return dimensions
+
+
 def get_main_gallery_browser_selected_path(state_params, selected=None):
     if not isinstance(state_params, dict) or state_params.get("gallery_state") != "main_browser":
         return None
@@ -1471,7 +1638,23 @@ def get_main_gallery_browser_selected_metadata(state_params, selected=None):
 def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_params):
     state_params = state_params or {}
     request_context = _main_gallery_browser_request_context(state_params)
+    payload_text = "" if isinstance(payload_json, dict) else str(payload_json or "").strip()
     payload = _parse_main_gallery_browser_payload(payload_json)
+    state_payload_json = state_params.get("__main_gallery_browser_bridge_payload") if isinstance(state_params, dict) else None
+    if state_payload_json and not payload_text:
+        state_payload = _parse_main_gallery_browser_payload(state_payload_json)
+        try:
+            state_request_id = int(state_payload.get("request_id") or 0)
+        except Exception:
+            state_request_id = 0
+        try:
+            payload_request_id = int(payload.get("request_id") or 0)
+        except Exception:
+            payload_request_id = 0
+        if state_request_id >= payload_request_id and (state_payload.get("folder") or not payload.get("folder")):
+            payload = state_payload
+    if isinstance(state_params, dict):
+        state_params["__main_gallery_browser_bridge_payload"] = ""
     media_type = payload["media_type"]
 
     folder = payload["folder"]
@@ -1505,7 +1688,7 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
             "query": payload["query"],
             "offset": payload["offset"],
             "limit": payload["limit"],
-            "include_dimensions": False,
+            "include_dimensions": media_type == "image",
             "include_metadata": False,
             "max_seconds": 3.0,
         },
@@ -1529,6 +1712,7 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
             folder=folder,
             folders=folders,
             request_id=payload.get("request_id"),
+            finished_nums_pages=finished_nums_pages,
             error=result.get("error") or "Media browser request failed.",
             details=result.get("details") or "",
         )
@@ -1554,6 +1738,9 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
     existing_paths = state_params.get("__main_gallery_browser_paths") or []
     if payload["reset"] or previous_key != browser_key or not isinstance(existing_paths, list):
         existing_paths = []
+        existing_dimensions = {}
+    else:
+        existing_dimensions = state_params.get("__main_gallery_browser_dimensions") or {}
     seen = set(existing_paths)
     new_paths = []
     for item in items:
@@ -1562,12 +1749,16 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
             new_paths.append(path)
             seen.add(path)
     media_paths = existing_paths + new_paths
+    dimensions = _main_gallery_browser_merge_dimensions(existing_dimensions, items)
 
     state_params["__main_gallery_browser_key"] = browser_key
     state_params["__main_gallery_browser_paths"] = media_paths
+    state_params["__main_gallery_browser_dimensions"] = dimensions
     state_params["__main_gallery_browser_folder"] = folder
+    state_params["__main_gallery_browser_folders"] = folders
     state_params["__main_gallery_browser_next_offset"] = result.get("next_offset")
     state_params["__main_gallery_browser_has_more"] = bool(result.get("has_more"))
+    state_params["__main_gallery_browser_request_folder"] = folder
     state_params["gallery_state"] = "main_browser"
     state_params["gallery_preview_open"] = False
     state_params["identity_dialog"] = False
@@ -1584,12 +1775,15 @@ def load_main_gallery_browser_page(payload_json, image_tools_checkbox, state_par
         media_type=media_type,
         folder=folder,
         folders=folders,
+        paths=media_paths,
+        dimensions=dimensions,
         request_id=payload.get("request_id"),
         loaded=len(media_paths),
         received=len(items),
         offset=result.get("offset", payload["offset"]),
         next_offset=result.get("next_offset"),
         has_more=bool(result.get("has_more")),
+        finished_nums_pages=state_params.get("__finished_nums_pages", finished_nums_pages),
         truncated=bool(result.get("truncated")),
         query=payload["query"],
     )
@@ -1632,7 +1826,7 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
             "folder": folder,
             "offset": offset,
             "limit": limit,
-            "include_dimensions": False,
+            "include_dimensions": media_type == "image",
             "include_metadata": False,
             "max_seconds": 3.0,
         },
@@ -1648,6 +1842,7 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
         finished_nums_pages = state_params.get("__finished_nums_pages", "0,0")
     if not result.get("ok"):
         clear_post_generation_result_state(state_params)
+        state_params["__main_gallery_browser_request_folder"] = folder
         status = "Load failed" if _gallery_lang(state_params) == "en" else "加载失败"
         prev_update, next_update = _main_gallery_browser_nav_updates(folders, folder)
         return [
@@ -1669,15 +1864,20 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
         ]
 
     folder = result.get("folder") or folder
-    if not folder and folders:
-        folder = folders[0]
+    if not folder:
+        first_items = result.get("items") or []
+        if first_items:
+            folder = str(first_items[0].get("folder") or "").strip()
+        elif folders:
+            folder = folders[0]
+    if folder and not result.get("folder"):
         result = canvas_workbench_media_gallery.list_output_media(
             {
                 "media_type": media_type,
                 "folder": folder,
                 "offset": 0,
                 "limit": limit,
-                "include_dimensions": False,
+                "include_dimensions": media_type == "image",
                 "include_metadata": False,
                 "max_seconds": 3.0,
             },
@@ -1696,6 +1896,9 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
     existing_paths = state_params.get("__main_gallery_browser_paths") or []
     if reset or previous_key != browser_key or not isinstance(existing_paths, list):
         existing_paths = []
+        existing_dimensions = {}
+    else:
+        existing_dimensions = state_params.get("__main_gallery_browser_dimensions") or {}
     seen = set(existing_paths)
     new_paths = []
     for item in items:
@@ -1704,12 +1907,16 @@ def _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params
             new_paths.append(path)
             seen.add(path)
     media_paths = existing_paths + new_paths
+    dimensions = _main_gallery_browser_merge_dimensions(existing_dimensions, items)
 
     state_params["__main_gallery_browser_key"] = browser_key
     state_params["__main_gallery_browser_paths"] = media_paths
+    state_params["__main_gallery_browser_dimensions"] = dimensions
     state_params["__main_gallery_browser_folder"] = folder
+    state_params["__main_gallery_browser_folders"] = folders
     state_params["__main_gallery_browser_next_offset"] = result.get("next_offset")
     state_params["__main_gallery_browser_has_more"] = bool(result.get("has_more"))
+    state_params["__main_gallery_browser_request_folder"] = folder
     state_params["gallery_state"] = "main_browser"
     state_params["gallery_preview_open"] = False
     state_params["identity_dialog"] = False
@@ -1757,9 +1964,38 @@ def _main_gallery_browser_nav_updates(folders, folder):
     return gr_update(interactive=has_newer), gr_update(interactive=has_older)
 
 
+def _main_gallery_browser_request_folder(folder, state_params):
+    input_folder = str(folder or "").strip().replace("\\", "/").strip("/")
+    if input_folder:
+        return input_folder
+    if isinstance(state_params, dict):
+        request_folder = str(state_params.get("__main_gallery_browser_request_folder") or "").strip().replace("\\", "/").strip("/")
+        if request_folder:
+            return request_folder
+    return folder
+
+
+def _main_gallery_browser_request_ignored(state_params):
+    if not isinstance(state_params, dict):
+        return False
+    ignored = bool(state_params.pop("__main_gallery_browser_request_ignored", False))
+    if ignored:
+        state_params["__main_gallery_browser_noop_response"] = True
+    return ignored
+
+
+def _gallery_browser_native_noop_response(state_params):
+    if isinstance(state_params, dict):
+        state_params["__main_gallery_browser_noop_response"] = True
+    return [skip_update()] * 13 + [state_params or {}, skip_update()]
+
+
 def _step_main_gallery_browser_folder(folder, image_tools_checkbox, state_params, delta):
     state_params = state_params or {}
+    if _main_gallery_browser_request_ignored(state_params):
+        return _gallery_browser_native_noop_response(state_params)
     media_type = get_gallery_engine_type(state_params)
+    folder = _main_gallery_browser_request_folder(folder, state_params)
     current = str(folder or state_params.get("__main_gallery_browser_folder") or "").strip().replace("\\", "/").strip("/")
     if current and not current.startswith("20"):
         current = _folder_from_catalog_choice(current)
@@ -1798,14 +2034,26 @@ def next_main_gallery_browser_folder(folder, image_tools_checkbox, state_params)
 
 
 def refresh_main_gallery_browser(folder, image_tools_checkbox, state_params):
+    state_params = state_params or {}
+    if _main_gallery_browser_request_ignored(state_params):
+        return _gallery_browser_native_noop_response(state_params)
+    folder = _main_gallery_browser_request_folder(folder, state_params)
     return _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params, offset=0, reset=True)
 
 
 def load_main_gallery_browser_folder(folder, image_tools_checkbox, state_params):
+    state_params = state_params or {}
+    if _main_gallery_browser_request_ignored(state_params):
+        return _gallery_browser_native_noop_response(state_params)
+    folder = _main_gallery_browser_request_folder(folder, state_params)
     return _load_main_gallery_browser_native(folder, image_tools_checkbox, state_params, offset=0, reset=True)
 
 
 def load_more_main_gallery_browser(folder, image_tools_checkbox, state_params):
+    state_params = state_params or {}
+    if _main_gallery_browser_request_ignored(state_params):
+        return _gallery_browser_native_noop_response(state_params)
+    folder = _main_gallery_browser_request_folder(folder, state_params)
     next_offset = 0
     if isinstance(state_params, dict):
         next_offset = state_params.get("__main_gallery_browser_next_offset") or len(state_params.get("__main_gallery_browser_paths") or [])
@@ -1837,6 +2085,9 @@ def select_gallery(choice, image_tools_checkbox, state_params, backfill_prompt, 
         return [skip_update() for _ in range(13)] + [state_params]
     state_params.update({"note_box_state": ['',0,0]})
     state_params["gallery_preview_open"] = False
+    if state_params.get("gallery_state") == "main_browser":
+        state_params["gallery_state"] = "finished_index"
+    clear_main_gallery_browser_state(state_params)
     selected_index = normalize_gallery_selected_index(getattr(evt, "index", 0))
     if choice is None and len(state_params["__output_list"]) > 0:
         choice = state_params["__output_list"][0]

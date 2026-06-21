@@ -97,6 +97,7 @@ COMPARE_BUTTON_ICON = "🔍"
 _REFRESH_FILES_CACHE_KEY = "__refresh_files_cache"
 _REFRESH_FILES_CHOICES_KEY = "__refresh_files_choices_signature"
 MAIN_VLM_USER_VERSION_KEY = "main_vlm_version"
+MAIN_VLM_LOCAL_SETTINGS_KEY = "main_vlm_custom_api"
 MAIN_VLM_CUSTOM_KEYS = {
     "api_name": "vlm_custom_api_name",
     "provider": "vlm_custom_provider",
@@ -106,6 +107,8 @@ MAIN_VLM_CUSTOM_KEYS = {
     "api_format": "vlm_custom_api_format",
     "supports_images": "vlm_custom_supports_images",
 }
+MAIN_VLM_LOCAL_SETTING_KEYS = tuple(MAIN_VLM_CUSTOM_KEYS.keys()) + ("version",)
+MAIN_VLM_LEGACY_LOCAL_KEYS = tuple(MAIN_VLM_CUSTOM_KEYS.values()) + (MAIN_VLM_USER_VERSION_KEY,)
 
 
 def compare_button_gr_update(value=None, visible=True, ready=False):
@@ -262,16 +265,21 @@ def _vlm_model_status_html(version):
 
 def _main_vlm_custom_settings_from_state(state, request=None):
     state = _main_vlm_state_from_request(state, request)
-    provider_key = str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["provider"], state, "custom") or "custom").strip() or "custom"
+    local_settings = _main_vlm_read_local_settings()
+
+    def setting_value(name, default):
+        return local_settings.get(name, default)
+
+    provider_key = str(setting_value("provider", "custom") or "custom").strip() or "custom"
     provider = _main_vlm_provider_by_key(provider_key)
     return {
-        "api_name": str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["api_name"], state, "Custom") or "Custom").strip() or "Custom",
+        "api_name": str(setting_value("api_name", "Custom") or "Custom").strip() or "Custom",
         "provider": provider["key"],
-        "base_url": str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["base_url"], state, "") or "").strip(),
-        "model": str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["model"], state, "") or "").strip(),
-        "api_key": str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["api_key"], state, "") or "").strip(),
-        "api_format": str(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["api_format"], state, provider.get("format") or "openai_compatible") or "openai_compatible").strip() or "openai_compatible",
-        "supports_images": _as_bool(ads.get_user_default(MAIN_VLM_CUSTOM_KEYS["supports_images"], state, True), True),
+        "base_url": str(setting_value("base_url", "") or "").strip(),
+        "model": str(setting_value("model", "") or "").strip(),
+        "api_key": str(setting_value("api_key", "") or "").strip(),
+        "api_format": str(setting_value("api_format", provider.get("format") or "openai_compatible") or "openai_compatible").strip() or "openai_compatible",
+        "supports_images": _as_bool(setting_value("supports_images", True), True),
     }
 
 
@@ -289,7 +297,8 @@ def _apply_main_vlm_custom_settings(settings):
 
 def _main_vlm_selected_version_from_state(state, request=None):
     state = _main_vlm_state_from_request(state, request)
-    saved = ads.get_user_default(MAIN_VLM_USER_VERSION_KEY, state, None)
+    local_settings = _main_vlm_read_local_settings()
+    saved = local_settings.get("version")
     if saved:
         return _vlm_resolve_version(saved)
     return _vlm_resolve_version(ads.get_admin_default('vlm_version'))
@@ -309,6 +318,8 @@ def _main_vlm_save_user_default(key, value, state, request=None):
 
 def _main_vlm_save_admin_version(version, state, request=None):
     state = _main_vlm_state_from_request(state, request)
+    if not (isinstance(state, dict) and state.get("__session") and state.get("ua_hash")):
+        return False
     try:
         ads.set_admin_default_value('vlm_version', version, state)
         return True
@@ -319,10 +330,98 @@ def _main_vlm_save_admin_version(version, state, request=None):
 
 def _main_vlm_save_selected_version(version, state, persist_admin=False, request=None):
     version = _vlm_resolve_version(version)
-    _main_vlm_save_user_default(MAIN_VLM_USER_VERSION_KEY, version, state, request=request)
-    if persist_admin or version == VLM.CUSTOM_VERSION:
+    _main_vlm_write_local_settings({"version": version})
+    if persist_admin and version != VLM.CUSTOM_VERSION:
         _main_vlm_save_admin_version(version, state, request=request)
     return version
+
+
+def _main_vlm_read_local_settings():
+    try:
+        data = ads._load_local_settings()
+    except Exception as exc:
+        logger.warning("Main VLM local settings load failed: %s", exc)
+        return {}
+    settings = data.get(MAIN_VLM_LOCAL_SETTINGS_KEY, {}) if isinstance(data, dict) else {}
+    return _main_vlm_merge_legacy_local_settings(data, settings if isinstance(settings, dict) else {})
+
+
+def _main_vlm_legacy_local_settings(data):
+    values = {}
+    user_values = data.get("user", {}) if isinstance(data, dict) else {}
+    if not isinstance(user_values, dict):
+        return values
+    for name, local_key in MAIN_VLM_CUSTOM_KEYS.items():
+        if local_key in user_values:
+            values[name] = user_values.get(local_key)
+    if MAIN_VLM_USER_VERSION_KEY in user_values:
+        values["version"] = user_values.get(MAIN_VLM_USER_VERSION_KEY)
+    return values
+
+
+def _main_vlm_local_setting_empty(name, value):
+    if value is None:
+        return True
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return True
+        return name == "api_name" and value == "Custom"
+    return False
+
+
+def _main_vlm_merge_legacy_local_settings(data, settings):
+    merged = dict(settings or {})
+    for key, value in _main_vlm_legacy_local_settings(data).items():
+        if key not in merged or _main_vlm_local_setting_empty(key, merged.get(key)):
+            merged[key] = value
+    return merged
+
+
+def _main_vlm_remove_legacy_local_settings(data):
+    user_values = data.get("user", {}) if isinstance(data, dict) else {}
+    if not isinstance(user_values, dict):
+        return
+    for local_key in MAIN_VLM_LEGACY_LOCAL_KEYS:
+        user_values.pop(local_key, None)
+
+
+def _main_vlm_write_local_settings(settings):
+    settings = settings or {}
+    try:
+        data = ads._load_local_settings()
+    except Exception as exc:
+        logger.warning("Main VLM local settings load failed: %s", exc)
+        data = {"user": {}, "admin": {}}
+    if not isinstance(data, dict):
+        data = {"user": {}, "admin": {}}
+    stored = data.get(MAIN_VLM_LOCAL_SETTINGS_KEY, {})
+    if not isinstance(stored, dict):
+        stored = {}
+    merged = _main_vlm_merge_legacy_local_settings(data, stored)
+    for key in MAIN_VLM_LOCAL_SETTING_KEYS:
+        if key not in settings:
+            continue
+        value = settings.get(key)
+        if key == "supports_images":
+            merged[key] = _as_bool(value, True)
+        elif key == "version":
+            merged[key] = _vlm_resolve_version(value)
+        elif key == "provider":
+            merged[key] = _main_vlm_provider_by_key(value)["key"]
+        elif key == "api_name":
+            merged[key] = str(value or "Custom").strip() or "Custom"
+        elif key == "api_format":
+            merged[key] = str(value or "openai_compatible").strip() or "openai_compatible"
+        else:
+            merged[key] = str(value or "").strip()
+    _main_vlm_remove_legacy_local_settings(data)
+    data[MAIN_VLM_LOCAL_SETTINGS_KEY] = merged
+    try:
+        return bool(ads._save_local_settings(data))
+    except Exception as exc:
+        logger.warning("Main VLM local settings save failed: %s", exc)
+        return False
 
 
 def _main_vlm_custom_message_html(message="", state="info"):
@@ -336,12 +435,12 @@ def _main_vlm_custom_save_message(saved, state=None):
     if saved is False:
         message = _main_vlm_text(
             state,
-            "Custom API settings were not saved because identity state is not ready. Refresh the page and try again.",
-            "Custom API 设置未保存：当前身份状态未就绪，请刷新页面后再试。",
+            "Custom API settings were not saved because local_settings.json could not be written.",
+            "Custom API 设置未保存：local_settings.json 写入失败。",
         )
         return _main_vlm_custom_message_html(message, "missing")
     if saved is True:
-        message = _main_vlm_text(state, "Custom API settings saved.", "Custom API 设置已保存。")
+        message = _main_vlm_text(state, "Custom API settings saved to local_settings.json.", "Custom API 设置已保存到 local_settings.json。")
         return _main_vlm_custom_message_html(message, "ready")
     return ""
 
@@ -2281,6 +2380,22 @@ def _render_models_js_panel(current_model_params_state=None):
     def esc(value):
         return html.escape(str(value if value is not None else ""), quote=True)
 
+    lora_weight_slider_min = -2.0
+    lora_weight_slider_max = 2.0
+    lora_weight_number_min = -5.0
+    lora_weight_number_max = 5.0
+    lora_weight_slider_min_text = f"{lora_weight_slider_min:g}"
+    lora_weight_slider_max_text = f"{lora_weight_slider_max:g}"
+    lora_weight_number_min_text = f"{lora_weight_number_min:g}"
+    lora_weight_number_max_text = f"{lora_weight_number_max:g}"
+
+    def lora_slider_value(value):
+        try:
+            parsed = float(value)
+        except Exception:
+            parsed = 1.0
+        return f"{max(lora_weight_slider_min, min(lora_weight_slider_max, parsed)):g}"
+
     def i18n_span(en, cn):
         return f'<span data-simpai-i18n-en="{esc(en)}" data-simpai-i18n-cn="{esc(cn)}">{esc(cn or en)}</span>'
 
@@ -2339,8 +2454,8 @@ def _render_models_js_panel(current_model_params_state=None):
             f'<option value="{esc(model_name)}" selected>{esc(model_name)}</option>'
             '</select>'
             '<div class="simpai-models-js-sliderrow simpai-models-js-lora-weight-control">'
-            f'<input type="range" data-simpai-lora-weight-range="{index}" value="{esc(weight)}" min="{esc(modules.config.default_loras_min_weight)}" max="{esc(modules.config.default_loras_max_weight)}" step="0.05"{disabled}>'
-            f'<input type="number" data-simpai-lora-weight="{index}" value="{esc(weight)}" min="{esc(modules.config.default_loras_min_weight)}" max="{esc(modules.config.default_loras_max_weight)}" step="0.05"{disabled}>'
+            f'<input type="range" data-simpai-lora-weight-range="{index}" value="{esc(lora_slider_value(weight))}" min="{esc(lora_weight_slider_min_text)}" max="{esc(lora_weight_slider_max_text)}" step="0.05"{disabled}>'
+            f'<input type="number" data-simpai-lora-weight="{index}" value="{esc(weight)}" min="{esc(lora_weight_number_min_text)}" max="{esc(lora_weight_number_max_text)}" step="0.05"{disabled}>'
             '</div>'
             f'<button type="button" class="simpai-models-js-browse simpai-models-js-iconbtn" {browse_lora_attrs} data-simpai-lora-browser="{index}">...</button>'
             '</div>'
@@ -3462,10 +3577,10 @@ with shared.gradio_root:
                                         canvas_gallery_refresh_btn = gr.Button("Canvas gallery refresh", size="sm", visible="hidden", elem_id="canvas_gallery_refresh_btn", elem_classes=["sai-gradio-hidden-bridge"])
                                 with gr.Row(elem_id="gallery_browser_right", elem_classes=["simpleai-main-gallery-browser-right"]):
                                     gallery_browser_more_btn = gr.Button("Load more", size="sm", elem_id="gallery_browser_more_btn", interactive=False)
-                            gallery_browser_payload = gr.Textbox(value="", visible="hidden", elem_id="gallery_browser_payload", elem_classes=["sai-gradio-hidden-bridge"])
-                            gallery_browser_state = gr.Textbox(value="", visible="hidden", elem_id="gallery_browser_state", elem_classes=["sai-gradio-hidden-bridge"])
-                            gallery_media_switch_request = gr.Textbox(value="", visible="hidden", elem_id="gallery_media_switch_request", elem_classes=["sai-gradio-hidden-bridge"])
-                            gallery_browser_load_btn = gr.Button("Gallery browser load", size="sm", visible="hidden", elem_id="gallery_browser_load_btn", elem_classes=["sai-gradio-hidden-bridge"])
+                            gallery_browser_payload = gr.Textbox(value="", visible=True, elem_id="gallery_browser_payload", elem_classes=["sai-gradio-hidden-bridge"])
+                            gallery_browser_state = gr.Textbox(value="", visible=True, elem_id="gallery_browser_state", elem_classes=["sai-gradio-hidden-bridge"])
+                            gallery_media_switch_request = gr.Textbox(value="", visible=True, elem_id="gallery_media_switch_request", elem_classes=["sai-gradio-hidden-bridge"])
+                            gallery_browser_load_btn = gr.Button("Gallery browser load", size="sm", visible=True, elem_id="gallery_browser_load_btn", elem_classes=["sai-gradio-hidden-bridge"])
                             gallery_index = gr.Dropdown(choices=None, value=None, show_label=False, allow_custom_value=True, elem_id="gallery_index_bridge", elem_classes=["sai-gradio-hidden-bridge"])
                     with gr.Column(scale=1, visible=True, elem_classes=['scene_panel', 'simpai-mounted-hidden'], elem_id='scene_panel') as scene_panel:
                         with gr.Row(elem_id="scene_primary_row"):
@@ -5444,7 +5559,7 @@ with shared.gradio_root:
                     with gr.Tab(label='Enhance+', id='enhance_tab') as enhance_tab:
                         with gr.Row():
                             with gr.Column():
-                                enhance_checkbox = gr.Checkbox(label='Enhance', value=modules.config.default_enhance_checkbox, container=False)
+                                enhance_checkbox = gr.Checkbox(label='Enhance', value=modules.config.default_enhance_checkbox, container=False, elem_id="enhance_checkbox")
                                 enhance_input_image = gr.Image(label='Use with Enhance, skips image generation', sources=['upload'], type='numpy', image_mode='RGBA', elem_id='enhance_input_image', buttons=["download", "fullscreen"])
                                 with gr.Row():
                                     describe_enhance_button = gr.Button(value='Describe Image', variant='secondary', size='sm', visible=False)
@@ -5473,7 +5588,16 @@ with shared.gradio_root:
                                                                    value=modules.config.default_enhance_uov_prompt_type,
                                                                    visible=modules.config.default_enhance_uov_processing_order == flags.enhancement_uov_after)
                                                     
-                                                    enhance_uov_method.change(lambda x: gr_update(visible=x.lower() != 'disabled', value=flags.enhance_uov_strengths[x]), inputs=enhance_uov_method, outputs=enhance_uov_strength, queue=False, show_progress=False)
+                                                    enhance_uov_method.change(
+                                                        lambda x: [
+                                                            gr_update(visible=x.lower() != 'disabled', value=flags.enhance_uov_strengths[x]),
+                                                            gr_update(value=True) if x.lower() != 'disabled' else skip_component_update(),
+                                                        ],
+                                                        inputs=enhance_uov_method,
+                                                        outputs=[enhance_uov_strength, enhance_checkbox],
+                                                        queue=False,
+                                                        show_progress=False,
+                                                    )
                                                     enhance_uov_processing_order.change(lambda x: gr_update(visible=x == flags.enhancement_uov_after),
                                                                     inputs=enhance_uov_processing_order,
                                                                     outputs=enhance_uov_prompt_type,
@@ -5767,8 +5891,32 @@ with shared.gradio_root:
                             seed_random.change(lambda x: [gr_update(value=x), gr_update(visible=not x), gr_update(visible=not x)], inputs=seed_random, outputs=[scene_seed_random, scene_image_seed, image_seed], queue=False, show_progress=False)
                             scene_image_seed.change(lambda x: gr_update(value=x), inputs=scene_image_seed, outputs=image_seed, queue=False, show_progress=False)
                             image_seed.change(lambda x: gr_update(value=x), inputs=image_seed, outputs=scene_image_seed, queue=False, show_progress=False)
-                            quick_enhance.change(fn=lambda x: [x, 'Upscale (1.5x)' if x else 'Disabled', gr_update(visible=x, value=0.2)],
-                                                inputs=quick_enhance,outputs=[enhance_checkbox, enhance_uov_method, quick_enhance_uov_strength], queue=False, show_progress=False)
+                            def sync_quick_enhance_for_generation(quick_enabled, quick_strength, enhance_checked, enhance_method, enhance_strength):
+                                if quick_enabled:
+                                    try:
+                                        strength = float(quick_strength)
+                                    except Exception:
+                                        strength = 0.2
+                                    return True, flags.upscale_15, strength
+                                return enhance_checked, enhance_method, enhance_strength
+
+                            sync_enhance_submit_state_js = """(quickEnabled, quickStrength, enhanceChecked, enhanceMethod, enhanceStrength) => {
+                                try {
+                                    const readCheckbox = (id, fallback) => {
+                                        const root = document.getElementById(id);
+                                        const input = root && root.querySelector ? root.querySelector('input[type="checkbox"]') : null;
+                                        return input ? !!input.checked : !!fallback;
+                                    };
+                                    quickEnabled = readCheckbox("quick_enhance", quickEnabled);
+                                    enhanceChecked = readCheckbox("enhance_checkbox", enhanceChecked);
+                                } catch (e) {
+                                    console.warn("[UI-TRACE] enhance_submit_state_sync_failed", e);
+                                }
+                                return [quickEnabled, quickStrength, enhanceChecked, enhanceMethod, enhanceStrength];
+                            }"""
+
+                            quick_enhance.change(fn=lambda x: [x, flags.upscale_15 if x else flags.disabled, gr_update(visible=x, value=0.2), 0.2 if x else 0],
+                                                inputs=quick_enhance,outputs=[enhance_checkbox, enhance_uov_method, quick_enhance_uov_strength, enhance_uov_strength], queue=False, show_progress=False)
                             quick_enhance_uov_strength.change(fn=lambda x: x,inputs=quick_enhance_uov_strength,outputs=enhance_uov_strength, queue=False, show_progress=False)
 
                         with gr.Tab(label="Advanced", id="advanced", render_children=True) as setting_advanced_tab:
@@ -7045,16 +7193,7 @@ with shared.gradio_root:
                     }
 
                 def _persist_main_vlm_custom_settings(settings, state, request=None):
-                    saved = [
-                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_name"], settings["api_name"], state, request=request),
-                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["provider"], settings["provider"], state, request=request),
-                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_format"], settings["api_format"], state, request=request),
-                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["base_url"], settings["base_url"], state, request=request),
-                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["model"], settings["model"], state, request=request),
-                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["api_key"], settings["api_key"], state, request=request),
-                        _main_vlm_save_user_default(MAIN_VLM_CUSTOM_KEYS["supports_images"], settings["supports_images"], state, request=request),
-                    ]
-                    return all(saved)
+                    return _main_vlm_write_local_settings(settings)
 
                 def _main_vlm_custom_hint(state=None, saved=None):
                     if saved is False:
@@ -7373,6 +7512,7 @@ with shared.gradio_root:
                         describe_vlm_custom_message,
                         vlm_version,
                     ],
+                    js=topbar.get_system_params_js,
                     queue=False,
                     show_progress=False,
                 )
@@ -7596,28 +7736,28 @@ with shared.gradio_root:
             ).then(None, inputs=language_ui, js="(x) => set_language_by_ui(x)")
             background_theme.select(lambda x,y: sync_state_params('__theme', x, y), inputs=[background_theme, state_topbar]).then(None, inputs=background_theme, js="(x) => set_theme_by_ui(x)")
 
-            gallery_index_change_evt = gallery_index.change(gallery_util.images_list_update, inputs=[gallery_index, image_tools_checkbox, state_topbar], outputs=[gallery, progress_video, index_radio, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, progress_gallery, progress_window, identity_dialog, params_note_info, params_note_close_button, params_note_input_name, params_note_delete_button, params_note_regen_button, params_note_preset_button, params_note_box], show_progress=False, js='(choice,tools,state)=>{try{const outputList=(state&&state.__output_list)||[]; const compareChoice=(state&&state.__post_generation_compare_choice)!=null?state.__post_generation_compare_choice:(Array.isArray(outputList)&&outputList.length?outputList[0]:null); const preserve=!!(state&&state.__post_generation_compare_ready&&state.__post_generation_compare_visible&&!state.__post_generation_compare_cleared&&String(compareChoice||"")===String(choice||"")); if(!preserve&&typeof clearSimpleAICompareReadyState==="function") clearSimpleAICompareReadyState("gallery_index.change");}catch(e){}}')
+            gallery_index_change_evt = gallery_index.change(gallery_util.images_list_update, inputs=[gallery_index, image_tools_checkbox, state_topbar], outputs=[gallery, progress_video, index_radio, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, progress_gallery, progress_window, identity_dialog, params_note_info, params_note_close_button, params_note_input_name, params_note_delete_button, params_note_regen_button, params_note_preset_button, params_note_box], show_progress=False, js='(choice,tools,state)=>{try{if(state&&typeof state==="object"&&typeof clearFinishedGalleryBrowserParamsForIndexState==="function"){state=clearFinishedGalleryBrowserParamsForIndexState(state,"gallery_index.change"); window.simpleaiTopbarSystemParams=state; if(typeof topbarLastSystemParams!=="undefined") topbarLastSystemParams=state;} const live=(window.simpleaiTopbarSystemParams&&typeof window.simpleaiTopbarSystemParams==="object")?window.simpleaiTopbarSystemParams:null; const outputList=(state&&state.__output_list)||[]; const liveOutputList=(live&&live.__output_list)||outputList; const compareChoice=(state&&state.__post_generation_compare_choice)!=null?state.__post_generation_compare_choice:(Array.isArray(outputList)&&outputList.length?outputList[0]:null); const liveCompareChoice=(live&&live.__post_generation_compare_choice)!=null?live.__post_generation_compare_choice:(Array.isArray(liveOutputList)&&liveOutputList.length?liveOutputList[0]:compareChoice); const preserve=!!(state&&state.__post_generation_compare_ready&&state.__post_generation_compare_visible&&!state.__post_generation_compare_cleared&&String(compareChoice||"")===String(choice||"")); const livePreserve=!!(live&&live.__post_generation_compare_ready&&live.__post_generation_compare_visible&&!live.__post_generation_compare_cleared&&String(liveCompareChoice||"")===String(choice||"")); if(!preserve&&!livePreserve&&typeof clearSimpleAICompareReadyState==="function") clearSimpleAICompareReadyState("gallery_index.change");}catch(e){} return [choice,tools,state];}')
             gallery_index_change_evt.then(gallery_util.images_list_fill_gallery, inputs=[gallery_index, state_topbar], outputs=[progress_gallery, progress_window], queue=False, show_progress=False) \
                 .then(lambda state: None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){state=(typeof mergeSimpleAITopbarSystemParamsForGallery==="function")?mergeSimpleAITopbarSystemParamsForGallery(state,"gallery_index.change.after_fill"):state; if(typeof mergeSimpleAITopbarSystemParamsForGallery!=="function"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;}} syncPostGenerationResultControls(state); traceResultPanelStateSoon("gallery_index.change.after_fill");}catch(e){console.warn("[UI-TRACE] gallery_index_change.dom_trace_failed", e);}}')
-            gallery_images_btn.click(lambda request, tools, state: gallery_util.switch_gallery_engine_type("image", request, tools, state), inputs=[gallery_media_switch_request, image_tools_checkbox, state_topbar], outputs=[gallery_index, index_radio, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='(request,tools,state)=>{let marker=request||""; try{clearSimpleAICompareReadyState("gallery_media_switch.image"); marker=(typeof beginGalleryMediaSwitchRequest==="function")?beginGalleryMediaSwitchRequest("image",1500):`${Date.now()}:0:image`; if(typeof beginGalleryMediaSwitchRequest!=="function") syncGalleryMediaSwitch("image",1500);}catch(e){} return [marker,tools,state];}') \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{if(typeof isGalleryMediaSwitchModeCurrent==="function"&&!isGalleryMediaSwitchModeCurrent("image")) return; syncGalleryMediaSwitch("image", 1200); try{if(state&&typeof state==="object"){state=(typeof mergeSimpleAITopbarSystemParamsForGallery==="function")?mergeSimpleAITopbarSystemParamsForGallery(state,"gallery_media_switch.image"):state; if(typeof mergeSimpleAITopbarSystemParamsForGallery!=="function"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;}} if(typeof syncPostGenerationResultControls==="function"){syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80); setTimeout(()=>syncPostGenerationResultControls(state),220);}}catch(e){} refresh_finished_images_catalog_label(x, "image", {refresh:false}); try{const nums=String((state&&state.__finished_nums_pages)||x||""); if(/^0(?:,|$)/.test(nums)&&typeof restoreWelcomePreviewForEmptyGalleryBrowser==="function") restoreWelcomePreviewForEmptyGalleryBrowser("gallery_media_switch.image.empty"); if(typeof scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery==="function") scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery("image", "gallery_media_switch.image");}catch(e){}}')
+            gallery_images_btn.click(lambda request, tools, state: gallery_util.switch_gallery_engine_type("image", request, tools, state), inputs=[gallery_media_switch_request, image_tools_checkbox, state_topbar], outputs=[gallery_index, index_radio, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, gallery_browser_state, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='(request,tools,state)=>{let marker=request||""; try{clearSimpleAICompareReadyState("gallery_media_switch.image"); marker=(typeof beginGalleryMediaSwitchRequest==="function")?beginGalleryMediaSwitchRequest("image",1500):`${Date.now()}:0:image`; if(typeof beginGalleryMediaSwitchRequest!=="function") syncGalleryMediaSwitch("image",1500);}catch(e){} return [marker,tools,state];}') \
+                .then(lambda browser_state, x, state: None, inputs=[gallery_browser_state, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(browserState,x,state)=>{if(typeof isGalleryMediaSwitchModeCurrent==="function"&&!isGalleryMediaSwitchModeCurrent("image")) return; syncGalleryMediaSwitch("image", 1200); try{if(state&&typeof state==="object"){state=(typeof mergeSimpleAITopbarSystemParamsForGallery==="function")?mergeSimpleAITopbarSystemParamsForGallery(state,"gallery_media_switch.image"):state; if(typeof mergeSimpleAITopbarSystemParamsForGallery!=="function"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;}} if(typeof syncPostGenerationResultControls==="function"){syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80); setTimeout(()=>syncPostGenerationResultControls(state),220);}}catch(e){} refresh_finished_images_catalog_label(x, "image", {refresh:false}); try{const nums=String((state&&state.__finished_nums_pages)||x||""); if(typeof syncFinishedGalleryBrowserAfterMediaSwitch==="function") syncFinishedGalleryBrowserAfterMediaSwitch(browserState,x,"image",state,"gallery_media_switch.image"); else if(/^0(?:,|$)/.test(nums)&&typeof restoreWelcomePreviewForEmptyGalleryBrowser==="function") restoreWelcomePreviewForEmptyGalleryBrowser("gallery_media_switch.image.empty"); if(typeof scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery==="function") scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery("image", "gallery_media_switch.image");}catch(e){}}')
             canvas_gallery_refresh_btn.click(gallery_util.canvas_refresh_after_run, inputs=[image_tools_checkbox, state_topbar], outputs=[gallery_index, index_radio, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='()=>{try{clearSimpleAICompareReadyState("canvas_gallery_refresh"); const mode=(typeof getFinishedGalleryBrowserMode==="function"?getFinishedGalleryBrowserMode():null)||((window.simpleaiTopbarSystemParams||{}).__gallery_engine_type)||((window.simpleaiTopbarSystemParams||{}).engine_type); if(mode) syncGalleryMediaSwitch(mode, 1500);}catch(e){}}') \
                 .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{const mode=(state && (state.__gallery_engine_type || state.engine_type)) || (typeof getFinishedGalleryBrowserMode==="function"?getFinishedGalleryBrowserMode():null) || "image"; syncGalleryMediaSwitch(mode, 1200); refresh_finished_images_catalog_label(x, mode); try{traceResultPanelStateSoon("canvas_gallery_refresh.after");}catch(e){console.warn("[UI-TRACE] canvas_gallery_refresh.dom_trace_failed", e);}}')
-            gallery_videos_btn.click(lambda request, tools, state: gallery_util.switch_gallery_engine_type("video", request, tools, state), inputs=[gallery_media_switch_request, image_tools_checkbox, state_topbar], outputs=[gallery_index, index_radio, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='(request,tools,state)=>{let marker=request||""; try{clearSimpleAICompareReadyState("gallery_media_switch.video"); marker=(typeof beginGalleryMediaSwitchRequest==="function")?beginGalleryMediaSwitchRequest("video",1500):`${Date.now()}:0:video`; if(typeof beginGalleryMediaSwitchRequest!=="function") syncGalleryMediaSwitch("video",1500);}catch(e){} return [marker,tools,state];}') \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{if(typeof isGalleryMediaSwitchModeCurrent==="function"&&!isGalleryMediaSwitchModeCurrent("video")) return; syncGalleryMediaSwitch("video", 1200); try{if(state&&typeof state==="object"){state=(typeof mergeSimpleAITopbarSystemParamsForGallery==="function")?mergeSimpleAITopbarSystemParamsForGallery(state,"gallery_media_switch.video"):state; if(typeof mergeSimpleAITopbarSystemParamsForGallery!=="function"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;}} if(typeof syncPostGenerationResultControls==="function"){syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80); setTimeout(()=>syncPostGenerationResultControls(state),220);}}catch(e){} refresh_finished_images_catalog_label(x, "video", {refresh:false}); try{const nums=String((state&&state.__finished_nums_pages)||x||""); if(/^0(?:,|$)/.test(nums)&&typeof restoreWelcomePreviewForEmptyGalleryBrowser==="function") restoreWelcomePreviewForEmptyGalleryBrowser("gallery_media_switch.video.empty"); if(typeof scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery==="function") scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery("video", "gallery_media_switch.video");}catch(e){}}')
-            gallery_browser_load_evt = gallery_browser_load_btn.click(gallery_util.load_main_gallery_browser_page, inputs=[gallery_browser_payload, image_tools_checkbox, state_topbar], outputs=[gallery_browser_state, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='()=>{try{clearSimpleAICompareReadyState("gallery_browser.load"); markFinishedGalleryBrowserLoading();}catch(e){}}')
-            gallery_browser_load_evt.then(lambda x, stat, state: None, inputs=[gallery_browser_state, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,stat,state)=>{try{if(state&&typeof state==="object"){state=(typeof mergeSimpleAITopbarSystemParamsForGallery==="function")?mergeSimpleAITopbarSystemParamsForGallery(state,"gallery_browser.load"):state; if(typeof mergeSimpleAITopbarSystemParamsForGallery!=="function"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;}} syncFinishedGalleryBrowserAfterLoad(x); const mode=(state && (state.__gallery_engine_type || state.engine_type)) || (typeof getFinishedGalleryBrowserMode==="function"?getFinishedGalleryBrowserMode():null); refresh_finished_images_catalog_label(stat, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.load.after");}catch(e){console.warn("[UI-TRACE] gallery_browser_load.dom_trace_failed", e);}}')
+            gallery_videos_btn.click(lambda request, tools, state: gallery_util.switch_gallery_engine_type("video", request, tools, state), inputs=[gallery_media_switch_request, image_tools_checkbox, state_topbar], outputs=[gallery_index, index_radio, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, gallery_browser_state, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='(request,tools,state)=>{let marker=request||""; try{clearSimpleAICompareReadyState("gallery_media_switch.video"); marker=(typeof beginGalleryMediaSwitchRequest==="function")?beginGalleryMediaSwitchRequest("video",1500):`${Date.now()}:0:video`; if(typeof beginGalleryMediaSwitchRequest!=="function") syncGalleryMediaSwitch("video",1500);}catch(e){} return [marker,tools,state];}') \
+                .then(lambda browser_state, x, state: None, inputs=[gallery_browser_state, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(browserState,x,state)=>{if(typeof isGalleryMediaSwitchModeCurrent==="function"&&!isGalleryMediaSwitchModeCurrent("video")) return; syncGalleryMediaSwitch("video", 1200); try{if(state&&typeof state==="object"){state=(typeof mergeSimpleAITopbarSystemParamsForGallery==="function")?mergeSimpleAITopbarSystemParamsForGallery(state,"gallery_media_switch.video"):state; if(typeof mergeSimpleAITopbarSystemParamsForGallery!=="function"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;}} if(typeof syncPostGenerationResultControls==="function"){syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80); setTimeout(()=>syncPostGenerationResultControls(state),220);}}catch(e){} refresh_finished_images_catalog_label(x, "video", {refresh:false}); try{const nums=String((state&&state.__finished_nums_pages)||x||""); if(typeof syncFinishedGalleryBrowserAfterMediaSwitch==="function") syncFinishedGalleryBrowserAfterMediaSwitch(browserState,x,"video",state,"gallery_media_switch.video"); else if(/^0(?:,|$)/.test(nums)&&typeof restoreWelcomePreviewForEmptyGalleryBrowser==="function") restoreWelcomePreviewForEmptyGalleryBrowser("gallery_media_switch.video.empty"); if(typeof scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery==="function") scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery("video", "gallery_media_switch.video");}catch(e){}}')
+            gallery_browser_load_evt = gallery_browser_load_btn.click(gallery_util.load_main_gallery_browser_page, inputs=[gallery_browser_payload, image_tools_checkbox, state_topbar], outputs=[gallery_browser_state, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='(payload,tools,state)=>{try{const pending=(typeof getFinishedGalleryBrowserPendingPayloadText==="function")?getFinishedGalleryBrowserPendingPayloadText():payload; if(pending) payload=pending; let shouldClearCompare=true; try{const parsed=JSON.parse(payload||"{}"); shouldClearCompare=!(parsed&&parsed.clear_compare===false);}catch(_e){} if(shouldClearCompare&&typeof clearSimpleAICompareReadyState==="function") clearSimpleAICompareReadyState("gallery_browser.load"); if(state&&typeof state==="object") state.__main_gallery_browser_bridge_payload=payload; markFinishedGalleryBrowserLoading();}catch(e){} return [payload,tools,state];}')
+            gallery_browser_load_evt.then(lambda x, stat, state: None, inputs=[gallery_browser_state, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,stat,state)=>{try{const applied=(typeof syncFinishedGalleryBrowserAfterLoad==="function")?syncFinishedGalleryBrowserAfterLoad(x):true; if(applied===false) return; if(state&&typeof state==="object"){state=(typeof mergeSimpleAITopbarSystemParamsForGallery==="function")?mergeSimpleAITopbarSystemParamsForGallery(state,"gallery_browser.load"):state; if(typeof mergeSimpleAITopbarSystemParamsForGallery!=="function"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;}} const mode=(state && (state.__gallery_engine_type || state.engine_type)) || (typeof getFinishedGalleryBrowserMode==="function"?getFinishedGalleryBrowserMode():null); refresh_finished_images_catalog_label(stat, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.load.after");}catch(e){console.warn("[UI-TRACE] gallery_browser_load.dom_trace_failed", e);}}')
             gallery_browser_outputs = [gallery_browser_folder, gallery_browser_prev_folder_btn, gallery_browser_next_folder_btn, gallery_browser_status, gallery_browser_more_btn, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat]
-            gallery_browser_folder.change(gallery_util.load_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.change"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.folder.change"); traceResultPanelStateSoon("gallery_browser.folder.change");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder.dom_trace_failed", e);}}')
-            gallery_browser_prev_folder_btn.click(gallery_util.previous_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.prev"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.folder.prev"); traceResultPanelStateSoon("gallery_browser.folder.prev");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_prev.dom_trace_failed", e);}}')
-            gallery_browser_next_folder_btn.click(gallery_util.next_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.next"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.folder.next"); traceResultPanelStateSoon("gallery_browser.folder.next");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_next.dom_trace_failed", e);}}')
-            gallery_browser_refresh_btn.click(gallery_util.refresh_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.refresh"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.refresh"); traceResultPanelStateSoon("gallery_browser.refresh");}catch(e){console.warn("[UI-TRACE] gallery_browser_refresh.dom_trace_failed", e);}}')
-            gallery_browser_more_btn.click(gallery_util.load_more_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.more"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); if(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function") syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.more"); traceResultPanelStateSoon("gallery_browser.more");}catch(e){console.warn("[UI-TRACE] gallery_browser_more.dom_trace_failed", e);}}')
+            gallery_browser_folder.change(gallery_util.load_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False, js='(folder,tools,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.change"); state=(typeof beginFinishedGalleryBrowserNativeRequest==="function")?beginFinishedGalleryBrowserNativeRequest("gallery_browser.folder.change",folder,state):state;}catch(e){} return [folder,tools,state];}') \
+                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.change"); const applied=(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function")?syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.folder.change"):true; if(applied===false) return; const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.folder.change");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder.dom_trace_failed", e);}}')
+            gallery_browser_prev_folder_btn.click(gallery_util.previous_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False, js='(folder,tools,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.prev"); state=(typeof beginFinishedGalleryBrowserNativeRequest==="function")?beginFinishedGalleryBrowserNativeRequest("gallery_browser.folder.prev",folder,state):state;}catch(e){} return [folder,tools,state];}') \
+                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.prev"); const applied=(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function")?syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.folder.prev"):true; if(applied===false) return; const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.folder.prev");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_prev.dom_trace_failed", e);}}')
+            gallery_browser_next_folder_btn.click(gallery_util.next_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False, js='(folder,tools,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.next"); state=(typeof beginFinishedGalleryBrowserNativeRequest==="function")?beginFinishedGalleryBrowserNativeRequest("gallery_browser.folder.next",folder,state):state;}catch(e){} return [folder,tools,state];}') \
+                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.next"); const applied=(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function")?syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.folder.next"):true; if(applied===false) return; const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.folder.next");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_next.dom_trace_failed", e);}}')
+            gallery_browser_refresh_btn.click(gallery_util.refresh_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False, js='(folder,tools,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.refresh"); state=(typeof beginFinishedGalleryBrowserNativeRequest==="function")?beginFinishedGalleryBrowserNativeRequest("gallery_browser.refresh",folder,state):state;}catch(e){} return [folder,tools,state];}') \
+                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.refresh"); const applied=(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function")?syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.refresh"):true; if(applied===false) return; const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.refresh");}catch(e){console.warn("[UI-TRACE] gallery_browser_refresh.dom_trace_failed", e);}}')
+            gallery_browser_more_btn.click(gallery_util.load_more_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False, js='(folder,tools,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.more"); state=(typeof beginFinishedGalleryBrowserNativeRequest==="function")?beginFinishedGalleryBrowserNativeRequest("gallery_browser.more",folder,state):state;}catch(e){} return [folder,tools,state];}') \
+                .then(lambda status, x, state: None, inputs=[gallery_browser_status, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(status,x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.more"); const applied=(typeof syncFinishedGalleryBrowserAfterNativeLoad==="function")?syncFinishedGalleryBrowserAfterNativeLoad(status,state,"gallery_browser.more"):true; if(applied===false) return; const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.more");}catch(e){console.warn("[UI-TRACE] gallery_browser_more.dom_trace_failed", e);}}')
             gallery.select(gallery_util.select_gallery, inputs=[gallery_index, image_tools_checkbox, state_topbar, backfill_prompt], outputs=[prompt_info_box, prompt_info_close_btn, prompt_info_container, prompt, negative_prompt, params_note_info, params_note_close_button, params_note_input_name, params_note_delete_button, params_note_regen_button, params_note_preset_button, params_note_box, image_toolbox, state_topbar], show_progress=False) \
                 .then(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){state=(typeof mergeSimpleAITopbarSystemParamsForGallery==="function")?mergeSimpleAITopbarSystemParamsForGallery(state,"gallery.select"):state; if(typeof mergeSimpleAITopbarSystemParamsForGallery!=="function"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;}} syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80);}catch(e){console.warn("[UI-TRACE] gallery_select_compare_sync_failed", e);}}')
             gallery.preview_open(gallery_util.gallery_preview_open, inputs=[image_tools_checkbox, state_topbar], outputs=[image_toolbox, state_topbar], queue=False, show_progress=False)
@@ -8316,6 +8456,18 @@ with shared.gradio_root:
 
         def toggle_comparison(is_comp, input_img, gallery_output, final_gallery, state_params, scene1, scene_canvas):
             state_params = dict(state_params or {})
+            if not is_comp:
+                had_main_gallery_browser_state = bool(state_params.get("gallery_state") == "main_browser")
+                gallery_util.clear_main_gallery_browser_state(state_params)
+                if had_main_gallery_browser_state or state_params.get("gallery_state") == "main_browser":
+                    state_params["gallery_state"] = "finished_index"
+                state_params["gallery_preview_open"] = True
+                state_params["__post_generation_has_output"] = True
+                state_params["__post_generation_gallery_output"] = True
+                state_params["__post_generation_video_output"] = False
+                state_params["__post_generation_compare_ready"] = True
+                state_params["__post_generation_compare_visible"] = True
+                state_params["__post_generation_compare_cleared"] = False
 
             def mark_compare_state_ready(ready, cleared):
                 state_params["__post_generation_compare_ready"] = bool(ready)
@@ -8340,10 +8492,20 @@ with shared.gradio_root:
                 )
 
             compare_toolbox_disabled = state_params.get("__image_tools_enabled") is False
+            post_generation_compare_available = bool(
+                state_params.get("__post_generation_has_output")
+                and state_params.get("__post_generation_compare_ready")
+                and state_params.get("__post_generation_compare_visible")
+                and not state_params.get("__post_generation_compare_cleared")
+            )
+            main_browser_without_post_generation_compare = (
+                state_params.get("gallery_state") == "main_browser"
+                and not post_generation_compare_available
+            )
             compare_state_invalid = bool(
                 compare_toolbox_disabled
                 or state_params.get("__post_generation_compare_cleared")
-                or state_params.get("gallery_state") == "main_browser"
+                or main_browser_without_post_generation_compare
             )
             if compare_state_invalid:
                 util.log_ui_trace(
@@ -8412,6 +8574,8 @@ with shared.gradio_root:
                     state_params,
                 )
             mark_compare_state_ready(True, False)
+            state_params["gallery_state"] = "finished_index"
+            state_params["gallery_preview_open"] = True
             return (
                 True,
                 gr_update(value=(input_img, output_img), visible=True),
@@ -8428,6 +8592,7 @@ with shared.gradio_root:
             state_topbar = dict(state_topbar or {})
             image_tools_enabled = bool(image_tools_enabled)
             state_topbar["__image_tools_enabled"] = image_tools_enabled
+            gallery_util.clear_main_gallery_browser_state(state_topbar)
             engine_type = state_topbar.get('engine_type')
             if not engine_type:
                 engine_type = state_topbar.get('default_engine', {}).get('engine_type')
@@ -8548,7 +8713,7 @@ with shared.gradio_root:
             compare_update = compare_button_gr_update(visible=toolbox_visible, ready=compare_ready)
             return compare_update, gr_update(visible=toolbox_visible), state_topbar
 
-        compare_btn.click(toggle_comparison, inputs=[comparison_state, cached_input_image, progress_gallery, gallery, state_topbar, scene_input_image1, scene_canvas_image], outputs=[comparison_state, comparison_box, progress_gallery, gallery, progress_window, progress_video, compare_btn, image_toolbox, state_topbar], show_progress=False) \
+        compare_btn.click(toggle_comparison, inputs=[comparison_state, cached_input_image, progress_gallery, gallery, state_topbar, scene_input_image1, scene_canvas_image], outputs=[comparison_state, comparison_box, progress_gallery, gallery, progress_window, progress_video, compare_btn, image_toolbox, state_topbar], show_progress=False, js='(isComp,input,galleryOutput,finalGallery,state,scene1,sceneCanvas)=>{try{if(!isComp&&typeof preparePostGenerationComparisonSurfaceState==="function"){const prepared=preparePostGenerationComparisonSurfaceState(state,"comparison_click_before"); if(prepared&&typeof prepared==="object") state=prepared;}}catch(e){console.warn("[UI-TRACE] comparison_click_prepare_failed", e);} return [isComp,input,galleryOutput,finalGallery,state,scene1,sceneCanvas];}') \
             .then(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(state&&state.__post_generation_compare_cleared){if(typeof clearSimpleAICompareReadyState==="function") clearSimpleAICompareReadyState("comparison_click_cleared"); syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80); return;} if(typeof suppressFinishedGalleryWelcomeGuardForComparison==="function") suppressFinishedGalleryWelcomeGuardForComparison("comparison_click"); syncPostGenerationResultControls(state); setTimeout(()=>{if(typeof suppressFinishedGalleryWelcomeGuardForComparison==="function") suppressFinishedGalleryWelcomeGuardForComparison("comparison_click+60"); syncPostGenerationResultControls(state);},60); setTimeout(()=>syncPostGenerationResultControls(state),180); setTimeout(()=>syncPostGenerationResultControls(state),420);}catch(e){console.warn("[UI-TRACE] comparison_preview_sync_failed", e);}}')
         protections = [random_button, super_prompter, background_theme, image_tools_checkbox] + nav_bars
         from extras.media_normalize import stash_scene_media_before_generation as _stash_scene_media_before_generation
@@ -8660,11 +8825,11 @@ with shared.gradio_root:
             return event
 
         uov_batch_evt.then(topbar.process_after_generation, inputs=state_topbar, outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False) \
-            .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once)});}')
+            .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once), syncSwitch:false});}')
         enhance_batch_evt.then(topbar.process_after_generation, inputs=state_topbar, outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False) \
-            .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once)});}')
+            .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once), syncSwitch:false});}')
         scene_batch_evt.then(topbar.process_after_generation, inputs=state_topbar, outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False) \
-            .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once)});}')
+            .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once), syncSwitch:false});}')
 
         generate_event = bind_generation_failure_cleanup(generate_button.click(_stash_scene_media_before_generation, inputs=[scene_video, scene_audio, scene_original_video_path, state_topbar, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder, generate_button, skip_button, stop_button, random_aspect_ratio_state], show_progress=False, queue=False, js=generation_start_js))
         generate_event = bind_generation_failure_cleanup(generate_event.success(cache_input_image_func, inputs=[state_topbar, enhance_checkbox, current_tab, uov_input_image, inpaint_input_image, enhance_input_image, scene_input_image1, scene_canvas_image], outputs=[cached_input_image], show_progress=False, queue=False))
@@ -8692,6 +8857,7 @@ with shared.gradio_root:
         generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.wait_for_vlm_completion, outputs=[], show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.avoid_empty_prompt_for_scene, inputs=[prompt, state_topbar, scene_canvas_image, scene_input_image1, scene_theme, scene_additional_prompt, scene_additional_prompt_2], outputs=prompt, show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(select_random_aspect_ratio, inputs=[random_aspect_ratio_checkbox, random_aspect_ratio_state, aspect_ratios_selection], outputs=[overwrite_width, overwrite_height, aspect_ratios_selection, random_aspect_ratio_state], show_progress=False, queue=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(sync_quick_enhance_for_generation, inputs=[quick_enhance, quick_enhance_uov_strength, enhance_checkbox, enhance_uov_method, enhance_uov_strength], outputs=[enhance_checkbox, enhance_uov_method, enhance_uov_strength], show_progress=False, queue=False, js=sync_enhance_submit_state_js))
         generate_event = bind_generation_failure_cleanup(generate_event.success(sync_inpaint_engine_dropdowns_before_generation, inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls], outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls], show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls + [model_params_state, clip_model, upscale_model, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=generate_clicked, inputs=[currentTask, state_topbar], outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button], show_progress=False))
@@ -8701,12 +8867,12 @@ with shared.gradio_root:
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80);}catch(e){console.warn("[UI-TRACE] compare_ready_sync_failed", e);}}'))
         generate_event = bind_generation_failure_cleanup(generate_event.success(finalize_generation_gallery_surface, inputs=[currentTask], outputs=[progress_window, progress_gallery, progress_video, gallery], show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(_restore_scene_media_after_generation, inputs=[state_topbar, scene_video_backup, scene_audio_backup, scene_original_video_backup], outputs=[scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder], show_progress=False))
-        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: false}); try{if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.label");}catch(e){}}'))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: false, syncSwitch:false}); try{if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.label");}catch(e){}}'))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.refresh_finished_catalog_stat_after_generation, inputs=state_topbar, outputs=gallery_index_stat, show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: false, syncSwitch:false}); if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.delayed_label");}catch(e){console.warn("[UI-TRACE] generation_done_delayed_label_failed", e);}}'))
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(typeof markPostGenerationResultSurfaceWindow==="function") markPostGenerationResultSurfaceWindow(state,"generation_done"); syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),120); setTimeout(()=>syncPostGenerationResultControls(state),420); setTimeout(()=>syncPostGenerationResultControls(state),1200); if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.sync");}catch(e){console.warn("[UI-TRACE] post_generation_result_controls_failed", e);}}'))
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, queue=False, show_progress=False, js='playNotification'))
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, queue=False, show_progress=False, js='refresh_grid_delayed'))
-        generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.refresh_finished_catalog_stat_after_generation, inputs=state_topbar, outputs=gallery_index_stat, show_progress=False))
-        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: false}); if(typeof traceResultPanelStateSoon==="function") traceResultPanelStateSoon("generation_done.delayed_label");}catch(e){console.warn("[UI-TRACE] generation_done_delayed_label_failed", e);}}'))
 
         debug_true_state = gr.State(value=True)
         ctrls_preview = [debug_true_state if c == debugging_cn_preprocessor else c for c in ctrls]

@@ -11,6 +11,7 @@ from starlette.responses import Response
 
 
 _APP_TREE_PATCHED_SENTINEL = "simpleai_node_index_cache"
+_IMAGE_DROP_CUSTOM_URL_SENTINEL = "simpleai_image_drop_custom_url"
 _APP_TREE_CHILDREN_ASSIGNMENT = "\t\tn.children = subtree.children;\n"
 _APP_TREE_ORIGINAL_LOOKUP = """function find_node_by_id(tree, id) {
 \tif (tree.id === id) {
@@ -57,6 +58,7 @@ _IMAGE_DROP_ORIGINAL_HANDLER_SVELTE5 = """async function on_drop(evt) {
 \t\tawait tick();
 \t\tget(upload_input).load_files_from_drop(evt);
 \t}"""
+_IMAGE_DROP_ORIGINAL_HANDLER_MINIFIED_UPLOAD = "async function A(e){n(10,i=!1),e.dataTransfer?.files&&await D(e.dataTransfer.files)}"
 _IMAGE_UPLOAD_CLEAR_ORIGINAL_HANDLER = """    if ($$self.$$.dirty[0] & /*uploading, active_streaming*/
     2097153) {
       if (uploading && !active_streaming) $$invalidate(3, value = null);
@@ -96,8 +98,12 @@ def _asset_needs_app_tree_patch(text: str) -> bool:
 def _asset_needs_image_drop_patch(text: str) -> bool:
     return (
         (
-            (_IMAGE_DROP_ORIGINAL_HANDLER in text or _IMAGE_DROP_ORIGINAL_HANDLER_SVELTE5 in text)
-            and _IMAGE_DROP_PATCHED_SENTINEL not in text
+            (
+                _IMAGE_DROP_ORIGINAL_HANDLER in text
+                or _IMAGE_DROP_ORIGINAL_HANDLER_SVELTE5 in text
+                or _IMAGE_DROP_ORIGINAL_HANDLER_MINIFIED_UPLOAD in text
+            )
+            and _IMAGE_DROP_CUSTOM_URL_SENTINEL not in text
         )
         or (
             (
@@ -201,20 +207,23 @@ def _patch_image_drop_asset(text: str) -> str:
         }
       }
     }
-    const simpleai_image_drop_url = simpleai_image_drop_first_url(simpleai_image_drop_transfer);
+    const simpleai_image_drop_url = simpleai_image_drop_custom_url(simpleai_image_drop_transfer) || simpleai_image_drop_first_url(simpleai_image_drop_transfer);
     $$invalidate(2, dragging = false);
     if (!simpleai_image_drop_snapshot.length && !simpleai_image_drop_url) {
       return;
     }
     $$invalidate(1, active_source = "upload");
     await tick();
+    if (simpleai_image_drop_url) {
+      const simpleai_image_drop_file = await simpleai_image_drop_file_from_url(simpleai_image_drop_url);
+      if (simpleai_image_drop_file) {
+        await upload_input.load_files([simpleai_image_drop_file]);
+        return;
+      }
+    }
     if (simpleai_image_drop_snapshot.length) {
       await upload_input.load_files_from_drop({ dataTransfer: { files: simpleai_image_drop_snapshot } });
       return;
-    }
-    const simpleai_image_drop_file = await simpleai_image_drop_file_from_url(simpleai_image_drop_url);
-    if (simpleai_image_drop_file) {
-      await upload_input.load_files([simpleai_image_drop_file]);
     }
     function simpleai_image_drop_first_uri(text) {
       return String(text || "").split(/\\r?\\n/).map((line) => line.trim()).find((line) => line && !line.startsWith("#")) || "";
@@ -278,6 +287,10 @@ def _patch_image_drop_asset(text: str) -> str:
       const plain = String(transfer.getData("text/plain") || "").trim();
       return plain ? simpleai_image_drop_normalize_source(plain) : "";
     }
+    function simpleai_image_drop_custom_url(transfer) {
+      if (!transfer || typeof transfer.getData !== "function") return "";
+      return simpleai_image_drop_normalize_source(transfer.getData("application/x-simpleai-gallery-original-url"));
+    }
     async function simpleai_image_drop_file_from_url(source) {
       if (!source) return null;
       try {
@@ -309,20 +322,23 @@ def _patch_image_drop_asset(text: str) -> str:
 \t\t\t\t}
 \t\t\t}
 \t\t}
-\t\tconst simpleai_image_drop_url = simpleai_image_drop_first_url(simpleai_image_drop_transfer);
+\t\tconst simpleai_image_drop_url = simpleai_image_drop_custom_url(simpleai_image_drop_transfer) || simpleai_image_drop_first_url(simpleai_image_drop_transfer);
 \t\tdragging(false);
 \t\tif (!simpleai_image_drop_snapshot.length && !simpleai_image_drop_url) {
 \t\t\treturn;
 \t\t}
 \t\tactive_source("upload");
 \t\tawait tick();
+\t\tif (simpleai_image_drop_url) {
+\t\t\tconst simpleai_image_drop_file = await simpleai_image_drop_file_from_url(simpleai_image_drop_url);
+\t\t\tif (simpleai_image_drop_file) {
+\t\t\t\tawait get(upload_input).load_files([simpleai_image_drop_file]);
+\t\t\t\treturn;
+\t\t\t}
+\t\t}
 \t\tif (simpleai_image_drop_snapshot.length) {
 \t\t\tawait get(upload_input).load_files_from_drop({ dataTransfer: { files: simpleai_image_drop_snapshot } });
 \t\t\treturn;
-\t\t}
-\t\tconst simpleai_image_drop_file = await simpleai_image_drop_file_from_url(simpleai_image_drop_url);
-\t\tif (simpleai_image_drop_file) {
-\t\t\tawait get(upload_input).load_files([simpleai_image_drop_file]);
 \t\t}
 \t\tfunction simpleai_image_drop_first_uri(text) {
 \t\t\treturn String(text || "").split(/\\r?\\n/).map((line) => line.trim()).find((line) => line && !line.startsWith("#")) || "";
@@ -386,6 +402,10 @@ def _patch_image_drop_asset(text: str) -> str:
 \t\t\tconst plain = String(transfer.getData("text/plain") || "").trim();
 \t\t\treturn plain ? simpleai_image_drop_normalize_source(plain) : "";
 \t\t}
+\t\tfunction simpleai_image_drop_custom_url(transfer) {
+\t\t\tif (!transfer || typeof transfer.getData !== "function") return "";
+\t\t\treturn simpleai_image_drop_normalize_source(transfer.getData("application/x-simpleai-gallery-original-url"));
+\t\t}
 \t\tasync function simpleai_image_drop_file_from_url(source) {
 \t\t\tif (!source) return null;
 \t\t\ttry {
@@ -402,8 +422,10 @@ def _patch_image_drop_asset(text: str) -> str:
 \t\t\t}
 \t\t}
 \t}"""
+    patched_minified_upload_handler = """async function A(e){n(10,i=!1);const h=e.dataTransfer,T=simpleai_image_drop_custom_url(h)||simpleai_image_drop_first_url(h);if(T){const z=await simpleai_image_drop_file_from_url(T);if(z){await D([z]);return}}h?.files&&await D(h.files);function simpleai_image_drop_first_uri(q){return String(q||"").split(/\\r?\\n/).map(U=>U.trim()).find(U=>U&&!U.startsWith("#"))||""}function simpleai_image_drop_first_html_src(q){if(!q)return"";try{const U=new DOMParser().parseFromString(q,"text/html").querySelector("img[src]")?.getAttribute("src")||"";if(U)return U}catch(_){}const ae=String(q).match(/<img\\b[^>]*\\bsrc=["']?([^"'\\s>]+)/i);return ae?ae[1]:""}function simpleai_image_drop_normalize_source(q){const U=String(q||"").trim();if(!U)return"";let ae=U;try{ae=new URL(U,document.baseURI).href}catch(_){}return simpleai_image_drop_gallery_original_source(ae)}function simpleai_image_drop_base64_url_decode_utf8(q){const U=String(q||"");if(!U)return"";const ae=U.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-U.length%4)%4);try{const oe=atob(ae),_e=Uint8Array.from(oe,ve=>ve.charCodeAt(0));return window.TextDecoder?new TextDecoder("utf-8").decode(_e):decodeURIComponent(Array.from(_e,ve=>"%"+ve.toString(16).padStart(2,"0")).join(""))}catch(_){return""}}function simpleai_image_drop_gallery_original_source(q){try{const U=new URL(q,document.baseURI),ae=decodeURIComponent(U.pathname.split("/").filter(Boolean).pop()||""),oe=ae.match(/^simpai_gprev__([A-Za-z0-9_-]+)__[0-9a-f]{16}\\.jpg$/);if(!oe)return q;const _e=simpleai_image_drop_base64_url_decode_utf8(oe[1]);if(!_e)return q;const ve="/simpleai/gallery-preview/",We=U.pathname.indexOf(ve),Ye=We>=0?U.pathname.slice(0,We):"",Ke=encodeURI(String(_e).replace(/\\\\/g,"/")).replace(/\\?/g,"%3F").replace(/#/g,"%23");return U.origin+Ye+"/gradio_api/file="+Ke}catch(_){return q}}function simpleai_image_drop_first_url(q){if(!q||typeof q.getData!="function")return"";const U=simpleai_image_drop_first_uri(q.getData("text/uri-list"));if(U)return simpleai_image_drop_normalize_source(U);const ae=simpleai_image_drop_first_html_src(q.getData("text/html"));if(ae)return simpleai_image_drop_normalize_source(ae);const oe=String(q.getData("text/plain")||"").trim();return oe?simpleai_image_drop_normalize_source(oe):""}function simpleai_image_drop_custom_url(q){return!q||typeof q.getData!="function"?"":simpleai_image_drop_normalize_source(q.getData("application/x-simpleai-gallery-original-url"))}async function simpleai_image_drop_file_from_url(q){if(!q)return null;try{const U=await fetch(q,{credentials:"same-origin"});if(!U.ok)return null;const ae=await U.blob(),oe=ae.type||"image/png";if(oe&&!oe.toLowerCase().startsWith("image/"))return null;const _e=(oe.split("/")[1]||"png").split(";")[0].replace("svg+xml","svg"),ve=_e==="jpeg"?"jpg":_e;return new File([ae],"dropped-image."+ve,{type:oe})}catch(_){return null}}}"""
     text = text.replace(_IMAGE_DROP_ORIGINAL_HANDLER, patched_handler, 1)
     text = text.replace(_IMAGE_DROP_ORIGINAL_HANDLER_SVELTE5, patched_svelte5_handler, 1)
+    text = text.replace(_IMAGE_DROP_ORIGINAL_HANDLER_MINIFIED_UPLOAD, patched_minified_upload_handler, 1)
     text = text.replace(
         _IMAGE_UPLOAD_CLEAR_ORIGINAL_HANDLER,
         """    if ($$self.$$.dirty[0] & /*uploading, active_streaming*/

@@ -46,6 +46,246 @@ function simpaiUiTrace(level, ...args) {
     } catch (e) {}
 }
 
+(function initSimpleAIMediaResolutionBadges() {
+    if (window.__simpleaiMediaResolutionBadgesInitialized) return;
+    window.__simpleaiMediaResolutionBadgesInitialized = true;
+
+    const GALLERY_ORIGINAL_URL_TYPE = "application/x-simpleai-gallery-original-url";
+    const GALLERY_DISPLAY_PREVIEW_PREFIX = "simpai_gprev__";
+    const GALLERY_DISPLAY_PREVIEW_ROUTE = "/simpleai/gallery-preview/";
+    const SKIP_ROOT_SELECTOR = [
+        "#finished_gallery",
+        "#final_gallery",
+        "#preview_generating",
+        "#comparison_box",
+        "#lightboxModal",
+        "#simpai-infinite-canvas-workbench",
+        ".sai-canvas-workbench",
+        ".simpai-sketch",
+        ".simpai-custom-sketch-source"
+    ].join(", ");
+    const IMAGE_ROOT_SELECTOR = [
+        '[data-testid="image"].image-container',
+        ".gradio-image",
+        ".image-container",
+        ".image-frame"
+    ].join(", ");
+
+    function simpleaiNormalizeMediaDimensions(width, height) {
+        const w = Math.round(Number(width || 0));
+        const h = Math.round(Number(height || 0));
+        if (!(w > 0 && h > 0)) return null;
+        return { width: w, height: h };
+    }
+
+    function simpleaiMediaResolutionLabel(dimensions) {
+        const size = simpleaiNormalizeMediaDimensions(dimensions?.width, dimensions?.height);
+        return size ? `${size.width} x ${size.height}` : "";
+    }
+
+    function simpleaiEnsureMediaResolutionBadge(host) {
+        if (!host || !host.querySelector) return null;
+        let badge = host.querySelector(":scope > .simpai-media-resolution-badge");
+        if (!badge) {
+            badge = document.createElement("div");
+            badge.className = "simpai-media-resolution-badge";
+            badge.setAttribute("aria-hidden", "true");
+            host.appendChild(badge);
+        }
+        return badge;
+    }
+
+    function simpleaiApplyMediaResolutionBadge(host, dimensions, options = {}) {
+        const size = simpleaiNormalizeMediaDimensions(dimensions?.width, dimensions?.height);
+        if (!host || !size) {
+            simpleaiClearMediaResolutionBadge(host);
+            return false;
+        }
+        const badge = simpleaiEnsureMediaResolutionBadge(host);
+        if (!badge) return false;
+        const label = options.label || simpleaiMediaResolutionLabel(size);
+        if (!host.classList.contains("simpai-media-resolution-host")) {
+            host.classList.add("simpai-media-resolution-host");
+        }
+        if (badge.textContent !== label) badge.textContent = label;
+        if (badge.hidden) badge.hidden = false;
+        return true;
+    }
+
+    function simpleaiClearMediaResolutionBadge(host) {
+        if (!host || !host.querySelector) return false;
+        const badge = host.querySelector(":scope > .simpai-media-resolution-badge");
+        if (badge) badge.hidden = true;
+        return !!badge;
+    }
+
+    function simpleaiBase64UrlDecodeUtf8(value) {
+        const text = String(value || "");
+        if (!text) return "";
+        const padded = text.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - text.length % 4) % 4);
+        try {
+            const binary = atob(padded);
+            const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+            if (window.TextDecoder) return new TextDecoder("utf-8").decode(bytes);
+            return decodeURIComponent(Array.from(bytes, (byte) => "%" + byte.toString(16).padStart(2, "0")).join(""));
+        } catch (e) {
+            return "";
+        }
+    }
+
+    function simpleaiGalleryPreviewOriginalUrl(src) {
+        const value = String(src || "");
+        if (!value) return "";
+        try {
+            const url = new URL(value, document.baseURI || window.location?.href || location.href);
+            const fileName = decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "");
+            const match = fileName.match(new RegExp(`^${GALLERY_DISPLAY_PREVIEW_PREFIX}([A-Za-z0-9_-]+)__[0-9a-f]{16}\\.jpg$`));
+            if (!match) return value;
+            const originalPath = simpleaiBase64UrlDecodeUtf8(match[1]);
+            if (!originalPath) return value;
+            const routeIndex = url.pathname.indexOf(GALLERY_DISPLAY_PREVIEW_ROUTE);
+            const basePath = routeIndex >= 0 ? url.pathname.slice(0, routeIndex) : "";
+            const encodedPath = encodeURI(String(originalPath).replace(/\\/g, "/")).replace(/\?/g, "%3F").replace(/#/g, "%23");
+            return `${url.origin}${basePath}/gradio_api/file=${encodedPath}`;
+        } catch (e) {
+            return value;
+        }
+    }
+
+    function simpleaiFirstUriFromText(text) {
+        return String(text || "").split(/\r?\n/).map((line) => line.trim()).find((line) => line && !line.startsWith("#")) || "";
+    }
+
+    function simpleaiFirstImageSrcFromHtml(html) {
+        if (!html) return "";
+        try {
+            const doc = new DOMParser().parseFromString(html, "text/html");
+            const src = doc.querySelector("img[src]")?.getAttribute("src") || "";
+            if (src) return src;
+        } catch (e) {}
+        const match = String(html).match(/<img\b[^>]*\bsrc=["']?([^"'\s>]+)/i);
+        return match ? match[1] : "";
+    }
+
+    function simpleaiNormalizeDropImageUrl(value) {
+        const text = String(value || "").trim();
+        if (!text) return "";
+        try {
+            return simpleaiGalleryPreviewOriginalUrl(new URL(text, document.baseURI || window.location?.href || location.href).href);
+        } catch (e) {
+            return simpleaiGalleryPreviewOriginalUrl(text);
+        }
+    }
+
+    function simpleaiDownloadUrlImageSource(value) {
+        const text = String(value || "");
+        if (!text) return "";
+        const first = text.indexOf(":");
+        const second = first >= 0 ? text.indexOf(":", first + 1) : -1;
+        return second >= 0 ? simpleaiNormalizeDropImageUrl(text.slice(second + 1)) : "";
+    }
+
+    function simpleaiImageUrlFromDataTransfer(dataTransfer) {
+        if (!dataTransfer || typeof dataTransfer.getData !== "function") {
+            try { return simpleaiNormalizeDropImageUrl(window.__simpleaiGalleryOriginalDragUrl || ""); } catch (e) { return ""; }
+        }
+        return simpleaiNormalizeDropImageUrl(dataTransfer.getData(GALLERY_ORIGINAL_URL_TYPE))
+            || simpleaiDownloadUrlImageSource(dataTransfer.getData("DownloadURL"))
+            || simpleaiNormalizeDropImageUrl(simpleaiFirstUriFromText(dataTransfer.getData("text/uri-list")))
+            || simpleaiNormalizeDropImageUrl(simpleaiFirstImageSrcFromHtml(dataTransfer.getData("text/html")))
+            || simpleaiNormalizeDropImageUrl(dataTransfer.getData("text/plain"))
+            || simpleaiNormalizeDropImageUrl(window.__simpleaiGalleryOriginalDragUrl || "");
+    }
+
+    async function simpleaiImageDimensionsFromBlob(blob) {
+        if (!blob || !String(blob.type || "").toLowerCase().startsWith("image/")) return null;
+        if (typeof createImageBitmap === "function") {
+            const bitmap = await createImageBitmap(blob);
+            try {
+                return simpleaiNormalizeMediaDimensions(bitmap.width, bitmap.height);
+            } finally {
+                try { bitmap.close?.(); } catch (e) {}
+            }
+        }
+        const objectUrl = URL.createObjectURL(blob);
+        try {
+            const img = await new Promise((resolve, reject) => {
+                const node = new Image();
+                node.onload = () => resolve(node);
+                node.onerror = reject;
+                node.src = objectUrl;
+            });
+            return simpleaiNormalizeMediaDimensions(img.naturalWidth, img.naturalHeight);
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
+
+    async function simpleaiImageDimensionsFromUrl(url) {
+        const source = simpleaiNormalizeDropImageUrl(url);
+        if (!source) return null;
+        const response = await fetch(source, { credentials: "same-origin" });
+        if (!response.ok) return null;
+        return simpleaiImageDimensionsFromBlob(await response.blob());
+    }
+
+    function simpleaiImageRootFromTarget(target) {
+        const root = target?.closest?.(IMAGE_ROOT_SELECTOR);
+        if (!root || root.closest?.(SKIP_ROOT_SELECTOR)) return null;
+        return root;
+    }
+
+    function simpleaiFirstImageFileFromInput(input) {
+        const files = input?.files ? Array.from(input.files) : [];
+        return files.find((file) => String(file?.type || "").toLowerCase().startsWith("image/")) || null;
+    }
+
+    async function simpleaiApplyInputResolutionFromFile(input, file) {
+        const root = simpleaiImageRootFromTarget(input);
+        if (!root || !file) return false;
+        try {
+            const dimensions = await simpleaiImageDimensionsFromBlob(file);
+            return simpleaiApplyMediaResolutionBadge(root, dimensions);
+        } catch (e) {
+            simpleaiClearMediaResolutionBadge(root);
+            return false;
+        }
+    }
+
+    document.addEventListener("change", (event) => {
+        const input = event.target;
+        if (!input || input.tagName !== "INPUT" || input.type !== "file") return;
+        const file = simpleaiFirstImageFileFromInput(input);
+        if (!file) {
+            const root = simpleaiImageRootFromTarget(input);
+            if (root) simpleaiClearMediaResolutionBadge(root);
+            return;
+        }
+        simpleaiApplyInputResolutionFromFile(input, file);
+    }, true);
+
+    document.addEventListener("drop", (event) => {
+        const root = simpleaiImageRootFromTarget(event.target);
+        if (!root) return;
+        const url = simpleaiImageUrlFromDataTransfer(event.dataTransfer);
+        if (url) {
+            simpleaiImageDimensionsFromUrl(url)
+                .then((dimensions) => simpleaiApplyMediaResolutionBadge(root, dimensions))
+                .catch(() => simpleaiClearMediaResolutionBadge(root));
+            return;
+        }
+        const files = event.dataTransfer?.files ? Array.from(event.dataTransfer.files) : [];
+        const file = files.find((item) => String(item?.type || "").toLowerCase().startsWith("image/"));
+        if (file) simpleaiApplyInputResolutionFromFile(root, file);
+    }, true);
+
+    window.simpleaiApplyMediaResolutionBadge = simpleaiApplyMediaResolutionBadge;
+    window.simpleaiClearMediaResolutionBadge = simpleaiClearMediaResolutionBadge;
+    window.simpleaiMediaResolutionLabel = simpleaiMediaResolutionLabel;
+    window.simpleaiImageDimensionsFromBlob = simpleaiImageDimensionsFromBlob;
+    window.simpleaiImageDimensionsFromUrl = simpleaiImageDimensionsFromUrl;
+})();
+
 function simpleaiRehydrateModelsTabAfterPresetNav() {
     try {
         const root = gradioApp();
@@ -697,6 +937,27 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
         return Number.isFinite(parsed) ? parsed : fallback;
     }
 
+    function boundedModelsPanelNumericValue(field, fallback) {
+        let value = numericValue(field?.value, fallback);
+        const min = Number.parseFloat(field?.min ?? '');
+        const max = Number.parseFloat(field?.max ?? '');
+        if (Number.isFinite(min)) value = Math.max(min, value);
+        if (Number.isFinite(max)) value = Math.min(max, value);
+        return value;
+    }
+
+    function setModelsPanelRangeValue(range, value) {
+        if (!range) return;
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return;
+        const min = Number.parseFloat(range.min || '');
+        const max = Number.parseFloat(range.max || '');
+        let nextValue = parsed;
+        if (Number.isFinite(min)) nextValue = Math.max(min, nextValue);
+        if (Number.isFinite(max)) nextValue = Math.min(max, nextValue);
+        range.value = String(nextValue);
+    }
+
     function uniqueModelChoices(values, currentValue) {
         const seen = new Set();
         const result = [];
@@ -1096,7 +1357,7 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
         if (field.matches('[data-simpai-model-field]')) {
             const key = field.dataset.simpaiModelField;
             const range = panel.querySelector(`[data-simpai-model-range="${key}"]`);
-            if (range) range.value = value;
+            setModelsPanelRangeValue(range, value);
             return;
         }
         if (field.matches('[data-simpai-lora-weight-range]')) {
@@ -1108,7 +1369,7 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
         if (field.matches('[data-simpai-lora-weight]')) {
             const index = field.dataset.simpaiLoraWeight;
             const range = panel.querySelector(`[data-simpai-lora-weight-range="${index}"]`);
-            if (range) range.value = value;
+            setModelsPanelRangeValue(range, value);
         }
     }
 
@@ -1143,7 +1404,7 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
     function syncModelsPanelControls(panel) {
         if (!panel) return;
         ensureModelsPanelCatalog();
-        panel.querySelectorAll('[data-simpai-model-range], [data-simpai-model-field], [data-simpai-lora-weight-range], [data-simpai-lora-weight]').forEach(syncSliderPair);
+        panel.querySelectorAll('[data-simpai-model-range], [data-simpai-model-field], [data-simpai-lora-weight]').forEach(syncSliderPair);
         panel.querySelectorAll('[data-simpai-lora-enabled]').forEach(syncLoraRowInteractivity);
         syncModelsPanelRefinerAvailability(panel);
     }
@@ -1180,7 +1441,7 @@ window.simpleaiRehydrateModelsTabAfterPresetNav = simpleaiRehydrateModelsTabAfte
             const index = Number(field.dataset.simpaiLoraWeight);
             if (!Number.isInteger(index)) return;
             if (!payload.loras[index]) payload.loras[index] = {};
-            payload.loras[index].weight = numericValue(field.value, 1.0);
+            payload.loras[index].weight = boundedModelsPanelNumericValue(field, 1.0);
         });
         return payload;
     }
@@ -2967,7 +3228,7 @@ function hideGenerateButtonWhenAlternateActionVisible(reason) {
     const hidden = setGradioComponentVisible('generate_button', false);
     if (hidden) {
         try {
-            console.info('[UI-TRACE] generation_button.hidden_for_active_action', {
+            simpaiUiTrace('info', '[UI-TRACE] generation_button.hidden_for_active_action', {
                 reason: reason || '',
                 stopVisible,
                 skipVisible,
@@ -2992,7 +3253,7 @@ function reconcileGenerationActionButtons(reason) {
     const changed = restoreGradioComponentVisibility(generateRoot, { interactive: true });
     if (changed) {
         try {
-            console.info('[UI-TRACE] generation_button.reconciled', { reason: reason || '' });
+            simpaiUiTrace('info', '[UI-TRACE] generation_button.reconciled', { reason: reason || '' });
         } catch (e) {}
     }
     return changed;
@@ -3042,7 +3303,7 @@ function restoreGenerationControlsAfterUnlock(reason) {
     ].some(Boolean);
     if (changed) {
         try {
-            console.info('[UI-TRACE] generation_controls.restored_after_unlock', { reason: reason || '' });
+            simpaiUiTrace('info', '[UI-TRACE] generation_controls.restored_after_unlock', { reason: reason || '' });
         } catch (e) {}
     }
     return changed;
