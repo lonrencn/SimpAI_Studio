@@ -77,6 +77,15 @@ Edit `template-library.json` to add workbench templates.
 - Starter checklist steps should focus users on replacing placeholder media, editing Timeline params/clips, and rendering to Result.
 - Runnable mixed templates may put generated audio/video Results on Timeline; in that case the upstream `generate` Result and downstream `timeline` edge should both stay visible so the chain teaches Result reuse.
 
+## Director Timeline Templates
+
+- Director templates use `director_timeline` nodes for pre-generation shot planning. The existing `timeline` node remains the post-generation editor.
+- Connect image/video/audio placeholders or Results to Director with `media` edges whose `slot` matches `image_1`, `audio_1`, or `video_1`. Also set the node `media_inputs` map to the same source ids.
+- Connect Director to a runnable video preset with a `text` edge targeting `prompt`. Single-shot timelines send the Director `prompt_override` and `director_timeline` payload to the backend; multi-shot video presets run once per shot, create segment Results, and render them through the downstream Timeline.
+- Audio-driven Director templates may reuse the same Qwen TTS Result for `audio_1` and for a video preset upload slot such as `scene_audio`.
+- If a generated Director video is meant for post work, keep a visible video Result and a downstream Timeline node so Result reuse is obvious.
+- `Director Result + Timeline Mix` is model-free: replace the segment Result placeholders with generated videos, then render the existing Timeline to publish the final video Result.
+
 ## Qwen TTS Templates
 
 - Qwen TTS templates belong in the `audio` category and use `qwen_tts_voice_design`, `qwen_tts_voice_clone`, `qwen_tts_custom_voice`, or `qwen_tts_dialogue` nodes rather than `preset` nodes.

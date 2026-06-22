@@ -261,6 +261,17 @@ def _parse_json_maybe(value: Any) -> Optional[Any]:
         return None
 
 
+def _matches_arch_token(text: Any, token: str) -> bool:
+    s = str(text or "").lower()
+    if not s:
+        return False
+    return re.search(rf"(^|[^a-z0-9]){re.escape(token.lower())}([^a-z0-9]|$)", s) is not None
+
+
+def _looks_like_anima_text(text: Any) -> bool:
+    return _matches_arch_token(text, "anima")
+
+
 def _infer_components_from_keys(keys: Iterable[str]) -> List[str]:
     has_unet = False
     has_te = False
@@ -374,6 +385,8 @@ def _infer_arch_family_from_keys(keys: List[str], metadata: Dict[str, Any]) -> s
             s = str(v).lower()
         except Exception:
             continue
+        if _looks_like_anima_text(s):
+            return "anima"
         if "sdpose" in s:
             return "sdpose"
         if "qwen" in s:
@@ -394,6 +407,8 @@ def _infer_arch_family_from_keys(keys: List[str], metadata: Dict[str, Any]) -> s
     arch = str(metadata.get("modelspec.architecture", "") or "")
     if arch:
         arch_l = arch.lower()
+        if _looks_like_anima_text(arch_l):
+            return "anima"
         if "sd-3" in arch_l or "sd3" in arch_l:
             hint_arch = hint_arch or "sd3"
         if (
@@ -414,6 +429,8 @@ def _infer_arch_family_from_keys(keys: List[str], metadata: Dict[str, Any]) -> s
     model_class = str(metadata.get("model_class", "") or "")
     if model_class:
         mc_l = model_class.lower()
+        if _looks_like_anima_text(mc_l):
+            return "anima"
         if "flux" in mc_l:
             return "flux"
         if "qwen" in mc_l:
@@ -424,6 +441,8 @@ def _infer_arch_family_from_keys(keys: List[str], metadata: Dict[str, Any]) -> s
     config_obj = _parse_json_maybe(metadata.get("config"))
     if isinstance(config_obj, dict):
         cn = str(config_obj.get("_class_name", "") or "").lower()
+        if _looks_like_anima_text(cn):
+            return "anima"
         if "flux" in cn:
             return "flux"
         if "qwen" in cn:
@@ -434,6 +453,8 @@ def _infer_arch_family_from_keys(keys: List[str], metadata: Dict[str, Any]) -> s
     comfy_obj = _parse_json_maybe(metadata.get("comfy_config"))
     if isinstance(comfy_obj, dict):
         mc = str(comfy_obj.get("model_class", "") or "").lower()
+        if _looks_like_anima_text(mc):
+            return "anima"
         if "flux" in mc:
             return "flux"
         if "qwen" in mc:
@@ -446,6 +467,8 @@ def _infer_arch_family_from_keys(keys: List[str], metadata: Dict[str, Any]) -> s
     md_base = str(metadata.get("ss_base_model_version", "") or "")
     if md_base:
         md_l = md_base.lower()
+        if _looks_like_anima_text(md_l):
+            return "anima"
         if "sdxl" in md_l:
             hint_arch = hint_arch or "sdxl"
         if "sd3" in md_l:
@@ -585,6 +608,8 @@ def _infer_arch_family_from_filename(path: str) -> str:
 
     if "sdpose" in s:
         return "sdpose"
+    if _looks_like_anima_text(s):
+        return "anima"
     if "ltx2" in s or ("ltx" in s and "2" in s):
         return "ltx2"
     if "newbie" in s:

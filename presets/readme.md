@@ -105,7 +105,7 @@
 
 | 字段 | 作用 |
 | --- | --- |
-| `backend_engine` | 后端名称。当前内置预置使用 `Flux`、`Qwen`、`Wan`、`Z-image`、`Comfy`、`SDXL`、`Fooocus`。 |
+| `backend_engine` | 后端名称。当前内置预置使用 `Flux`、`Qwen`、`Wan`、`LTX`、`Z-image`、`Comfy`、`SDXL`、`Fooocus`。 |
 | `engine_type` | 可选。视频/音频类一般写 `"video"`，图片类通常不写。 |
 | `disvisible` | 隐藏的主界面控件 id。 |
 | `disinteractive` | 显示但不可编辑的主界面控件 id。 |

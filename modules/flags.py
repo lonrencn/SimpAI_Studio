@@ -246,7 +246,7 @@ default_resolution_multiplier = 1.0
 default_resolution_edit_mode = resolution_edit_mode_scale
 
 
-backend_engines = ['Fooocus', 'SDXL', 'Comfy', 'SD3x', 'HyDiT', 'Flux', 'Wan', 'Qwen', 'Z-image']
+backend_engines = ['Fooocus', 'SDXL', 'Comfy', 'SD3x', 'HyDiT', 'Flux', 'Wan', 'LTX', 'Qwen', 'Z-image']
 
 model_file_filter = {
         'SD3x'   : ['sd3'],
@@ -254,6 +254,8 @@ model_file_filter = {
         'Flux'   : [['flux'], ['f.1'], ['klein']],
         'HyDiT'  : ['hunyuan'],
         'Wan'    : ['wan'],
+        'LTX'    : ['ltx'],
+        'Anima'  : ['anima'],
         'Qwen'   : ['qwen'],
         'Z-image': [['z_image'], ['z-image'], ['zimage'], ['zit'], ['zib']],
         }
@@ -270,6 +272,7 @@ task_class_mapping = {
             'HyDiT'  : 'Hunyuan-DiT',
             'Flux'   : 'Flux.1',
             'Wan'    : 'Wan2.2',
+            'LTX'    : 'LTX2.3',
             'Qwen'   : 'Qwen',
             'Z-image': 'Z-image',
             }
@@ -281,7 +284,7 @@ def get_taskclass_by_fullname(fullname):
             return taskclass
     return None
 
-comfy_classes = ['Comfy', 'SD3x', 'HyDiT', 'Flux', 'Wan', 'Qwen', 'Z-image']
+comfy_classes = ['Comfy', 'SD3x', 'HyDiT', 'Flux', 'Wan', 'LTX', 'Qwen', 'Z-image']
 
 default_class_params = {
     'Fooocus': {
@@ -352,6 +355,16 @@ default_class_params = {
         'available_scheduler_name': comfy_scheduler_list,
         'backend_params': {
             "task_method": "wan_aio_cn",
+            },
+        },
+    'LTX': {
+        'disvisible': [],
+        'disinteractive': [],
+        'available_aspect_ratios_selection': 'Flux',
+        'available_sampler_name': comfy_sampler_list,
+        'available_scheduler_name': comfy_scheduler_list,
+        'backend_params': {
+            "task_method": "ltx2.3_t2v_cn",
             },
         },
     'Qwen': {

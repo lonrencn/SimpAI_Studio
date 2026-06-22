@@ -25,7 +25,7 @@ from modules.flags import OutputFormat, Performance
 from enhanced.logger import format_name
 from enhanced.simpleai import init_modelsinfo, get_path_in_user_dir
 logger = logging.getLogger(format_name(__name__))
-ARCH_FAMILY_ALGO = 3
+ARCH_FAMILY_ALGO = 4
 ARCH_FAMILY_CATALOGS = {"checkpoints", "diffusion_models", "loras", "vae", "unet"}
 _logged_config_info_keys = set()
 
@@ -1587,18 +1587,35 @@ def _save_models_info_json(path: str, data: Dict[str, Any]) -> None:
     os.replace(tmp_path, path)
 
 
-def _get_engine_arch_families(engine: str) -> Optional[set]:
+def _get_filter_profile_key(engine: str, task_method: Optional[str] = None) -> str:
+    engine_text = str(engine or "").strip()
+    haystack = f"{engine_text} {task_method or ''}".lower()
+    if "anima" in haystack or "anima_aio" in haystack:
+        return "Anima"
+    if "ltx" in haystack:
+        return "LTX"
+    return engine_text
+
+
+def _get_filter_arch_families(engine: str, task_method: Optional[str] = None) -> Optional[set]:
+    profile_key = _get_filter_profile_key(engine, task_method)
     mapping = {
         "SD3x": {"sd3"},
         "SDXL": {"sdxl"},
         "Flux": {"flux"},
         "HyDiT": {"hunyuan"},
         "Wan": {"wan"},
+        "LTX": {"ltx", "ltx2"},
+        "Anima": {"anima"},
         "Qwen": {"qwen"},
         "Z-image": {"z_image"},
         "Fooocus": {"sdxl"},
     }
-    return mapping.get(engine)
+    return mapping.get(profile_key)
+
+
+def _get_engine_arch_families(engine: str) -> Optional[set]:
+    return _get_filter_arch_families(engine)
 
 
 def _normalize_model_name(name: str) -> str:
@@ -1645,6 +1662,132 @@ def _build_catalog_basename_index(data: Dict[str, Any], catalog: str) -> Dict[st
         else:
             index[base] = k
     return index
+
+
+_MODEL_ARCH_FAMILY_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
+
+
+def _model_arch_family_cache_path() -> str:
+    return os.path.join(shared.root, "data", "model_arch_family_cache.json")
+
+
+def _load_model_arch_family_cache() -> Dict[str, Dict[str, Any]]:
+    global _MODEL_ARCH_FAMILY_CACHE
+    if _MODEL_ARCH_FAMILY_CACHE is not None:
+        return _MODEL_ARCH_FAMILY_CACHE
+    path = _model_arch_family_cache_path()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except Exception:
+        _MODEL_ARCH_FAMILY_CACHE = {}
+        return _MODEL_ARCH_FAMILY_CACHE
+    raw_entries = payload.get("entries") if isinstance(payload, dict) else payload
+    if not isinstance(raw_entries, dict):
+        _MODEL_ARCH_FAMILY_CACHE = {}
+        return _MODEL_ARCH_FAMILY_CACHE
+    entries: Dict[str, Dict[str, Any]] = {}
+    for raw_key, raw_entry in raw_entries.items():
+        key = _normalize_model_name(raw_key)
+        if "/" not in key or not isinstance(raw_entry, dict):
+            continue
+        arch_family = str(raw_entry.get("arch_family") or "").strip().lower()
+        if not arch_family or arch_family == "unknown":
+            continue
+        entries[key] = dict(raw_entry, arch_family=arch_family)
+    _MODEL_ARCH_FAMILY_CACHE = entries
+    return entries
+
+
+def _apply_builtin_model_arch_family_cache(models_root: str) -> None:
+    cache_entries = _load_model_arch_family_cache()
+    if not cache_entries:
+        return
+    info_path, data = _load_models_info_json(models_root)
+    if not data:
+        return
+
+    updated = False
+    basename_index_by_catalog: Dict[str, Dict[str, Optional[str]]] = {}
+    for cache_key, cache_entry in cache_entries.items():
+        if "/" not in cache_key:
+            continue
+        catalog, model_name = cache_key.split("/", 1)
+        if catalog not in ARCH_FAMILY_CATALOGS:
+            continue
+        resolved_key = _resolve_models_info_key(data, catalog, model_name)
+        if not resolved_key and "/" not in model_name:
+            idx = basename_index_by_catalog.get(catalog)
+            if idx is None:
+                idx = _build_catalog_basename_index(data, catalog)
+                basename_index_by_catalog[catalog] = idx
+            resolved_key = idx.get(model_name) or None
+        if not resolved_key:
+            continue
+        entry = data.get(resolved_key)
+        if not isinstance(entry, dict):
+            continue
+        arch_family = str(cache_entry.get("arch_family") or "").strip().lower()
+        if not arch_family or arch_family == "unknown":
+            continue
+        if str(entry.get("arch_family") or "").strip().lower() == arch_family and entry.get("arch_family_algo") == ARCH_FAMILY_ALGO:
+            if entry.get("arch_family_source"):
+                continue
+            entry["arch_family_source"] = "builtin_model_arch_family_cache"
+            updated = True
+            continue
+        entry["arch_family"] = arch_family
+        entry["arch_family_algo"] = ARCH_FAMILY_ALGO
+        entry["arch_family_source"] = "builtin_model_arch_family_cache"
+        updated = True
+        try:
+            mi = shared.modelsinfo
+            if mi is not None and isinstance(getattr(mi, "m_info", None), dict):
+                mi_entry = mi.m_info.get(resolved_key)
+                if isinstance(mi_entry, dict):
+                    mi_entry["arch_family"] = entry["arch_family"]
+                    mi_entry["arch_family_algo"] = entry["arch_family_algo"]
+                    mi_entry["arch_family_source"] = entry["arch_family_source"]
+        except Exception:
+            pass
+    if updated:
+        _save_models_info_json(info_path, data)
+
+
+def _model_filter_patterns(engine: str, task_method: Optional[str] = None):
+    profile_key = _get_filter_profile_key(engine, task_method)
+    patterns = modules.flags.model_file_filter.get(profile_key)
+    if patterns is None:
+        patterns = modules.flags.model_file_filter.get(engine)
+    return patterns
+
+
+def _match_model_filter_name(name: str, patterns) -> bool:
+    if not patterns:
+        return False
+    s = _normalize_model_name(name).lower()
+    for item in patterns:
+        group = [item] if isinstance(item, str) else list(item)
+        if group and all(str(t).lower() in s for t in group):
+            return True
+    return False
+
+
+def _model_arch_family_allows(entry: Any, families: set) -> bool:
+    if not isinstance(entry, dict):
+        return True
+    arch_family = str(entry.get("arch_family") or "").strip().lower()
+    if not arch_family or arch_family == "unknown":
+        return True
+    source = str(entry.get("arch_family_source") or "").strip().lower()
+    if source in {"weight_inspector", "name_rule", "builtin_model_arch_family_cache"} and "arch_family_algo" in entry:
+        try:
+            algo = int(entry.get("arch_family_algo"))
+        except Exception:
+            return True
+        if algo != ARCH_FAMILY_ALGO:
+            return True
+    return arch_family in families
 
 
 def _ensure_weight_inspector_cache_for_keys(models_root: str, model_keys: List[str]) -> None:
@@ -1714,6 +1857,7 @@ def _ensure_weight_inspector_cache_for_keys(models_root: str, model_keys: List[s
                 if str(cached_arch_family or "").lower() != desired_arch_family:
                     entry["arch_family"] = desired_arch_family
                     entry["arch_family_algo"] = ARCH_FAMILY_ALGO
+                    entry["arch_family_source"] = "name_rule"
                     entry["arch_family_stamp"] = current_stamp
                     cached_arch_family = desired_arch_family
                     updated = True
@@ -1724,6 +1868,7 @@ def _ensure_weight_inspector_cache_for_keys(models_root: str, model_keys: List[s
                             if isinstance(mi_entry, dict):
                                 mi_entry["arch_family"] = entry["arch_family"]
                                 mi_entry["arch_family_algo"] = entry["arch_family_algo"]
+                                mi_entry["arch_family_source"] = entry["arch_family_source"]
                                 mi_entry["arch_family_stamp"] = entry["arch_family_stamp"]
                     except Exception:
                         pass
@@ -1770,6 +1915,7 @@ def _ensure_weight_inspector_cache_for_keys(models_root: str, model_keys: List[s
 
         entry["arch_family"] = r.get("arch_family", "unknown")
         entry["arch_family_algo"] = ARCH_FAMILY_ALGO
+        entry["arch_family_source"] = "weight_inspector"
         entry["arch_family_stamp"] = current_stamp
         updated = True
         try:
@@ -1779,6 +1925,7 @@ def _ensure_weight_inspector_cache_for_keys(models_root: str, model_keys: List[s
                 if isinstance(mi_entry, dict):
                     mi_entry["arch_family"] = entry["arch_family"]
                     mi_entry["arch_family_algo"] = entry["arch_family_algo"]
+                    mi_entry["arch_family_source"] = entry["arch_family_source"]
                     mi_entry["arch_family_stamp"] = entry["arch_family_stamp"]
         except Exception:
             pass
@@ -1787,110 +1934,73 @@ def _ensure_weight_inspector_cache_for_keys(models_root: str, model_keys: List[s
         _save_models_info_json(info_path, data)
 
 
-def _refine_names_by_catalog(models_root: str, engine: str, catalog: str, names: List[str]) -> List[str]:
-    families = _get_engine_arch_families(engine)
+def _refine_names_by_catalog(models_root: str, engine: str, catalog: str, names: List[str], task_method: Optional[str] = None) -> List[str]:
+    families = _get_filter_arch_families(engine, task_method)
     if not families:
         return names
-
-    patterns = modules.flags.model_file_filter.get(engine)
-    def match_name_filter(name: str) -> bool:
-        if not patterns:
-            return False
-        s = _normalize_model_name(name).lower()
-        for item in patterns:
-            group = [item] if isinstance(item, str) else list(item)
-            if group and all(str(t).lower() in s for t in group):
-                return True
-        return False
+    families = {str(item).lower() for item in families}
 
     names = [_normalize_model_name(n) for n in names]
-    keys = [f"{catalog}/{name}" for name in names]
-    _ensure_weight_inspector_cache_for_keys(models_root, keys)
 
     _, data = _load_models_info_json(models_root)
     if not data:
         return names
 
+    patterns = _model_filter_patterns(engine, task_method)
     basename_index = _build_catalog_basename_index(data, catalog)
     out: List[str] = []
     for name in names:
+        if _match_model_filter_name(name, patterns):
+            out.append(name)
+            continue
         resolved_key = _resolve_models_info_key(data, catalog, name)
         if not resolved_key and "/" not in name:
             resolved_key = basename_index.get(name) or None
         if not resolved_key:
-            continue
-        entry = data.get(resolved_key)
-        if match_name_filter(name):
             out.append(name)
             continue
-        if isinstance(entry, dict):
-            arch_family = entry.get("arch_family")
-            if not arch_family or str(arch_family).lower() == "unknown":
-                out.append(name)
-                continue
-            if arch_family in families:
-                out.append(name)
+        entry = data.get(resolved_key)
+        if _model_arch_family_allows(entry, families):
+            out.append(name)
     return out
 
 
-def _refine_models_by_arch_family(models_root: str, engine: str, models: List[str]) -> List[str]:
-    families = _get_engine_arch_families(engine)
+def _refine_models_by_arch_family(models_root: str, engine: str, models: List[str], task_method: Optional[str] = None) -> List[str]:
+    families = _get_filter_arch_families(engine, task_method)
     if not families:
         return models
+    families = {str(item).lower() for item in families}
 
-    patterns = modules.flags.model_file_filter.get(engine)
-    def match_name_filter(name: str) -> bool:
-        if not patterns:
-            return False
-        s = _normalize_model_name(name).lower()
-        for item in patterns:
-            group = [item] if isinstance(item, str) else list(item)
-            if group and all(str(t).lower() in s for t in group):
-                return True
-        return False
-
-    keys: List[str] = []
     models = [_normalize_model_name(n) for n in models]
-    for name in models:
-        keys.append(f"checkpoints/{name}")
-        keys.append(f"diffusion_models/{name}")
-    _ensure_weight_inspector_cache_for_keys(models_root, keys)
 
     _, data = _load_models_info_json(models_root)
     if not data:
         return models
 
+    patterns = _model_filter_patterns(engine, task_method)
     ck_basename_index = _build_catalog_basename_index(data, "checkpoints")
     dm_basename_index = _build_catalog_basename_index(data, "diffusion_models")
     out: List[str] = []
     for name in models:
-        if match_name_filter(name):
+        if _match_model_filter_name(name, patterns):
             out.append(name)
             continue
         ck_key = _resolve_models_info_key(data, "checkpoints", name)
         if not ck_key and "/" not in name:
             ck_key = ck_basename_index.get(name) or None
         ck = data.get(ck_key) if ck_key else None
-        if isinstance(ck, dict):
-            ck_arch = ck.get("arch_family")
-            if not ck_arch or str(ck_arch).lower() == "unknown":
-                out.append(name)
-                continue
-            if ck_arch in families:
-                out.append(name)
-                continue
+        if ck_key and _model_arch_family_allows(ck, families):
+            out.append(name)
+            continue
         dm_key = _resolve_models_info_key(data, "diffusion_models", name)
         if not dm_key and "/" not in name:
             dm_key = dm_basename_index.get(name) or None
         dm = data.get(dm_key) if dm_key else None
-        if isinstance(dm, dict):
-            dm_arch = dm.get("arch_family")
-            if not dm_arch or str(dm_arch).lower() == "unknown":
-                out.append(name)
-                continue
-            if dm_arch in families:
-                out.append(name)
-                continue
+        if dm_key and _model_arch_family_allows(dm, families):
+            out.append(name)
+            continue
+        if not ck_key and not dm_key:
+            out.append(name)
     return out
 
 
@@ -1915,19 +2025,20 @@ def get_base_model_list(engine='Z-image', task_method=None, use_model_filter: bo
     base_model_list = [n for n in base_model_list if not _is_placeholder_model_name(n)]
     base_model_list = list(dict.fromkeys(base_model_list))
     if use_model_filter:
-        base_model_list = _refine_models_by_arch_family(path_models_root, engine, base_model_list)
+        base_model_list = _refine_models_by_arch_family(path_models_root, engine, base_model_list, task_method)
     base_model_list = [str(n).replace("/", os.sep).replace("\\", os.sep).lstrip(os.sep) for n in base_model_list]
     return base_model_list
 
 def update_files(engine='Z-image', task_method=None, use_model_filter: bool = True):
     global modelsinfo, model_filenames, lora_filenames, vae_filenames, clip_filenames, upscale_model_filenames, wildcard_filenames
     modelsinfo.refresh_from_path()
+    _apply_builtin_model_arch_family_cache(path_models_root)
     model_filenames = get_base_model_list(engine, task_method, use_model_filter=use_model_filter)
     lora_filenames = modelsinfo.get_model_names('loras')
     lora_filenames_norm = [_normalize_model_name(n) for n in lora_filenames]
     lora_filenames_norm = [n for n in lora_filenames_norm if not _is_placeholder_model_name(n)]
     if use_model_filter:
-        lora_filenames_norm = _refine_names_by_catalog(path_models_root, engine, "loras", lora_filenames_norm)
+        lora_filenames_norm = _refine_names_by_catalog(path_models_root, engine, "loras", lora_filenames_norm, task_method)
     lora_filenames = [str(n).replace("/", os.sep).replace("\\", os.sep).lstrip(os.sep) for n in lora_filenames_norm]
     vae_filenames = [n for n in modelsinfo.get_model_names('vae') if not _is_placeholder_model_name(n)]
     clip_names = []

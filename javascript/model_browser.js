@@ -27,6 +27,22 @@
         model_dropdown_upscale: 'upscale'
     };
     const REMOTE_DISABLED_TYPES = new Set(['clip', 'vae']);
+    const ARCH_FAMILY_OPTIONS = [
+        ['unknown', { en: 'Unknown / keep visible', cn: '未知 / 保持显示' }],
+        ['sdxl', { en: 'SDXL / SD1.5-compatible', cn: 'SDXL / SD1.5 兼容' }],
+        ['sd3', { en: 'SD3', cn: 'SD3' }],
+        ['sd2', { en: 'SD2', cn: 'SD2' }],
+        ['flux', { en: 'Flux', cn: 'Flux' }],
+        ['wan', { en: 'Wan', cn: 'Wan' }],
+        ['ltx2', { en: 'LTX', cn: 'LTX' }],
+        ['anima', { en: 'Anima', cn: 'Anima' }],
+        ['qwen', { en: 'Qwen', cn: 'Qwen' }],
+        ['z_image', { en: 'Z-image', cn: 'Z-image' }],
+        ['hunyuan', { en: 'Hunyuan', cn: 'Hunyuan' }],
+        ['sdpose', { en: 'SDPose', cn: 'SDPose' }],
+        ['melband_roformer', { en: 'MelBand RoFormer', cn: 'MelBand RoFormer' }],
+        ['newbie', { en: 'NewBie', cn: 'NewBie' }]
+    ];
     const I18N = window.SimpAII18n || {};
 
     let modal = null;
@@ -317,6 +333,17 @@
         return !!item && !item.synthetic && item.path_exists !== false;
     }
 
+    function architectureItem(item) {
+        return manageableItem(item) && !!item.arch_family_manageable;
+    }
+
+    function inspectableBatchItems() {
+        const checked = checkedItems().filter(architectureItem);
+        if (checked.length) return checked;
+        const item = selectedItem();
+        return architectureItem(item) ? [item] : [];
+    }
+
     function remoteFetchEnabledForType() {
         return !REMOTE_DISABLED_TYPES.has(normalizeType(state.type));
     }
@@ -336,6 +363,21 @@
         if (key === 'models_info') return tr('models_info', '索引表');
         if (key === 'cached') return tr('cached', '缓存');
         return source || '';
+    }
+
+    function archFamilyLabel(value) {
+        const key = String(value || 'unknown').toLowerCase();
+        const found = ARCH_FAMILY_OPTIONS.find(option => option[0] === key);
+        return found ? localize(found[1], key) : (value || tr('Unknown', '未知'));
+    }
+
+    function archFamilySourceLabel(value) {
+        const key = String(value || '').toLowerCase();
+        if (key === 'weight_inspector') return tr('Model header', '模型头');
+        if (key === 'manual') return tr('Manual', '手动');
+        if (key === 'builtin_model_arch_family_cache') return tr('SimpAI cache', 'SimpAI 缓存');
+        if (key === 'name_rule') return tr('Name rule', '名称规则');
+        return key || tr('Not set', '未设置');
     }
 
     function renderThumb(item) {
@@ -398,6 +440,29 @@
 </section>`;
     }
 
+    function renderArchitecturePanel(item) {
+        if (!architectureItem(item)) return '';
+        const current = String(item.arch_family || 'unknown').toLowerCase() || 'unknown';
+        const options = ARCH_FAMILY_OPTIONS
+            .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === current ? 'selected' : ''}>${escapeHtml(localize(label, value))}</option>`)
+            .join('');
+        return `<section class="sai-model-browser-arch">
+  <div class="sai-model-browser-arch-head">
+    <b>${escapeHtml(tr('Architecture classification', '架构分类'))}</b>
+    <small>${escapeHtml(archFamilySourceLabel(item.arch_family_source))}</small>
+  </div>
+  <div class="sai-model-browser-arch-current">
+    <span>${escapeHtml(archFamilyLabel(current))}</span>
+    <small>${escapeHtml(tr('Used by model filters', '用于模型过滤'))}</small>
+  </div>
+  <div class="sai-model-browser-arch-edit">
+    <select data-smb-arch-family>${options}</select>
+    <button type="button" data-smb-arch-save><i class="fa-solid fa-floppy-disk"></i><span>${escapeHtml(tr('Save', '保存'))}</span></button>
+  </div>
+  <button type="button" class="is-primary" data-smb-arch-inspect="${escapeHtml(item.id)}"><i class="fa-solid fa-magnifying-glass-chart"></i><span>${escapeHtml(tr('Read model header', '读取模型头'))}</span></button>
+</section>`;
+    }
+
     function renderDetail(item) {
         if (!item) {
             return `<aside class="sai-model-browser-detail"><p>${escapeHtml(tr('Select a model to inspect it.', '选择一个模型查看详情。'))}</p></aside>`;
@@ -419,6 +484,7 @@
     ${item.base_model ? `<dt>${escapeHtml(tr('Base', '基础'))}</dt><dd>${escapeHtml(item.base_model)}</dd>` : ''}
     ${item.creator ? `<dt>${escapeHtml(tr('Creator', '作者'))}</dt><dd>${escapeHtml(item.creator)}</dd>` : ''}
   </dl>
+  ${renderArchitecturePanel(item)}
   ${tags.length ? `<div class="sai-model-browser-tags">${tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
   ${renderTriggerWordsPanel(item)}
   ${item.description ? `<p class="sai-model-browser-desc">${escapeHtml(item.description)}</p>` : ''}
@@ -447,6 +513,7 @@
     function renderBatchBar() {
         const checkedCount = checkedItems().length;
         const batchCount = fetchableBatchItems().length;
+        const inspectCount = inspectableBatchItems().length;
         const canRemoteFetch = remoteFetchEnabledForType();
         const selectedLabel = checkedCount
             ? `${tr('Fetch checked', '获取已勾选')} (${checkedCount})`
@@ -469,6 +536,9 @@
     </button>
     <button type="button" class="is-primary" data-smb-batch-missing ${canRemoteFetch ? '' : 'disabled'} title="${escapeHtml(canRemoteFetch ? tr('Fetch missing previews and metadata for the current filter', '获取当前筛选范围内缺失的预览与元数据') : tr('Remote preview fetching is disabled for this model type', '此模型类型已关闭远端预览获取'))}">
       <i class="fa-solid fa-wand-magic-sparkles"></i><span>${escapeHtml(tr('Fetch missing in filter', '获取筛选内缺失项'))}</span>
+    </button>
+    <button type="button" data-smb-batch-inspect ${inspectCount ? '' : 'disabled'} title="${escapeHtml(tr('Read model headers for the selected or checked models', '读取当前选择/已勾选模型的模型头'))}">
+      <i class="fa-solid fa-magnifying-glass-chart"></i><span>${escapeHtml(checkedCount ? tr('Identify checked', '识别已勾选') : tr('Identify selected', '识别当前'))}</span>
     </button>
   </div>
 </div>`;
@@ -813,6 +883,99 @@
         }
     }
 
+    function currentArchFamilyValue() {
+        const field = modal?.querySelector?.('[data-smb-arch-family]');
+        return field ? String(field.value || 'unknown').trim().toLowerCase() : 'unknown';
+    }
+
+    async function inspectArchitecture(item) {
+        if (!architectureItem(item)) return;
+        state.batch = { label: tr('Reading model header', '正在读取模型头'), done: 0, total: 1, message: item.file_name || item.name || '' };
+        render({ preserveScroll: true });
+        try {
+            const result = await postJson('/model-browser/inspect-arch', {
+                type: item.type,
+                name: item.name
+            });
+            replaceItem(result.item);
+            state.batch = {
+                label: tr('Classification updated', '分类已更新'),
+                done: 1,
+                total: 1,
+                message: archFamilyLabel(result.arch_family || result.item?.arch_family || 'unknown')
+            };
+            render({ preserveScroll: true });
+        } catch (err) {
+            state.batch = { label: tr('Classification failed', '分类失败'), done: 1, total: 1, message: err?.message || String(err || tr('Classification failed', '分类失败')) };
+            render({ preserveScroll: true });
+        }
+    }
+
+    async function saveArchitecture(item) {
+        if (!architectureItem(item)) return;
+        const archFamily = currentArchFamilyValue();
+        state.batch = { label: tr('Saving classification', '正在保存分类'), done: 0, total: 1, message: archFamilyLabel(archFamily) };
+        render({ preserveScroll: true });
+        try {
+            const result = await postJson('/model-browser/update-arch-family', {
+                type: item.type,
+                name: item.name,
+                arch_family: archFamily
+            });
+            replaceItem(result.item);
+            state.batch = { label: tr('Classification saved', '分类已保存'), done: 1, total: 1, message: archFamilyLabel(result.arch_family || archFamily) };
+            render({ preserveScroll: true });
+        } catch (err) {
+            state.batch = { label: tr('Save failed', '保存失败'), done: 1, total: 1, message: err?.message || String(err || tr('Save failed', '保存失败')) };
+            render({ preserveScroll: true });
+        }
+    }
+
+    async function inspectSelectedArchitectures() {
+        const items = inspectableBatchItems();
+        if (!items.length) {
+            state.status = tr('No classifiable models selected.', '没有可分类的已选模型。');
+            render({ preserveScroll: true });
+            return;
+        }
+        let success = 0;
+        let failed = 0;
+        state.batch = { label: tr('Reading model headers', '正在读取模型头'), done: 0, total: items.length, message: '' };
+        render({ preserveScroll: true });
+        for (const item of items) {
+            state.batch.message = item.file_name || item.name || '';
+            render({ preserveScroll: true });
+            try {
+                const result = await postJson('/model-browser/inspect-arch', {
+                    type: item.type,
+                    name: item.name
+                });
+                if (result.ok) {
+                    success += 1;
+                    replaceItem(result.item);
+                } else {
+                    failed += 1;
+                }
+            } catch (err) {
+                failed += 1;
+                state.batch.message = err?.message || String(err || tr('Classification failed', '分类失败'));
+            }
+            state.batch.done += 1;
+            render({ preserveScroll: true });
+        }
+        state.checkedIds.clear();
+        await query({ preserveScroll: true });
+        state.batch = {
+            label: tr('Classification complete', '分类完成'),
+            done: items.length,
+            total: items.length,
+            message: tr('{success} updated, {failed} failed', '{success} 个已更新，{failed} 个失败')
+                .replace('{success}', success)
+                .replace('{failed}', failed)
+        };
+        render({ preserveScroll: true });
+    }
+
     function formatDeleteMessage(result) {
         const summary = result?.delete_summary || {};
         const deleted = Array.isArray(result?.deleted) ? result.deleted : [];
@@ -1045,6 +1208,19 @@
             saveTriggerWords(selectedItem());
             return;
         }
+        const archInspect = event.target.closest('[data-smb-arch-inspect]');
+        if (archInspect) {
+            event.preventDefault();
+            const item = findItem(archInspect.getAttribute('data-smb-arch-inspect')) || selectedItem();
+            inspectArchitecture(item);
+            return;
+        }
+        const archSave = event.target.closest('[data-smb-arch-save]');
+        if (archSave) {
+            event.preventDefault();
+            saveArchitecture(selectedItem());
+            return;
+        }
         const fetchButton = event.target.closest('[data-smb-fetch]');
         if (fetchButton) {
             event.preventDefault();
@@ -1085,6 +1261,12 @@
         if (batchMissing) {
             event.preventDefault();
             fetchMissing();
+            return;
+        }
+        const batchInspect = event.target.closest('[data-smb-batch-inspect]');
+        if (batchInspect) {
+            event.preventDefault();
+            inspectSelectedArchitectures();
         }
     }
 

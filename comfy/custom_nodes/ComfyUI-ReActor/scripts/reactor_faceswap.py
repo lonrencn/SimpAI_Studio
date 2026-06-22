@@ -1,5 +1,3 @@
-import os, glob
-
 from PIL import Image
 
 import modules.scripts as scripts
@@ -17,25 +15,14 @@ from scripts.reactor_swapper import (
     get_current_faces_model,
     analyze_faces,
     half_det_size,
-    providers
+    providers,
+    list_swap_model_paths,
 )
-import folder_paths
 import comfy.model_management as model_management
 
 
 def get_models():
-    swappers = [
-        "insightface",
-        "reswapper"
-    ]
-    models_list = []
-    for folder in swappers:
-        models_folder = folder + "/*"
-        models_path = os.path.join(folder_paths.models_dir,models_folder)
-        models = glob.glob(models_path)
-        models = [x for x in models if x.endswith(".onnx") or x.endswith(".pth")]
-        models_list.extend(models)
-    return models_list
+    return list_swap_model_paths()
 
 
 class FaceSwapScript(scripts.Script):

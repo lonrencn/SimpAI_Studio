@@ -12903,7 +12903,18 @@ input[type="range"].simpai-gradio-range-fill::-moz-range-progress {
   background: rgba(15, 15, 15, 0.36);
 }
 
-.sai-model-browser-trigger-head {
+.sai-model-browser-arch {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(15, 15, 15, 0.36);
+}
+
+.sai-model-browser-trigger-head,
+.sai-model-browser-arch-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -12911,16 +12922,74 @@ input[type="range"].simpai-gradio-range-fill::-moz-range-progress {
   min-width: 0;
 }
 
-.sai-model-browser-trigger-head b {
+.sai-model-browser-trigger-head b,
+.sai-model-browser-arch-head b {
   min-width: 0;
   color: #f8fafc;
   font-size: 13px;
 }
 
-.sai-model-browser-trigger-head small {
+.sai-model-browser-trigger-head small,
+.sai-model-browser-arch-head small {
   flex: 0 0 auto;
   color: #a1a1aa;
   font-size: 11px;
+}
+
+.sai-model-browser-arch-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: #d4d4d8;
+  font-size: 12px;
+}
+
+.sai-model-browser-arch-current span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sai-model-browser-arch-current small {
+  flex: 0 0 auto;
+  color: #8b8b94;
+}
+
+.sai-model-browser-arch-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  min-width: 0;
+}
+
+.sai-model-browser-arch-edit select {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  color: #f8fafc;
+  background: #171717;
+}
+
+.sai-model-browser-arch button,
+.sai-model-browser-arch-edit button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 7px;
+  color: #f3f4f6;
+  background: #2b2b2b;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .sai-model-browser-trigger-tags {
@@ -12994,7 +13063,8 @@ input[type="range"].simpai-gradio-range-fill::-moz-range-progress {
 
 .sai-model-browser-detail-actions button.is-primary,
 .sai-model-browser-batchactions button.is-primary,
-.sai-model-browser-trigger-actions button.is-primary {
+.sai-model-browser-trigger-actions button.is-primary,
+.sai-model-browser-arch button.is-primary {
   border-color: var(--smb-accent-border);
   color: var(--smb-accent-text);
   background: var(--smb-accent-solid);

@@ -1,3 +1,4 @@
+import glob
 import os
 import shutil
 from typing import List, Union
@@ -59,6 +60,7 @@ models_path = folder_paths.models_dir
 insightface_path = os.path.join(models_path, "insightface")
 insightface_models_path = os.path.join(insightface_path, "models")
 reswapper_path = os.path.join(models_path, "reswapper")
+SWAPPER_MODEL_EXTENSIONS = (".onnx", ".pth")
 
 if os.path.exists(models_path_old):
     move_path(insightface_models_path_old, insightface_models_path)
@@ -67,6 +69,89 @@ if os.path.exists(models_path_old):
 if os.path.exists(insightface_path) and os.path.exists(insightface_path_old):
     shutil.rmtree(insightface_path_old)
     shutil.rmtree(models_path_old)
+
+
+def _dedupe_paths(paths):
+    deduped = []
+    seen = set()
+    for path in paths:
+        if not path:
+            continue
+        normalized = os.path.normpath(path)
+        key = os.path.normcase(os.path.abspath(normalized))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(normalized)
+    return deduped
+
+
+def get_swap_model_dirs(folder_name):
+    paths = []
+    try:
+        paths.extend(folder_paths.get_folder_paths(folder_name))
+    except Exception:
+        pass
+    paths.append(os.path.join(folder_paths.models_dir, folder_name))
+    return _dedupe_paths(paths)
+
+
+def list_swap_model_paths(folder_names=("insightface", "reswapper")):
+    models = []
+    for folder_name in folder_names:
+        for model_dir in get_swap_model_dirs(folder_name):
+            models.extend(glob.glob(os.path.join(model_dir, "*")))
+    return [
+        model
+        for model in _dedupe_paths(models)
+        if os.path.isfile(model) and model.lower().endswith(SWAPPER_MODEL_EXTENSIONS)
+    ]
+
+
+def resolve_swap_model_path(model):
+    if model is None:
+        return None
+    if os.path.isabs(model) and os.path.isfile(model):
+        return model
+
+    model_name = os.path.basename(model)
+    model_lower = model_name.lower()
+    if "reswapper" in model_lower:
+        folder_names = ("reswapper", "insightface")
+    elif "inswapper" in model_lower:
+        folder_names = ("insightface", "reswapper")
+    else:
+        folder_names = ("insightface", "reswapper")
+
+    for folder_name in folder_names:
+        for model_dir in get_swap_model_dirs(folder_name):
+            candidate = os.path.join(model_dir, model_name)
+            if os.path.isfile(candidate):
+                return candidate
+
+    if "reswapper" in model_lower:
+        return os.path.join(reswapper_path, model_name)
+    return os.path.join(insightface_path, model_name)
+
+
+def get_preferred_insightface_path():
+    roots = get_swap_model_dirs("insightface")
+    for root in roots:
+        if (
+            os.path.isdir(os.path.join(root, "models", "buffalo_l"))
+            or os.path.isfile(os.path.join(root, "models", "buffalo_l.zip"))
+        ):
+            return root
+    for root in roots:
+        if (
+            os.path.isfile(os.path.join(root, "inswapper_128.onnx"))
+            or os.path.isfile(os.path.join(root, "inswapper_128_fp16.onnx"))
+        ):
+            return root
+    for root in roots:
+        if os.path.isdir(root):
+            return root
+    return insightface_path
 
 
 FS_MODEL = None
@@ -109,7 +194,7 @@ def getAnalysisModel(det_size = (640, 640)):
     ANALYSIS_MODEL = ANALYSIS_MODELS[str(det_size[0])]
     if ANALYSIS_MODEL is None:
         ANALYSIS_MODEL = insightface.app.FaceAnalysis(
-            name="buffalo_l", providers=providers, root=insightface_path
+            name="buffalo_l", providers=providers, root=get_preferred_insightface_path()
         )
     ANALYSIS_MODEL.prepare(ctx_id=0, det_size=det_size)
     ANALYSIS_MODELS[str(det_size[0])] = ANALYSIS_MODEL
@@ -329,10 +414,7 @@ def swap_face(
                 logger.status(f'Source Faces must have no entries (default=0), one entry, or same number of entries as target faces.')
             elif source_face is not None:
                 result = target_img
-                if "inswapper" in model:
-                    model_path = os.path.join(insightface_path, model)
-                elif "reswapper" in model:
-                    model_path = os.path.join(reswapper_path, model)
+                model_path = resolve_swap_model_path(model)
                 face_swapper = getFaceSwapModel(model_path)
 
                 source_face_idx = 0
@@ -522,7 +604,7 @@ def swap_face_many(
                 logger.status(f'Source Faces must have no entries (default=0), one entry, or same number of entries as target faces.')
             elif source_face is not None:
                 results = target_imgs
-                model_path = model_path = os.path.join(insightface_path, model)
+                model_path = resolve_swap_model_path(model)
                 face_swapper = getFaceSwapModel(model_path)
 
                 source_face_idx = 0

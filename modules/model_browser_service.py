@@ -26,6 +26,22 @@ PREVIEW_EXTENSIONS = (".webp", ".png", ".jpg", ".jpeg")
 VIDEO_PREVIEW_EXTENSIONS = (".mp4", ".webm", ".mov", ".m4v")
 PREVIEW_MAX_EDGE = 1024
 REMOTE_DISABLED_TYPES = {"clip", "vae"}
+ARCH_FAMILY_CHOICES = (
+    "unknown",
+    "sdxl",
+    "sd3",
+    "sd2",
+    "flux",
+    "wan",
+    "ltx2",
+    "anima",
+    "qwen",
+    "z_image",
+    "hunyuan",
+    "sdpose",
+    "melband_roformer",
+    "newbie",
+)
 
 TYPE_CONFIG = {
     "base": {
@@ -502,6 +518,108 @@ def _hash_from_entry(entry: Dict[str, Any]) -> str:
     return ""
 
 
+def _arch_family_from_entry(entry: Dict[str, Any]) -> Tuple[str, str, Any]:
+    if not isinstance(entry, dict):
+        return "", "", None
+    arch_family = str(entry.get("arch_family") or "").strip().lower()
+    if arch_family == "unknown":
+        arch_family = "unknown"
+    source = str(entry.get("arch_family_source") or "").strip()
+    return arch_family, source, entry.get("arch_family_algo")
+
+
+def _architecture_manageable_item(item: Dict[str, Any]) -> bool:
+    if not item or item.get("synthetic"):
+        return False
+    model_type = _normalize_type(item.get("type"))
+    if model_type not in {"base", "refiner", "lora"}:
+        return False
+    return bool(item.get("path_exists") and item.get("path"))
+
+
+def _models_info_key_for_item(item: Dict[str, Any]) -> str:
+    key = str(item.get("models_info_key") or "").strip()
+    if key:
+        return key
+    catalog = _normalize_model_name(item.get("catalog") or "")
+    name = _normalize_model_name(item.get("name") or item.get("relative_path") or "")
+    if catalog and name:
+        return f"{catalog}/{name}"
+    return ""
+
+
+def _sync_models_info_entry(key: str, entry: Dict[str, Any]) -> None:
+    if not key or not isinstance(entry, dict):
+        return
+    try:
+        modelsinfo = getattr(config, "modelsinfo", None)
+        m_info = getattr(modelsinfo, "m_info", None)
+        if isinstance(m_info, dict):
+            if isinstance(m_info.get(key), dict):
+                m_info[key].update(entry)
+            else:
+                m_info[key] = dict(entry)
+    except Exception:
+        pass
+
+
+def _stamp_for_model_path(model_path: str) -> Dict[str, Any]:
+    stamp: Dict[str, Any] = {}
+    try:
+        if model_path and os.path.isfile(model_path):
+            stamp["size"] = int(os.path.getsize(model_path))
+            stamp["mtime"] = float(os.path.getmtime(model_path))
+    except Exception:
+        pass
+    return stamp
+
+
+def _inspector_summary(result: Dict[str, Any]) -> Dict[str, Any]:
+    summary: Dict[str, Any] = {}
+    for key in ("file_type", "parse_mode", "weight_kind", "key_count", "lora_key_count", "components", "lora_targets", "error", "note"):
+        value = result.get(key) if isinstance(result, dict) else None
+        if value not in (None, "", [], {}):
+            summary[key] = value
+    return summary
+
+
+def _persist_arch_family_for_item(item: Dict[str, Any], arch_family: str, source: str, inspector_result: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if not _architecture_manageable_item(item):
+        raise ValueError("this model type cannot store architecture classification")
+    value = str(arch_family or "").strip().lower() or "unknown"
+    if value not in ARCH_FAMILY_CHOICES:
+        raise ValueError(f"unsupported architecture classification: {value}")
+
+    key = _models_info_key_for_item(item)
+    if not key:
+        raise ValueError("models_info key is missing")
+    model_path = str(item.get("path") or "").strip()
+    data = _load_models_info()
+    entry = data.get(key)
+    if not isinstance(entry, dict):
+        entry = {}
+        data[key] = entry
+    if model_path:
+        entry.setdefault("file", [os.path.abspath(model_path)])
+        try:
+            entry["size"] = int(os.path.getsize(model_path))
+            entry["modified"] = float(os.path.getmtime(model_path))
+        except Exception:
+            pass
+    entry["arch_family"] = value
+    entry["arch_family_algo"] = getattr(config, "ARCH_FAMILY_ALGO", 3)
+    entry["arch_family_source"] = str(source or "manual").strip() or "manual"
+    entry["arch_family_updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    stamp = _stamp_for_model_path(model_path)
+    if stamp:
+        entry["arch_family_stamp"] = stamp
+    if isinstance(inspector_result, dict):
+        entry["arch_family_inspect"] = _inspector_summary(inspector_result)
+    _save_models_info(data)
+    _sync_models_info_entry(key, entry)
+    return entry
+
+
 def _format_size(size: Any) -> str:
     try:
         value = float(size or 0)
@@ -756,6 +874,11 @@ def _item_from_choice(model_type: str, name: str, data: Dict[str, Any]) -> Dict[
         "synthetic": synthetic,
         "path_exists": False,
         "remote_enabled": False if synthetic or model_type in REMOTE_DISABLED_TYPES else True,
+        "arch_family": "",
+        "arch_family_source": "",
+        "arch_family_algo": None,
+        "arch_family_choices": list(ARCH_FAMILY_CHOICES),
+        "arch_family_manageable": False,
     }
     if synthetic:
         return item
@@ -779,6 +902,7 @@ def _item_from_choice(model_type: str, name: str, data: Dict[str, Any]) -> Dict[
     sidecar_hash = str(sidecar.get("sha256") or sidecar.get("hash") or "").strip().lower()
     sha256 = sidecar_hash or entry_hash
     hash_source = "sidecar" if sidecar_hash else ("models_info" if entry_hash else "missing")
+    arch_family, arch_family_source, arch_family_algo = _arch_family_from_entry(entry)
     preview_path = find_preview_path(model_path)
     try:
         size = os.path.getsize(model_path) if model_path and os.path.isfile(model_path) else entry.get("size", 0)
@@ -814,7 +938,12 @@ def _item_from_choice(model_type: str, name: str, data: Dict[str, Any]) -> Dict[
         "base_model": str(sidecar.get("base_model") or entry.get("base_model") or "").strip() if isinstance(entry, dict) else str(sidecar.get("base_model") or "").strip(),
         "creator": str(sidecar.get("creator") or "").strip(),
         "description": str(sidecar.get("description") or "").strip(),
+        "arch_family": arch_family,
+        "arch_family_source": arch_family_source,
+        "arch_family_algo": arch_family_algo,
+        "arch_family_manageable": False,
     })
+    item["arch_family_manageable"] = _architecture_manageable_item(item)
     return item
 
 
@@ -950,6 +1079,66 @@ def update_trigger_words(payload: Optional[Dict[str, Any]] = None) -> Dict[str, 
         "trigger_words_text": refreshed.get("trigger_words_text") or "",
         "trigger_words_source": refreshed.get("trigger_words_source") or "user",
         "message": "trigger words saved",
+    }
+
+
+def inspect_arch_family(payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    payload = payload if isinstance(payload, dict) else {}
+    item = _resolve_single_item(payload)
+    if not item:
+        return {"ok": False, "error": "model not found"}
+    if not _architecture_manageable_item(item):
+        return {"ok": False, "error": "this model type cannot be classified", "item": item}
+
+    model_path = str(item.get("path") or "").strip()
+    if not is_model_path_allowed(model_path):
+        return {"ok": False, "error": "model file is missing or outside model directories", "item": item}
+    try:
+        import enhanced.weight_inspector as weight_inspector
+
+        result = weight_inspector.inspect_weight_file(
+            model_path,
+            torch_ckpt_load=False,
+            include_metadata=False,
+            include_key_examples=False,
+        )
+        arch_family = str(result.get("arch_family") or "unknown").strip().lower() or "unknown"
+        if arch_family not in ARCH_FAMILY_CHOICES:
+            arch_family = "unknown"
+        _persist_arch_family_for_item(item, arch_family, "weight_inspector", result)
+    except Exception as exc:
+        return {"ok": False, "error": f"architecture inspection failed: {type(exc).__name__}: {exc}", "item": item}
+
+    refreshed = _item_from_choice(item["type"], item["name"], _load_models_info())
+    return {
+        "ok": True,
+        "item": refreshed,
+        "arch_family": refreshed.get("arch_family") or arch_family,
+        "arch_family_source": refreshed.get("arch_family_source") or "weight_inspector",
+        "inspect": _inspector_summary(result),
+        "message": "architecture classification updated",
+    }
+
+
+def update_arch_family(payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    payload = payload if isinstance(payload, dict) else {}
+    item = _resolve_single_item(payload)
+    if not item:
+        return {"ok": False, "error": "model not found"}
+    value = str(payload.get("arch_family") or payload.get("architecture") or "").strip().lower()
+    if not value:
+        value = "unknown"
+    try:
+        _persist_arch_family_for_item(item, value, "manual")
+    except Exception as exc:
+        return {"ok": False, "error": f"architecture classification save failed: {type(exc).__name__}: {exc}", "item": item}
+    refreshed = _item_from_choice(item["type"], item["name"], _load_models_info())
+    return {
+        "ok": True,
+        "item": refreshed,
+        "arch_family": refreshed.get("arch_family") or value,
+        "arch_family_source": refreshed.get("arch_family_source") or "manual",
+        "message": "architecture classification saved",
     }
 
 

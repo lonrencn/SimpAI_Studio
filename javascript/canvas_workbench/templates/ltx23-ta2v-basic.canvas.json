@@ -265,7 +265,7 @@
         }
       },
       "runtime": {
-        "backend_engine": "Comfy",
+        "backend_engine": "LTX",
         "engine_type": "video",
         "scene_frontend": "v1.1",
         "scene_theme": "Text+Audio to Video",

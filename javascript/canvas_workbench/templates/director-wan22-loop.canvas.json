@@ -1,0 +1,747 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "director_wan22_loop",
+  "title": "Director + Wan2.2 Loop",
+  "created_at": "2026-06-18T00:00:00Z",
+  "updated_at": "2026-06-18T00:00:00Z",
+  "viewport": {
+    "x": 120,
+    "y": 80,
+    "zoom": 0.38
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false
+  },
+  "groups": [
+    {
+      "id": "director_wan_group_media",
+      "title": "1. Director Inputs / 导演输入",
+      "x": -180,
+      "y": -160,
+      "w": 1120,
+      "h": 960,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "director_wan_group_config",
+      "title": "2. Wan Configs / Wan 配置",
+      "x": 1040,
+      "y": -160,
+      "w": 520,
+      "h": 1320,
+      "color": "#7c3aed",
+      "alpha": 0.1,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "director_wan_group_run",
+      "title": "3. Generate And Mix / 生成与混剪",
+      "x": 1660,
+      "y": -160,
+      "w": 1110,
+      "h": 900,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "director_wan_note",
+      "type": "note",
+      "x": -120,
+      "y": -104,
+      "w": 440,
+      "h": 130,
+      "title": "Director Timeline / 导演时间轴",
+      "text": "Use the Director Timeline to describe each shot before generation. Running the Wan preset creates one video Result per shot, then sends the clips into Timeline for final rendering. / 使用导演时间轴描述生成前的每个分镜。运行 Wan preset 会为每个分镜生成一个视频 Result，然后送入 Timeline 合成最终视频。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "director_wan_image_1",
+      "type": "image",
+      "x": -120,
+      "y": 88,
+      "w": 340,
+      "h": 300,
+      "title": "Shot 1 First Frame / 分镜 1 首帧",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Replace with an image or generated image Result before Run."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "director_image_1"
+      }
+    },
+    {
+      "id": "director_wan_image_2",
+      "type": "image",
+      "x": -120,
+      "y": 448,
+      "w": 340,
+      "h": 300,
+      "title": "Shot 2 Reference / 分镜 2 参考图",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Optional: replace with a second frame reference."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "director_image_2"
+      }
+    },
+    {
+      "id": "director_wan_timeline",
+      "type": "director_timeline",
+      "x": 300,
+      "y": -104,
+      "w": 580,
+      "h": 760,
+      "title": "Director Timeline / 导演时间轴",
+      "director": {
+        "schema": "simpai.director_timeline.v1",
+        "width": 1280,
+        "height": 720,
+        "fps": 24,
+        "duration": 10,
+        "format": "Wan",
+        "segments": [
+          {
+            "id": "shot_1",
+            "start": 0,
+            "end": 5,
+            "unit": "seconds",
+            "type": "flf",
+            "prompt": "镜头从城市夜景的霓虹招牌缓慢推进，主角站在雨后的街角抬头看向光源，地面反射细节清晰。",
+            "images": [
+              {
+                "source_ref": "image_1",
+                "source_node_id": "director_wan_image_1",
+                "role": "first_frame"
+              }
+            ],
+            "audio": []
+          },
+          {
+            "id": "shot_2",
+            "start": 5,
+            "end": 10,
+            "unit": "seconds",
+            "type": "ref",
+            "prompt": "主角转身走向街道深处，镜头轻微环绕，雨滴和霓虹反光形成连续运动。",
+            "images": [
+              {
+                "source_ref": "image_2",
+                "source_node_id": "director_wan_image_2",
+                "role": "reference"
+              }
+            ],
+            "audio": []
+          }
+        ]
+      },
+      "media_inputs": {
+        "image_1": "director_wan_image_1",
+        "image_2": "director_wan_image_2"
+      },
+      "source": {
+        "kind": "director_timeline",
+        "schema": "simpai.director_timeline.v1"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Edit shots and media references, then run the Wan preset to create segment Results."
+      }
+    },
+    {
+      "id": "director_wan_negative",
+      "type": "text",
+      "x": 300,
+      "y": 700,
+      "w": 580,
+      "h": 120,
+      "title": "Negative Prompt / 负向提示词",
+      "text": {
+        "value": "字幕，水印，静态画面，过曝，低质量，畸形手指，模糊，噪点，logo",
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "director_wan_models",
+      "type": "config",
+      "config_kind": "models",
+      "x": 1100,
+      "y": -104,
+      "w": 400,
+      "h": 420,
+      "title": "Models Config / 模型配置",
+      "target_preset_id": "director_wan_preset",
+      "config": {
+        "defaults": {
+          "base_model": "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "refiner_model": "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "clip_model": "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+              "weight": 2
+            }
+          ]
+        },
+        "values": {
+          "base_model": "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "refiner_model": "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "clip_model": "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+              "weight": 2
+            }
+          ]
+        },
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan(T2V)"
+      }
+    },
+    {
+      "id": "director_wan_resolution",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 1100,
+      "y": 372,
+      "w": 400,
+      "h": 360,
+      "title": "Resolution Config / 分辨率配置",
+      "target_preset_id": "director_wan_preset",
+      "config": {
+        "defaults": {
+          "template": "Preset",
+          "default_aspect_ratio": "1280*720",
+          "resolution_control": {
+            "mode": "standard",
+            "source": "none",
+            "base_width": 1280,
+            "base_height": 720,
+            "quantize": 16
+          }
+        },
+        "values": {
+          "template": "Preset",
+          "aspect_ratio": "1280|16:9",
+          "width": 1280,
+          "height": 720,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false
+        },
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan(T2V)"
+      }
+    },
+    {
+      "id": "director_wan_advanced",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 1100,
+      "y": 788,
+      "w": 400,
+      "h": 285,
+      "title": "Advanced Config / 高级配置",
+      "target_preset_id": "director_wan_preset",
+      "config": {
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 6,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 6,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "Wan(T2V)"
+      }
+    },
+    {
+      "id": "director_wan_preset",
+      "type": "preset",
+      "x": 1720,
+      "y": -104,
+      "w": 440,
+      "h": 620,
+      "title": "Wan T2V With Director",
+      "preset": {
+        "name": "Wan(T2V)",
+        "display_name": "Wan(T2V)",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "",
+          "default_prompt_negative": "字幕，水印，静态画面，过曝，低质量，畸形手指，模糊，噪点，logo"
+        }
+      },
+      "runtime": {
+        "backend_engine": "Comfy",
+        "engine_type": "video",
+        "scene_frontend": "v1.1",
+        "scene_theme": "Text-to-Video",
+        "task_method": "wan_t2v"
+      },
+      "schema": {
+        "version": "v1.1",
+        "engine_type": "video",
+        "director_capability": {
+          "image_policy": "forbidden",
+          "audio_policy": "forbidden",
+          "video_policy": "forbidden",
+          "max_images": 0,
+          "min_images": 0,
+          "image_modes": [
+            "none"
+          ],
+          "duration_strategy": "shot",
+          "audio_output": "silent",
+          "mixed_segments": false
+        },
+        "upload_slots": [
+          {
+            "key": "scene_video",
+            "label": "Scene Video",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_audio",
+            "label": "Scene Audio",
+            "visible": false,
+            "interactive": true
+          }
+        ],
+        "params": [
+          {
+            "key": "scene_video_duration",
+            "label": "Video Duration(s)",
+            "type": "number",
+            "default": 5,
+            "visible": true,
+            "interactive": true,
+            "min": 0.1,
+            "max": 10
+          },
+          {
+            "key": "scene_var_number2",
+            "label": "Interpolate to total frames [16 = no interpolation]",
+            "type": "number",
+            "default": 30,
+            "visible": true,
+            "interactive": true,
+            "min": 16,
+            "max": 60
+          },
+          {
+            "key": "scene_switch_option1",
+            "label": "Use Tiled VAE Decode",
+            "type": "checkbox",
+            "default": false,
+            "visible": true,
+            "interactive": true
+          }
+        ],
+        "per_theme": {
+          "Basic": {
+            "task_method": "wan2.2_t2v_cn",
+            "defaults": {
+              "scene_var_number": 5,
+              "scene_var_number2": 30,
+              "scene_switch_option1": false,
+              "prompt": "",
+              "scene_aspect_ratio": "640|1:1"
+            },
+            "generation_config_props": {
+              "overwrite_step": {
+                "min": 6,
+                "max": 10,
+                "step": 1
+              }
+            }
+          }
+        }
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "refiner_model": "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "clip_model": "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+              "weight": 2
+            }
+          ]
+        },
+        "overrides": {
+          "base_model": "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "refiner_model": "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "clip_model": "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
+          "vae": "wan_2.1_vae.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+              "weight": 2
+            }
+          ]
+        },
+        "source_node_id": "director_wan_models",
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "Preset",
+          "default_aspect_ratio": "1280*720"
+        },
+        "overrides": {
+          "template": "Preset",
+          "aspect_ratio": "1280|16:9",
+          "width": 1280,
+          "height": 720,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false
+        },
+        "source_node_id": "director_wan_resolution",
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 6,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 6,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "source_node_id": "director_wan_advanced",
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "diffusion_models,Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors,14289633352,0,https://www.modelscope.cn/models/huyuefeitool/wan2.2-Remix/resolve/master/Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "diffusion_models,wan2.2_bernini_r_low_noise_fp8_scaled.safetensors,15574833216,0,https://www.modelscope.cn/models/Comfy-Org/Bernini-R/resolve/master/diffusion_models/wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "loras,lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors,630697104,0,https://modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Lightx2v/lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+          "text_encoders,nsfw_wan_umt5-xxl_bf16_fixed.safetensors,11366399625,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/text_encoders/wan_umt5-xxl_bf16_fixed.safetensors",
+          "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
+          "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+        ],
+        "has_model_probe": true,
+        "source": "presets/Wan(T2V).json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Model requirements loaded from Wan(T2V); replace Director media and check models before running."
+      },
+      "upload_slots": {},
+      "text_inputs": {
+        "prompt": "director_wan_timeline",
+        "negative_prompt": "director_wan_negative"
+      },
+      "params": {
+        "prompt": "",
+        "negative_prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_var_number2": 30,
+        "scene_switch_option1": false,
+        "scene_video_duration": 5
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "Wan(T2V)"
+      }
+    },
+    {
+      "id": "director_wan_result",
+      "type": "result",
+      "x": 2260,
+      "y": -104,
+      "w": 380,
+      "h": 310,
+      "title": "Generated Video / 生成视频",
+      "producer": {
+        "preset_node_id": "director_wan_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 6,
+        "percent": 0,
+        "message": "Run Wan after replacing media; segment video Results appear here and below."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "preset",
+        "preset_node_id": "director_wan_preset"
+      }
+    },
+    {
+      "id": "director_wan_mix",
+      "type": "timeline",
+      "x": 1720,
+      "y": 560,
+      "w": 560,
+      "h": 520,
+      "title": "Timeline Mix / 后期时间线",
+      "params": {
+        "width": 1280,
+        "height": 720,
+        "aspect": "16:9",
+        "fps": 24,
+        "duration": 10,
+        "background": "#000000",
+        "zoom": 1,
+        "playhead": 0,
+        "selected_clip_id": "director_wan_video_clip",
+        "size_preset": "1280x720",
+        "fps_preset": "24",
+        "preview_tool": "transform",
+        "preview_playing": false,
+        "snap_enabled": true,
+        "guides_enabled": true
+      },
+      "tracks": [
+        {
+          "id": "v1",
+          "type": "video",
+          "name": "Video"
+        }
+      ],
+      "clips": [
+        {
+          "id": "director_wan_video_clip",
+          "title": "Wan Director Video",
+          "source_node_id": "director_wan_result",
+          "source_type": "",
+          "kind": "video",
+          "track_id": "v1",
+          "start": 0,
+          "in": 0,
+          "out": 10,
+          "duration": 10,
+          "x": 0,
+          "y": 0,
+          "scale": 1,
+          "opacity": 1,
+          "volume": 1,
+          "fit": "cover",
+          "rotate": 0,
+          "crop_left": 0,
+          "crop_top": 0,
+          "crop_right": 0,
+          "crop_bottom": 0,
+          "mask": null,
+          "mask_data_url": "",
+          "keyframes": []
+        }
+      ],
+      "status": {
+        "state": "idle",
+        "message": "Segment video Results are ready for Timeline rendering."
+      },
+      "source": {
+        "kind": "template_timeline_mix"
+      }
+    },
+    {
+      "id": "director_wan_final",
+      "type": "result",
+      "x": 2380,
+      "y": 560,
+      "w": 340,
+      "h": 300,
+      "title": "Final Timeline Result / 最终混剪结果",
+      "producer": {
+        "timeline_node_id": "director_wan_mix",
+        "preset_node_id": null,
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "percent": 0,
+        "message": "Timeline render runs after Wan segment Results are ready."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "timeline",
+        "timeline_node_id": "director_wan_mix"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "director_wan_edge_image_1",
+      "type": "media",
+      "from": "director_wan_image_1",
+      "to": "director_wan_timeline",
+      "slot": "image_1"
+    },
+    {
+      "id": "director_wan_edge_image_2",
+      "type": "media",
+      "from": "director_wan_image_2",
+      "to": "director_wan_timeline",
+      "slot": "image_2"
+    },
+    {
+      "id": "director_wan_edge_prompt",
+      "type": "text",
+      "from": "director_wan_timeline",
+      "to": "director_wan_preset",
+      "slot": "prompt"
+    },
+    {
+      "id": "director_wan_edge_negative",
+      "type": "text",
+      "from": "director_wan_negative",
+      "to": "director_wan_preset",
+      "slot": "negative_prompt"
+    },
+    {
+      "id": "director_wan_edge_models",
+      "type": "config",
+      "from": "director_wan_models",
+      "to": "director_wan_preset",
+      "slot": "models"
+    },
+    {
+      "id": "director_wan_edge_resolution",
+      "type": "config",
+      "from": "director_wan_resolution",
+      "to": "director_wan_preset",
+      "slot": "resolution"
+    },
+    {
+      "id": "director_wan_edge_advanced",
+      "type": "config",
+      "from": "director_wan_advanced",
+      "to": "director_wan_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "director_wan_edge_result",
+      "type": "generate",
+      "from": "director_wan_preset",
+      "to": "director_wan_result",
+      "slot": "preset"
+    },
+    {
+      "id": "director_wan_edge_timeline_clip",
+      "type": "timeline",
+      "from": "director_wan_result",
+      "to": "director_wan_mix",
+      "slot": "director_wan_video_clip"
+    },
+    {
+      "id": "director_wan_edge_timeline_result",
+      "type": "generate",
+      "from": "director_wan_mix",
+      "to": "director_wan_final",
+      "slot": "timeline"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "director_wan22_loop",
+    "title": "Director + Wan2.2 Loop",
+    "description": "Director Timeline runs Wan2.2 T2V per shot, then feeds all segment Results into Timeline.",
+    "category": "video",
+    "tags": [
+      "director",
+      "timeline",
+      "wan",
+      "video",
+      "runnable"
+    ]
+  }
+}
