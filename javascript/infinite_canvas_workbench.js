@@ -654,6 +654,7 @@
     let timelineDragState = null;
     let timelinePlayheadDragState = null;
     let timelinePreviewDragState = null;
+    let directorTimelineDragState = null;
     let timelineMaskDrawState = null;
     let timelineMaskAnchorDragState = null;
     let timelineKeyframeDragState = null;
@@ -2155,7 +2156,7 @@
     }
 
     function hasActivePointerInteraction() {
-        return !!(dragState || groupDragState || nodeResizeState || noteTailDragState || groupResizeState || panState || minimapDragState || marqueeState || connectState || compareDragState || timelineDragState || timelinePlayheadDragState || timelinePreviewDragState || timelineMaskDrawState || timelineMaskAnchorDragState || timelineKeyframeDragState);
+        return !!(dragState || groupDragState || nodeResizeState || noteTailDragState || groupResizeState || panState || minimapDragState || marqueeState || connectState || compareDragState || timelineDragState || timelinePlayheadDragState || timelinePreviewDragState || directorTimelineDragState || timelineMaskDrawState || timelineMaskAnchorDragState || timelineKeyframeDragState);
     }
 
     function scheduleViewportSave() {
@@ -2920,6 +2921,7 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
             || timelineDragState
             || timelinePlayheadDragState
             || timelinePreviewDragState
+            || directorTimelineDragState
             || timelineMaskDrawState
             || timelineMaskAnchorDragState
             || timelineKeyframeDragState
@@ -12668,7 +12670,7 @@ ${renderMinimapNodeRects(nextCache.records)}
     }
 
     function shouldFixNodeHeight(node) {
-        return !!(node && !isNodeCollapsed(node) && ((node.type === 'vlm' && (node.params?.mode || 'single') === 'chat') || node.type === 'media_browser'));
+        return !!(node && !isNodeCollapsed(node) && ((node.type === 'vlm' && (node.params?.mode || 'single') === 'chat') || node.type === 'media_browser' || node.type === 'director_timeline'));
     }
 
     function supportsCollapsedPromptHeight(node) {
@@ -13885,6 +13887,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         if (port.kind === 'gaussian_reference') return 'data-gaussian-studio-reference-in';
         if (port.kind === 'qwen_tts_audio') return `data-qwen-tts-audio-in="${slot}"`;
         if (port.kind === 'director_media') return `data-director-media-in="${slot}"`;
+        if (port.kind === 'director_media_group') return `data-director-media-group-in="${slot}"`;
         if (port.kind === 'compare') return `data-compare-image-in="${slot || 'a'}"`;
         if (port.kind === 'timeline') return 'data-timeline-media-in';
         if (port.kind === 'generate') return 'data-handle-in-result="generate"';
@@ -13914,8 +13917,14 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         else if (node.type === 'gaussian_studio') add('gaussian_reference', 'reference', t('Reference image', '参考图'));
         else if (isQwenTtsNode(node)) qwenTtsAudioInputSlots(node).forEach(slot => add('qwen_tts_audio', slot.key, slot.label || slot.key));
         else if (isDirectorTimelineNode(node)) {
-            const slots = Array.isArray(WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_SLOT_SPECS) ? WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_SLOT_SPECS : [];
-            slots.forEach(slot => add('director_media', slot.key, slot.label || slot.key));
+            const groups = Array.isArray(WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_KIND_GROUPS)
+                ? WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_KIND_GROUPS
+                : [
+                    { kind: 'image', portLabel: t('Image pool', '图片素材池') },
+                    { kind: 'audio', portLabel: t('Audio pool', '音频素材池') },
+                    { kind: 'video', portLabel: t('Video pool', '视频素材池') }
+                ];
+            groups.forEach(group => add('director_media_group', group.kind, group.portLabel || group.label || group.kind));
         }
         else if (node.type === 'compare') ['a', 'b'].forEach(slot => add('compare', slot, `Image ${slot.toUpperCase()}`));
         else if (node.type === 'timeline') add('timeline', 'media', 'Media input');
@@ -20953,12 +20962,13 @@ ${actions}
             const gaussianReferenceInHandle = evt.target.closest('[data-gaussian-studio-reference-in]');
             const qwenTtsAudioInHandle = evt.target.closest('[data-qwen-tts-audio-in]');
             const directorMediaInHandle = evt.target.closest('[data-director-media-in]');
+            const directorMediaGroupInHandle = evt.target.closest('[data-director-media-group-in]');
             const compareImageInHandle = evt.target.closest('[data-compare-image-in]');
             const batchAnyInHandle = evt.target.closest('[data-batch-any-in]');
             const timelineMediaInHandle = evt.target.closest('[data-timeline-media-in], [data-timeline-track-in]');
-            if (inHandle || configInHandle || resultInHandle || textInHandle || textNodeInHandle || translationTextInHandle || tagCartTextInHandle || wd14ImageInHandle || vlmImageInHandle || maskSourceInHandle || sam3VideoInHandle || poseReferenceInHandle || gaussianReferenceInHandle || qwenTtsAudioInHandle || directorMediaInHandle || compareImageInHandle || batchAnyInHandle || timelineMediaInHandle) {
+            if (inHandle || configInHandle || resultInHandle || textInHandle || textNodeInHandle || translationTextInHandle || tagCartTextInHandle || wd14ImageInHandle || vlmImageInHandle || maskSourceInHandle || sam3VideoInHandle || poseReferenceInHandle || gaussianReferenceInHandle || qwenTtsAudioInHandle || directorMediaInHandle || directorMediaGroupInHandle || compareImageInHandle || batchAnyInHandle || timelineMediaInHandle) {
                 evt.preventDefault();
-                handleInputHandlePointerDown(node, evt, inHandle, configInHandle, resultInHandle, textInHandle, textNodeInHandle, translationTextInHandle, tagCartTextInHandle, wd14ImageInHandle, vlmImageInHandle, maskSourceInHandle, sam3VideoInHandle, poseReferenceInHandle, gaussianReferenceInHandle, qwenTtsAudioInHandle, directorMediaInHandle, compareImageInHandle, batchAnyInHandle, timelineMediaInHandle);
+                handleInputHandlePointerDown(node, evt, inHandle, configInHandle, resultInHandle, textInHandle, textNodeInHandle, translationTextInHandle, tagCartTextInHandle, wd14ImageInHandle, vlmImageInHandle, maskSourceInHandle, sam3VideoInHandle, poseReferenceInHandle, gaussianReferenceInHandle, qwenTtsAudioInHandle, directorMediaInHandle, directorMediaGroupInHandle, compareImageInHandle, batchAnyInHandle, timelineMediaInHandle);
                 return;
             }
             const compareStage = evt.target.closest('.sai-compare-stage');
@@ -21004,6 +21014,11 @@ ${actions}
                 const trimHandle = evt.target.closest('[data-timeline-trim]');
                 const modeName = trimHandle ? `trim-${trimHandle.getAttribute('data-timeline-trim') || 'end'}` : 'move';
                 startTimelineClipDrag(node, timelineClip.getAttribute('data-timeline-clip-id'), modeName, evt);
+                return;
+            }
+            const directorTimelineDrag = evt.target.closest('[data-director-timeline-drag]');
+            if (directorTimelineDrag && isDirectorTimelineNode(node)) {
+                startDirectorTimelinePreviewDrag(node, nodeEl, directorTimelineDrag, evt);
                 return;
             }
             if (isInteractiveTarget(evt.target)) return;
@@ -24588,7 +24603,7 @@ ${renderGenerationMetadataInspectorSection(node)}
         document.addEventListener('pointerup', stopConnection, true);
     }
 
-    function handleInputHandlePointerDown(node, evt, inHandle, configInHandle, resultInHandle, textInHandle, textNodeInHandle, translationTextInHandle, tagCartTextInHandle, wd14ImageInHandle, vlmImageInHandle, maskSourceInHandle, sam3VideoInHandle, poseReferenceInHandle, gaussianReferenceInHandle, qwenTtsAudioInHandle, directorMediaInHandle, compareImageInHandle, batchAnyInHandle, timelineMediaInHandle) {
+    function handleInputHandlePointerDown(node, evt, inHandle, configInHandle, resultInHandle, textInHandle, textNodeInHandle, translationTextInHandle, tagCartTextInHandle, wd14ImageInHandle, vlmImageInHandle, maskSourceInHandle, sam3VideoInHandle, poseReferenceInHandle, gaussianReferenceInHandle, qwenTtsAudioInHandle, directorMediaInHandle, directorMediaGroupInHandle, compareImageInHandle, batchAnyInHandle, timelineMediaInHandle) {
         if (!node) return;
         if (inHandle && (node.type === 'preset' || node.type === 'classic')) {
             const slot = inHandle.getAttribute('data-handle-in');
@@ -24739,6 +24754,19 @@ ${renderGenerationMetadataInspectorSection(node)}
                 else renderAll();
             }
         }
+        if (directorMediaGroupInHandle && isDirectorTimelineNode(node)) {
+            const kind = directorMediaGroupInHandle.getAttribute('data-director-media-group-in') || '';
+            const edge = project.edges.find(item => item.type === 'media' && item.to === node.id && directorMediaSourceKind(getNode(item.from)) === kind);
+            if (edge) {
+                const fromNode = getNode(edge.from);
+                deleteEdge(edge.id, { render: false });
+                if (fromNode) startConnection(fromNode, evt);
+                else renderAll();
+                return;
+            }
+            showToast(t('Drop a matching media output onto this pool.', '把同类型媒体输出拖到这个素材池入口。'));
+            return;
+        }
         if (compareImageInHandle && node.type === 'compare') {
             const slot = compareImageInHandle.getAttribute('data-compare-image-in') || 'a';
             const edge = project.edges.find(item => item.type === 'compare' && item.to === node.id && item.slot === slot);
@@ -24794,6 +24822,7 @@ ${renderGenerationMetadataInspectorSection(node)}
             if (snapTarget.kind === 'gaussian_reference') createGaussianStudioReferenceEdge(connectState.from, snapTarget.toId);
             if (snapTarget.kind === 'qwen_tts_audio') createQwenTtsAudioEdge(connectState.from, snapTarget.toId, snapTarget.slot);
             if (snapTarget.kind === 'director_media') createDirectorTimelineMediaEdge(connectState.from, snapTarget.toId, snapTarget.slot);
+            if (snapTarget.kind === 'director_media_group') createDirectorTimelineMediaEdge(connectState.from, snapTarget.toId, '', { kind: snapTarget.slot });
             if (snapTarget.kind === 'compare') createCompareImageEdge(connectState.from, snapTarget.toId, snapTarget.slot);
             if (snapTarget.kind === 'batch_any') createBatchAnyInputEdge(connectState.from, snapTarget.toId);
             if (snapTarget.kind === 'timeline') createTimelineClipEdge(connectState.from, snapTarget.toId, { track_id: snapTarget.slot === 'media' ? null : snapTarget.slot });
@@ -24831,6 +24860,7 @@ ${renderGenerationMetadataInspectorSection(node)}
             '[data-gaussian-studio-reference-in]',
             '[data-qwen-tts-audio-in]',
             '[data-director-media-in]',
+            '[data-director-media-group-in]',
             '[data-compare-image-in]',
             '[data-batch-any-in]',
             '[data-timeline-track-in]',
@@ -24874,6 +24904,7 @@ ${renderGenerationMetadataInspectorSection(node)}
         if (handle.hasAttribute('data-gaussian-studio-reference-in')) return { kind: 'gaussian_reference', toId, slot: 'reference', handle };
         if (handle.hasAttribute('data-qwen-tts-audio-in')) return { kind: 'qwen_tts_audio', toId, slot: handle.getAttribute('data-qwen-tts-audio-in') || '', handle };
         if (handle.hasAttribute('data-director-media-in')) return { kind: 'director_media', toId, slot: handle.getAttribute('data-director-media-in') || '', handle };
+        if (handle.hasAttribute('data-director-media-group-in')) return { kind: 'director_media_group', toId, slot: handle.getAttribute('data-director-media-group-in') || '', handle };
         if (handle.hasAttribute('data-compare-image-in')) return { kind: 'compare', toId, slot: handle.getAttribute('data-compare-image-in') || 'a', handle };
         if (handle.hasAttribute('data-batch-any-in')) return { kind: 'batch_any', toId, slot: handle.getAttribute('data-batch-any-in') || 'items', handle };
         if (handle.hasAttribute('data-timeline-track-in')) return { kind: 'timeline', toId, slot: handle.getAttribute('data-timeline-track-in') || 'media', handle };
@@ -24910,6 +24941,7 @@ ${renderGenerationMetadataInspectorSection(node)}
         if (target.kind === 'gaussian_reference') return (isGaussianStudioImageSource(from) || isImageProducingPresetNode(from)) && to.type === 'gaussian_studio';
         if (target.kind === 'qwen_tts_audio') return isQwenTtsAudioSource(from) && isQwenTtsNode(to);
         if (target.kind === 'director_media') return isDirectorTimelineNode(to) && isDirectorMediaSourceForSlot(from, target.slot);
+        if (target.kind === 'director_media_group') return isDirectorTimelineNode(to) && directorMediaSourceKind(from) === target.slot;
         if (target.kind === 'compare') return isImageCompareSource(from) && to.type === 'compare';
         if (target.kind === 'batch_any') return to.type === 'batch_any' && batchAnyAcceptsSource(to, from);
         if (target.kind === 'timeline') {
@@ -25128,6 +25160,7 @@ ${renderGenerationMetadataInspectorSection(node)}
 
     function onViewportWheel(evt) {
         if (!root || root.hidden) return;
+        if (findWheelScrollableAncestor(evt.target, evt)) return;
         if (isInteractiveTarget(evt.target)) return;
         evt.preventDefault();
         if (dragState || panState || marqueeState || connectState || performance.now() < suppressWheelUntil) return;
@@ -34127,6 +34160,146 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         });
     }
 
+    function directorTimelineTotalSeconds(director) {
+        const segments = Array.isArray(director?.segments) ? director.segments : [];
+        const maxEnd = segments.reduce((value, segment) => Math.max(value, Number(segment?.end || 0)), 0);
+        return Math.max(0.1, Number(director?.duration || 10) || 10, maxEnd);
+    }
+
+    function directorTimelineRoundSeconds(value) {
+        const rounded = Math.round(Number(value || 0) * 10) / 10;
+        return Number.isFinite(rounded) ? rounded : 0;
+    }
+
+    function directorTimelineClampSeconds(value, min, max) {
+        const low = Number.isFinite(Number(min)) ? Number(min) : 0;
+        const high = Number.isFinite(Number(max)) ? Number(max) : 86400;
+        if (high < low) return low;
+        return Math.max(low, Math.min(high, Number(value || 0)));
+    }
+
+    function directorTimelineNeighborBounds(director, index) {
+        const bounds = { previousEnd: 0, nextStart: 86400 };
+        const segments = Array.isArray(director?.segments) ? director.segments : [];
+        segments.forEach((segment, segmentIndex) => {
+            if (segmentIndex < index) {
+                bounds.previousEnd = Math.max(bounds.previousEnd, Number(segment?.end || 0));
+            } else if (segmentIndex > index) {
+                bounds.nextStart = Math.min(bounds.nextStart, Number(segment?.start || 86400));
+            }
+        });
+        bounds.previousEnd = directorTimelineRoundSeconds(bounds.previousEnd);
+        bounds.nextStart = directorTimelineRoundSeconds(bounds.nextStart);
+        return bounds;
+    }
+
+    function directorTimelineConstrainSegmentTimes(director, index) {
+        const segment = director?.segments?.[index];
+        if (!segment) return;
+        const bounds = directorTimelineNeighborBounds(director, index);
+        const previousEnd = Math.max(0, bounds.previousEnd);
+        const nextStart = Math.min(86400, bounds.nextStart);
+        const availableDuration = Math.max(0, nextStart - previousEnd);
+        const minDuration = availableDuration > 0 ? Math.min(0.1, availableDuration) : 0;
+        const startUpper = Math.max(previousEnd, nextStart - minDuration);
+        let start = directorTimelineClampSeconds(segment.start, previousEnd, startUpper);
+        const endLower = Math.min(nextStart, start + minDuration);
+        let end = directorTimelineClampSeconds(segment.end, endLower, nextStart);
+        if (end < endLower) end = endLower;
+        if (end > nextStart) end = nextStart;
+        segment.start = directorTimelineRoundSeconds(start);
+        segment.end = directorTimelineRoundSeconds(end);
+        segment.unit = 'seconds';
+    }
+
+    function startDirectorTimelinePreviewDrag(node, nodeEl, dragTarget, evt) {
+        if (!isDirectorTimelineNode(node) || isNodeLocked(node)) return;
+        const index = Number(dragTarget.getAttribute('data-director-timeline-clip') || 0);
+        const director = normalizeDirectorTimelineForNode(node);
+        const segment = director?.segments?.[index];
+        const track = dragTarget.closest('.sai-director-timeline-video-track');
+        const rect = track?.getBoundingClientRect?.();
+        if (!segment || !rect || rect.width <= 0) return;
+        const mode = dragTarget.getAttribute('data-director-timeline-drag') || 'move';
+        const bounds = directorTimelineNeighborBounds(director, index);
+        pushHistoryBatch(`director:${node.id}:timeline-preview:${index}`, 'Edit Director shot time');
+        directorTimelineDragState = {
+            pointerId: evt.pointerId,
+            nodeId: node.id,
+            index,
+            mode: mode === 'start' || mode === 'end' ? mode : 'move',
+            startClientX: evt.clientX,
+            startStart: Number(segment.start || 0),
+            startEnd: Math.max(Number(segment.start || 0) + 0.1, Number(segment.end || 0)),
+            previousEnd: bounds.previousEnd,
+            nextStart: bounds.nextStart,
+            totalSeconds: directorTimelineTotalSeconds(director),
+            trackWidth: rect.width,
+            nodeEl
+        };
+        nodeEl.querySelectorAll('.sai-director-timeline-clip').forEach(item => item.classList.remove('is-dragging'));
+        const clipEl = dragTarget.closest('.sai-director-timeline-clip');
+        clipEl?.classList.add('is-dragging');
+        evt.preventDefault();
+        evt.stopPropagation();
+        document.addEventListener('pointermove', onDirectorTimelinePreviewDragMove, true);
+        document.addEventListener('pointerup', stopDirectorTimelinePreviewDrag, true);
+        document.addEventListener('pointercancel', stopDirectorTimelinePreviewDrag, true);
+    }
+
+    function onDirectorTimelinePreviewDragMove(evt) {
+        const state = directorTimelineDragState;
+        if (!state || evt.pointerId !== state.pointerId) return;
+        const node = getNode(state.nodeId);
+        if (!isDirectorTimelineNode(node) || isNodeLocked(node)) return;
+        const director = normalizeDirectorTimelineForNode(node);
+        const segment = director?.segments?.[state.index];
+        if (!segment) return;
+        const secondsPerPx = state.totalSeconds / Math.max(1, state.trackWidth);
+        const delta = (evt.clientX - state.startClientX) * secondsPerPx;
+        const previousEnd = Math.max(0, Number(state.previousEnd || 0));
+        const nextStart = Math.min(86400, Number(state.nextStart || 86400));
+        const availableDuration = Math.max(0, nextStart - previousEnd);
+        const minDuration = availableDuration > 0 ? Math.min(0.1, availableDuration) : 0;
+        const sourceDuration = availableDuration > 0
+            ? Math.min(availableDuration, Math.max(minDuration, state.startEnd - state.startStart))
+            : 0;
+        let start = state.startStart;
+        let end = state.startEnd;
+        if (state.mode === 'start') {
+            const anchorEnd = directorTimelineClampSeconds(state.startEnd, previousEnd, nextStart);
+            start = directorTimelineClampSeconds(state.startStart + delta, previousEnd, Math.max(previousEnd, anchorEnd - minDuration));
+            end = anchorEnd;
+        } else if (state.mode === 'end') {
+            const anchorStart = directorTimelineClampSeconds(state.startStart, previousEnd, Math.max(previousEnd, nextStart - minDuration));
+            start = anchorStart;
+            end = directorTimelineClampSeconds(state.startEnd + delta, anchorStart + minDuration, nextStart);
+        } else {
+            start = directorTimelineClampSeconds(state.startStart + delta, previousEnd, Math.max(previousEnd, nextStart - sourceDuration));
+            end = start + sourceDuration;
+        }
+        segment.start = directorTimelineRoundSeconds(start);
+        segment.end = directorTimelineRoundSeconds(Math.min(nextStart, Math.max(segment.start + minDuration, end)));
+        segment.unit = 'seconds';
+        director.segments[state.index] = segment;
+        node.director = WORKBENCH_DIRECTOR_TIMELINE_NODE.normalizeTimeline(director);
+        updateDirectorStatus(node);
+        mutate({ inspector: selectedNodeId === node.id });
+        evt.preventDefault();
+    }
+
+    function stopDirectorTimelinePreviewDrag(evt) {
+        if (!directorTimelineDragState) return;
+        if (evt && evt.pointerId !== directorTimelineDragState.pointerId) return;
+        const state = directorTimelineDragState;
+        directorTimelineDragState = null;
+        state.nodeEl?.querySelectorAll('.sai-director-timeline-clip').forEach(item => item.classList.remove('is-dragging'));
+        document.removeEventListener('pointermove', onDirectorTimelinePreviewDragMove, true);
+        document.removeEventListener('pointerup', stopDirectorTimelinePreviewDrag, true);
+        document.removeEventListener('pointercancel', stopDirectorTimelinePreviewDrag, true);
+        scheduleSave();
+    }
+
     function updateDirectorTimelineParam(nodeId, key, value, inputType) {
         const node = getNode(nodeId);
         if (!isDirectorTimelineNode(node) || !key || isNodeLocked(node)) return;
@@ -34184,6 +34357,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             segment[key] = value;
         }
         director.segments[index] = segment;
+        if (key === 'start' || key === 'end') directorTimelineConstrainSegmentTimes(director, index);
         node.director = WORKBENCH_DIRECTOR_TIMELINE_NODE.normalizeTimeline(director);
         updateDirectorStatus(node);
         mutate({ inspector: selectedNodeId === nodeId });
@@ -34194,14 +34368,14 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         pushHistory('Add Director shot');
         const director = normalizeDirectorTimelineForNode(node);
         const segments = Array.isArray(director.segments) ? director.segments : [];
-        const last = segments[segments.length - 1] || { end: 0, unit: 'seconds' };
+        const last = segments[segments.length - 1] || { end: 0 };
         const start = Number(last.end || 0);
-        const end = Math.max(start + (last.unit === 'frames' ? Math.round(Number(director.fps || 24) * 2) : 2), start + 0.1);
+        const end = Math.max(start + 2, start + 0.1);
         segments.push({
             id: uid('shot'),
             start,
             end,
-            unit: last.unit || 'seconds',
+            unit: 'seconds',
             type: 't2v',
             prompt: '',
             images: [],
@@ -35522,7 +35696,13 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         const from = getNode(fromId);
         const to = getNode(toId);
         const slots = Array.isArray(WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_SLOT_SPECS) ? WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_SLOT_SPECS : [];
-        const targetSlot = slots.some(item => item.key === slot) ? slot : (slots.find(item => isDirectorMediaSourceForSlot(from, item.key))?.key || '');
+        const requestedKind = ['image', 'audio', 'video'].includes(options?.kind) ? options.kind : '';
+        const exactSlot = slots.find(item => item.key === slot && isDirectorMediaSourceForSlot(from, item.key));
+        const matchingSlots = slots.filter(item => (!requestedKind || item.kind === requestedKind) && isDirectorMediaSourceForSlot(from, item.key));
+        const targetSlot = exactSlot?.key
+            || matchingSlots.find(item => !to?.media_inputs?.[item.key])?.key
+            || matchingSlots[0]?.key
+            || '';
         if (!from || !to || !isDirectorTimelineNode(to) || !targetSlot || !isDirectorMediaSourceForSlot(from, targetSlot)) {
             showToast(t('Director Timeline accepts image, video, audio, or matching Result nodes.', '导演时间轴接受图片、视频、音频或匹配的 Result 节点。'));
             return;
@@ -35546,7 +35726,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         selectedNodeId = toId;
         if (options && options.silent) return;
         mutate();
-        showToast(t('Director media connected', '已连接导演媒体'));
+        showToast(t('Director media connected to {slot}', '已连接导演媒体到 {slot}').replace('{slot}', targetSlot));
     }
 
     function createCompareImageEdge(fromId, toId, slot, options) {

@@ -70,6 +70,8 @@ function simpaiUiTrace(level, ...args) {
         ".image-container",
         ".image-frame"
     ].join(", ");
+    let simpleaiMediaResolutionBadgeReconcileTimer = null;
+    let simpleaiMediaResolutionBadgeLifecycleBound = false;
 
     function simpleaiNormalizeMediaDimensions(width, height) {
         const w = Math.round(Number(width || 0));
@@ -107,6 +109,7 @@ function simpaiUiTrace(level, ...args) {
         if (!host.classList.contains("simpai-media-resolution-host")) {
             host.classList.add("simpai-media-resolution-host");
         }
+        if (host.dataset) host.dataset.simpaiMediaResolutionBadgeAppliedAt = String(Date.now());
         if (badge.textContent !== label) badge.textContent = label;
         if (badge.hidden) badge.hidden = false;
         return true;
@@ -115,8 +118,140 @@ function simpaiUiTrace(level, ...args) {
     function simpleaiClearMediaResolutionBadge(host) {
         if (!host || !host.querySelector) return false;
         const badge = host.querySelector(":scope > .simpai-media-resolution-badge");
-        if (badge) badge.hidden = true;
+        if (badge) {
+            badge.hidden = true;
+            host.classList?.remove?.("simpai-media-resolution-host");
+            try { delete host.dataset.simpaiMediaResolutionBadgeAppliedAt; } catch (e) {}
+        }
         return !!badge;
+    }
+
+    function simpleaiMediaResolutionBadgeAppliedAge(host) {
+        const appliedAt = Number(host?.dataset?.simpaiMediaResolutionBadgeAppliedAt || 0);
+        return appliedAt > 0 ? Date.now() - appliedAt : Number.POSITIVE_INFINITY;
+    }
+
+    function simpleaiMediaNodeHasSource(node) {
+        if (!node || node.closest?.(".simpai-media-resolution-badge")) return false;
+        if (node.closest?.("button, .icon-button-wrapper, .tools")) return false;
+        const tag = String(node.tagName || "").toUpperCase();
+        if (tag === "IMG") {
+            const src = String(node.currentSrc || node.src || node.getAttribute?.("src") || "").trim();
+            const srcset = String(node.getAttribute?.("srcset") || "").trim();
+            return !!(src || srcset || (node.naturalWidth > 0 && node.naturalHeight > 0));
+        }
+        if (tag === "VIDEO") {
+            const src = String(node.currentSrc || node.src || node.getAttribute?.("src") || "").trim();
+            return !!(src || (node.videoWidth > 0 && node.videoHeight > 0));
+        }
+        if (tag === "CANVAS") {
+            return Number(node.width || 0) > 1 && Number(node.height || 0) > 1;
+        }
+        return false;
+    }
+
+    function simpleaiMediaRootHasActiveMedia(host) {
+        if (!host || !host.querySelectorAll) return false;
+        return Array.from(host.querySelectorAll("img, video, canvas")).some(simpleaiMediaNodeHasSource);
+    }
+
+    function simpleaiCollectMediaResolutionBadgeHosts(scope) {
+        const hosts = new Set();
+        const addHost = (node) => {
+            if (!node || node.nodeType !== 1) return;
+            const directHost = node.matches?.(".simpai-media-resolution-host") ? node : node.closest?.(".simpai-media-resolution-host");
+            if (directHost) hosts.add(directHost);
+            if (node.matches?.(".simpai-media-resolution-badge") && node.parentElement) hosts.add(node.parentElement);
+            const imageRoot = node.matches?.(IMAGE_ROOT_SELECTOR) ? node : node.closest?.(IMAGE_ROOT_SELECTOR);
+            if (imageRoot?.querySelector?.(":scope > .simpai-media-resolution-badge")) hosts.add(imageRoot);
+            node.querySelectorAll?.(".simpai-media-resolution-badge").forEach((badge) => {
+                if (badge.parentElement) hosts.add(badge.parentElement);
+            });
+        };
+        if (scope && scope !== document) addHost(scope.nodeType === 1 ? scope : scope.parentElement);
+        if (!hosts.size) {
+            const root = scope?.querySelectorAll ? scope : document;
+            root.querySelectorAll?.(".simpai-media-resolution-badge").forEach((badge) => {
+                if (badge.parentElement) hosts.add(badge.parentElement);
+            });
+        }
+        return Array.from(hosts);
+    }
+
+    function simpleaiReconcileMediaResolutionBadgeRoot(host) {
+        if (!host || !host.querySelector || host.closest?.(SKIP_ROOT_SELECTOR)) return false;
+        const badge = host.querySelector(":scope > .simpai-media-resolution-badge");
+        if (!badge || badge.hidden || simpleaiMediaRootHasActiveMedia(host)) return false;
+        const age = simpleaiMediaResolutionBadgeAppliedAge(host);
+        if (age < 1600) {
+            window.clearTimeout(host.__simpleaiMediaResolutionBadgeGraceTimer);
+            host.__simpleaiMediaResolutionBadgeGraceTimer = window.setTimeout(() => {
+                simpleaiScheduleMediaResolutionBadgeReconcile(host);
+            }, Math.max(80, 1650 - age));
+            return false;
+        }
+        return simpleaiClearMediaResolutionBadge(host);
+    }
+
+    function simpleaiReconcileMediaResolutionBadges(scope = document) {
+        let changed = false;
+        for (const host of simpleaiCollectMediaResolutionBadgeHosts(scope)) {
+            changed = simpleaiReconcileMediaResolutionBadgeRoot(host) || changed;
+        }
+        return changed;
+    }
+
+    function simpleaiScheduleMediaResolutionBadgeReconcile(scope = document, delay = 60) {
+        window.clearTimeout(simpleaiMediaResolutionBadgeReconcileTimer);
+        simpleaiMediaResolutionBadgeReconcileTimer = window.setTimeout(() => {
+            simpleaiReconcileMediaResolutionBadges(scope);
+        }, Math.max(0, Number(delay) || 0));
+    }
+
+    function bindSimpleAIMediaResolutionBadgeObserver() {
+        if (window.__simpleaiMediaResolutionBadgeObserver) return;
+        const target = document.body || document.documentElement;
+        if (!target) {
+            window.setTimeout(bindSimpleAIMediaResolutionBadgeObserver, 200);
+            return;
+        }
+        const observer = new MutationObserver((mutations) => {
+            const relevant = mutations.some((mutation) => {
+                const targetNode = mutation.target;
+                if (targetNode?.classList?.contains("simpai-media-resolution-badge")) return true;
+                return !!(
+                    targetNode?.closest?.(IMAGE_ROOT_SELECTOR)
+                    || targetNode?.querySelector?.(".simpai-media-resolution-badge")
+                );
+            });
+            if (relevant) simpleaiScheduleMediaResolutionBadgeReconcile(document);
+        });
+        observer.observe(target, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ["src", "srcset", "class", "style", "hidden", "aria-hidden"],
+        });
+        window.__simpleaiMediaResolutionBadgeObserver = observer;
+    }
+
+    function bindSimpleAIMediaResolutionBadgeLifecycleCallbacks() {
+        if (simpleaiMediaResolutionBadgeLifecycleBound) return;
+        if (
+            typeof onUiLoaded !== "function" ||
+            typeof onAfterUiUpdate !== "function" ||
+            typeof uiLoadedCallbacks === "undefined" ||
+            typeof uiAfterUpdateCallbacks === "undefined" ||
+            !Array.isArray(uiLoadedCallbacks) ||
+            !Array.isArray(uiAfterUpdateCallbacks)
+        ) {
+            window.setTimeout(bindSimpleAIMediaResolutionBadgeLifecycleCallbacks, 50);
+            return;
+        }
+        simpleaiMediaResolutionBadgeLifecycleBound = true;
+        onUiLoaded(() => simpleaiScheduleMediaResolutionBadgeReconcile(document));
+        onAfterUiUpdate(() => simpleaiScheduleMediaResolutionBadgeReconcile(document));
+        simpleaiScheduleMediaResolutionBadgeReconcile(document, 120);
     }
 
     function simpleaiBase64UrlDecodeUtf8(value) {
@@ -281,9 +416,12 @@ function simpaiUiTrace(level, ...args) {
 
     window.simpleaiApplyMediaResolutionBadge = simpleaiApplyMediaResolutionBadge;
     window.simpleaiClearMediaResolutionBadge = simpleaiClearMediaResolutionBadge;
+    window.simpleaiReconcileMediaResolutionBadges = simpleaiReconcileMediaResolutionBadges;
     window.simpleaiMediaResolutionLabel = simpleaiMediaResolutionLabel;
     window.simpleaiImageDimensionsFromBlob = simpleaiImageDimensionsFromBlob;
     window.simpleaiImageDimensionsFromUrl = simpleaiImageDimensionsFromUrl;
+    bindSimpleAIMediaResolutionBadgeObserver();
+    window.setTimeout(bindSimpleAIMediaResolutionBadgeLifecycleCallbacks, 0);
 })();
 
 function simpleaiRehydrateModelsTabAfterPresetNav() {

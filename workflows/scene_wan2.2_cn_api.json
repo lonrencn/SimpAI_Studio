@@ -46,7 +46,7 @@
   },
   "7": {
     "inputs": {
-      "clip_name": "umt5-xxl-encoder-Q8_0.gguf",
+      "clip_name": "placeholder.safetensors",
       "type": "wan"
     },
     "class_type": "CLIPLoaderGGUF",

@@ -25,7 +25,7 @@
             },
             "disvisible": ["scene_canvas_image", "scene_input_image1", "scene_input_image2","scene_additional_prompt","scene_additional_prompt_2", "scene_audio", "scene_var_number", "scene_var_number2","scene_var_number4",
                 "scene_var_number3", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10", "scene_batch"
-                ,"scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
+                ,"scene_switch_option2","scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
             "prompt": {
                 "Basic": ""
             },
@@ -48,10 +48,6 @@
             },
             "switch_option1_title": "Use Tiled VAE Decode",
             "switch_option1": {
-                "Basic": false
-            },
-            "switch_option2_title": "Force Select Resolution",
-            "switch_option2": {
                 "Basic": false
             },
             "aspect_ratio" : ["origin|Original", "640|1:1", "720|1:1", "832|1:1", "960|1:1", "1024|1:1", "1280|1:1"],

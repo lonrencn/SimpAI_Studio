@@ -130,7 +130,6 @@ def normalize_segment(segment, index=0, previous_end=0.0):
     raw = segment if isinstance(segment, dict) else {}
     start = _number(raw.get("start"), previous_end, 0, 86400)
     end = max(start, _number(raw.get("end"), start + 1, 0, 86400))
-    unit = "frames" if raw.get("unit") == "frames" else "seconds"
     images = _normalize_media_items(raw.get("images"), "image")
     image_seen = {_text(item.get("source_ref")) for item in images if isinstance(item, dict)}
     for key in ["image_ref", *[f"image_ref_{index}" for index in range(1, 6)], *[f"image{index}" for index in range(1, 6)]]:
@@ -157,7 +156,7 @@ def normalize_segment(segment, index=0, previous_end=0.0):
         "id": _text(raw.get("id")) or f"shot_{index + 1}",
         "start": start,
         "end": end,
-        "unit": unit,
+        "unit": "seconds",
         "type": shot_type,
         "task_method": task_method,
         "prompt": str(raw.get("prompt") or "").strip(),
@@ -226,10 +225,7 @@ def build_prompt_override(payload):
         prompt = _text(segment.get("prompt"))
         if prompt:
             tokens.append(prompt)
-        if segment.get("unit") == "frames":
-            tokens.append(f"[{int(round(segment['start']))}-{int(round(segment['end']))}]")
-        else:
-            tokens.append(f"[{_compact_time(segment['start'])}-{_compact_time(segment['end'])}s]")
+        tokens.append(f"[{_compact_time(segment['start'])}-{_compact_time(segment['end'])}s]")
         item = " ".join(token for token in tokens if token).strip()
         if item:
             parts.append(item)

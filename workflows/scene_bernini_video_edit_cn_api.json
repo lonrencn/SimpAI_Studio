@@ -19,7 +19,7 @@
         0
       ],
       "clip": [
-        "219",
+        "7",
         0
       ]
     },
@@ -35,13 +35,23 @@
         29
       ],
       "clip": [
-        "219",
+        "7",
         0
       ]
     },
     "class_type": "CLIPTextEncode",
     "_meta": {
       "title": "negative_prompt"
+    }
+  },
+  "7": {
+    "inputs": {
+      "clip_name": "placeholder.safetensors",
+      "type": "wan"
+    },
+    "class_type": "CLIPLoaderGGUF",
+    "_meta": {
+      "title": "clip_model"
     }
   },
   "8": {
@@ -55,48 +65,18 @@
   },
   "10": {
     "inputs": {
-      "vae_name": "wan_2.1_vae.safetensors"
+      "vae_name": "pixel_space"
     },
     "class_type": "VAELoader",
     "_meta": {
       "title": "vae_model"
     }
   },
-  "13": {
-    "inputs": {
-      "weight": 2,
-      "model": [
-        "15",
-        0
-      ],
-      "latent": [
-        "217",
-        2
-      ]
-    },
-    "class_type": "WanVideoEnhanceAVideoKJ",
-    "_meta": {
-      "title": "WanVideo Enhance A Video (native)"
-    }
-  },
-  "15": {
-    "inputs": {
-      "shift": 8,
-      "model": [
-        "34",
-        0
-      ]
-    },
-    "class_type": "ModelSamplingSD3",
-    "_meta": {
-      "title": "ModelSamplingSD3"
-    }
-  },
   "16": {
     "inputs": {
       "weight": 2,
       "model": [
-        "27",
+        "215",
         0
       ],
       "latent": [
@@ -112,7 +92,7 @@
   "18": {
     "inputs": {
       "anything": [
-        "209",
+        "124",
         0
       ]
     },
@@ -174,19 +154,19 @@
       ],
       "return_with_leftover_noise": "enable",
       "model": [
-        "13",
+        "41",
         0
       ],
       "positive": [
-        "217",
+        "219",
         0
       ],
       "negative": [
-        "217",
+        "219",
         1
       ],
       "latent_image": [
-        "217",
+        "219",
         2
       ]
     },
@@ -218,19 +198,6 @@
       "title": "Patch Sage Attention KJ"
     }
   },
-  "27": {
-    "inputs": {
-      "shift": 8,
-      "model": [
-        "57",
-        0
-      ]
-    },
-    "class_type": "ModelSamplingSD3",
-    "_meta": {
-      "title": "ModelSamplingSD3"
-    }
-  },
   "31": {
     "inputs": {
       "unet_name": "placeholder.gguf"
@@ -254,20 +221,6 @@
       "title": "Patch Sage Attention KJ"
     }
   },
-  "34": {
-    "inputs": {
-      "strength": 1,
-      "pre_cfg": false,
-      "model": [
-        "61",
-        0
-      ]
-    },
-    "class_type": "CFGNorm",
-    "_meta": {
-      "title": "CFGNorm"
-    }
-  },
   "41": {
     "inputs": {
       "lora_name": "placeholder.safetensors",
@@ -280,34 +233,6 @@
     "class_type": "LoraLoaderModelOnly",
     "_meta": {
       "title": "lora_5"
-    }
-  },
-  "57": {
-    "inputs": {
-      "lora_name": "SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
-      "strength_model": 1,
-      "model": [
-        "215",
-        0
-      ]
-    },
-    "class_type": "LoraLoaderModelOnly",
-    "_meta": {
-      "title": "LoraLoaderModelOnly"
-    }
-  },
-  "61": {
-    "inputs": {
-      "lora_name": "SVI_v2_PRO_Wan2.2-I2V-A14B_HIGH_lora_rank_128_fp16.safetensors",
-      "strength_model": 1,
-      "model": [
-        "41",
-        0
-      ]
-    },
-    "class_type": "LoraLoaderModelOnly",
-    "_meta": {
-      "title": "LoraLoaderModelOnly"
     }
   },
   "76": {
@@ -378,8 +303,8 @@
       "batch_size": 16,
       "use_fp16": true,
       "images": [
-        "156",
-        2
+        "176",
+        0
       ]
     },
     "class_type": "RIFEInterpolation",
@@ -507,8 +432,8 @@
         0
       ],
       "on_true": [
-        "156",
-        2
+        "176",
+        0
       ],
       "on_false": [
         "90",
@@ -642,7 +567,10 @@
       "force_rate": 16,
       "custom_width": 0,
       "custom_height": 0,
-      "frame_load_cap": 0,
+      "frame_load_cap": [
+        "1",
+        0
+      ],
       "skip_first_frames": 0,
       "select_every_nth": 1,
       "format": "Wan"
@@ -656,12 +584,12 @@
     "inputs": {
       "prompt": "",
       "additional_prompt": "",
-      "ip_image": "None",
-      "ip_image1": "None",
-      "ip_image2": "None",
-      "ip_image3": "None",
-      "inpaint_image": "None",
-      "inpaint_mask": "None",
+      "ip_image": "welcome.png",
+      "ip_image1": "welcome.png",
+      "ip_image2": "welcome.png",
+      "ip_image3": "welcome.png",
+      "inpaint_image": "welcome.png",
+      "inpaint_mask": "welcome.png",
       "width": 640,
       "height": 640,
       "cfg": 1,
@@ -677,7 +605,7 @@
       "var_number9": 0,
       "var_number10": 0,
       "switch_option1": false,
-      "switch_option2": true,
+      "switch_option2": false,
       "switch_option3": false,
       "switch_option4": false,
       "model_type": 2,
@@ -724,11 +652,11 @@
         0
       ],
       "positive": [
-        "217",
+        "219",
         0
       ],
       "negative": [
-        "217",
+        "219",
         1
       ],
       "latent_image": [
@@ -751,25 +679,6 @@
     "class_type": "VHS_VideoInfo",
     "_meta": {
       "title": "Video Info 🎥🅥🅗🅢"
-    }
-  },
-  "156": {
-    "inputs": {
-      "overlap": 9,
-      "overlap_side": "source",
-      "overlap_mode": "linear_blend",
-      "source_images": [
-        "191",
-        0
-      ],
-      "new_images": [
-        "176",
-        0
-      ]
-    },
-    "class_type": "ImageBatchExtendWithOverlap",
-    "_meta": {
-      "title": "Image Batch Extend With Overlap"
     }
   },
   "166": {
@@ -907,19 +816,6 @@
       "title": "If else"
     }
   },
-  "182": {
-    "inputs": {
-      "num_frames": 9,
-      "images": [
-        "191",
-        0
-      ]
-    },
-    "class_type": "WanAdvancedExtractLastImages",
-    "_meta": {
-      "title": "Wan Extract Last Images"
-    }
-  },
   "191": {
     "inputs": {
       "generation_width": [
@@ -939,18 +835,6 @@
     "class_type": "WanVideoImageResizeToClosest",
     "_meta": {
       "title": "WanVideo Image Resize To Closest"
-    }
-  },
-  "209": {
-    "inputs": {
-      "image": [
-        "124",
-        0
-      ]
-    },
-    "class_type": "GetImageSizeAndCount",
-    "_meta": {
-      "title": "Get Image Size & Count"
     }
   },
   "212": {
@@ -1009,13 +893,22 @@
       "title": "lora_10"
     }
   },
-  "217": {
+  "219": {
     "inputs": {
+      "width": [
+        "191",
+        1
+      ],
+      "height": [
+        "191",
+        2
+      ],
       "length": [
         "1",
         0
       ],
-      "motion_latent_count": 1,
+      "batch_size": 1,
+      "ref_max_size": 1280,
       "positive": [
         "2",
         0
@@ -1024,45 +917,149 @@
         "5",
         0
       ],
-      "anchor_samples": [
-        "218",
-        0
-      ],
-      "prev_samples": [
-        "218",
-        0
-      ]
-    },
-    "class_type": "WanImageToVideoSVIPro",
-    "_meta": {
-      "title": "WanImageToVideoSVIPro"
-    }
-  },
-  "218": {
-    "inputs": {
-      "pixels": [
-        "182",
-        0
-      ],
       "vae": [
         "10",
         0
+      ],
+      "source_video": [
+        "191",
+        0
+      ],
+      "reference_images.reference_image_0": [
+        "230",
+        0
+      ],
+      "reference_images.reference_image_1": [
+        "231",
+        0
       ]
     },
-    "class_type": "VAEEncode",
+    "class_type": "BerniniConditioning",
     "_meta": {
-      "title": "VAE Encode"
+      "title": "Bernini Conditioning"
     }
   },
-  "219": {
+  "220": {
     "inputs": {
-      "clip_name": "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
-      "type": "wan",
-      "device": "default"
+      "image_name": [
+        "150",
+        4
+      ],
+      "image": "None"
     },
-    "class_type": "CLIPLoader",
+    "class_type": "LoadInputImage",
     "_meta": {
-      "title": "Load CLIP"
+      "title": "LoadInputImage"
+    }
+  },
+  "221": {
+    "inputs": {
+      "image_name": [
+        "150",
+        2
+      ],
+      "image": "None"
+    },
+    "class_type": "LoadInputImage",
+    "_meta": {
+      "title": "LoadInputImage"
+    }
+  },
+  "226": {
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "220",
+        0
+      ]
+    },
+    "class_type": "ImageToMask",
+    "_meta": {
+      "title": "Convert Image to Mask"
+    }
+  },
+  "227": {
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "221",
+        0
+      ]
+    },
+    "class_type": "ImageToMask",
+    "_meta": {
+      "title": "Convert Image to Mask"
+    }
+  },
+  "228": {
+    "inputs": {
+      "mask": [
+        "226",
+        0
+      ]
+    },
+    "class_type": "easy isMaskEmpty",
+    "_meta": {
+      "title": "Is Mask Empty"
+    }
+  },
+  "229": {
+    "inputs": {
+      "mask": [
+        "227",
+        0
+      ]
+    },
+    "class_type": "easy isMaskEmpty",
+    "_meta": {
+      "title": "Is Mask Empty"
+    }
+  },
+  "230": {
+    "inputs": {
+      "boolean": [
+        "228",
+        0
+      ],
+      "on_true": [
+        "232",
+        0
+      ],
+      "on_false": [
+        "220",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "231": {
+    "inputs": {
+      "boolean": [
+        "229",
+        0
+      ],
+      "on_true": [
+        "232",
+        0
+      ],
+      "on_false": [
+        "221",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "232": {
+    "inputs": {},
+    "class_type": "noneNode",
+    "_meta": {
+      "title": "None"
     }
   }
 }

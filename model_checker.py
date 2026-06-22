@@ -2874,6 +2874,18 @@ packages = {'base_package': {'id': 1,
                                    'info_links': ['https://modelscope.cn/models/apple/Sharp/',
                                                   'https://modelscope.cn/models/Daniel8152/Repair-Damage'],
                                    'preset_sample': []},
+ 'bernini_r_package': {'id': 44,
+                       'name': '[44]Bernini-R图像编辑/多图视频/视频编辑模型包',
+                       'note': 'Bernini ImageEdit、Bernini MultiI2V和Bernini VideoEdit共用模型包，包含Bernini-R双扩散模型、Lightx2v LoRA、Wan VAE、umt5文本编码器和RIFE插帧模型',
+                       'files': ['diffusion_models,wan2.2_bernini_r_high_noise_fp8_scaled.safetensors,15574833216,0,https://www.modelscope.cn/models/Comfy-Org/Bernini-R/resolve/master/diffusion_models/wan2.2_bernini_r_high_noise_fp8_scaled.safetensors,https://huggingface.co/Comfy-Org/Bernini-R/resolve/main/diffusion_models/wan2.2_bernini_r_high_noise_fp8_scaled.safetensors',
+                                 'diffusion_models,wan2.2_bernini_r_low_noise_fp8_scaled.safetensors,15574833216,0,https://www.modelscope.cn/models/Comfy-Org/Bernini-R/resolve/master/diffusion_models/wan2.2_bernini_r_low_noise_fp8_scaled.safetensors,https://huggingface.co/Comfy-Org/Bernini-R/resolve/main/diffusion_models/wan2.2_bernini_r_low_noise_fp8_scaled.safetensors',
+                                 'loras,lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,738005744,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,https://huggingface.co/metercai/SimpleSDXL2/resolve/main/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors',
+                                 'loras,lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors,630697104,0,https://modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Lightx2v/lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors,https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Lightx2v/lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors',
+                                 'text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf,https://huggingface.co/metercai/SimpleSDXL2/resolve/main/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf',
+                                 'vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors,https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors',
+                                 'controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl,https://huggingface.co/windecay/SimpleSDXL2/resolve/main/SimpleModels/controlnet/rife/flownet.pkl'],
+                       'info_links': ['https://www.modelscope.cn/models/Comfy-Org/Bernini-R'],
+                       'preset_sample': []},
 }
 MANUAL_DOWNLOAD_MAP = {
 }

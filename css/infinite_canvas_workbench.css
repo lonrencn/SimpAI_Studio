@@ -3601,6 +3601,8 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     white-space: nowrap;
 }
 
+.sai-director-top-grid,
+.sai-director-section-title,
 .sai-director-settings,
 .sai-director-segments,
 .sai-director-output,
@@ -3612,46 +3614,211 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     margin: 0 8px 10px;
 }
 
-.sai-director-media-list {
-    gap: 6px;
+.sai-director-top-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    align-items: start;
 }
 
-.sai-director-media-row {
-    position: relative;
+.sai-canvas-node-director_timeline > .sai-node-head {
+    flex: 0 0 auto;
+}
+
+.sai-director-node-body {
     display: grid;
-    grid-template-columns: 18px minmax(66px, auto) minmax(0, 1fr);
-    align-items: center;
+    grid-template-rows: auto minmax(320px, 1fr) auto auto auto;
+    gap: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 0;
+}
+
+.sai-director-node-body > .sai-director-segments {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+}
+
+.sai-director-media-panel,
+.sai-director-settings-panel {
+    display: grid;
     gap: 7px;
     min-width: 0;
-    min-height: 30px;
-    padding: 5px 7px;
-    border: 1px solid color-mix(in srgb, var(--sai-canvas-border) 84%, transparent);
-    border-radius: 6px;
-    background: color-mix(in srgb, var(--sai-canvas-surface) 76%, transparent);
-    color: var(--sai-canvas-muted);
-    font-size: 11px;
-    font-weight: 750;
 }
 
-.sai-director-media-row i {
+.sai-director-section-title {
+    margin: 0;
+    gap: 4px;
+    color: var(--sai-canvas-text);
+}
+
+.sai-director-section-title span {
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.sai-director-section-title small {
+    min-width: 0;
+    color: var(--sai-canvas-muted);
+    font-size: 10px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sai-director-top-grid .sai-director-settings,
+.sai-director-top-grid .sai-director-media-list,
+.sai-inspector-section .sai-director-media-list {
+    margin: 0;
+}
+
+.sai-director-media-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.sai-director-media-group {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.sai-director-media-group[data-director-media-kind-group="image"] {
+    grid-column: 1 / -1;
+}
+
+.sai-director-media-group-head {
+    position: relative;
+    display: grid;
+    grid-template-columns: 18px max-content minmax(0, 1fr) max-content;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 4px 7px 4px 24px;
+    border: 1px solid color-mix(in srgb, var(--sai-canvas-border) 84%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--sai-canvas-surface) 82%, transparent);
+    color: var(--sai-canvas-muted);
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.sai-director-media-group-head i {
     color: var(--sai-canvas-accent);
 }
 
-.sai-director-media-row span,
-.sai-director-media-row b {
+.sai-director-media-group-head span {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.sai-director-media-row b {
-    color: var(--sai-canvas-text);
+.sai-director-media-group-head small {
+    color: var(--sai-canvas-muted);
     font: inherit;
+}
+
+.sai-director-media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
+    gap: 5px;
+    min-width: 0;
+}
+
+.sai-director-media-card {
+    position: relative;
+    display: grid;
+    grid-template-rows: 30px auto;
+    gap: 4px;
+    min-width: 0;
+    min-height: 62px;
+    padding: 5px;
+    border: 1px solid color-mix(in srgb, var(--sai-canvas-border) 84%, transparent);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--sai-canvas-surface) 78%, transparent);
+    color: var(--sai-canvas-muted);
+    box-sizing: border-box;
+}
+
+.sai-director-media-card.has-source {
+    border-color: color-mix(in srgb, var(--sai-canvas-accent) 46%, var(--sai-canvas-border));
+    background: color-mix(in srgb, var(--sai-canvas-accent) 10%, var(--sai-canvas-surface));
+}
+
+.sai-director-media-thumb {
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    border: 1px dashed color-mix(in srgb, var(--sai-canvas-border) 80%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, #050608 54%, transparent);
+    overflow: hidden;
+}
+
+.sai-director-media-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.sai-director-media-thumb i {
+    color: var(--sai-canvas-muted);
+    font-size: 12px;
+}
+
+.sai-director-media-meta {
+    display: grid;
+    gap: 0;
+    min-width: 0;
+}
+
+.sai-director-media-meta b,
+.sai-director-media-meta span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sai-director-media-meta b {
+    color: var(--sai-canvas-text);
+    font-size: 10px;
+    font-weight: 850;
+}
+
+.sai-director-media-meta span {
+    color: var(--sai-canvas-muted);
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.sai-director-media-card .sai-node-handle {
+    left: 6px;
+    top: 6px;
+    transform: none;
+    z-index: 2;
+}
+
+.sai-director-media-group-head .sai-director-media-group-handle {
+    left: -22px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
 }
 
 .sai-director-segment {
     display: grid;
+    grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+    grid-template-areas:
+        "head head"
+        "time mode"
+        "images refs"
+        "prompt prompt";
     gap: 8px;
     min-width: 0;
     padding: 8px;
@@ -3661,6 +3828,7 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
 }
 
 .sai-director-segment-head {
+    grid-area: head;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -3717,11 +3885,36 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     cursor: default;
 }
 
+.sai-director-segment-time {
+    grid-area: time;
+}
+
+.sai-director-segment-mode {
+    grid-area: mode;
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .sai-director-image-ref-row {
+    grid-area: images;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     min-width: 0;
+}
+
+.sai-director-segment-refs {
+    grid-area: refs;
+}
+
+.sai-director-segment-prompt {
+    grid-area: prompt;
+}
+
+.sai-director-segment-prompt textarea {
+    min-height: 42px;
+    padding: 5px 6px;
+    font-size: 12px;
+    line-height: 1.35;
 }
 
 .sai-director-image-ref-field {
@@ -3819,9 +4012,7 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
 }
 
 .sai-director-timeline-ruler,
-.sai-director-timeline-video-track,
-.sai-director-timeline-audio-track,
-.sai-director-timeline-prompt-track {
+.sai-director-timeline-video-track {
     position: relative;
     width: 100%;
     min-width: 0;
@@ -3860,23 +4051,14 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
 }
 
 .sai-director-timeline-video-track {
-    height: 112px;
+    height: 82px;
     border: 1px solid color-mix(in srgb, var(--sai-canvas-border) 78%, transparent);
     background:
         linear-gradient(90deg, color-mix(in srgb, var(--sai-canvas-border) 22%, transparent) 1px, transparent 1px) 0 0 / 25% 100%,
         color-mix(in srgb, var(--sai-canvas-surface) 82%, transparent);
 }
 
-.sai-director-timeline-audio-track,
-.sai-director-timeline-prompt-track {
-    height: 32px;
-    border: 1px solid color-mix(in srgb, var(--sai-canvas-border) 70%, transparent);
-    background: color-mix(in srgb, var(--sai-canvas-surface) 76%, transparent);
-}
-
-.sai-director-timeline-video-track > strong,
-.sai-director-timeline-audio-track > strong,
-.sai-director-timeline-prompt-track > strong {
+.sai-director-timeline-video-track > strong {
     position: absolute;
     left: 7px;
     top: 6px;
@@ -3900,6 +4082,60 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     background: color-mix(in srgb, var(--sai-canvas-accent) 12%, var(--sai-canvas-panel));
     box-shadow: 0 1px 0 color-mix(in srgb, #ffffff 5%, transparent) inset;
     overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.sai-director-timeline-clip.is-dragging {
+    border-color: var(--sai-canvas-accent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--sai-canvas-accent) 42%, transparent);
+    cursor: grabbing;
+}
+
+.sai-director-timeline-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 6;
+    width: 12px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    cursor: ew-resize;
+}
+
+.sai-director-timeline-handle::after {
+    content: "";
+    position: absolute;
+    top: 12px;
+    bottom: 12px;
+    width: 2px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sai-canvas-text) 54%, transparent);
+    opacity: 0;
+}
+
+.sai-director-timeline-clip:hover .sai-director-timeline-handle::after,
+.sai-director-timeline-clip.is-dragging .sai-director-timeline-handle::after {
+    opacity: 1;
+}
+
+.sai-director-timeline-handle.is-start {
+    left: 0;
+}
+
+.sai-director-timeline-handle.is-start::after {
+    left: 3px;
+}
+
+.sai-director-timeline-handle.is-end {
+    right: 0;
+}
+
+.sai-director-timeline-handle.is-end::after {
+    right: 3px;
 }
 
 .sai-director-timeline-clip-media {
@@ -3986,37 +4222,6 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     white-space: nowrap;
 }
 
-.sai-director-timeline-audio-segment,
-.sai-director-timeline-prompt-segment {
-    position: absolute;
-    top: 8px;
-    bottom: 6px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 44px;
-    padding: 1px 6px;
-    border-radius: 5px;
-    color: var(--sai-canvas-text);
-    font-size: 9px;
-    font-weight: 750;
-    line-height: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    box-sizing: border-box;
-}
-
-.sai-director-timeline-audio-segment {
-    border: 1px solid color-mix(in srgb, #2dd4bf 48%, var(--sai-canvas-border));
-    background: color-mix(in srgb, #2dd4bf 20%, var(--sai-canvas-panel));
-}
-
-.sai-director-timeline-prompt-segment {
-    border: 1px solid color-mix(in srgb, #94a3b8 40%, var(--sai-canvas-border));
-    background: color-mix(in srgb, #94a3b8 16%, var(--sai-canvas-panel));
-}
-
 .sai-director-timeline-empty {
     position: absolute;
     left: 50%;
@@ -4035,7 +4240,7 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
 
 .sai-director-output textarea {
     width: 100%;
-    min-height: 72px;
+    min-height: 48px;
     box-sizing: border-box;
     border: 1px solid var(--sai-canvas-border);
     border-radius: 6px;
@@ -8263,6 +8468,7 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
 .sai-vlm-compose .sai-vlm-compose-port,
 .sai-vlm-input-row .sai-node-handle,
 .sai-director-media-row .sai-node-handle,
+.sai-director-media-group-head .sai-node-handle,
 .sai-text-input-row .sai-node-handle[data-mask-source-in] {
     left: -22px;
     top: 50%;
@@ -9227,13 +9433,14 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
 }
 
 .sai-canvas-context-menu button > i:not(.sai-context-submenu-arrow),
-.sai-canvas-context-menu button > .sai-node-glyph {
+.sai-canvas-context-menu button > .sai-node-glyph,
+.sai-canvas-context-menu button > .sai-compare-glyph {
     grid-column: 1;
     width: 18px;
     justify-self: center;
 }
 
-.sai-canvas-context-menu button > span {
+.sai-canvas-context-menu button > span:not(.sai-node-glyph):not(.sai-compare-glyph) {
     grid-column: 2;
     min-width: 0;
     overflow: hidden;
@@ -9250,12 +9457,13 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
 }
 
 .sai-canvas-context-menu.is-filtered button > i:not(.sai-context-submenu-arrow),
-.sai-canvas-context-menu.is-filtered button > .sai-node-glyph {
+.sai-canvas-context-menu.is-filtered button > .sai-node-glyph,
+.sai-canvas-context-menu.is-filtered button > .sai-compare-glyph {
     grid-row: 1 / span 2;
     align-self: center;
 }
 
-.sai-canvas-context-menu.is-filtered button > span {
+.sai-canvas-context-menu.is-filtered button > span:not(.sai-node-glyph):not(.sai-compare-glyph) {
     grid-row: 1;
     line-height: 1.15;
 }

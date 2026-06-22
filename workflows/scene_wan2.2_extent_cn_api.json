@@ -46,7 +46,7 @@
   },
   "7": {
     "inputs": {
-      "clip_name": "umt5-xxl-encoder-Q8_0.gguf",
+      "clip_name": "placeholder.safetensors",
       "type": "wan"
     },
     "class_type": "CLIPLoaderGGUF",
@@ -267,6 +267,7 @@
   "34": {
     "inputs": {
       "strength": 1,
+      "pre_cfg": false,
       "model": [
         "61",
         0
@@ -695,7 +696,7 @@
       "negative_prompt": "",
       "sampler": "euler",
       "scheduler": "simple",
-      "video_duration": 5.0
+      "video_duration": 5
     },
     "class_type": "SceneInput",
     "_meta": {
@@ -785,8 +786,8 @@
     "inputs": {
       "comparison": "a == b",
       "a": [
-        "177",
-        0
+        "150",
+        6
       ],
       "b": [
         "191",
@@ -802,8 +803,8 @@
     "inputs": {
       "comparison": "a == b",
       "a": [
-        "178",
-        0
+        "150",
+        7
       ],
       "b": [
         "191",
@@ -916,46 +917,6 @@
       "title": "If else"
     }
   },
-  "177": {
-    "inputs": {
-      "boolean": [
-        "150",
-        21
-      ],
-      "on_true": [
-        "150",
-        6
-      ],
-      "on_false": [
-        "155",
-        8
-      ]
-    },
-    "class_type": "easy ifElse",
-    "_meta": {
-      "title": "If else"
-    }
-  },
-  "178": {
-    "inputs": {
-      "boolean": [
-        "150",
-        21
-      ],
-      "on_true": [
-        "150",
-        7
-      ],
-      "on_false": [
-        "155",
-        9
-      ]
-    },
-    "class_type": "easy ifElse",
-    "_meta": {
-      "title": "If else"
-    }
-  },
   "182": {
     "inputs": {
       "num_frames": 9,
@@ -972,12 +933,12 @@
   "191": {
     "inputs": {
       "generation_width": [
-        "177",
-        0
+        "150",
+        6
       ],
       "generation_height": [
-        "178",
-        0
+        "150",
+        7
       ],
       "aspect_ratio_preservation": "keep_input",
       "image": [

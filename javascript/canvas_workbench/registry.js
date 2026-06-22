@@ -125,7 +125,7 @@
         xy_matrix: { w: 700, h: 520 },
         xyz_matrix: { w: 760, h: 560 },
         timeline: { w: 760, h: 520 },
-        director_timeline: { w: 520, h: 700 },
+        director_timeline: { w: 1180, h: 980 },
         media_browser: { w: 900, h: 640 },
         style_selector: { w: 390, h: 560 },
         text: { w: 300, h: 220 },

@@ -8,30 +8,31 @@
         "scene_frontend": {
             "version": "v1.1",
             "theme": ["Basic"],
-            "theme_title": "Wan2.2 SVI-Pro Video Extend",
+            "theme_title": "Bernini Video Edit[Optional Image]",
             "director_capability": {
-                "image_policy": "forbidden",
+                "image_policy": "optional",
                 "audio_policy": "forbidden",
                 "video_policy": "required",
-                "max_images": 0,
+                "max_images": 2,
                 "min_images": 0,
-                "image_modes": ["none"],
-                "video_modes": ["explicit", "previous_segment"],
+                "image_modes": ["reference_set"],
+                "video_modes": ["explicit"],
                 "chain_output": "last_result",
-                "requires_sequential": true,
-                "duration_strategy": "video_min",
+                "requires_sequential": false,
+                "duration_strategy": "shot",
                 "audio_output": "source_audio",
                 "mixed_segments": false
             },
-            "disvisible": ["scene_canvas_image", "scene_input_image1", "scene_input_image2","scene_additional_prompt","scene_additional_prompt_2", "scene_audio", "scene_var_number", "scene_var_number2","scene_var_number4",
+            "disvisible": ["scene_input_image2", "scene_additional_prompt","scene_additional_prompt_2", "scene_audio", "scene_var_number", "scene_var_number2","scene_var_number4",
                 "scene_var_number3", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10", "scene_batch"
                 ,"scene_switch_option2","scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
             "prompt": {
                 "Basic": ""
             },
             "task_method": {
-                "Basic": "wan2.2_extent_cn"
+                "Basic": "bernini_video_edit_cn"
             },
+            "disable_canvas_mask": true,
             "multimodal_prompt": {
                 "Basic": ""
             },
@@ -50,7 +51,7 @@
             "switch_option1": {
                 "Basic": false
             },
-            "aspect_ratio" : ["origin|Original", "640|1:1", "720|1:1", "832|1:1", "960|1:1", "1024|1:1", "1280|1:1"],
+            "aspect_ratio" : ["640|1:1", "720|1:1", "832|1:1", "960|1:1", "1024|1:1", "1280|1:1","origin|Original"],
             "resolution_control": {
                 "mode": "video_keep_input_area",
                 "source": "scene_video",
@@ -67,16 +68,16 @@
             "overwrite_step_max": 10
         }
     },
-    "default_model": "Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf",
-    "default_refiner": "Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf",
+    "default_model": "wan2.2_bernini_r_high_noise_fp8_scaled.safetensors",
+    "default_refiner": "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
     "default_refiner_switch": 0.5,
     "default_upscale_model": "default",
     "default_vae": "wan_2.1_vae.safetensors",
     "default_clip_model": "umt5-xxl-encoder-Q8_0.gguf",
     "default_loras": [
         [
-            "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
-            1.0
+            "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+            3.0
         ],
         [
             "None",
@@ -95,8 +96,8 @@
             1.0
         ],
         [
-            "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
-            1.0
+            "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+            2.0
         ]
     ],
     "default_cfg_scale": 2,
@@ -115,14 +116,11 @@
     "lora_downloads": {},
     "vae_downloads": {},
     "model_list": [
-        "diffusion_models,Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf,9651728896,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/checkpoints/Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf",
-        "diffusion_models,Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf,9651728896,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/checkpoints/Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf",
+        "diffusion_models,wan2.2_bernini_r_high_noise_fp8_scaled.safetensors,15574833216,0,https://www.modelscope.cn/models/Comfy-Org/Bernini-R/resolve/master/diffusion_models/wan2.2_bernini_r_high_noise_fp8_scaled.safetensors",
+        "diffusion_models,wan2.2_bernini_r_low_noise_fp8_scaled.safetensors,15574833216,0,https://www.modelscope.cn/models/Comfy-Org/Bernini-R/resolve/master/diffusion_models/wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+        "loras,lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,738005744,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
         "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
         "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
-        "loras,wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors,634645944,0,https://www.modelscope.cn/models/lightx2v/Wan2.2-Distill-Loras/resolve/master/wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
-        "loras,wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors,739472104,0,https://www.modelscope.cn/models/lightx2v/Wan2.2-Distill-Loras/resolve/master/wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
-        "loras,SVI_v2_PRO_Wan2.2-I2V-A14B_HIGH_lora_rank_128_fp16.safetensors,1226934120,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/loras/SVI_v2_PRO_Wan2.2-I2V-A14B_HIGH_lora_rank_128_fp16.safetensors",
-        "loras,SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors,1226934120,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/loras/SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
         "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
     ]
 }

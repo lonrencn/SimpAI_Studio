@@ -10,7 +10,7 @@
             "theme_title": "Qwen-Edit-2511 Image Editing [Optional mask]",
             "disvisible": ["scene_additional_prompt", "scene_additional_prompt_2", "scene_video", "scene_audio",
                 "scene_var_number", "scene_var_number2", "scene_refiner_model", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10"
-                , "scene_switch_option3", "scene_switch_option4","sam3_input_video","sam3_mask_video"],
+                , "scene_switch_option1", "scene_switch_option3", "scene_switch_option4","sam3_input_video","sam3_mask_video"],
             "task_method": {
                 "Qwen-Edit-2511": "qwen_editplus_cn"
             },
