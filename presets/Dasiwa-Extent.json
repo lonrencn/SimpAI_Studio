@@ -9,7 +9,21 @@
             "version": "v1.1",
             "theme": ["Basic"],
             "theme_title": "Dasiwa-Wan2.2 SVI-Pro Video Extend",
-            "disvisible": ["scene_canvas_image", "scene_input_image1", "scene_input_image2","scene_additional_prompt","scene_additional_prompt_2", "scene_audio", "scene_var_number2","scene_var_number4",
+            "director_capability": {
+                "image_policy": "forbidden",
+                "audio_policy": "forbidden",
+                "video_policy": "required",
+                "max_images": 0,
+                "min_images": 0,
+                "image_modes": ["none"],
+                "video_modes": ["explicit", "previous_segment"],
+                "chain_output": "last_result",
+                "requires_sequential": true,
+                "duration_strategy": "video_min",
+                "audio_output": "source_audio",
+                "mixed_segments": false
+            },
+            "disvisible": ["scene_canvas_image", "scene_input_image1", "scene_input_image2","scene_additional_prompt","scene_additional_prompt_2", "scene_audio", "scene_var_number", "scene_var_number2","scene_var_number4",
                 "scene_var_number3", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10", "scene_batch"
                 ,"scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
             "prompt": {
@@ -20,6 +34,12 @@
             },
             "multimodal_prompt": {
                 "Basic": ""
+            },
+            "video_duration_title": "Video Duration(s)",
+            "video_duration_min": 0.1,
+            "video_duration_max": 10,
+            "video_duration": {
+                "Basic": 5
             },
             "var_number_min": 1,
             "var_number_max": 10,

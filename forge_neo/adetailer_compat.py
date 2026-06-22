@@ -38,7 +38,6 @@ ADETAILER_MODEL_DOWNLOAD_URLS = {
 ADETAILER_STATE_SCHEMA_VERSION = 1
 ADETAILER_STATE_UNIT_COUNT = 4
 ADETAILER_STATE_FILENAME = "forge_neo_adetailer_state.json"
-ADETAILER_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 ADETAILER_ARG_LABELS = (
     ("ad_model", "ADetailer model"),
     ("ad_model_classes", "ADetailer model classes"),
@@ -141,10 +140,6 @@ def adetailer_state_path(*, create_parent: bool = False) -> Path:
     if create_parent:
         path.parent.mkdir(parents=True, exist_ok=True)
     return path
-
-
-def adetailer_sidecar_path(image_path: str | os.PathLike[str]) -> Path:
-    return Path(image_path).with_suffix(".adetailer.json")
 
 
 def adetailer_normalized_args(value: object) -> dict[str, Any]:
@@ -301,29 +296,6 @@ def adetailer_reset_state() -> bool:
     except OSError:
         return False
     return True
-
-
-def adetailer_write_image_sidecars(image_paths: list[str] | tuple[str, ...], request: object) -> list[str]:
-    if not bool(getattr(request, "adetailer_enabled", False)):
-        return []
-    args = getattr(request, "adetailer_args", []) or []
-    if not _normalized_units(args):
-        return []
-    payload = adetailer_state_payload(
-        enabled=True,
-        skip_img2img=bool(getattr(request, "adetailer_skip_img2img", False)),
-        args=args,
-        mode=str(getattr(request, "mode", "") or ""),
-    )
-    written: list[str] = []
-    for item in list(image_paths or []):
-        path = Path(str(item))
-        if path.suffix.lower() not in ADETAILER_IMAGE_SUFFIXES or not path.exists():
-            continue
-        sidecar = adetailer_sidecar_path(path)
-        _write_json_file(sidecar, payload)
-        written.append(str(sidecar))
-    return written
 
 
 def adetailer_model_names(*, include_none: bool = True) -> list[str]:

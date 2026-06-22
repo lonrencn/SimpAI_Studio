@@ -83,7 +83,6 @@ def install_requirements_sequential():
             cmd += ["-m", "pip", "install", "-U", "--upgrade-strategy", "only-if-needed"]
             if force_reinstall:
                 cmd.append("--force-reinstall")
-                cmd.append("--no-deps")
             cmd += [req_line, "--prefer-binary"]
 
             if index_url:

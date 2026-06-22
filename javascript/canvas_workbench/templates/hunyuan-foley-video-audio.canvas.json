@@ -333,7 +333,6 @@
           "scene_refiner_model",
           "scene_var_number5",
           "scene_var_number6",
-          "scene_var_number9",
           "scene_var_number10",
           "scene_switch_option3",
           "scene_switch_option4",
@@ -404,14 +403,14 @@
         ],
         "params": [
           {
-            "key": "scene_var_number",
-            "label": "Voice Volume[Global]",
+            "key": "scene_video_duration",
+            "label": "Duration limit (seconds) [0 = no limit]",
             "type": "number",
             "default": 0,
             "visible": true,
             "interactive": true,
-            "min": -50,
-            "max": 20
+            "min": 0,
+            "max": 120
           },
           {
             "key": "scene_var_number2",
@@ -444,6 +443,16 @@
             "max": 20
           },
           {
+            "key": "scene_var_number9",
+            "label": "Voice Volume[Global]",
+            "type": "number",
+            "default": 0,
+            "visible": true,
+            "interactive": true,
+            "min": -50,
+            "max": 20
+          },
+          {
             "key": "scene_switch_option1",
             "label": "Merge Original Audio",
             "type": "checkbox",
@@ -468,6 +477,7 @@
               "scene_var_number2": 4,
               "scene_var_number7": 0,
               "scene_var_number8": 0,
+              "scene_var_number9": 0,
               "scene_switch_option1": false,
               "scene_switch_option2": true,
               "prompt": "'''Audio Effects Prompt'''\n",
@@ -632,12 +642,13 @@
         "negative_prompt": "noisy, harsh, background music, BGM, singing, vocals, song, melody",
         "seed_random": true,
         "image_seed": 0,
-        "scene_var_number": 0,
         "scene_var_number2": 4,
         "scene_var_number7": 0,
         "scene_var_number8": 0,
+        "scene_var_number9": 0,
         "scene_switch_option1": false,
-        "scene_switch_option2": true
+        "scene_switch_option2": true,
+        "scene_video_duration": 0
       },
       "status": "idle",
       "collapsed": false,

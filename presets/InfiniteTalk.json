@@ -2,17 +2,58 @@
     "default_engine": {
         "backend_engine": "Wan",
         "engine_type": "video",
-        "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
-        "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "disvisible": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
+        "disinteractive": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
         "available_aspect_ratios_selection": "Flux",
         "scene_frontend": {
             "version": "v1.1",
-            "theme": ["InfiniteTalk-AI2V"],
+            "theme": [
+                "InfiniteTalk-AI2V"
+            ],
             "theme_title": "Wan-InfiniteTalk Image+Audio Lip Sync",
+            "director_capability": {
+                "image_policy": "required",
+                "audio_policy": "required",
+                "video_policy": "forbidden",
+                "max_images": 1,
+                "min_images": 1,
+                "image_modes": [
+                    "first_frame"
+                ],
+                "duration_strategy": "audio_min",
+                "audio_output": "input_audio",
+                "mixed_segments": false
+            },
             "disable_canvas_mask": true,
-            "disvisible": ["scene_input_image1", "scene_additional_prompt","scene_additional_prompt_2","scene_input_image2", "scene_video", "scene_refiner_model",
-                "scene_var_number4","scene_var_number5", "scene_var_number6", "scene_var_number8", "scene_var_number9", "scene_var_number10"
-                ,"scene_switch_option1","scene_switch_option2","scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
+            "disvisible": [
+                "scene_input_image1",
+                "scene_additional_prompt",
+                "scene_additional_prompt_2",
+                "scene_input_image2",
+                "scene_video",
+                "scene_refiner_model",
+                "scene_var_number4",
+                "scene_var_number5",
+                "scene_var_number6",
+                "scene_var_number8",
+                "scene_var_number9",
+                "scene_var_number10",
+                "scene_switch_option1",
+                "scene_switch_option2",
+                "scene_switch_option3",
+                "scene_switch_option4",
+                "sam3_input_video",
+                "sam3_mask_video",
+                "scene_var_number"
+            ],
             "task_method": {
                 "InfiniteTalk-AI2V": "wan_infinitetalk_cn"
             },
@@ -43,7 +84,14 @@
             "var_number7": {
                 "InfiniteTalk-AI2V": 121
             },
-            "aspect_ratio" : ["640|1:1","720|1:1","832|1:1","960|1:1","1024|1:1","1280|1:1"],
+            "aspect_ratio": [
+                "640|1:1",
+                "720|1:1",
+                "832|1:1",
+                "960|1:1",
+                "1024|1:1",
+                "1280|1:1"
+            ],
             "resolution_control": {
                 "mode": "image_keep_input_area",
                 "source": "scene_canvas",
@@ -56,7 +104,13 @@
                 "preprocess_fit": "proportional"
             },
             "overwrite_step_min": 4,
-            "overwrite_step_max": 6
+            "overwrite_step_max": 6,
+            "video_duration_title": "Duration limit (seconds) [0 = no limit]",
+            "video_duration_min": 0,
+            "video_duration_max": 120,
+            "video_duration": {
+                "InfiniteTalk-AI2V": 0
+            }
         }
     },
     "default_model": "Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",

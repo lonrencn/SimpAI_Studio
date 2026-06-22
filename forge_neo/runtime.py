@@ -18,7 +18,7 @@ import piexif.helper
 from PIL import Image, ImageDraw, PngImagePlugin
 
 import args_manager
-from forge_neo.adetailer_compat import adetailer_save_request_state, adetailer_write_image_sidecars
+from forge_neo.adetailer_compat import adetailer_save_request_state
 from forge_neo.bootstrap import ensure_config
 from forge_neo.png_info import parse_generation_parameters
 from forge_neo.settings import load_settings
@@ -770,7 +770,7 @@ def _placeholder_image(request: ForgeNeoRequest, seed: int, label: str = "") -> 
     return image
 
 
-def _save_images(images: list[Image.Image], infotext: str, seed: int, request: ForgeNeoRequest | None = None) -> list[str]:
+def _save_images(images: list[Image.Image], infotext: str, seed: int) -> list[str]:
     if getattr(args_manager.args, "disable_image_log", False):
         return []
     settings = load_settings()
@@ -782,24 +782,20 @@ def _save_images(images: list[Image.Image], infotext: str, seed: int, request: F
         path = outputs_dir(settings) / f"{stem}.{extension}"
         image_path = _save_image_with_settings(image, path, infotext, settings)
         paths.append(image_path)
-    if request is not None:
-        adetailer_write_image_sidecars(paths, request)
     return paths
 
 
-def _ensure_result_output_paths(result: ForgeNeoResult, fallback_seed: int, request: ForgeNeoRequest | None = None) -> ForgeNeoResult:
+def _ensure_result_output_paths(result: ForgeNeoResult, fallback_seed: int) -> ForgeNeoResult:
     if result.status != "finished" or not result.images:
         return result
     if result.output_paths:
-        if request is not None:
-            adetailer_write_image_sidecars(result.output_paths, request)
         return result
     try:
         result_seed = int(result.seed)
     except (TypeError, ValueError):
         result_seed = int(fallback_seed)
     save_seed = result_seed if result_seed >= 0 else int(fallback_seed)
-    result.output_paths = _save_images(list(result.images), result.infotext, save_seed, request=request)
+    result.output_paths = _save_images(list(result.images), result.infotext, save_seed)
     return result
 
 
@@ -2085,7 +2081,7 @@ def generate(
                 control_callback=control_callback,
             )
             if backend_result.status != "backend_unavailable":
-                return _ensure_result_output_paths(backend_result, seed, request=request)
+                return _ensure_result_output_paths(backend_result, seed)
             backend_error = backend_result.error
         except Exception as exc:
             backend_error = f"{type(exc).__name__}: {exc}"
@@ -2115,7 +2111,7 @@ def generate(
             control_status = _control_status(control_callback)
             if control_status:
                 infotext = build_infotext(request, seed)
-                paths = _save_images(images, infotext, seed, request=request) if images else []
+                paths = _save_images(images, infotext, seed) if images else []
                 _emit(progress_callback, "finish", completed_steps / total_steps, control_status)
                 return ForgeNeoResult(
                     images=images,
@@ -2136,7 +2132,7 @@ def generate(
         images.append(_placeholder_image(item_request, item_seed, item_label))
 
     infotext = build_infotext(request, seed)
-    paths = _save_images(images, infotext, seed, request=request)
+    paths = _save_images(images, infotext, seed)
 
     status = "finished"
     error = ""

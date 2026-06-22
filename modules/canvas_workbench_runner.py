@@ -13,6 +13,7 @@ import modules.config as config
 import modules.constants as constants
 import modules.flags as flags
 from modules import canvas_workbench_assets
+from modules import canvas_workbench_director
 
 try:
     import simpleai_base.api_params as api_params
@@ -677,6 +678,26 @@ def _apply_scene_media_backend_aliases(params_backend):
     return params_backend
 
 
+def _director_runtime_from_params(params):
+    if not isinstance(params, dict):
+        return None
+    payload = params.get("director_timeline") if isinstance(params.get("director_timeline"), dict) else None
+    prompt_override = str(params.get("prompt_override") or "").strip()
+    if payload:
+        runtime = canvas_workbench_director.prepare_director_runtime(payload)
+        if prompt_override and not runtime.get("prompt_override"):
+            runtime["prompt_override"] = prompt_override
+        return runtime
+    if prompt_override:
+        return {
+            "schema": canvas_workbench_director.SCHEMA,
+            "prompt_override": prompt_override,
+            "segments": [],
+            "media_refs": {"images": [], "audio": [], "video": []},
+        }
+    return None
+
+
 def _load_image_array(path, mode="RGB"):
     if Image is None or np is None:
         raise RuntimeError("PIL/numpy is not available for canvas task image loading")
@@ -1245,6 +1266,11 @@ def build_classic_task_args_preview(payload, materialized_inputs, state_params):
         params_backend.get("keep_vlm_model_loaded"),
     )
     params_backend.update(_scene_lora_backend_params(enabled_loras))
+    director_runtime = _director_runtime_from_params(params)
+    if director_runtime:
+        params_backend["director_timeline"] = director_runtime
+        params_backend["prompt_override"] = director_runtime.get("prompt_override", "")
+        params_backend["director_prompt_override"] = director_runtime.get("prompt_override", "")
 
     # Materialize classic-specific inputs into params_backend
     materialized_by_slot = {item.get("slot"): item for item in materialized_inputs if isinstance(item, dict)}
@@ -1418,6 +1444,8 @@ def build_classic_task_args_preview(payload, materialized_inputs, state_params):
     classic_prompt = _classic_param("prompt", "")
     if not str(classic_prompt or "").strip():
         classic_prompt = preset_defaults["default_prompt"]
+    if director_runtime and director_runtime.get("prompt_override"):
+        classic_prompt = director_runtime.get("prompt_override")
 
     api_arg_overrides = {
         "prompt": classic_prompt,
@@ -1493,6 +1521,8 @@ def build_classic_task_args_preview(payload, materialized_inputs, state_params):
         warnings.append("Inpaint mode: no source image connected")
     if current_tab == "enhance" and not materialized_by_slot.get("enhance_image"):
         warnings.append("Enhance mode: no source image connected")
+    if director_runtime and not director_runtime.get("prompt_override"):
+        warnings.append("director prompt_override is empty")
 
     effective_resolution_preview = (
         _effective_resolution_values(resolution)
@@ -1523,6 +1553,7 @@ def build_classic_task_args_preview(payload, materialized_inputs, state_params):
         },
         "resolution_preview": copy.deepcopy(resolution),
         "generation_preview": copy.deepcopy(generation),
+        "director_preview": copy.deepcopy(director_runtime),
         "effective_resolution_preview": effective_resolution_preview,
         "resolved_aspect_ratio": aspect_ratio,
         "resolved_seed": image_seed,
@@ -1613,6 +1644,8 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
         if key in scene_params:
             value = scene_params.get(key)
             params_backend[key] = _number_value(value)
+    if "scene_video_duration" in scene_params:
+        params_backend["scene_video_duration"] = _number_value(scene_params.get("scene_video_duration"))
     for index in range(1, 5):
         key = f"scene_switch_option{index}"
         if key in scene_params:
@@ -1631,6 +1664,11 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
                 params_backend["sam3_original_video_path"] = input_backend[slot]
                 params_backend["active_video_source"] = "sam3"
     params_backend = _apply_scene_media_backend_aliases(params_backend)
+    director_runtime = _director_runtime_from_params(params)
+    if director_runtime:
+        params_backend["director_timeline"] = director_runtime
+        params_backend["prompt_override"] = director_runtime.get("prompt_override", "")
+        params_backend["director_prompt_override"] = director_runtime.get("prompt_override", "")
 
     if resolution:
         resolution_size = _split_size_text(aspect_ratio)
@@ -1683,6 +1721,8 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
     scene_prompt = params.get("prompt", "")
     if not str(scene_prompt or "").strip():
         scene_prompt = preset_defaults["default_prompt"]
+    if director_runtime and director_runtime.get("prompt_override"):
+        scene_prompt = director_runtime.get("prompt_override")
 
     api_arg_overrides = {
         "prompt": scene_prompt,
@@ -1717,6 +1757,8 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
         warnings.append("scene_aspect_ratio is empty")
     if not materialized_inputs:
         warnings.append("no upload inputs connected")
+    if director_runtime and not director_runtime.get("prompt_override"):
+        warnings.append("director prompt_override is empty")
 
     effective_resolution_preview = (
         _effective_resolution_values(resolution)
@@ -1745,6 +1787,7 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
         },
         "resolution_preview": copy.deepcopy(resolution),
         "generation_preview": copy.deepcopy(generation),
+        "director_preview": copy.deepcopy(director_runtime),
         "effective_resolution_preview": effective_resolution_preview,
         "resolved_aspect_ratio": aspect_ratio,
         "resolved_seed": image_seed,

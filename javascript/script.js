@@ -2383,6 +2383,7 @@ document.addEventListener("DOMContentLoaded", function() {
         { id: 'scene_input_image4', group: 'scene' },
         { id: 'scene_additional_prompt', group: 'scene' },
         { id: 'scene_additional_prompt_2', group: 'scene' },
+        { id: 'scene_video_duration', group: 'scene' },
         { id: 'scene_var_number', group: 'scene' },
         { id: 'scene_var_number2', group: 'scene' },
         { id: 'scene_var_number3', group: 'scene' },
@@ -2585,12 +2586,15 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     function sceneDisvisibleSet(sceneFrontend, params) {
-        const raw = sceneFrontend && Object.prototype.hasOwnProperty.call(sceneFrontend, 'disvisible')
+        const raw = Array.isArray(params?.__scene_disvisible)
+            ? params.__scene_disvisible
+            : [];
+        const source = sceneFrontend && Object.prototype.hasOwnProperty.call(sceneFrontend, 'disvisible')
             ? sceneFrontend.disvisible
-            : (Array.isArray(params?.__scene_disvisible) ? params.__scene_disvisible : []);
-        return Array.isArray(raw)
-            ? new Set(raw.map(String))
-            : new Set(String(raw || '').split(',').map((x) => x.trim()).filter(Boolean));
+            : raw;
+        return Array.isArray(source)
+            ? new Set(source.map(String))
+            : new Set(String(source || '').split(',').map((x) => x.trim()).filter(Boolean));
     }
 
     function syncSceneFrontendVisibility() {
@@ -2637,7 +2641,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         [
             'scene_canvas_image', 'scene_input_image1', 'scene_input_image2', 'scene_input_image3', 'scene_input_image4',
-            'scene_additional_prompt', 'scene_additional_prompt_2', 'scene_var_number',
+            'scene_additional_prompt', 'scene_additional_prompt_2', 'scene_video_duration', 'scene_var_number',
             'scene_var_number2', 'scene_var_number3', 'scene_var_number4',
             'scene_var_number5', 'scene_var_number6', 'scene_var_number7',
             'scene_var_number8', 'scene_var_number9', 'scene_var_number10',

@@ -23,7 +23,10 @@
       "force_rate": 0,
       "custom_width": 0,
       "custom_height": 0,
-      "frame_load_cap": 0,
+      "frame_load_cap": [
+        "36",
+        0
+      ],
       "skip_first_frames": 0,
       "select_every_nth": 1,
       "format": "AnimateDiff"
@@ -50,8 +53,8 @@
         0
       ],
       "audio": [
-        "11",
-        2
+        "37",
+        0
       ]
     },
     "class_type": "SaveVideoWebsocket",
@@ -62,8 +65,8 @@
   "15": {
     "inputs": {
       "video_info": [
-        "11",
-        3
+        "38",
+        0
       ]
     },
     "class_type": "VHS_VideoInfoLoaded",
@@ -75,7 +78,7 @@
     "inputs": {
       "value": [
         "23",
-        10
+        17
       ]
     },
     "class_type": "JWIntegerToFloat",
@@ -98,7 +101,7 @@
       "batch_size": 16,
       "use_fp16": true,
       "images": [
-        "11",
+        "31",
         0
       ]
     },
@@ -121,14 +124,14 @@
       "height": 512,
       "cfg": 8,
       "steps": 20,
-      "var_number": 2,
+      "var_number": 0,
       "var_number2": 19,
       "var_number3": 30,
       "var_number4": 0,
       "var_number5": 0,
       "var_number6": 0,
       "var_number7": 300,
-      "var_number8": 0,
+      "var_number8": 2,
       "var_number9": 0,
       "var_number10": 0,
       "switch_option1": false,
@@ -140,7 +143,8 @@
       "clip_type": 1,
       "negative_prompt": "",
       "sampler": "euler",
-      "scheduler": "simple"
+      "scheduler": "simple",
+      "video_duration": 0
     },
     "class_type": "SceneInput",
     "_meta": {
@@ -178,7 +182,7 @@
         0
       ],
       "on_false": [
-        "11",
+        "31",
         0
       ]
     },
@@ -257,6 +261,137 @@
       "on_false": [
         "10",
         0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "31": {
+    "inputs": {
+      "boolean": [
+        "35",
+        0
+      ],
+      "on_true": [
+        "33",
+        0
+      ],
+      "on_false": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "32": {
+    "inputs": {
+      "video_info": [
+        "33",
+        3
+      ]
+    },
+    "class_type": "VHS_VideoInfoSource",
+    "_meta": {
+      "title": "Video Info (Source) 🎥🅥🅗🅢"
+    }
+  },
+  "33": {
+    "inputs": {
+      "video": "example.mp4",
+      "force_rate": 0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "Load Video (Upload) 🎥🅥🅗🅢"
+    }
+  },
+  "34": {
+    "inputs": {
+      "value": 0
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "35": {
+    "inputs": {
+      "comparison": "a == b",
+      "a": [
+        "23",
+        32
+      ],
+      "b": [
+        "34",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "36": {
+    "inputs": {
+      "value": "a*b",
+      "a": [
+        "32",
+        0
+      ],
+      "b": [
+        "23",
+        32
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "37": {
+    "inputs": {
+      "boolean": [
+        "35",
+        0
+      ],
+      "on_true": [
+        "33",
+        2
+      ],
+      "on_false": [
+        "11",
+        2
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "38": {
+    "inputs": {
+      "boolean": [
+        "35",
+        0
+      ],
+      "on_true": [
+        "33",
+        3
+      ],
+      "on_false": [
+        "11",
+        3
       ]
     },
     "class_type": "easy ifElse",

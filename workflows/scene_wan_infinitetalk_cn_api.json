@@ -572,7 +572,8 @@
       "clip_type": 1,
       "negative_prompt": "",
       "sampler": "euler",
-      "scheduler": "normal"
+      "scheduler": "normal",
+      "video_duration": 3
     },
     "class_type": "SceneInput",
     "_meta": {
@@ -713,7 +714,7 @@
       "value": "a",
       "a": [
         "121",
-        10
+        32
       ]
     },
     "class_type": "SimpleMath+",

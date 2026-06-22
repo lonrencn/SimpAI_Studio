@@ -215,7 +215,9 @@ PRESET_STORE_ORDER = [
     "Wan-SCAIL",
     "Wan-Remover",
     "InfiniteTalk",
+    "LTX2.3(I2V)",
     "LTX2.3(IA2V)",
+    "LTX2.3(T2V)",
     "LTX2.3(TA2V)",
     "LTX-Outpaint",
     "Nvidia-VSR",
@@ -1182,13 +1184,36 @@ def _canvas_scene_themes(scene_frontend):
 
 
 def _scene_disvisible_with_optional_inputs(scene_frontend):
+    if not isinstance(scene_frontend, dict):
+        return []
+
+    hidden = []
+
+    def _extend_hidden(values):
+        if isinstance(values, str):
+            values = [item.strip() for item in values.split(",") if item.strip()]
+        if not isinstance(values, (list, tuple, set)):
+            return
+        for item in values:
+            text = str(item).strip()
+            if text and text not in hidden:
+                hidden.append(text)
+
     try:
-        return meta_parser.scene_disvisible_with_optional_inputs(scene_frontend)
+        _extend_hidden(meta_parser.scene_disvisible_with_optional_inputs(scene_frontend))
     except Exception:
-        if not isinstance(scene_frontend, dict):
-            return []
-        raw = scene_frontend.get("disvisible", [])
-        return list(raw) if isinstance(raw, list) else []
+        pass
+    _extend_hidden(scene_frontend.get("disvisible", []))
+
+    enabled = scene_frontend.get("divisible", [])
+    enabled = set(str(item) for item in enabled) if isinstance(enabled, list) else set()
+    optional_slots = getattr(meta_parser, "SCENE_OPTIONAL_INPUT_IMAGE_SLOTS", ("scene_input_image3", "scene_input_image4"))
+    for slot in optional_slots:
+        if slot not in hidden and slot not in enabled:
+            hidden.append(slot)
+    if "scene_video_duration" not in hidden and "scene_video_duration" not in enabled and "video_duration" not in scene_frontend:
+        hidden.append("scene_video_duration")
+    return hidden
 
 
 def _canvas_param_schema(scene_frontend, key, title_key=None, default_key=None, param_type="number", theme=None):
@@ -1279,6 +1304,15 @@ def _build_canvas_scene_schema(scene_frontend):
             "interactive": "scene_additional_prompt_2" not in disinteractive,
         })
 
+    if (
+        "video_duration" in scene_frontend
+        or "video_duration_min" in scene_frontend
+        or "video_duration_max" in scene_frontend
+    ):
+        item = _canvas_param_schema(scene_frontend, "scene_video_duration", "video_duration_title", "video_duration", "number", default_theme)
+        if item:
+            params.append(item)
+
     for index in range(1, 11):
         suffix = "" if index == 1 else str(index)
         key = f"scene_var_number{suffix}"
@@ -1345,6 +1379,7 @@ def _build_canvas_scene_schema(scene_frontend):
         "themes": themes,
         "default_theme": default_theme,
         "theme_title": scene_frontend.get("theme_title", "Theme"),
+        "director_capability": copy.deepcopy(scene_frontend.get("director_capability") or {}),
         "disvisible": disvisible,
         "disinteractive": disinteractive,
         "divisible": divisible or [],
@@ -1681,6 +1716,7 @@ def _build_regen_manifest_for_generation(
     sam3_input_video,
     sam3_original_video_path,
     sam3_mask_video,
+    scene_video_duration=None,
     overwrite_step=None,
 ):
     if not isinstance(state_params, dict):
@@ -1724,6 +1760,7 @@ def _build_regen_manifest_for_generation(
             "scene_var_number8": scene_var_number8,
             "scene_var_number9": scene_var_number9,
             "scene_var_number10": scene_var_number10,
+            "scene_video_duration": scene_video_duration,
             "overwrite_step": overwrite_step,
             "scene_switch_option1": scene_switch_option1,
             "scene_switch_option2": scene_switch_option2,
@@ -1780,7 +1817,36 @@ def _build_regen_manifest_for_generation(
     )
 
 
-def process_before_generation(state_params, seed_random, image_seed, backend_params, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source, sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None, resolution_multiplier=1.0, resolution_quantize_step=None, resolution_edit_mode=None, resolution_original_input=False, sam3_trim_payload=None, overwrite_step=None):
+def _scene_director_audio_status_for_generation(scene_director_enabled=False, scene_director_state=None):
+    status = {
+        "managed": bool(scene_director_enabled),
+        "ready": False,
+        "refs": [],
+    }
+    if not scene_director_enabled or not isinstance(scene_director_state, dict):
+        return status
+    try:
+        import modules.scene_director_webui as scene_director_webui
+    except Exception:
+        return status
+    refs = []
+    segments = scene_director_state.get("segments")
+    if isinstance(segments, list):
+        for segment in segments:
+            if not isinstance(segment, dict):
+                continue
+            ref = scene_director_webui._scene_director_first_segment_ref(segment, "audio")
+            if ref and ref not in refs:
+                refs.append(ref)
+    status["refs"] = refs
+    for ref in refs:
+        if scene_director_webui._scene_director_media_available(scene_director_state, ref, "audio"):
+            status["ready"] = True
+            break
+    return status
+
+
+def process_before_generation(state_params, seed_random, image_seed, backend_params, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source, sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None, resolution_multiplier=1.0, resolution_quantize_step=None, resolution_edit_mode=None, resolution_original_input=False, sam3_trim_payload=None, overwrite_step=None, scene_director_enabled=False, scene_director_state=None, scene_video_duration=None):
     regen_scene_additional_prompt = scene_additional_prompt
     regen_scene_additional_prompt_2 = scene_additional_prompt_2
     backend_params.update(dict(
@@ -1870,6 +1936,8 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             scene_var_number9 = None
         if 'scene_var_number10' in disvisible:
             scene_var_number10 = None
+        if 'scene_video_duration' in disvisible:
+            scene_video_duration = None
         if 'scene_switch_option1' in disvisible:
             scene_switch_option1 = None
         if 'scene_switch_option2' in disvisible:
@@ -1878,12 +1946,6 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             scene_switch_option3 = None
         if 'scene_switch_option4' in disvisible:
             scene_switch_option4 = None
-
-        audio_theme = meta_parser.resolve_ltx23_audio_theme_for_audio(state_params, scene_theme, scene_audio)
-        if audio_theme:
-            scene_theme = audio_theme
-            state_params["scene_theme"] = scene_theme
-            scene_switch_option1 = bool(modules.flags.get_value_by_scene_theme(state_params, scene_theme, "switch_option1", scene_switch_option1))
 
         scene_canvas_image = util.normalize_gradio_sketch_value(scene_canvas_image)
         scene_input_image1 = util.normalize_gradio_image_value(scene_input_image1, image_mode="RGBA")
@@ -1990,8 +2052,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             video_effective = sam3_video_effective if sam3_video_effective else scene_video_effective
         else:
             video_effective = sam3_video_effective if sam3_video_effective else scene_video_effective
-        scene_task_methods = scene_frontend.get("task_method", {}) if isinstance(scene_frontend, dict) else {}
-        scene_task_method_value = scene_task_methods.get(scene_theme) if isinstance(scene_task_methods, dict) else None
+        scene_task_method_value = meta_parser.get_scene_task_method(scene_frontend, scene_theme)
 
         def _scene_image_trace_shape(value, *, sketch=False):
             try:
@@ -2025,9 +2086,10 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
         scene_audio_present = scene_audio is not None and not (isinstance(scene_audio, str) and not scene_audio.strip())
         scene_audio_exists = os.path.exists(scene_audio) if isinstance(scene_audio, str) and scene_audio.strip() else None
         scene_audio_ready = scene_audio_present and scene_audio_exists is not False
+        scene_director_audio_status = _scene_director_audio_status_for_generation(scene_director_enabled, scene_director_state)
         util.log_ui_trace(
             logger,
-            "[UI-TRACE] scene_audio_backend_input | preset=%r, theme=%r, task_method=%r, hidden=%s, audio_present=%s, audio_type=%s, exists=%s",
+            "[UI-TRACE] scene_audio_backend_input | preset=%r, theme=%r, task_method=%r, hidden=%s, audio_present=%s, audio_type=%s, exists=%s, director_audio_managed=%s, director_audio_ready=%s, director_audio_refs=%s",
             state_params.get("__preset"),
             scene_theme,
             scene_task_method_value,
@@ -2035,13 +2097,37 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             scene_audio_present,
             type(scene_audio).__name__ if scene_audio is not None else "None",
             scene_audio_exists,
+            scene_director_audio_status.get("managed"),
+            scene_director_audio_status.get("ready"),
+            scene_director_audio_status.get("refs"),
         )
         scene_task_method_l = str(scene_task_method_value or "").lower()
+        try:
+            import modules.scene_director_webui as scene_director_webui
+            scene_director_capability = scene_director_webui._scene_director_capability_from_state(state_params, scene_theme)
+        except Exception:
+            scene_director_capability = {}
+        scene_audio_policy = str((scene_director_capability or {}).get("audio_policy") or "").lower()
+        scene_switch_option1_effective = scene_switch_option1
+        if scene_switch_option1_effective is None:
+            scene_switch_option1_effective = modules.flags.get_value_by_scene_theme(
+                state_params,
+                scene_theme,
+                "switch_option1",
+                False,
+            )
         scene_audio_required = (
             ("infinitetalk" in scene_task_method_l)
-            or ("ltx2.3" in scene_task_method_l and bool(scene_switch_option1))
+            or ("ltx2.3" in scene_task_method_l and scene_audio_policy == "required")
+            or ("ltx2.3_ia2v" in scene_task_method_l)
+            or ("ltx2.3_ta2v" in scene_task_method_l)
+            or (
+                "ltx2.3" in scene_task_method_l
+                and not scene_audio_policy
+                and bool(scene_switch_option1_effective)
+            )
         )
-        if scene_audio_required and not scene_audio_ready:
+        if scene_audio_required and not scene_audio_ready and not scene_director_audio_status.get("managed"):
             lang = str(state_params.get("__lang") or "").lower()
             if lang.startswith("zh") or lang.startswith("cn"):
                 raise gr.Error("请先上传 Scene Audio，再生成音频驱动视频。")
@@ -2093,6 +2179,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             scene_var_number8=scene_var_number8,
             scene_var_number9=scene_var_number9,
             scene_var_number10=scene_var_number10,
+            scene_video_duration=scene_video_duration if 'video_duration' in scene_frontend else None,
             scene_switch_option1=scene_switch_option1,
             scene_switch_option2=scene_switch_option2,
             scene_switch_option3=scene_switch_option3,
@@ -2139,7 +2226,8 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
         sam3_input_video,
         sam3_original_video_path,
         sam3_mask_video,
-        overwrite_step,
+        scene_video_duration=scene_video_duration,
+        overwrite_step=overwrite_step,
     )
     if regen_data:
         backend_params[regen_manifest.KEY] = regen_data
@@ -2338,15 +2426,15 @@ SCENE_PRESET_SWITCH_CLEAR_OUTPUTS = {
     18: "scene_input_image2",
     19: "scene_input_image3",
     20: "scene_input_image4",
-    41: "scene_video",
-    42: "scene_audio",
-    43: "sam3_input_video",
-    44: "sam3_original_video_path",
-    45: "sam3_mask_video",
-    46: "sam3_trim_payload",
+    42: "scene_video",
+    43: "scene_audio",
+    44: "sam3_input_video",
+    45: "sam3_original_video_path",
+    46: "sam3_mask_video",
+    47: "sam3_trim_payload",
 }
 SCENE_PRESET_SWITCH_CLEAR_VALUES = {
-    46: "",
+    47: "",
 }
 
 def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpaint_mode, comfyd_active_checkbox, bar_button = None, include_scene_outputs=True):
@@ -2764,11 +2852,11 @@ def reset_layout_values(state_params, is_generating, inpaint_mode, use_resolutio
         results += update_after_identity_sub(state_params)
         after_identity = time.perf_counter()
 
-    reset_ui_results_len = 13 + (len(config.default_loras) * 4)
+    reset_ui_results_len = 15 + (len(config.default_loras) * 4)
     if fast_nav:
         reset_ui_results = [skip_update() for _ in range(reset_ui_results_len)]
     else:
-        reset_ui_results = [gr.update(), gr.update(), gr.update()] + [True] + \
+        reset_ui_results = [gr.update(), gr.update(), gr.update(), gr.update(), gr.update()] + [True] + \
                    [False, [], [], "base", gr.update(visible=False), gr.update(value=""), gr.update(choices=["All folders"], value="All folders"), gr.update(value="Showing **0** / **0** items"), gr.update(value=[])] + \
                    [gr.update(visible=False) for _ in config.default_loras] + \
                    [False for _ in config.default_loras] + \
@@ -3259,6 +3347,7 @@ def _scene_number_default_specs():
         ("scene_var_number8", "var_number8", 0),
         ("scene_var_number9", "var_number9", 0),
         ("scene_var_number10", "var_number10", 0),
+        ("scene_video_duration", "video_duration", 5.0),
         ("scene_steps", "scene_steps", 30),
     ]
 

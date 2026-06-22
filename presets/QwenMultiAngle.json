@@ -47,7 +47,7 @@
             },
             "aspect_ratio": ["1024|1:1", "1536|1:1", "2048|1:1", "origin|Original"],
             "overwrite_step_min": 4,
-            "overwrite_step_max": 10
+            "overwrite_step_max": 20
         }
     },
     "default_model": "qwen_image_edit_2511_fp8mixed.safetensors",

@@ -25,6 +25,7 @@
     const WORKBENCH_POSE_STUDIO_NODE = window.SimpAICanvasWorkbenchPoseStudioNode || {};
     const WORKBENCH_GAUSSIAN_STUDIO_NODE = window.SimpAICanvasWorkbenchGaussianStudioNode || {};
     const WORKBENCH_QWEN_TTS_NODE = window.SimpAICanvasWorkbenchQwenTtsNode || {};
+    const WORKBENCH_DIRECTOR_TIMELINE_NODE = window.SimpAICanvasWorkbenchDirectorTimelineNode || {};
     const WORKBENCH_STYLE_SELECTOR_NODE = window.SimpAICanvasWorkbenchStyleSelectorNode || {};
     const WORKBENCH_VLM = window.SimpAICanvasWorkbenchVlm || {};
     const WORKBENCH_CANVAS_AGENT = window.SimpAICanvasWorkbenchCanvasAgent || {};
@@ -1672,6 +1673,63 @@
             return !!asset && assetMediaKind(asset) === 'audio';
         }
         return false;
+    }
+
+    function isDirectorTimelineNode(node) {
+        return !!node && node.type === 'director_timeline';
+    }
+
+    function directorMediaSourceKind(node) {
+        if (!node) return '';
+        if (typeof WORKBENCH_DIRECTOR_TIMELINE_NODE.mediaSourceKind === 'function') {
+            const kind = WORKBENCH_DIRECTOR_TIMELINE_NODE.mediaSourceKind(node);
+            if (kind && kind !== 'result') return kind;
+        }
+        if (node.type === 'result') {
+            const asset = getSelectedResultAsset(node);
+            return assetMediaKind(asset);
+        }
+        if (node.type === 'image' || node.type === 'mask' || node.type === 'pose_studio' || node.type === 'gaussian_studio') return 'image';
+        if (node.type === 'video' || node.type === 'sam3_video_mask') return 'video';
+        if (node.type === 'audio') return 'audio';
+        return '';
+    }
+
+    function isDirectorMediaSourceForSlot(node, slot) {
+        const kind = directorMediaSourceKind(node);
+        if (!kind) return false;
+        const slotText = String(slot || '');
+        if (slotText.startsWith('image_')) return kind === 'image';
+        if (slotText.startsWith('audio_')) return kind === 'audio';
+        if (slotText.startsWith('video_')) return kind === 'video';
+        return ['image', 'audio', 'video'].includes(kind);
+    }
+
+    function directorTimelineContext() {
+        return {
+            project,
+            defaultNodeSize,
+            getSelectedResultAsset,
+            getNode,
+            isNodeIgnored,
+            mutate,
+            placeNodeAvoidingOverlap,
+            pushHistory,
+            renderNodeStateBadges,
+            serializeAssetSourceForRun,
+            setSelectedNode: (id) => {
+                selectedNodeId = id;
+                selectedNodeIds = new Set([id]);
+                selectedEdgeId = null;
+                selectedGroupId = null;
+            },
+            showToast
+        };
+    }
+
+    function directorTimelinePayload(node) {
+        if (!isDirectorTimelineNode(node) || typeof WORKBENCH_DIRECTOR_TIMELINE_NODE.serializeForRun !== 'function') return null;
+        return WORKBENCH_DIRECTOR_TIMELINE_NODE.serializeForRun(node, directorTimelineContext());
     }
 
     function summarizeVlmAgentRun(run) {
@@ -3906,6 +3964,9 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
                 break;
             case 'add-compare':
                 addCompareNode(viewportCenterWorld());
+                break;
+            case 'add-director-timeline':
+                addDirectorTimelineNode(viewportCenterWorld());
                 break;
             case 'add-timeline':
                 addTimelineNode(viewportCenterWorld());
@@ -13508,6 +13569,11 @@ ${[0, 1, 2].map((index) => {
                 if (!source || !isTextOutputNode(source)) return;
                 const slot = ['prompt', 'negative_prompt'].includes(edge.slot) ? edge.slot : 'prompt';
                 params[slot] = getNodeTextOutput(source);
+                if (isDirectorTimelineNode(source)) {
+                    const payload = applyDirectorCapabilityToPayloadForPreset(node, directorTimelinePayload(source));
+                    params.director_timeline = payload;
+                    params.prompt_override = payload?.prompt_override || params[slot] || '';
+                }
             });
         const promptDefaults = canvasAgentPresetPromptDefaults(node);
         if (!String(params.prompt || '').trim() && promptDefaults.prompt) params.prompt = promptDefaults.prompt;
@@ -13562,6 +13628,8 @@ ${[0, 1, 2].map((index) => {
 
         // Merge all params into a single dict for the Python runner
         const classicRunParams = cloneRunValue(node?.params || {}, {});
+        if (params.director_timeline) classicRunParams.director_timeline = cloneRunValue(params.director_timeline, {});
+        if (params.prompt_override) classicRunParams.prompt_override = params.prompt_override;
         // Ensure core fields are present
         if (!classicRunParams.prompt && params.prompt) classicRunParams.prompt = params.prompt;
         if (!classicRunParams.negative_prompt && params.negative_prompt) classicRunParams.negative_prompt = params.negative_prompt;
@@ -13656,6 +13724,7 @@ ${[0, 1, 2].map((index) => {
         if (node.type === 'batch_any') return renderBatchAnyNodeHtml(node);
         if (node.type === 'xy_matrix' || node.type === 'xyz_matrix') return renderXyzMatrixNodeHtml(node);
         if (node.type === 'timeline') return renderTimelineNodeHtml(node);
+        if (isDirectorTimelineNode(node)) return renderDirectorTimelineNodeHtml(node);
         if (node.type === 'media_browser') return renderMediaBrowserNodeHtml(node);
         if (node.type === 'style_selector') return renderStyleSelectorNodeHtml(node);
         if (node.type === 'video') return renderVideoNodeHtml(node);
@@ -13710,6 +13779,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         if (node.type === 'batch_any') return t('Batch Any', '批量素材');
         if (node.type === 'xy_matrix') return t('XY Matrix', 'XY 矩阵');
         if (node.type === 'xyz_matrix') return t('XYZ Matrix', 'XYZ 矩阵');
+        if (isDirectorTimelineNode(node)) return t('Director', '导演');
         if (node.type === 'media_browser') return mediaBrowserLabel();
         if (node.type === 'style_selector') return t('Style', '风格');
         if (node.type === 'mask') return t('Mask', '遮罩');
@@ -13726,6 +13796,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
     function overviewNodeIcon(node) {
         if (['image', 'result', 'mask', 'wd14', 'batch_any'].includes(node.type)) return 'fa-image';
         if (node.type === 'xy_matrix' || node.type === 'xyz_matrix') return 'fa-table-cells-large';
+        if (isDirectorTimelineNode(node)) return 'fa-timeline';
         if (['video', 'sam3_video_mask', 'timeline', 'media_browser'].includes(node.type)) return 'fa-film';
         if (node.type === 'audio' || isQwenTtsNode(node)) return 'fa-wave-square';
         if (node.type === 'style_selector') return 'fa-palette';
@@ -13749,6 +13820,13 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
             const clip = Array.isArray(node.clips) ? node.clips.find(item => item?.source_node_id) : null;
             return getTimelineSourceAsset(getNode(clip?.source_node_id)) || null;
         }
+        if (isDirectorTimelineNode(node)) {
+            const mediaInputs = node.media_inputs || {};
+            const sourceId = Object.values(mediaInputs).find(Boolean);
+            const source = sourceId ? getNode(sourceId) : null;
+            if (source?.type === 'result') return getSelectedResultAsset(source) || source.asset || null;
+            return source?.asset || null;
+        }
         return node.asset || null;
     }
 
@@ -13766,6 +13844,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
             return count > 1 ? `${count} results` : 'Output';
         }
         if (node.type === 'timeline') return `${Array.isArray(node.clips) ? node.clips.length : 0} clips`;
+        if (isDirectorTimelineNode(node)) return `${Array.isArray(node.director?.segments) ? node.director.segments.length : 0} shots`;
         if (node.type === 'compare') return 'Compare';
         if (node.type === 'media_browser') {
             const runtime = mediaBrowserRuntimeFor(node.id);
@@ -13805,6 +13884,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         if (port.kind === 'pose_reference') return 'data-pose-studio-reference-in';
         if (port.kind === 'gaussian_reference') return 'data-gaussian-studio-reference-in';
         if (port.kind === 'qwen_tts_audio') return `data-qwen-tts-audio-in="${slot}"`;
+        if (port.kind === 'director_media') return `data-director-media-in="${slot}"`;
         if (port.kind === 'compare') return `data-compare-image-in="${slot || 'a'}"`;
         if (port.kind === 'timeline') return 'data-timeline-media-in';
         if (port.kind === 'generate') return 'data-handle-in-result="generate"';
@@ -13833,6 +13913,10 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         else if (node.type === 'pose_studio') add('pose_reference', 'reference', t('Reference image', '参考图'));
         else if (node.type === 'gaussian_studio') add('gaussian_reference', 'reference', t('Reference image', '参考图'));
         else if (isQwenTtsNode(node)) qwenTtsAudioInputSlots(node).forEach(slot => add('qwen_tts_audio', slot.key, slot.label || slot.key));
+        else if (isDirectorTimelineNode(node)) {
+            const slots = Array.isArray(WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_SLOT_SPECS) ? WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_SLOT_SPECS : [];
+            slots.forEach(slot => add('director_media', slot.key, slot.label || slot.key));
+        }
         else if (node.type === 'compare') ['a', 'b'].forEach(slot => add('compare', slot, `Image ${slot.toUpperCase()}`));
         else if (node.type === 'timeline') add('timeline', 'media', 'Media input');
         return ports;
@@ -13851,6 +13935,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         if (node.type === 'result') return 'result';
         if (['text', 'translation', 'tag_cart', 'wd14', 'vlm', 'wildcards_helper', 'style_selector'].includes(node.type)) return 'text';
         if (node.type === 'timeline') return 'timeline';
+        if (isDirectorTimelineNode(node)) return 'text';
         return '';
     }
 
@@ -13880,6 +13965,169 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         const theme = getPresetTheme(node);
         const perTheme = schema.per_theme && typeof schema.per_theme === 'object' ? schema.per_theme : {};
         return perTheme[theme] || {};
+    }
+
+    function getPresetSceneFrontend(node) {
+        const schema = getPresetSchema(node);
+        const candidates = [
+            node?.runtime?.scene_frontend,
+            node?.params?.scene_frontend,
+            schema.scene_frontend,
+            schema.default_engine?.scene_frontend,
+            node?.runtime?.__preset_prepared?.engine?.scene_frontend
+        ];
+        for (const candidate of candidates) {
+            if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) return candidate;
+        }
+        return {};
+    }
+
+    const DIRECTOR_CAPABILITY_IMAGE_POLICIES = new Set(['optional', 'required', 'forbidden']);
+    const DIRECTOR_CAPABILITY_MEDIA_POLICIES = new Set(['optional', 'required', 'forbidden']);
+
+    function directorPresetThemeValue(value, node, fallback) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            const theme = getPresetTheme(node);
+            if (theme && Object.prototype.hasOwnProperty.call(value, theme)) return value[theme];
+            if (Object.prototype.hasOwnProperty.call(value, 'default')) return value.default;
+            const first = Object.values(value)[0];
+            return first === undefined ? fallback : first;
+        }
+        return value === undefined || value === null ? fallback : value;
+    }
+
+    function directorCapabilityCandidate(value, node) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+        const knownKeys = ['image_policy', 'audio_policy', 'video_policy', 'max_images', 'min_images', 'image_modes', 'video_modes', 'chain_output', 'requires_sequential', 'mixed_segments', 'director_supported', 'segment_duration_param', 'duration_strategy', 'audio_output', 'min_segment_duration', 'max_segment_duration'];
+        if (knownKeys.some((key) => Object.prototype.hasOwnProperty.call(value, key))) return value;
+        const theme = getPresetTheme(node);
+        if (theme && value[theme] && typeof value[theme] === 'object') return value[theme];
+        if (value.default && typeof value.default === 'object') return value.default;
+        return {};
+    }
+
+    function directorExplicitCapabilityForPreset(node) {
+        const schema = getPresetSchema(node);
+        const themeInfo = getPresetThemeInfo(node);
+        const candidates = [
+            node?.runtime?.director_capability,
+            node?.params?.director_capability,
+            schema.director_capability,
+            themeInfo.director_capability
+        ];
+        for (const candidate of candidates) {
+            const capability = directorCapabilityCandidate(candidate, node);
+            if (capability && Object.keys(capability).length) return capability;
+        }
+        return {};
+    }
+
+    function directorPolicyValue(value, allowed, fallback) {
+        const policy = String(value || '').trim().toLowerCase();
+        return allowed.has(policy) ? policy : fallback;
+    }
+
+    function directorIntCapabilityValue(value, fallback, min, max) {
+        const parsed = Number(value);
+        const base = Number.isFinite(parsed) ? Math.round(parsed) : fallback;
+        return Math.max(min, Math.min(max, base));
+    }
+
+    function directorNumberCapabilityValue(value, fallback, min, max) {
+        const parsed = Number(value);
+        const base = Number.isFinite(parsed) ? parsed : fallback;
+        return Math.max(min, Math.min(max, base));
+    }
+
+    function directorDurationParamValue(value, fallback = 'scene_video_duration') {
+        const text = String(value || fallback || '').trim();
+        if (!text) return '';
+        return /^[A-Za-z_][A-Za-z0-9_]*$/.test(text) ? text : fallback;
+    }
+
+    function directorDurationStrategyValue(value, fallback = 'shot') {
+        const text = String(value || fallback || 'shot').trim().toLowerCase().replace(/-/g, '_');
+        return ['shot', 'audio_min', 'video_min'].includes(text) ? text : 'shot';
+    }
+
+    function directorAudioOutputValue(value, fallback = 'silent') {
+        const text = String(value || fallback || 'silent').trim().toLowerCase().replace(/-/g, '_');
+        return ['silent', 'generated', 'input_audio', 'source_audio'].includes(text) ? text : 'silent';
+    }
+
+    function directorInferImagePolicyForPreset(node) {
+        const schema = getPresetSchema(node);
+        const engineType = String(node?.runtime?.engine_type || schema.engine_type || '').trim().toLowerCase();
+        if (engineType && engineType !== 'video') return 'forbidden';
+        const taskMethod = String(
+            getPresetThemeInfo(node).task_method
+            || node?.runtime?.task_method
+            || directorPresetThemeValue(schema.task_method, node, '')
+            || ''
+        ).trim().toLowerCase();
+        if (taskMethod.includes('t2v')) return 'forbidden';
+        if (taskMethod.includes('i2v') || taskMethod.includes('ia2v') || taskMethod === 'wan2.2_cn' || taskMethod === 'wan2.2') return 'required';
+        const hidden = new Set(Array.isArray(schema.disvisible) ? schema.disvisible.map(String) : []);
+        if (hidden.has('scene_canvas_image') && hidden.has('scene_input_image1')) return 'forbidden';
+        return 'optional';
+    }
+
+    function directorVisibleImageSlotCountForPreset(node) {
+        const schema = getPresetSchema(node);
+        const slots = Array.isArray(schema.upload_slots) ? schema.upload_slots : [];
+        if (!slots.length) return DIRECTOR_IMAGE_REF_UPLOAD_SLOTS.length;
+        return slots.filter((slot) => {
+            const key = String(slot?.key || '');
+            return DIRECTOR_IMAGE_REF_UPLOAD_SLOTS.includes(key) && slot.visible !== false;
+        }).length;
+    }
+
+    function resolveDirectorCapabilityForPreset(node) {
+        const explicit = directorExplicitCapabilityForPreset(node);
+        const sceneFrontend = getPresetSceneFrontend(node);
+        const imagePolicy = directorPolicyValue(explicit.image_policy, DIRECTOR_CAPABILITY_IMAGE_POLICIES, directorInferImagePolicyForPreset(node));
+        const audioPolicy = directorPolicyValue(explicit.audio_policy, DIRECTOR_CAPABILITY_MEDIA_POLICIES, 'optional');
+        const videoPolicy = directorPolicyValue(explicit.video_policy, DIRECTOR_CAPABILITY_MEDIA_POLICIES, 'optional');
+        const defaultMaxImages = imagePolicy === 'forbidden' ? 0 : Math.max(1, directorVisibleImageSlotCountForPreset(node) || DIRECTOR_IMAGE_REF_UPLOAD_SLOTS.length);
+        const maxImages = imagePolicy === 'forbidden' ? 0 : directorIntCapabilityValue(explicit.max_images, defaultMaxImages, 0, DIRECTOR_IMAGE_REF_UPLOAD_SLOTS.length);
+        const minImages = directorIntCapabilityValue(explicit.min_images, imagePolicy === 'required' ? 1 : 0, 0, Math.max(0, maxImages));
+        const imageModes = Array.isArray(explicit.image_modes) && explicit.image_modes.length
+            ? explicit.image_modes.map((item) => String(item))
+            : (imagePolicy === 'forbidden' ? ['none'] : ['none', 'first_frame', 'first_last', 'reference_set']);
+        const videoModes = Array.isArray(explicit.video_modes) && explicit.video_modes.length
+            ? explicit.video_modes.map((item) => String(item))
+            : (videoPolicy === 'forbidden' ? ['none'] : ['explicit']);
+        const chainOutputValue = String(explicit.chain_output || '').trim();
+        const chainOutput = ['timeline', 'last_result'].includes(chainOutputValue) ? chainOutputValue : 'timeline';
+        const requiresSequential = explicit.requires_sequential === undefined
+            ? chainOutput === 'last_result'
+            : !!explicit.requires_sequential;
+        const defaultDurationParam = directorDurationParamValue(directorPresetThemeValue(sceneFrontend.director_segment_duration_param, node, 'scene_video_duration'));
+        const durationStrategy = directorDurationStrategyValue(explicit.duration_strategy, 'shot');
+        const minDurationFloor = durationStrategy === 'audio_min' || durationStrategy === 'video_min' ? 0 : 0.05;
+        const defaultMinSegmentDuration = directorNumberCapabilityValue(directorPresetThemeValue(sceneFrontend.video_duration_min ?? sceneFrontend.var_number_min, node, 0.1), 0.1, minDurationFloor, 86400);
+        const defaultMaxSegmentDuration = directorNumberCapabilityValue(directorPresetThemeValue(sceneFrontend.video_duration_max ?? sceneFrontend.var_number_max, node, 10), 10, defaultMinSegmentDuration, 86400);
+        const minSegmentDuration = directorNumberCapabilityValue(explicit.min_segment_duration, defaultMinSegmentDuration, minDurationFloor, 86400);
+        const maxSegmentDuration = directorNumberCapabilityValue(explicit.max_segment_duration, defaultMaxSegmentDuration, minSegmentDuration, 86400);
+        return {
+            image_policy: imagePolicy,
+            audio_policy: audioPolicy,
+            video_policy: videoPolicy,
+            max_images: maxImages,
+            min_images: minImages,
+            image_modes: imageModes,
+            video_modes: videoModes,
+            chain_output: chainOutput,
+            requires_sequential: requiresSequential,
+            mixed_segments: explicit.mixed_segments === undefined ? imagePolicy === 'optional' : !!explicit.mixed_segments,
+            director_supported: explicit.director_supported === undefined ? true : !!explicit.director_supported,
+            segment_duration_param: directorDurationParamValue(explicit.segment_duration_param, defaultDurationParam),
+            duration_strategy: durationStrategy,
+            audio_output: directorAudioOutputValue(explicit.audio_output, 'silent'),
+            min_segment_duration: minSegmentDuration,
+            max_segment_duration: maxSegmentDuration,
+            source: Object.keys(explicit).length ? 'explicit' : 'inferred'
+        };
     }
 
     function getVisibleUploadSlots(node) {
@@ -17110,6 +17358,10 @@ ${status ? `<div class="sai-node-foot">${escapeHtml(status)}</div>` : ''}
 
     function renderQwenTtsNodeHtml(node) {
         return WORKBENCH_QWEN_TTS_NODE.renderNodeHtml(node, qwenTtsNodeContext());
+    }
+
+    function renderDirectorTimelineNodeHtml(node) {
+        return WORKBENCH_DIRECTOR_TIMELINE_NODE.renderNodeHtml(node, directorTimelineContext());
     }
 
     function presetSpecialViewerUrl(kind) {
@@ -20700,12 +20952,13 @@ ${actions}
             const poseReferenceInHandle = evt.target.closest('[data-pose-studio-reference-in]');
             const gaussianReferenceInHandle = evt.target.closest('[data-gaussian-studio-reference-in]');
             const qwenTtsAudioInHandle = evt.target.closest('[data-qwen-tts-audio-in]');
+            const directorMediaInHandle = evt.target.closest('[data-director-media-in]');
             const compareImageInHandle = evt.target.closest('[data-compare-image-in]');
             const batchAnyInHandle = evt.target.closest('[data-batch-any-in]');
             const timelineMediaInHandle = evt.target.closest('[data-timeline-media-in], [data-timeline-track-in]');
-            if (inHandle || configInHandle || resultInHandle || textInHandle || textNodeInHandle || translationTextInHandle || tagCartTextInHandle || wd14ImageInHandle || vlmImageInHandle || maskSourceInHandle || sam3VideoInHandle || poseReferenceInHandle || gaussianReferenceInHandle || qwenTtsAudioInHandle || compareImageInHandle || batchAnyInHandle || timelineMediaInHandle) {
+            if (inHandle || configInHandle || resultInHandle || textInHandle || textNodeInHandle || translationTextInHandle || tagCartTextInHandle || wd14ImageInHandle || vlmImageInHandle || maskSourceInHandle || sam3VideoInHandle || poseReferenceInHandle || gaussianReferenceInHandle || qwenTtsAudioInHandle || directorMediaInHandle || compareImageInHandle || batchAnyInHandle || timelineMediaInHandle) {
                 evt.preventDefault();
-                handleInputHandlePointerDown(node, evt, inHandle, configInHandle, resultInHandle, textInHandle, textNodeInHandle, translationTextInHandle, tagCartTextInHandle, wd14ImageInHandle, vlmImageInHandle, maskSourceInHandle, sam3VideoInHandle, poseReferenceInHandle, gaussianReferenceInHandle, qwenTtsAudioInHandle, compareImageInHandle, batchAnyInHandle, timelineMediaInHandle);
+                handleInputHandlePointerDown(node, evt, inHandle, configInHandle, resultInHandle, textInHandle, textNodeInHandle, translationTextInHandle, tagCartTextInHandle, wd14ImageInHandle, vlmImageInHandle, maskSourceInHandle, sam3VideoInHandle, poseReferenceInHandle, gaussianReferenceInHandle, qwenTtsAudioInHandle, directorMediaInHandle, compareImageInHandle, batchAnyInHandle, timelineMediaInHandle);
                 return;
             }
             const compareStage = evt.target.closest('.sai-compare-stage');
@@ -21334,6 +21587,26 @@ ${actions}
                 syncTwinParamInputs(field, '[data-node-param]');
                 updateQwenTtsParam(node.id, field.getAttribute('data-node-param'), field.type === 'checkbox' ? field.checked : field.value, field.type);
                 return;
+            }
+            if (isDirectorTimelineNode(node)) {
+                const directorParam = evt.target.closest('[data-director-param]');
+                if (directorParam) {
+                    syncTwinParamInputs(directorParam, '[data-director-param]');
+                    updateDirectorTimelineParam(node.id, directorParam.getAttribute('data-director-param'), directorParam.value, directorParam.type);
+                    return;
+                }
+                const directorSegmentParam = evt.target.closest('[data-director-segment-param]');
+                if (directorSegmentParam) {
+                    syncTwinParamInputs(directorSegmentParam, '[data-director-segment-param]');
+                    updateDirectorTimelineSegmentParam(
+                        node.id,
+                        Number(directorSegmentParam.getAttribute('data-director-segment-index') || 0),
+                        directorSegmentParam.getAttribute('data-director-segment-param'),
+                        directorSegmentParam.value,
+                        directorSegmentParam.type
+                    );
+                    return;
+                }
             }
             const vlmParam = evt.target.closest('[data-vlm-param]');
             if (vlmParam) {
@@ -22847,6 +23120,7 @@ ${actions}
         else if (node.type === 'batch_any') inspector.innerHTML = renderBatchAnyInspector(node);
         else if (node.type === 'xy_matrix' || node.type === 'xyz_matrix') inspector.innerHTML = renderXyzMatrixInspector(node);
         else if (node.type === 'timeline') inspector.innerHTML = renderTimelineInspector(node);
+        else if (isDirectorTimelineNode(node)) inspector.innerHTML = WORKBENCH_DIRECTOR_TIMELINE_NODE.renderInspector(node, directorTimelineContext());
         else if (node.type === 'style_selector') inspector.innerHTML = WORKBENCH_STYLE_SELECTOR_NODE.renderInspector(node, styleSelectorNodeContext());
         else if (node.type === 'video') inspector.innerHTML = renderVideoInspector(node);
         else if (node.type === 'audio') inspector.innerHTML = renderAudioInspector(node);
@@ -23548,6 +23822,28 @@ ${renderGenerationMetadataInspectorSection(node)}
         });
         inspector.querySelectorAll('[data-inspector-theme]').forEach((field) => {
             field.addEventListener('change', () => setPresetTheme(selectedNodeId, field.value));
+        });
+        inspector.querySelectorAll('[data-inspector-director-param]').forEach((field) => {
+            const handler = () => {
+                syncTwinParamInputs(field, '[data-inspector-director-param]');
+                updateDirectorTimelineParam(selectedNodeId, field.getAttribute('data-inspector-director-param'), field.value, field.type);
+            };
+            field.addEventListener('input', handler);
+            field.addEventListener('change', handler);
+        });
+        inspector.querySelectorAll('[data-inspector-director-segment-param]').forEach((field) => {
+            const handler = () => {
+                syncTwinParamInputs(field, '[data-inspector-director-segment-param]');
+                updateDirectorTimelineSegmentParam(
+                    selectedNodeId,
+                    Number(field.getAttribute('data-director-segment-index') || 0),
+                    field.getAttribute('data-inspector-director-segment-param'),
+                    field.value,
+                    field.type
+                );
+            };
+            field.addEventListener('input', handler);
+            field.addEventListener('change', handler);
         });
         inspector.querySelectorAll('[data-inspector-param]').forEach((field) => {
             field.addEventListener('input', () => {
@@ -24292,7 +24588,7 @@ ${renderGenerationMetadataInspectorSection(node)}
         document.addEventListener('pointerup', stopConnection, true);
     }
 
-    function handleInputHandlePointerDown(node, evt, inHandle, configInHandle, resultInHandle, textInHandle, textNodeInHandle, translationTextInHandle, tagCartTextInHandle, wd14ImageInHandle, vlmImageInHandle, maskSourceInHandle, sam3VideoInHandle, poseReferenceInHandle, gaussianReferenceInHandle, qwenTtsAudioInHandle, compareImageInHandle, batchAnyInHandle, timelineMediaInHandle) {
+    function handleInputHandlePointerDown(node, evt, inHandle, configInHandle, resultInHandle, textInHandle, textNodeInHandle, translationTextInHandle, tagCartTextInHandle, wd14ImageInHandle, vlmImageInHandle, maskSourceInHandle, sam3VideoInHandle, poseReferenceInHandle, gaussianReferenceInHandle, qwenTtsAudioInHandle, directorMediaInHandle, compareImageInHandle, batchAnyInHandle, timelineMediaInHandle) {
         if (!node) return;
         if (inHandle && (node.type === 'preset' || node.type === 'classic')) {
             const slot = inHandle.getAttribute('data-handle-in');
@@ -24433,6 +24729,16 @@ ${renderGenerationMetadataInspectorSection(node)}
                 else renderAll();
             }
         }
+        if (directorMediaInHandle && isDirectorTimelineNode(node)) {
+            const slot = directorMediaInHandle.getAttribute('data-director-media-in') || '';
+            const edge = project.edges.find(item => item.type === 'media' && item.to === node.id && item.slot === slot);
+            if (edge) {
+                const fromNode = getNode(edge.from);
+                deleteEdge(edge.id, { render: false });
+                if (fromNode) startConnection(fromNode, evt);
+                else renderAll();
+            }
+        }
         if (compareImageInHandle && node.type === 'compare') {
             const slot = compareImageInHandle.getAttribute('data-compare-image-in') || 'a';
             const edge = project.edges.find(item => item.type === 'compare' && item.to === node.id && item.slot === slot);
@@ -24487,6 +24793,7 @@ ${renderGenerationMetadataInspectorSection(node)}
             if (snapTarget.kind === 'pose_reference') createPoseStudioReferenceEdge(connectState.from, snapTarget.toId);
             if (snapTarget.kind === 'gaussian_reference') createGaussianStudioReferenceEdge(connectState.from, snapTarget.toId);
             if (snapTarget.kind === 'qwen_tts_audio') createQwenTtsAudioEdge(connectState.from, snapTarget.toId, snapTarget.slot);
+            if (snapTarget.kind === 'director_media') createDirectorTimelineMediaEdge(connectState.from, snapTarget.toId, snapTarget.slot);
             if (snapTarget.kind === 'compare') createCompareImageEdge(connectState.from, snapTarget.toId, snapTarget.slot);
             if (snapTarget.kind === 'batch_any') createBatchAnyInputEdge(connectState.from, snapTarget.toId);
             if (snapTarget.kind === 'timeline') createTimelineClipEdge(connectState.from, snapTarget.toId, { track_id: snapTarget.slot === 'media' ? null : snapTarget.slot });
@@ -24523,6 +24830,7 @@ ${renderGenerationMetadataInspectorSection(node)}
             '[data-pose-studio-reference-in]',
             '[data-gaussian-studio-reference-in]',
             '[data-qwen-tts-audio-in]',
+            '[data-director-media-in]',
             '[data-compare-image-in]',
             '[data-batch-any-in]',
             '[data-timeline-track-in]',
@@ -24565,6 +24873,7 @@ ${renderGenerationMetadataInspectorSection(node)}
         if (handle.hasAttribute('data-pose-studio-reference-in')) return { kind: 'pose_reference', toId, slot: 'reference', handle };
         if (handle.hasAttribute('data-gaussian-studio-reference-in')) return { kind: 'gaussian_reference', toId, slot: 'reference', handle };
         if (handle.hasAttribute('data-qwen-tts-audio-in')) return { kind: 'qwen_tts_audio', toId, slot: handle.getAttribute('data-qwen-tts-audio-in') || '', handle };
+        if (handle.hasAttribute('data-director-media-in')) return { kind: 'director_media', toId, slot: handle.getAttribute('data-director-media-in') || '', handle };
         if (handle.hasAttribute('data-compare-image-in')) return { kind: 'compare', toId, slot: handle.getAttribute('data-compare-image-in') || 'a', handle };
         if (handle.hasAttribute('data-batch-any-in')) return { kind: 'batch_any', toId, slot: handle.getAttribute('data-batch-any-in') || 'items', handle };
         if (handle.hasAttribute('data-timeline-track-in')) return { kind: 'timeline', toId, slot: handle.getAttribute('data-timeline-track-in') || 'media', handle };
@@ -24600,6 +24909,7 @@ ${renderGenerationMetadataInspectorSection(node)}
         if (target.kind === 'pose_reference') return to.type === 'pose_studio' && (isPoseStudioImageSource(from) || isImageProducingPresetNode(from));
         if (target.kind === 'gaussian_reference') return (isGaussianStudioImageSource(from) || isImageProducingPresetNode(from)) && to.type === 'gaussian_studio';
         if (target.kind === 'qwen_tts_audio') return isQwenTtsAudioSource(from) && isQwenTtsNode(to);
+        if (target.kind === 'director_media') return isDirectorTimelineNode(to) && isDirectorMediaSourceForSlot(from, target.slot);
         if (target.kind === 'compare') return isImageCompareSource(from) && to.type === 'compare';
         if (target.kind === 'batch_any') return to.type === 'batch_any' && batchAnyAcceptsSource(to, from);
         if (target.kind === 'timeline') {
@@ -24706,6 +25016,17 @@ ${renderGenerationMetadataInspectorSection(node)}
                 node.audio_inputs = Object.assign({}, node.audio_inputs || {}, { [slot.key]: from.id });
                 node.status = Object.assign({}, node.status || {}, { state: 'ready', message: `${slot.label || slot.key} connected.` });
                 message = `connected to ${slot.label || slot.key}`;
+            }
+        } else if (isDirectorTimelineNode(node) && directorMediaSourceKind(from)) {
+            const slots = Array.isArray(WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_SLOT_SPECS) ? WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_SLOT_SPECS : [];
+            const slot = slots.find(item => isDirectorMediaSourceForSlot(from, item.key) && !node.media_inputs?.[item.key])
+                || slots.find(item => isDirectorMediaSourceForSlot(from, item.key));
+            if (slot) {
+                project.edges = project.edges.filter(edge => !(edge.type === 'media' && edge.to === node.id && edge.slot === slot.key));
+                project.edges.push({ id: uid('edge'), type: 'media', from: from.id, to: node.id, slot: slot.key });
+                node.media_inputs = Object.assign({}, node.media_inputs || {}, { [slot.key]: from.id });
+                updateDirectorStatus(node);
+                message = t('connected to {slot}', '已连接到 {slot}').replace('{slot}', slot.label || slot.key);
             }
         } else if (isImageCompareSource(from) && node.type === 'compare') {
             const slot = !node.inputs?.a ? 'a' : 'b';
@@ -24992,6 +25313,7 @@ ${renderGenerationMetadataInspectorSection(node)}
                     { label: t('Add Pose Studio node', '添加 Pose Studio 节点'), icon: 'fa-person', search: 'pose studio openpose reference body posture 添加 姿势 姿态 骨架 参考图', action: () => addPoseStudioNode(targetWorld) },
                     { label: t('Add Gaussian Studio node', '添加 Gaussian Studio 节点'), icon: 'fa-cube', search: 'gaussian studio 3dgs sharp splat ply rotate view 添加 高斯 三维 视角', action: () => addGaussianStudioNode(targetWorld) },
                     { label: t('Add image compare node', '添加图像对比节点'), icon: 'sai-compare-glyph', search: 'image compare comparison diff 添加 图像对比 比较 差异', action: () => addCompareNode(targetWorld) },
+                    { label: t('Add Director Timeline', '添加导演时间轴'), icon: 'fa-timeline', search: 'director timeline easy media prompt_override shot storyboard 添加 导演 时间轴 分镜', action: () => addDirectorTimelineNode(targetWorld) },
                     { label: t('Add media timeline', '添加媒体时间线'), icon: 'fa-clapperboard', search: 'media timeline video edit clips 添加 媒体时间线 时间线 视频 剪辑', action: () => addTimelineNode(targetWorld) }
                 ]
             },
@@ -25052,6 +25374,7 @@ ${renderGenerationMetadataInspectorSection(node)}
             { label: t('Add Advanced Masking node', '添加高级遮罩节点'), icon: 'fa-wand-magic-sparkles', action: () => addMaskNode(targetWorld) },
             { label: t('Add SAM3 Video Mask node', '添加 SAM3 视频遮罩节点'), icon: 'fa-film', action: () => addSam3VideoMaskNode(targetWorld) },
             { label: t('Add image compare node', '添加图像对比节点'), icon: 'sai-compare-glyph', action: () => addCompareNode(targetWorld) },
+            { label: t('Add Director Timeline', '添加导演时间轴'), icon: 'fa-timeline', action: () => addDirectorTimelineNode(targetWorld) },
             { label: t('Add media timeline', '添加媒体时间线'), icon: 'fa-clapperboard', action: () => addTimelineNode(targetWorld) },
             { label: t('Add output node', '添加输出节点'), icon: 'fa-circle-dot', action: () => addManualOutputNode(targetWorld) },
             { label: t('Add Qwen TTS Voice Design', '添加 Qwen TTS 音色设计'), icon: 'fa-microphone-lines', action: () => addQwenTtsNode('voice_design', targetWorld) },
@@ -25696,11 +26019,11 @@ ${renderGenerationMetadataInspectorSection(node)}
             items.push({ label: t('Paint Mask', '绘制遮罩'), icon: 'fa-paintbrush', action: () => openMaskEditor(node), disabled: !node.asset });
         }
         if (node.type === 'video') {
-            items.push({ label: t('Re-upload video asset', '重新上传视频资产'), icon: 'fa-rotate', action: () => reloadMediaNode(node), disabled: !node.asset });
+            items.push({ label: t('Re-upload video asset', '重新上传视频资产'), icon: 'fa-rotate', action: () => reloadMediaNode(node) });
             items.push({ label: t('View video', '查看视频'), icon: 'fa-magnifying-glass-plus', action: () => openMediaViewer(node), disabled: !node.asset });
         }
         if (node.type === 'audio') {
-            items.push({ label: t('Re-upload audio asset', '重新上传音频资产'), icon: 'fa-rotate', action: () => reloadMediaNode(node), disabled: !node.asset });
+            items.push({ label: t('Re-upload audio asset', '重新上传音频资产'), icon: 'fa-rotate', action: () => reloadMediaNode(node) });
             items.push({ label: t('Open audio', '打开音频'), icon: 'fa-magnifying-glass-plus', action: () => openMediaViewer(node), disabled: !node.asset });
             appendAudioWorkflowBridgeMenuItems(items, node);
         }
@@ -27234,6 +27557,44 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
                 preview: ''
             },
             {
+                id: 'director_wan22_loop',
+                title: t('Director + Wan2.2 Loop', 'Director + Wan2.2 分镜视频'),
+                description: t('A runnable Director Timeline template that runs Wan2.2 T2V per shot and then renders the segment Results through Timeline.', '可运行的 Director Timeline 模板，按分镜运行 Wan2.2 T2V，并把分段视频 Result 放入 Timeline 合成。'),
+                category: 'video',
+                tags: ['video', 'director', 'timeline', 'wan', 'wan2.2', 't2v', 'prompt_override', 'result', 'runnable', '导演', '分镜'],
+                typeLabel: t('Director video', '导演分镜视频'),
+                modelDependency: {
+                    mode: 'requires_models',
+                    label: t('Requires images + models', '需要图片和模型'),
+                    note: t('Requires Wan T2V model files and optional image references before Run.', '运行前需要 Wan T2V 模型文件，可替换图片参考。'),
+                    models: [
+                        'Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors',
+                        'wan2.2_bernini_r_low_noise_fp8_scaled.safetensors',
+                        'nsfw_wan_umt5-xxl_bf16_fixed.safetensors',
+                        'wan_2.1_vae.safetensors',
+                        'lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors',
+                        'flownet.pkl'
+                    ]
+                },
+                path: 'javascript/canvas_workbench/templates/director-wan22-loop.canvas.json',
+                preview: ''
+            },
+            {
+                id: 'director_result_timeline_mix',
+                title: t('Director Result + Timeline Mix', 'Director Result + Timeline 合成'),
+                description: t('A model-free template for placing Director segment Results into the existing Timeline and rendering a final video Result.', '不依赖模型的 Director 后期模板，把分段视频 Result 放入现有 Timeline，并渲染最终视频 Result。'),
+                category: 'video',
+                tags: ['video', 'director', 'timeline', 'result', 'mix', 'model-free', '导演', '分镜', '合成'],
+                typeLabel: t('Timeline mix', 'Timeline 合成'),
+                modelDependency: {
+                    mode: 'model_free',
+                    label: t('Model-free', '无模型依赖'),
+                    note: t('Replace the segment Result placeholders with generated videos, then render Timeline.', '把分段 Result 占位替换为生成视频后，直接渲染 Timeline。')
+                },
+                path: 'javascript/canvas_workbench/templates/director-result-timeline-mix.canvas.json',
+                preview: ''
+            },
+            {
                 id: 'wan_i2v_basic',
                 title: t('Wan I2V Basic', 'Wan 图生视频基础'),
                 description: t('A runnable Wan2.2 image-to-video template with first-frame and optional last-frame placeholders, motion prompt, model checks, and video Result placeholder.', '可运行的 Wan2.2 图生视频模板，包含首帧和可选尾帧占位、运动提示词、模型检查和视频结果占位。'),
@@ -27357,6 +27718,31 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
                     ]
                 },
                 path: 'javascript/canvas_workbench/templates/qwen-tts-dialogue.canvas.json',
+                preview: ''
+            },
+            {
+                id: 'qwen_tts_director_ltx23_ta2v',
+                title: t('Qwen TTS + Director + LTX2.3 TA2V', 'Qwen TTS + Director + LTX2.3 音频视频'),
+                description: t('A runnable chain where Qwen TTS creates narration audio, Director Timeline writes prompt_override, and LTX2.3 TA2V generates the video.', '可运行链路：Qwen TTS 生成旁白音频，Director Timeline 输出 prompt_override，LTX2.3 TA2V 生成视频。'),
+                category: 'video',
+                tags: ['video', 'audio', 'tts', 'qwen', 'director', 'timeline', 'ltx', 'ltx2.3', 'ta2v', 'prompt_override', 'runnable', '旁白', '导演'],
+                typeLabel: t('Audio-driven director video', '音频驱动导演视频'),
+                modelDependency: {
+                    mode: 'requires_models',
+                    label: t('Requires TTS + LTX models', '需要 TTS 和 LTX 模型'),
+                    note: t('Requires Qwen3-TTS VoiceDesign plus LTX2.3 TA2V model files; run TTS before LTX2.3.', '需要 Qwen3-TTS VoiceDesign 和 LTX2.3 TA2V 模型；先生成 TTS 音频，再运行 LTX2.3。'),
+                    models: [
+                        'Qwen/Qwen3-TTS-Tokenizer-12Hz',
+                        'Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign',
+                        'ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors',
+                        'ltx-2.3-22b-distilled-lora-384-1.1.safetensors',
+                        'gemma_3_12B_it_fpmixed.safetensors',
+                        'LTX23_audio_vae_bf16.safetensors',
+                        'LTX23_video_vae_bf16.safetensors',
+                        'flownet.pkl'
+                    ]
+                },
+                path: 'javascript/canvas_workbench/templates/qwen-tts-director-ltx23-ta2v.canvas.json',
                 preview: ''
             }
         ];
@@ -30142,6 +30528,22 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         });
     }
 
+    function pickLocalAudioFile() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'audio/*,.mp3,.wav,.ogg,.flac,.m4a,.aac,.opus';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        return new Promise((resolve) => {
+            input.addEventListener('change', () => {
+                const file = input.files && input.files[0] ? input.files[0] : null;
+                input.remove();
+                resolve(file && isAudioFile(file) ? file : null);
+            }, { once: true });
+            input.click();
+        });
+    }
+
     async function createVideoNodeForUploadInput(targetNode, slot, handle) {
         if (!targetNode || !slot || !['preset', 'classic'].includes(targetNode.type)) return null;
         if (isNodeLocked(targetNode)) {
@@ -30786,7 +31188,13 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         });
         mutate({ inspector: true });
         const response = await materializeNodeAssetForStorage(node.id);
-        showToast(response?.ok ? t('Video asset replaced.', '视频资产已替换。') : t('Video asset replaced in browser; storage failed.', '视频已在浏览器中替换；入库失败。'));
+        const successMessage = type === 'video'
+            ? t('Video asset replaced.', '视频资产已替换。')
+            : t('Audio asset replaced.', '音频资产已替换。');
+        const browserOnlyMessage = type === 'video'
+            ? t('Video asset replaced in browser; storage failed.', '视频已在浏览器中替换；入库失败。')
+            : t('Audio asset replaced in browser; storage failed.', '音频已在浏览器中替换；入库失败。');
+        showToast(response?.ok ? successMessage : browserOnlyMessage);
         return true;
     }
 
@@ -33703,6 +34111,148 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         scheduleSave();
     }
 
+    function normalizeDirectorTimelineForNode(node) {
+        if (!node || !isDirectorTimelineNode(node)) return null;
+        const normalizer = WORKBENCH_DIRECTOR_TIMELINE_NODE.normalizeTimeline;
+        node.director = typeof normalizer === 'function' ? normalizer(node.director || {}) : Object.assign({}, node.director || {});
+        return node.director;
+    }
+
+    function updateDirectorStatus(node) {
+        if (!node || !isDirectorTimelineNode(node)) return;
+        const payload = directorTimelinePayload(node);
+        node.status = Object.assign({}, node.status || {}, {
+            state: 'ready',
+            message: payload?.prompt_override ? 'prompt_override ready.' : 'Director timeline is empty.'
+        });
+    }
+
+    function updateDirectorTimelineParam(nodeId, key, value, inputType) {
+        const node = getNode(nodeId);
+        if (!isDirectorTimelineNode(node) || !key || isNodeLocked(node)) return;
+        pushHistoryBatch(`director:${nodeId}:${key}`, 'Edit Director Timeline');
+        const director = normalizeDirectorTimelineForNode(node);
+        if (!director) return;
+        if (inputType === 'number' || ['width', 'height', 'fps', 'duration'].includes(key)) {
+            const parsed = Number(value);
+            director[key] = Number.isFinite(parsed) ? parsed : value;
+        } else {
+            director[key] = value;
+        }
+        node.director = WORKBENCH_DIRECTOR_TIMELINE_NODE.normalizeTimeline(director);
+        updateDirectorStatus(node);
+        mutate({ inspector: selectedNodeId === nodeId });
+    }
+
+    function updateDirectorTimelineSegmentParam(nodeId, index, key, value, inputType) {
+        const node = getNode(nodeId);
+        if (!isDirectorTimelineNode(node) || !key || isNodeLocked(node)) return;
+        const director = normalizeDirectorTimelineForNode(node);
+        if (!director || !Array.isArray(director.segments) || !director.segments[index]) return;
+        pushHistoryBatch(`director:${nodeId}:segment:${index}:${key}`, 'Edit Director shot');
+        const segment = Object.assign({}, director.segments[index]);
+        if (['start', 'end'].includes(key) || inputType === 'number') {
+            const parsed = Number(value);
+            segment[key] = Number.isFinite(parsed) ? parsed : value;
+        } else if (key === 'image_ref' || /^image_ref_[1-5]$/.test(key)) {
+            const images = Array.isArray(segment.images) ? segment.images.slice(0, 5).map(item => Object.assign({}, item)) : [];
+            const slotIndex = key === 'image_ref'
+                ? 0
+                : Math.max(0, Math.min(4, Number(String(key).split('_').pop() || 1) - 1));
+            const roleForIndex = (imageIndex) => {
+                if (segment.type === 'fmlf') return imageIndex === 1 ? 'last_frame' : 'first_frame';
+                if (segment.type === 'ref') return 'reference';
+                return 'first_frame';
+            };
+            while (images.length <= slotIndex) images.push({ source_ref: '', role: roleForIndex(images.length) });
+            images[slotIndex] = Object.assign({}, images[slotIndex], {
+                source_ref: value || '',
+                role: roleForIndex(slotIndex)
+            });
+            segment.images = images.filter(item => item.source_ref);
+            ['image_ref', 'image_ref_1', 'image_ref_2', 'image_ref_3', 'image_ref_4', 'image_ref_5'].forEach((refKey) => {
+                delete segment[refKey];
+            });
+        } else if (key === 'audio_ref') {
+            segment.audio = value ? [{ source_ref: value, role: 'voice' }] : [];
+        } else if (key === 'video_ref') {
+            segment.video = value ? [{
+                source_ref: value,
+                role: value === DIRECTOR_PREVIOUS_SEGMENT_VIDEO_REF ? 'previous_result' : 'reference'
+            }] : [];
+        } else {
+            segment[key] = value;
+        }
+        director.segments[index] = segment;
+        node.director = WORKBENCH_DIRECTOR_TIMELINE_NODE.normalizeTimeline(director);
+        updateDirectorStatus(node);
+        mutate({ inspector: selectedNodeId === nodeId });
+    }
+
+    function addDirectorTimelineSegment(node) {
+        if (!isDirectorTimelineNode(node) || isNodeLocked(node)) return;
+        pushHistory('Add Director shot');
+        const director = normalizeDirectorTimelineForNode(node);
+        const segments = Array.isArray(director.segments) ? director.segments : [];
+        const last = segments[segments.length - 1] || { end: 0, unit: 'seconds' };
+        const start = Number(last.end || 0);
+        const end = Math.max(start + (last.unit === 'frames' ? Math.round(Number(director.fps || 24) * 2) : 2), start + 0.1);
+        segments.push({
+            id: uid('shot'),
+            start,
+            end,
+            unit: last.unit || 'seconds',
+            type: 't2v',
+            prompt: '',
+            images: [],
+            audio: [],
+            video: []
+        });
+        director.segments = segments;
+        node.director = WORKBENCH_DIRECTOR_TIMELINE_NODE.normalizeTimeline(director);
+        updateDirectorStatus(node);
+        mutate({ inspector: selectedNodeId === node.id });
+    }
+
+    function removeDirectorTimelineSegment(node, index) {
+        if (!isDirectorTimelineNode(node) || isNodeLocked(node)) return;
+        const director = normalizeDirectorTimelineForNode(node);
+        if (!director || !Array.isArray(director.segments) || director.segments.length <= 1) return;
+        pushHistory('Delete Director shot');
+        director.segments.splice(index, 1);
+        node.director = WORKBENCH_DIRECTOR_TIMELINE_NODE.normalizeTimeline(director);
+        updateDirectorStatus(node);
+        mutate({ inspector: selectedNodeId === node.id });
+    }
+
+    function moveDirectorTimelineSegment(node, index, delta) {
+        if (!isDirectorTimelineNode(node) || isNodeLocked(node)) return;
+        const director = normalizeDirectorTimelineForNode(node);
+        if (!director || !Array.isArray(director.segments)) return;
+        const nextIndex = index + delta;
+        if (index < 0 || nextIndex < 0 || index >= director.segments.length || nextIndex >= director.segments.length) return;
+        pushHistory('Move Director shot');
+        const [segment] = director.segments.splice(index, 1);
+        director.segments.splice(nextIndex, 0, segment);
+        node.director = WORKBENCH_DIRECTOR_TIMELINE_NODE.normalizeTimeline(director);
+        updateDirectorStatus(node);
+        mutate({ inspector: selectedNodeId === node.id });
+    }
+
+    function copyDirectorTimelineOutput(node) {
+        const payload = directorTimelinePayload(node);
+        const text = payload?.prompt_override || '';
+        if (!text) {
+            showToast('Director output is empty.');
+            return;
+        }
+        navigator.clipboard?.writeText(text).then(() => {
+            showToast('Director prompt_override copied.');
+        }).catch(() => {
+            showToast(text);
+        });
+    }
+
     function addMaskNode(world, options) {
         if (!options || options.history !== false) pushHistory('Add advanced masking node');
         const node = {
@@ -33798,6 +34348,27 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         selectedGroupId = null;
         if (opts.render !== false) mutate();
         if (opts.toast !== false) showToast(autoMessage ? `${node.title || 'Qwen TTS'} node added, ${autoMessage}` : `${node.title || 'Qwen TTS'} node added`);
+        return node;
+    }
+
+    function addDirectorTimelineNode(world, options) {
+        if (typeof WORKBENCH_DIRECTOR_TIMELINE_NODE.createNode !== 'function') {
+            showToast('Director Timeline canvas node is not loaded.');
+            return null;
+        }
+        const opts = options || {};
+        const node = WORKBENCH_DIRECTOR_TIMELINE_NODE.createNode(world || viewportCenterWorld(), Object.assign({}, opts, {
+            render: false,
+            toast: false
+        }), directorTimelineContext());
+        if (!node) return null;
+        const autoMessage = completePendingConnectionToNode(node);
+        selectedNodeId = node.id;
+        selectedNodeIds = new Set([node.id]);
+        selectedEdgeId = null;
+        selectedGroupId = null;
+        if (opts.render !== false) mutate();
+        if (opts.toast !== false) showToast(autoMessage ? `${node.title || 'Director Timeline'} node added, ${autoMessage}` : t('Director Timeline node added', '已添加导演时间轴节点'));
         return node;
     }
 
@@ -34124,7 +34695,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
     function isTextOutputNode(node) {
         if (!node) return false;
         if (node.type === 'batch_any') return batchAnyMediaKind(node) === 'text';
-        return node.type === 'text' || node.type === 'wildcards_helper' || node.type === 'translation' || node.type === 'tag_cart' || node.type === 'wd14' || node.type === 'vlm' || node.type === 'style_selector';
+        return node.type === 'text' || node.type === 'wildcards_helper' || node.type === 'translation' || node.type === 'tag_cart' || node.type === 'wd14' || node.type === 'vlm' || node.type === 'style_selector' || isDirectorTimelineNode(node);
     }
 
     function getNodeTextOutput(node, visited) {
@@ -34134,6 +34705,10 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         seen.add(node.id);
         if (node.type === 'style_selector') {
             return WORKBENCH_STYLE_SELECTOR_NODE.getPrompt?.(node, styleSelectorNodeContext()) || String(node.text?.value || '');
+        }
+        if (isDirectorTimelineNode(node)) {
+            const payload = directorTimelinePayload(node);
+            return String(payload?.prompt_override || '');
         }
         if (node.type === 'text') {
             const source = getTextNodeInputSource(node);
@@ -34941,6 +35516,37 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         if (options && options.silent) return;
         mutate();
         showToast('Qwen TTS reference audio connected');
+    }
+
+    function createDirectorTimelineMediaEdge(fromId, toId, slot, options) {
+        const from = getNode(fromId);
+        const to = getNode(toId);
+        const slots = Array.isArray(WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_SLOT_SPECS) ? WORKBENCH_DIRECTOR_TIMELINE_NODE.MEDIA_SLOT_SPECS : [];
+        const targetSlot = slots.some(item => item.key === slot) ? slot : (slots.find(item => isDirectorMediaSourceForSlot(from, item.key))?.key || '');
+        if (!from || !to || !isDirectorTimelineNode(to) || !targetSlot || !isDirectorMediaSourceForSlot(from, targetSlot)) {
+            showToast(t('Director Timeline accepts image, video, audio, or matching Result nodes.', '导演时间轴接受图片、视频、音频或匹配的 Result 节点。'));
+            return;
+        }
+        if (isNodeLocked(from) || isNodeLocked(to)) {
+            showToast('Locked nodes cannot change connections');
+            return;
+        }
+        if (!options || !options.silent) pushHistory('Connect Director media');
+        project.edges = project.edges.filter(edge => !(edge.type === 'media' && edge.to === toId && edge.slot === targetSlot));
+        project.edges.push({
+            id: uid('edge'),
+            type: 'media',
+            from: fromId,
+            to: toId,
+            slot: targetSlot
+        });
+        to.media_inputs = Object.assign({}, to.media_inputs || {}, { [targetSlot]: fromId });
+        updateDirectorStatus(to);
+        selectedEdgeId = null;
+        selectedNodeId = toId;
+        if (options && options.silent) return;
+        mutate();
+        showToast(t('Director media connected', '已连接导演媒体'));
     }
 
     function createCompareImageEdge(fromId, toId, slot, options) {
@@ -36518,6 +37124,675 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         return response;
     }
 
+    function applyDirectorCapabilityToPayload(payload, capability) {
+        if (!payload || typeof payload !== 'object') return payload;
+        const next = cloneRunValue(payload, {});
+        const imagePolicy = String(capability?.image_policy || 'optional').toLowerCase();
+        const audioPolicy = String(capability?.audio_policy || 'optional').toLowerCase();
+        const videoPolicy = String(capability?.video_policy || 'optional').toLowerCase();
+        next.director_capability = cloneRunValue(capability || {}, {});
+        if (imagePolicy === 'forbidden' || audioPolicy === 'forbidden' || videoPolicy === 'forbidden') {
+            (Array.isArray(next.segments) ? next.segments : []).forEach((segment) => {
+                if (!segment || typeof segment !== 'object') return;
+                if (imagePolicy === 'forbidden') segment.images = [];
+                if (audioPolicy === 'forbidden') segment.audio = [];
+                if (videoPolicy === 'forbidden') segment.video = [];
+                if (
+                    imagePolicy === 'forbidden'
+                    && videoPolicy === 'forbidden'
+                    && ['flf', 'fmlf', 'ref'].includes(String(segment.type || '').toLowerCase())
+                ) {
+                    segment.type = 't2v';
+                }
+            });
+        }
+        if (typeof WORKBENCH_DIRECTOR_TIMELINE_NODE.promptOverrideForTimeline === 'function') {
+            next.prompt_override = WORKBENCH_DIRECTOR_TIMELINE_NODE.promptOverrideForTimeline(next);
+        }
+        return next;
+    }
+
+    function applyDirectorCapabilityToPayloadForPreset(node, payload) {
+        return applyDirectorCapabilityToPayload(payload, resolveDirectorCapabilityForPreset(node));
+    }
+
+    const DIRECTOR_PREVIOUS_SEGMENT_VIDEO_REF = WORKBENCH_DIRECTOR_TIMELINE_NODE.PREVIOUS_SEGMENT_VIDEO_REF || 'previous_segment';
+
+    const DIRECTOR_IMAGE_REF_UPLOAD_SLOTS = [
+        'scene_canvas_image',
+        'scene_input_image1',
+        'scene_input_image2',
+        'scene_input_image3',
+        'scene_input_image4'
+    ];
+
+    function directorCapabilityVideoModes(capability) {
+        const modes = Array.isArray(capability?.video_modes) ? capability.video_modes.map(item => String(item)) : [];
+        if (modes.length) return modes;
+        const policy = String(capability?.video_policy || 'optional').toLowerCase();
+        return policy === 'forbidden' ? ['none'] : ['explicit'];
+    }
+
+    function directorAllowsPreviousSegmentVideo(capability) {
+        return directorCapabilityVideoModes(capability).includes(DIRECTOR_PREVIOUS_SEGMENT_VIDEO_REF);
+    }
+
+    function directorCapabilityChainOutput(capability) {
+        const value = String(capability?.chain_output || '').trim();
+        return value === 'last_result' ? 'last_result' : 'timeline';
+    }
+
+    function directorPayloadMediaSource(payload, ref) {
+        const mediaSources = payload?.media_sources && typeof payload.media_sources === 'object' ? payload.media_sources : {};
+        const source = mediaSources[ref];
+        return source && typeof source === 'object' ? source : null;
+    }
+
+    function directorMediaSourceHasAsset(source) {
+        if (!source) return false;
+        const asset = source.asset && typeof source.asset === 'object' ? source.asset : {};
+        return !!String(
+            asset.data_url
+            || asset.src
+            || asset.preview_url
+            || asset.thumb
+            || asset.path
+            || asset.output_path
+            || asset.original_output_path
+            || source.data_url
+            || source.src
+            || source.path
+            || source.output_path
+            || source.original_output_path
+            || ''
+        ).trim();
+    }
+
+    function directorPayloadHasMediaAsset(payload, ref) {
+        return directorMediaSourceHasAsset(directorPayloadMediaSource(payload, ref));
+    }
+
+    function validateDirectorPayloadForPreset(node, payload) {
+        const capability = resolveDirectorCapabilityForPreset(node);
+        const imagePolicy = String(capability.image_policy || 'optional').toLowerCase();
+        const videoPolicy = String(capability.video_policy || 'optional').toLowerCase();
+        const minImages = Math.max(0, Number(capability.min_images === undefined ? (imagePolicy === 'required' ? 1 : 0) : capability.min_images));
+        const maxImages = Math.max(0, Number(capability.max_images === undefined ? (imagePolicy === 'forbidden' ? 0 : DIRECTOR_IMAGE_REF_UPLOAD_SLOTS.length) : capability.max_images));
+        const allowPreviousVideo = directorAllowsPreviousSegmentVideo(capability);
+        const requiresSequentialVideo = !!capability.requires_sequential || directorCapabilityChainOutput(capability) === 'last_result';
+        const errors = [];
+        const warnings = [];
+        const segments = Array.isArray(payload?.segments) ? payload.segments : [];
+        segments.forEach((segment, index) => {
+            const shotIndex = String(index + 1);
+            const rawDuration = directorSegmentRawSeconds(segment, { payload, capability });
+            const [minSegmentDuration, maxSegmentDuration] = directorSegmentDurationBounds(capability);
+            if (rawDuration < minSegmentDuration - 0.0001) {
+                errors.push(t('Director shot {index} is {duration}s, but this preset requires at least {min}s per shot.', '分镜 {index} 时长为 {duration} 秒，当前 preset 单段至少 {min} 秒。')
+                    .replace('{index}', shotIndex)
+                    .replace('{duration}', directorCompactSeconds(rawDuration))
+                    .replace('{min}', directorCompactSeconds(minSegmentDuration)));
+            }
+            if (rawDuration > maxSegmentDuration + 0.0001) {
+                errors.push(t('Director shot {index} is {duration}s, but this preset accepts up to {max}s per shot.', '分镜 {index} 时长为 {duration} 秒，当前 preset 单段最多 {max} 秒。')
+                    .replace('{index}', shotIndex)
+                    .replace('{duration}', directorCompactSeconds(rawDuration))
+                    .replace('{max}', directorCompactSeconds(maxSegmentDuration)));
+            }
+            const refs = directorSegmentMediaRefs(segment, 'images');
+            if (imagePolicy === 'required' && refs.length < minImages) {
+                errors.push(t('Director shot {index} requires a first-frame image.', '分镜 {index} 需要首帧图片。').replace('{index}', shotIndex));
+                return;
+            }
+            if (maxImages >= 0 && refs.length > maxImages) {
+                errors.push(t('Director shot {index} uses too many image refs.', '分镜 {index} 的图片引用数量超出当前 preset 支持范围。').replace('{index}', shotIndex));
+            }
+            if (imagePolicy === 'forbidden' && refs.length) {
+                warnings.push(t('Director shot {index} image refs are ignored by this preset.', '当前 preset 不使用分镜 {index} 的图片引用。').replace('{index}', shotIndex));
+            }
+            if (imagePolicy === 'required') {
+                refs.forEach((ref) => {
+                    if (!directorPayloadHasMediaAsset(payload, ref)) {
+                        errors.push(t('Director shot {index} uses {ref}, but no image source is connected.', '分镜 {index} 选择了 {ref}，但这个素材位没有图片来源。')
+                            .replace('{index}', shotIndex)
+                            .replace('{ref}', ref));
+                    }
+                });
+            }
+            const videoRef = directorSegmentFirstMediaRef(segment, 'video');
+            const usesPreviousVideo = videoRef === DIRECTOR_PREVIOUS_SEGMENT_VIDEO_REF;
+            if (videoPolicy === 'required' && !videoRef) {
+                errors.push(t('Director shot {index} requires a source video.', '分镜 {index} 需要源视频。').replace('{index}', shotIndex));
+            }
+            if (videoPolicy === 'forbidden' && videoRef) {
+                warnings.push(t('Director shot {index} video refs are ignored by this preset.', '当前 preset 不使用分镜 {index} 的视频引用。').replace('{index}', shotIndex));
+            }
+            if (usesPreviousVideo) {
+                if (index === 0) {
+                    errors.push(t('Director shot 1 cannot use the previous shot result.', '分镜 1 不能使用上一段结果。'));
+                }
+                if (!allowPreviousVideo) {
+                    errors.push(t('The current preset does not support previous-shot video chaining.', '当前 preset 不支持使用上一段结果作为视频输入。'));
+                }
+            } else if (requiresSequentialVideo && index > 0 && videoRef) {
+                errors.push(t('Director shot {index} must use the previous shot result for this extend preset.', '当前延长 preset 的分镜 {index} 必须使用上一段结果。').replace('{index}', shotIndex));
+            } else if (videoPolicy === 'required' && videoRef && !directorPayloadHasMediaAsset(payload, videoRef)) {
+                errors.push(t('Director shot {index} uses {ref}, but no video source is connected.', '分镜 {index} 选择了 {ref}，但这个素材位没有视频来源。')
+                    .replace('{index}', shotIndex)
+                    .replace('{ref}', videoRef));
+            }
+        });
+        return { ok: !errors.length, errors, warnings, capability };
+    }
+
+    function directorRunContextForPreset(node) {
+        if (!node || !['preset', 'classic'].includes(node.type)) return null;
+        const edge = project.edges.find(item => item.type === 'text' && item.to === node.id && (item.slot || 'prompt') === 'prompt' && isDirectorTimelineNode(getNode(item.from)) && !isNodeIgnored(getNode(item.from)));
+        const director = edge ? getNode(edge.from) : null;
+        if (!director) return null;
+        const engineType = String(node.runtime?.engine_type || node.schema?.engine_type || '').toLowerCase();
+        if (engineType && engineType !== 'video') return null;
+        const capability = resolveDirectorCapabilityForPreset(node);
+        if (capability.director_supported === false) return null;
+        const payload = applyDirectorCapabilityToPayload(directorTimelinePayload(director), capability);
+        const segments = Array.isArray(payload?.segments) ? payload.segments.filter(item => item && typeof item === 'object') : [];
+        const validation = validateDirectorPayloadForPreset(node, payload);
+        return { director, payload, segments, capability, validation };
+    }
+
+    function directorRunPlanForPreset(node) {
+        const context = directorRunContextForPreset(node);
+        if (!context) return null;
+        const segments = Array.isArray(context.segments) ? context.segments : [];
+        if (segments.length < 2) return null;
+        return context;
+    }
+
+    function directorCompactSeconds(value) {
+        const number = Math.round(Number(value || 0) * 1000) / 1000;
+        return Number.isFinite(number) ? String(Number(number.toPrecision(12))) : String(value);
+    }
+
+    function directorSegmentDurationBounds(capability) {
+        const strategy = directorDurationStrategyValue(capability?.duration_strategy, 'shot');
+        const minFloor = strategy === 'audio_min' || strategy === 'video_min' ? 0 : 0.05;
+        const minValue = Number(capability?.min_segment_duration);
+        const minDuration = Number.isFinite(minValue) ? Math.max(minFloor, Math.min(86400, minValue)) : (minFloor === 0 ? 0 : 1);
+        const maxValue = Number(capability?.max_segment_duration);
+        const maxDuration = Number.isFinite(maxValue) ? Math.max(minDuration, Math.min(86400, maxValue)) : Math.max(minDuration, 10);
+        return [minDuration, maxDuration];
+    }
+
+    function directorSegmentRawSeconds(segment, plan) {
+        const fps = Math.max(1, Number(plan?.payload?.fps || 24));
+        const start = Number(segment?.start || 0);
+        const end = Number(segment?.end || start + 1);
+        const span = Math.max(0.05, end - start);
+        return segment?.unit === 'frames' ? span / fps : span;
+    }
+
+    function directorSegmentSeconds(segment, plan) {
+        const rawDuration = directorSegmentRawSeconds(segment, plan);
+        const [minDuration, maxDuration] = directorSegmentDurationBounds(plan?.capability || plan?.payload?.director_capability);
+        return Math.max(minDuration, Math.min(maxDuration, rawDuration));
+    }
+
+    function directorSegmentDurationStrategy(plan) {
+        return directorDurationStrategyValue((plan?.capability || plan?.payload?.director_capability || {}).duration_strategy, 'shot');
+    }
+
+    function directorSegmentGenerationSeconds(segment, plan) {
+        const strategy = directorSegmentDurationStrategy(plan);
+        if (strategy === 'audio_min' || strategy === 'video_min') {
+            const rawDuration = directorSegmentRawSeconds(segment, plan);
+            const [, maxDuration] = directorSegmentDurationBounds(plan?.capability || plan?.payload?.director_capability);
+            return Math.max(0, Math.min(maxDuration, rawDuration));
+        }
+        return directorSegmentSeconds(segment, plan);
+    }
+
+    function directorResultDuration(result) {
+        const direct = Number(result?.asset?.duration ?? result?.duration);
+        if (Number.isFinite(direct) && direct > 0) return Math.min(86400, direct);
+        const source = result?.source && typeof result.source === 'object' ? result.source : {};
+        const sourceDuration = Number(source.duration);
+        return Number.isFinite(sourceDuration) && sourceDuration > 0 ? Math.min(86400, sourceDuration) : 0;
+    }
+
+    function directorSegmentTimelineSeconds(segment, plan, result) {
+        const strategy = directorSegmentDurationStrategy(plan);
+        if (strategy === 'audio_min' || strategy === 'video_min') {
+            const assetDuration = directorResultDuration(result);
+            if (assetDuration > 0) return assetDuration;
+            return directorSegmentRawSeconds(segment, plan);
+        }
+        return directorSegmentSeconds(segment, plan);
+    }
+
+    function directorSegmentPrompt(segment, fallback) {
+        const prompt = String(segment?.prompt || '').trim();
+        return prompt || String(fallback || '').trim();
+    }
+
+    function directorSegmentMediaRefs(segment, key) {
+        const refs = [];
+        const items = Array.isArray(segment?.[key]) ? segment[key] : [];
+        items.forEach((item) => {
+            const ref = String(item?.source_ref || item?.source_node_id || '').trim();
+            if (ref && !refs.includes(ref)) refs.push(ref);
+        });
+        return refs;
+    }
+
+    function directorSegmentFirstMediaRef(segment, key) {
+        return directorSegmentMediaRefs(segment, key)[0] || '';
+    }
+
+    function directorSegmentUsesPreviousVideo(segment) {
+        return directorSegmentFirstMediaRef(segment, 'video') === DIRECTOR_PREVIOUS_SEGMENT_VIDEO_REF;
+    }
+
+    function directorResultAssetSource(resultNode) {
+        if (!resultNode) return null;
+        const source = serializeAssetSourceForRun(resultNode);
+        return directorMediaSourceHasAsset(source) ? source : null;
+    }
+
+    function directorTimelineMediaRefs(payload, key) {
+        const refs = [];
+        const segments = Array.isArray(payload?.segments) ? payload.segments : [];
+        segments.forEach((segment) => {
+            directorSegmentMediaRefs(segment, key).forEach((ref) => {
+                if (ref && !refs.includes(ref)) refs.push(ref);
+            });
+        });
+        return refs;
+    }
+
+    function directorTimelineFirstMediaRef(payload, key) {
+        return directorTimelineMediaRefs(payload, key)[0] || '';
+    }
+
+    function applyDirectorMediaRefsToPresetPayload(next, mediaSources, imageRefs, audioRef, videoRef, capability) {
+        if (!next || !mediaSources || typeof mediaSources !== 'object') return next;
+        const uploadSources = cloneRunValue(next.upload_slot_sources || {}, {});
+        const uploadSlots = cloneRunValue(next.upload_slots || {}, {});
+        const resolvedCapability = capability || next?.params?.director_timeline?.director_capability || resolveDirectorCapabilityForPreset({
+            runtime: next?.runtime || {},
+            schema: next?.schema || {},
+            params: next?.params || {},
+            upload_slots: next?.upload_slots || {}
+        });
+        const imagePolicy = String(resolvedCapability?.image_policy || 'optional').toLowerCase();
+        const bindRefToSlot = (ref, slot) => {
+            if (!ref || !slot || !mediaSources[ref]) return;
+            uploadSources[slot] = cloneRunValue(mediaSources[ref], {});
+            const nodeId = String(mediaSources[ref]?.node_id || '').trim();
+            if (nodeId) uploadSlots[slot] = nodeId;
+        };
+
+        if (imagePolicy !== 'forbidden') {
+            const maxImages = Number(resolvedCapability?.max_images);
+            const imageLimit = Number.isFinite(maxImages)
+                ? Math.max(0, Math.min(DIRECTOR_IMAGE_REF_UPLOAD_SLOTS.length, Math.round(maxImages)))
+                : DIRECTOR_IMAGE_REF_UPLOAD_SLOTS.length;
+            (Array.isArray(imageRefs) ? imageRefs : []).slice(0, imageLimit).forEach((ref, index) => {
+                bindRefToSlot(ref, DIRECTOR_IMAGE_REF_UPLOAD_SLOTS[index]);
+            });
+        }
+        bindRefToSlot(audioRef, 'scene_audio');
+        bindRefToSlot(videoRef, 'scene_video');
+
+        next.upload_slot_sources = uploadSources;
+        next.upload_slots = uploadSlots;
+        return next;
+    }
+
+    function clearDirectorSegmentMediaSlots(next) {
+        if (!next || typeof next !== 'object') return next;
+        const uploadSources = cloneRunValue(next.upload_slot_sources || {}, {});
+        const uploadSlots = cloneRunValue(next.upload_slots || {}, {});
+        DIRECTOR_IMAGE_REF_UPLOAD_SLOTS.concat(['scene_audio', 'scene_video']).forEach((slot) => {
+            delete uploadSources[slot];
+            delete uploadSlots[slot];
+        });
+        next.upload_slot_sources = uploadSources;
+        next.upload_slots = uploadSlots;
+        return next;
+    }
+
+    function applyDirectorTimelineMediaToPresetPayload(next) {
+        const payload = next?.params?.director_timeline;
+        if (!payload || typeof payload !== 'object') return next;
+        const mediaSources = payload.media_sources && typeof payload.media_sources === 'object' ? payload.media_sources : {};
+        return applyDirectorMediaRefsToPresetPayload(
+            next,
+            mediaSources,
+            directorTimelineMediaRefs(payload, 'images'),
+            directorTimelineFirstMediaRef(payload, 'audio'),
+            directorTimelineFirstMediaRef(payload, 'video'),
+            payload.director_capability
+        );
+    }
+
+    function applyDirectorSegmentMediaToPresetPayload(next, plan, segment, previousResultNode) {
+        if (!next || !plan?.payload || !segment) return next;
+        clearDirectorSegmentMediaSlots(next);
+        const mediaSources = cloneRunValue(
+            plan.payload.media_sources && typeof plan.payload.media_sources === 'object' ? plan.payload.media_sources : {},
+            {}
+        );
+        const videoRef = directorSegmentFirstMediaRef(segment, 'video');
+        if (videoRef === DIRECTOR_PREVIOUS_SEGMENT_VIDEO_REF) {
+            const previousSource = directorResultAssetSource(previousResultNode);
+            if (previousSource) mediaSources[DIRECTOR_PREVIOUS_SEGMENT_VIDEO_REF] = previousSource;
+        }
+        return applyDirectorMediaRefsToPresetPayload(
+            next,
+            mediaSources,
+            directorSegmentMediaRefs(segment, 'images'),
+            directorSegmentFirstMediaRef(segment, 'audio'),
+            videoRef,
+            plan.capability || plan.payload.director_capability
+        );
+    }
+
+    function applyDirectorSegmentToPresetPayload(presetPayload, plan, segment, index, previousResultNode) {
+        const next = cloneRunValue(presetPayload || {}, {});
+        const params = cloneRunValue(next.params || {}, {});
+        delete params.director_timeline;
+        delete params.prompt_override;
+        delete params.director_prompt_override;
+        const prompt = directorSegmentPrompt(segment, params.prompt || plan?.payload?.prompt_override || '');
+        params.prompt = prompt;
+        const capability = plan?.capability || plan?.payload?.director_capability || {};
+        const durationStrategy = directorDurationStrategyValue(capability.duration_strategy, 'shot');
+        const shotDuration = directorSegmentSeconds(segment, plan);
+        const duration = directorSegmentGenerationSeconds(segment, plan);
+        const durationParam = directorDurationParamValue(capability.segment_duration_param, 'scene_video_duration');
+        if (durationParam && Number.isFinite(duration)) {
+            const minMax = directorSegmentDurationBounds(capability);
+            const minDuration = durationStrategy === 'shot' ? minMax[0] : 0;
+            const maxDuration = minMax[1];
+            const roundedDuration = Math.round(duration * 10) / 10;
+            params[durationParam] = Math.max(minDuration, Math.min(maxDuration, roundedDuration));
+        }
+        params.director_segment = {
+            schema: 'simpai.director_segment.v1',
+            director_node_id: plan?.director?.id || '',
+            segment_index: index,
+            segment_id: segment?.id || `shot_${index + 1}`,
+            start: segment?.start ?? 0,
+            end: segment?.end ?? shotDuration,
+            duration: Number.isFinite(duration) ? Math.max(0, Math.round(duration * 1000) / 1000) : duration,
+            shot_duration: Number.isFinite(shotDuration) ? Math.max(0.05, Math.round(shotDuration * 1000) / 1000) : shotDuration,
+            duration_strategy: durationStrategy,
+            audio_output: directorAudioOutputValue(capability.audio_output, 'silent'),
+            duration_param: durationParam,
+            unit: segment?.unit || 'seconds',
+            type: segment?.type || 't2v',
+            task_method: next.runtime?.task_method || '',
+            prompt
+        };
+        next.params = params;
+        return applyDirectorSegmentMediaToPresetPayload(next, plan, segment, previousResultNode);
+    }
+
+    function createDirectorSegmentResultNode(presetNode, plan, segment, index, runId, runToken) {
+        const basePosition = presetResultBasePosition(presetNode);
+        const size = defaultResultNodeSize();
+        const total = plan.segments.length;
+        const node = {
+            id: uid('result'),
+            type: 'result',
+            x: basePosition.x,
+            y: basePosition.y + index * (size.h + 42),
+            w: size.w,
+            h: size.h,
+            title: `${presetNode.title || 'Preset'} ${t('Shot {index}', '分镜 {index}').replace('{index}', String(index + 1))}`,
+            producer: {
+                preset_node_id: presetNode.id,
+                run_id: runId,
+                run_token: runToken,
+                task_id: null,
+                fingerprint: '',
+                pending_fingerprint: '',
+                pending_run_token: runToken,
+                refreshing: true,
+                stale: false
+            },
+            status: {
+                state: 'queued',
+                queue_position: null,
+                step: index + 1,
+                total_steps: total,
+                percent: 0,
+                message: t('Director segment {index}/{total} queued.', 'Director 分镜 {index}/{total} 已进入队列。')
+                    .replace('{index}', String(index + 1))
+                    .replace('{total}', String(total))
+            },
+            preview: null,
+            asset: null,
+            assets: [],
+            source: {
+                kind: 'director_segment_result',
+                director_node_id: plan.director.id,
+                preset_node_id: presetNode.id,
+                segment_index: index,
+                segment_id: segment?.id || `shot_${index + 1}`,
+                refreshing: true
+            },
+            collapsed: false
+        };
+        placeNodeAvoidingOverlap(node, { x: node.x, y: node.y }, { maxAttempts: 8 });
+        project.nodes.push(node);
+        ensureGenerateEdge(presetNode.id, node.id);
+        return node;
+    }
+
+    function findDirectorSegmentTimelineNode(presetNode) {
+        const resultIds = new Set(project.edges.filter(edge => edge.type === 'generate' && edge.from === presetNode.id).map(edge => edge.to));
+        for (const edge of project.edges) {
+            if (edge.type !== 'timeline' || !resultIds.has(edge.from)) continue;
+            const timeline = getNode(edge.to);
+            if (timeline?.type === 'timeline') return timeline;
+        }
+        return project.nodes.find(item => item?.type === 'timeline' && item.source?.kind === 'director_segment_timeline' && item.source?.preset_node_id === presetNode.id) || null;
+    }
+
+    function clearDirectorPresetClipsFromTimeline(timelineNode, presetNodeId) {
+        if (!timelineNode || timelineNode.type !== 'timeline') return;
+        const removedClipIds = new Set();
+        timelineNode.clips = (Array.isArray(timelineNode.clips) ? timelineNode.clips : []).filter((clip) => {
+            const source = getNode(clip?.source_node_id);
+            const samePreset = source?.type === 'result' && source.producer?.preset_node_id === presetNodeId;
+            const directorOwned = source?.source?.kind === 'director_segment_result' || source?.source?.kind === 'template_result_placeholder';
+            if (samePreset && directorOwned) {
+                removedClipIds.add(clip.id);
+                return false;
+            }
+            return true;
+        });
+        if (removedClipIds.size) {
+            project.edges = project.edges.filter(edge => !(edge.type === 'timeline' && edge.to === timelineNode.id && removedClipIds.has(edge.slot)));
+        }
+    }
+
+    function prepareDirectorSegmentTimeline(presetNode, plan, segmentResults) {
+        let timeline = findDirectorSegmentTimelineNode(presetNode);
+        if (!timeline) {
+            const base = presetResultBasePosition(presetNode);
+            timeline = addTimelineNode({ x: base.x, y: base.y + (segmentResults.length + 1) * (defaultResultNodeSize().h + 42) }, {
+                history: false,
+                render: false,
+                toast: false,
+                title: t('Director Segment Timeline', 'Director 分镜 Timeline')
+            });
+        }
+        timeline.source = Object.assign({}, timeline.source || {}, {
+            kind: 'director_segment_timeline',
+            director_node_id: plan.director.id,
+            preset_node_id: presetNode.id
+        });
+        timeline.params = Object.assign({}, timeline.params || {});
+        const width = Math.max(16, Math.round(Number(plan.payload?.width || timeline.params.width || 1280)));
+        const height = Math.max(16, Math.round(Number(plan.payload?.height || timeline.params.height || 720)));
+        const fps = Math.max(1, Math.min(120, Number(plan.payload?.fps || timeline.params.fps || 24)));
+        clearDirectorPresetClipsFromTimeline(timeline, presetNode.id);
+        let cursor = 0;
+        segmentResults.forEach((result, index) => {
+            const segment = plan.segments[index] || {};
+            const duration = directorSegmentTimelineSeconds(segment, plan, result);
+            const clip = addTimelineClipFromSource(timeline, result, { history: false, render: false, edge: true, start: cursor, track_id: 'v1' });
+            if (clip) {
+                clip.title = `${result.title || 'Shot'} ${index + 1}`;
+                clip.start = cursor;
+                clip.duration = Math.max(0.05, duration);
+                clip.in = 0;
+                clip.out = Math.max(0.05, duration);
+                clip.fit = 'contain';
+            }
+            cursor += Math.max(0.05, duration);
+        });
+        timeline.params.width = width;
+        timeline.params.height = height;
+        timeline.params.aspect = `${width}:${height}`;
+        timeline.params.size_preset = `${width}x${height}`;
+        timeline.params.fps = fps;
+        timeline.params.fps_preset = String(fps);
+        timeline.params.duration = Math.max(0.05, cursor, Number(plan.payload?.duration || 0));
+        timeline.params.playhead = 0;
+        if (typeof WORKBENCH_TIMELINE.normalizeNode === 'function') WORKBENCH_TIMELINE.normalizeNode(timeline);
+        return timeline;
+    }
+
+    async function submitDirectorSegmentRun(presetNode, resultNode, plan, segment, index, previousResultNode) {
+        if (directorSegmentUsesPreviousVideo(segment) && !directorResultAssetSource(previousResultNode)) {
+            const message = t('Director shot {index} needs the previous shot result video, but the previous run has no usable video yet.', '分镜 {index} 需要上一段结果视频，但上一段还没有可用视频。')
+                .replace('{index}', String(index + 1));
+            resultNode.status = {
+                state: 'failed',
+                message
+            };
+            return { ok: false, error: message };
+        }
+        const runId = uid('run');
+        const runToken = uid('rt');
+        resultNode.producer = Object.assign({}, resultNode.producer || {}, { run_id: runId, run_token: runToken, pending_run_token: runToken, refreshing: true });
+        project.runs.push({
+            id: runId,
+            preset_node_id: presetNode.id,
+            placeholder_node_id: resultNode.id,
+            state: 'queued',
+            run_token: runToken,
+            director_segment_index: index,
+            created_at: nowIso(),
+            updated_at: nowIso(),
+            backend: 'pending'
+        });
+        const payload = buildRunDryRunPayload(presetNode, resultNode, runId);
+        payload.director_segmented_run = true;
+        payload.director_segment_index = index;
+        payload.preset_node = applyDirectorSegmentToPresetPayload(payload.preset_node, plan, segment, index, previousResultNode);
+        payload.asset_sources = Object.assign({}, payload.asset_sources || {}, payload.preset_node?.upload_slot_sources || {});
+        const runResult = await sendCanvasRunNodeRequest(payload);
+        const outcome = await applyRunNodeResult(runId, resultNode.id, presetNode.id, runResult, { initialDelayMs: 900 });
+        const current = getNode(resultNode.id);
+        if (current) {
+            current.source = Object.assign({}, current.source || {}, {
+                kind: 'director_segment_result',
+                director_node_id: plan.director.id,
+                preset_node_id: presetNode.id,
+                segment_index: index,
+                segment_id: segment?.id || `shot_${index + 1}`,
+                prompt: directorSegmentPrompt(segment, '')
+            });
+        }
+        return outcome;
+    }
+
+    async function runDirectorSegmentedPresetNode(node, plan, opts) {
+        node.status = {
+            state: 'waiting',
+            message: t('Preparing Director segmented run...', '正在准备 Director 分镜运行...')
+        };
+        mutate({ inspector: true });
+        const modelGate = await ensurePresetModelsBeforeRun(node);
+        if (!modelGate?.ok) return modelGate;
+        pushHistory('Run Director segmented preset');
+        const segmentResults = [];
+        for (let index = 0; index < plan.segments.length; index += 1) {
+            const segment = plan.segments[index];
+            const resultNode = createDirectorSegmentResultNode(node, plan, segment, index, uid('run'), uid('rt'));
+            segmentResults.push(resultNode);
+        }
+        selectedNodeId = segmentResults[0]?.id || node.id;
+        selectedNodeIds = new Set([selectedNodeId]);
+        selectedEdgeId = null;
+        clearSchedulerBlockedState();
+        mutate();
+        let previousResultNode = null;
+        for (let index = 0; index < plan.segments.length; index += 1) {
+            const resultNode = segmentResults[index];
+            node.status = {
+                state: 'running',
+                message: t('Running Director segment {index}/{total}...', '正在运行 Director 分镜 {index}/{total}...')
+                    .replace('{index}', String(index + 1))
+                    .replace('{total}', String(plan.segments.length))
+            };
+            mutate({ inspector: true });
+            const outcome = await submitDirectorSegmentRun(node, resultNode, plan, plan.segments[index], index, previousResultNode);
+            if (!outcome?.ok) {
+                node.status = { state: 'failed', message: outcome?.error || 'Director segment run failed.' };
+                mutate({ inspector: true });
+                return Object.assign({ ok: false, segmented: true, failed_segment_index: index }, outcome || {});
+            }
+            previousResultNode = getNode(resultNode.id) || resultNode;
+        }
+        const finalResultNode = segmentResults.length
+            ? (getNode(segmentResults[segmentResults.length - 1].id) || segmentResults[segmentResults.length - 1])
+            : null;
+        if (directorCapabilityChainOutput(plan.capability) === 'last_result') {
+            node.status = {
+                state: 'finished',
+                message: t('Director chained video finished.', 'Director 串联视频已完成。')
+            };
+            if (finalResultNode?.id) {
+                selectedNodeId = finalResultNode.id;
+                selectedNodeIds = new Set([finalResultNode.id]);
+            }
+            mutate({ inspector: true });
+            return {
+                ok: true,
+                segmented: true,
+                chain_output: 'last_result',
+                segment_result_node_ids: segmentResults.map(item => item.id),
+                final_result_node_id: finalResultNode?.id || ''
+            };
+        }
+        const timeline = prepareDirectorSegmentTimeline(node, plan, segmentResults.map(item => getNode(item.id)).filter(Boolean));
+        node.status = {
+            state: 'running',
+            message: t('Rendering Director Timeline...', '正在合成 Director Timeline...')
+        };
+        mutate({ inspector: true });
+        const renderOutcome = await renderTimelineToResult(timeline);
+        node.status = {
+            state: renderOutcome?.ok ? 'finished' : 'failed',
+            message: renderOutcome?.ok
+                ? t('Director segmented video finished.', 'Director 分镜视频已完成。')
+                : (renderOutcome?.error || 'Director timeline render failed.')
+        };
+        mutate({ inspector: true });
+        return {
+            ok: !!renderOutcome?.ok,
+            segmented: true,
+            segment_result_node_ids: segmentResults.map(item => item.id),
+            timeline_node_id: timeline?.id || '',
+            render_result: renderOutcome
+        };
+    }
+
     async function runPresetNode(node, options) {
         if (isNodeIgnored(node)) {
             showToast('This preset is marked as skipped.');
@@ -36547,6 +37822,35 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         }
         if (reconcilePresetRunCompletion(node)) {
             mutate({ inspector: true });
+        }
+        if (!opts.directorSegmentChild) {
+            const directorContext = directorRunContextForPreset(node);
+            const directorErrors = Array.isArray(directorContext?.validation?.errors) ? directorContext.validation.errors : [];
+            if (directorErrors.length) {
+                const message = directorErrors[0];
+                node.status = {
+                    state: 'failed',
+                    message
+                };
+                mutate({ inspector: true });
+                showToast(message, 4200);
+                return { ok: false, error: message, validation: directorContext.validation };
+            }
+            const directorPlan = directorContext && directorContext.segments.length >= 2 ? directorContext : null;
+            if (directorPlan) {
+                if (runKey) {
+                    pendingPresetRuns.add(runKey);
+                    pendingPresetRunStartedAt.set(runKey, Date.now());
+                }
+                try {
+                    return await runDirectorSegmentedPresetNode(node, directorPlan, opts);
+                } finally {
+                    if (runKey) {
+                        pendingPresetRuns.delete(runKey);
+                        pendingPresetRunStartedAt.delete(runKey);
+                    }
+                }
+            }
         }
         const activeResult = findActiveResultNodeForPreset(node);
         if (isCanvasRunActiveState(nodeStatusState(node)) || activeResult) {
@@ -37903,6 +39207,11 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 if (!source || !isTextOutputNode(source)) return;
                 const slot = ['prompt', 'negative_prompt'].includes(edge.slot) ? edge.slot : 'prompt';
                 params[slot] = getNodeTextOutput(source);
+                if (isDirectorTimelineNode(source)) {
+                    const payload = applyDirectorCapabilityToPayloadForPreset(node, directorTimelinePayload(source));
+                    params.director_timeline = payload;
+                    params.prompt_override = payload?.prompt_override || params[slot] || '';
+                }
             });
         const promptDefaults = canvasAgentPresetPromptDefaults(node);
         if (!String(params.prompt || '').trim() && promptDefaults.prompt) params.prompt = promptDefaults.prompt;
@@ -37965,6 +39274,8 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         const isClassic = presetNode.type === 'classic';
         const presetNodePayload = isClassic ? serializeClassicNodeForRun(presetNode) : serializePresetForRun(presetNode);
         presetNodePayload.upload_slot_sources = cloneRunValue(assetSources, {});
+        applyDirectorTimelineMediaToPresetPayload(presetNodePayload);
+        Object.assign(assetSources, presetNodePayload.upload_slot_sources || {});
         return {
             project_id: project.id || PROJECT_ID,
             run_id: runId,
@@ -39067,6 +40378,16 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             runQwenTtsNode(node);
         } else if (action === 'stop-qwen-tts' && isQwenTtsNode(node)) {
             stopQwenTtsNode(node);
+        } else if (action === 'director-add-segment' && isDirectorTimelineNode(node)) {
+            addDirectorTimelineSegment(node);
+        } else if (action === 'director-copy-output' && isDirectorTimelineNode(node)) {
+            copyDirectorTimelineOutput(node);
+        } else if (String(action || '').startsWith('director-remove-segment:') && isDirectorTimelineNode(node)) {
+            removeDirectorTimelineSegment(node, Number(String(action || '').slice('director-remove-segment:'.length)) || 0);
+        } else if (String(action || '').startsWith('director-move-segment-up:') && isDirectorTimelineNode(node)) {
+            moveDirectorTimelineSegment(node, Number(String(action || '').slice('director-move-segment-up:'.length)) || 0, -1);
+        } else if (String(action || '').startsWith('director-move-segment-down:') && isDirectorTimelineNode(node)) {
+            moveDirectorTimelineSegment(node, Number(String(action || '').slice('director-move-segment-down:'.length)) || 0, 1);
         } else if (action === 'clear-vlm-chat' && node.type === 'vlm') {
             clearVlmChat(node);
         } else if (action === 'attach-vlm-image' && node.type === 'vlm') {
@@ -40815,44 +42136,16 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         return time;
     }
 
-    function cacheBustMediaUrl(src) {
-        const text = String(src || '').trim();
-        if (!text || /^(data:|blob:)/i.test(text)) return text;
-        const [beforeHash, hash = ''] = text.split('#', 2);
-        const sep = beforeHash.includes('?') ? '&' : '?';
-        return `${beforeHash}${sep}sai_reload=${Date.now()}${hash ? `#${hash}` : ''}`;
-    }
-
     async function reloadMediaNode(node) {
-        if (node?.type === 'video') {
-            const file = await pickLocalVideoFile();
-            if (!file) return;
-            await applyMediaFileToNode(node, file, {
-                history: 'Re-upload video asset',
-                sourceKind: 'manual_video_reupload'
-            });
-            return;
-        }
-        if (!node || !['video', 'audio'].includes(node.type) || !node.asset) return;
-        const src = assetDisplaySrc(node.asset);
-        if (!src) {
-            showToast(t('No media asset URL to reload.', '没有可重载的媒体资产 URL。'));
-            return;
-        }
-        const nextSrc = cacheBustMediaUrl(src);
-        let count = 0;
-        document.querySelectorAll(`[data-node-id="${CSS.escape(node.id)}"] [data-media-player]`).forEach((media) => {
-            media.pause?.();
-            media.src = nextSrc;
-            media.load?.();
-            count += 1;
+        if (!node || !['video', 'audio'].includes(node.type)) return;
+        const type = node.type;
+        const file = type === 'video' ? await pickLocalVideoFile() : await pickLocalAudioFile();
+        if (!file) return;
+        await applyMediaFileToNode(node, file, {
+            history: type === 'video' ? 'Re-upload video asset' : 'Re-upload audio asset',
+            sourceKind: type === 'video' ? 'manual_video_reupload' : 'manual_audio_reupload'
         });
-        if (node.type === 'video') hideVideoScrubPreview(node.id);
-        if (!count) {
-            mutate({ inspector: true });
-        } else {
-            showToast(t('Media reloaded.', '媒体已重载。'));
-        }
+        if (type === 'video') hideVideoScrubPreview(node.id);
     }
 
     function playMediaSelection(node) {
@@ -41079,6 +42372,16 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 });
                 if (removed) node.status = Object.assign({}, node.status || {}, { state: 'idle', message: 'Reference audio removed.' });
             }
+            if (isDirectorTimelineNode(node) && node.media_inputs) {
+                let removed = false;
+                Object.keys(node.media_inputs).forEach((slot) => {
+                    if (idSet.has(node.media_inputs[slot])) {
+                        node.media_inputs[slot] = null;
+                        removed = true;
+                    }
+                });
+                if (removed) updateDirectorStatus(node);
+            }
             if ((node.type !== 'preset' && node.type !== 'classic') || !node.upload_slots) return;
             Object.keys(node.upload_slots).forEach((slot) => {
                 if (idSet.has(node.upload_slots[slot])) node.upload_slots[slot] = null;
@@ -41183,6 +42486,10 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             if (isQwenTtsNode(target) && target.audio_inputs?.[edge.slot] === edge.from) {
                 target.audio_inputs[edge.slot] = null;
                 target.status = Object.assign({}, target.status || {}, { state: 'idle', message: 'Reference audio disconnected.' });
+            }
+            if (isDirectorTimelineNode(target) && target.media_inputs?.[edge.slot] === edge.from) {
+                target.media_inputs[edge.slot] = null;
+                updateDirectorStatus(target);
             }
         }
         if (edge && edge.type === 'compare') {
@@ -41469,6 +42776,9 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         } else if (edge.type === 'media' && isQwenTtsAudioSource(from) && isQwenTtsNode(to)) {
             to.audio_inputs = Object.assign({}, to.audio_inputs || {}, { [edge.slot || 'ref_audio']: from.id });
             to.status = Object.assign({}, to.status || {}, { state: 'ready', message: 'Reference audio connected.' });
+        } else if (edge.type === 'media' && isDirectorTimelineNode(to) && isDirectorMediaSourceForSlot(from, edge.slot)) {
+            to.media_inputs = Object.assign({}, to.media_inputs || {}, { [edge.slot || 'image_1']: from.id });
+            updateDirectorStatus(to);
         } else if (edge.type === 'compare' && isImageCompareSource(from) && to.type === 'compare') {
             const slot = ['a', 'b'].includes(edge.slot) ? edge.slot : 'a';
             to.inputs = Object.assign({ a: null, b: null }, to.inputs || {}, { [slot]: from.id });
@@ -41796,6 +43106,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         addPresetNode: (entry, world) => addPresetNode(entry || {}, world || viewportCenterWorld()),
         addPoseStudioNode: (world, options) => addPoseStudioNode(world || viewportCenterWorld(), options || {}),
         addGaussianStudioNode: (world, options) => addGaussianStudioNode(world || viewportCenterWorld(), options || {}),
+        addDirectorTimelineNode: (world, options) => addDirectorTimelineNode(world || viewportCenterWorld(), options || {}),
         connectUploadEdge: (fromId, toId, slot, options) => connectUploadEdgeApi(fromId, toId, slot, options || {}),
         addQwenTtsNode: (mode, world, options) => addQwenTtsNode(mode || 'voice_design', world || viewportCenterWorld(), options || {}),
         runQwenTtsNode: (nodeOrId, options) => {

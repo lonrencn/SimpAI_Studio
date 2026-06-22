@@ -386,7 +386,7 @@
         ],
         "params": [
           {
-            "key": "scene_var_number",
+            "key": "scene_video_duration",
             "label": "Duration limit (seconds) [0 = no limit]",
             "type": "number",
             "default": 0,
@@ -689,7 +689,6 @@
         "prompt": "",
         "seed_random": true,
         "image_seed": 0,
-        "scene_var_number": 0,
         "scene_var_number2": 30,
         "scene_var_number3": 16,
         "scene_var_number4": 0,
@@ -699,7 +698,8 @@
         "scene_var_number9": 20,
         "scene_var_number10": 20,
         "scene_switch_option1": true,
-        "scene_switch_option2": true
+        "scene_switch_option2": true,
+        "scene_video_duration": 0
       },
       "status": "idle",
       "collapsed": false,

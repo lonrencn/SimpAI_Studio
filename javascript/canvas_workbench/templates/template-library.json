@@ -264,6 +264,74 @@
       "preview": ""
     },
     {
+      "id": "director_wan22_loop",
+      "title": {
+        "en": "Director + Wan2.2 Loop",
+        "zh": "Director + Wan2.2 分镜视频"
+      },
+      "description": {
+        "en": "A runnable Director Timeline template that runs Wan2.2 T2V per shot and then renders the segment Results through Timeline.",
+        "zh": "可运行的 Director Timeline 模板，按分镜运行 Wan2.2 T2V，并把分段视频 Result 放入 Timeline 合成。"
+      },
+      "category": "video",
+      "tags": ["video", "director", "timeline", "wan", "wan2.2", "t2v", "prompt_override", "result", "runnable", "导演", "分镜"],
+      "type_label": {
+        "en": "Director video",
+        "zh": "导演分镜视频"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires images + models",
+          "zh": "需要图片和模型"
+        },
+        "note": {
+          "en": "Requires Wan T2V model files and optional image references before Run.",
+          "zh": "运行前需要 Wan T2V 模型文件，可替换图片参考。"
+        },
+        "models": [
+          "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+          "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+          "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
+          "wan_2.1_vae.safetensors",
+          "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+          "flownet.pkl"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/director-wan22-loop.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "director_result_timeline_mix",
+      "title": {
+        "en": "Director Result + Timeline Mix",
+        "zh": "Director Result + Timeline 合成"
+      },
+      "description": {
+        "en": "A model-free template for placing Director segment Results into the existing Timeline and rendering a final video Result.",
+        "zh": "不依赖模型的 Director 后期模板，把分段视频 Result 放入现有 Timeline，并渲染最终视频 Result。"
+      },
+      "category": "video",
+      "tags": ["video", "director", "timeline", "result", "mix", "model-free", "导演", "分镜", "合成"],
+      "type_label": {
+        "en": "Timeline mix",
+        "zh": "Timeline 合成"
+      },
+      "model_dependency": {
+        "mode": "model_free",
+        "label": {
+          "en": "Model-free",
+          "zh": "无模型依赖"
+        },
+        "note": {
+          "en": "Replace the segment Result placeholders with generated videos, then render Timeline.",
+          "zh": "把分段 Result 占位替换为生成视频后，直接渲染 Timeline。"
+        }
+      },
+      "path": "javascript/canvas_workbench/templates/director-result-timeline-mix.canvas.json",
+      "preview": ""
+    },
+    {
       "id": "wan_i2v_basic",
       "title": {
         "en": "Wan I2V Basic",
@@ -515,6 +583,46 @@
         ]
       },
       "path": "javascript/canvas_workbench/templates/ltx23-ta2v-basic.canvas.json",
+      "preview": ""
+    },
+    {
+      "id": "qwen_tts_director_ltx23_ta2v",
+      "title": {
+        "en": "Qwen TTS + Director + LTX2.3 TA2V",
+        "zh": "Qwen TTS + Director + LTX2.3 音频视频"
+      },
+      "description": {
+        "en": "A runnable chain where Qwen TTS creates narration audio, Director Timeline writes prompt_override, and LTX2.3 TA2V generates the video.",
+        "zh": "可运行链路：Qwen TTS 生成旁白音频，Director Timeline 输出 prompt_override，LTX2.3 TA2V 生成视频。"
+      },
+      "category": "video",
+      "tags": ["video", "audio", "tts", "qwen", "director", "timeline", "ltx", "ltx2.3", "ta2v", "prompt_override", "runnable", "旁白", "导演"],
+      "type_label": {
+        "en": "Audio-driven director video",
+        "zh": "音频驱动导演视频"
+      },
+      "model_dependency": {
+        "mode": "requires_models",
+        "label": {
+          "en": "Requires TTS + LTX models",
+          "zh": "需要 TTS 和 LTX 模型"
+        },
+        "note": {
+          "en": "Requires Qwen3-TTS VoiceDesign plus LTX2.3 TA2V model files; run TTS before LTX2.3.",
+          "zh": "需要 Qwen3-TTS VoiceDesign 和 LTX2.3 TA2V 模型；先生成 TTS 音频，再运行 LTX2.3。"
+        },
+        "models": [
+          "Qwen/Qwen3-TTS-Tokenizer-12Hz",
+          "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+          "ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+          "gemma_3_12B_it_fpmixed.safetensors",
+          "LTX23_audio_vae_bf16.safetensors",
+          "LTX23_video_vae_bf16.safetensors",
+          "flownet.pkl"
+        ]
+      },
+      "path": "javascript/canvas_workbench/templates/qwen-tts-director-ltx23-ta2v.canvas.json",
       "preview": ""
     },
     {

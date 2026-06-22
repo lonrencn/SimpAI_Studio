@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import time
 
+import shared
 from modules import canvas_workbench_assets
 
 
@@ -185,8 +186,23 @@ def _resolved_transform(layer, frame_time):
 
 
 def _state_user_did(state_params):
+    try:
+        user = state_params.get("user") if isinstance(state_params, dict) else None
+        if user is not None and hasattr(user, "get_did"):
+            did = user.get_did()
+            if did:
+                return did
+    except Exception:
+        pass
     if isinstance(state_params, dict):
-        return state_params.get("__user_did") or state_params.get("user_did") or state_params.get("did") or None
+        did = state_params.get("__user_did") or state_params.get("user_did") or state_params.get("did") or None
+        if did:
+            return did
+    try:
+        if shared.token is not None:
+            return shared.token.get_guest_did()
+    except Exception:
+        pass
     return None
 
 

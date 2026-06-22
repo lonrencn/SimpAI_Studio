@@ -343,6 +343,19 @@
         ],
         "default_theme": "InfiniteTalk-AI2V",
         "theme_title": "Wan-InfiniteTalk Image+Audio Lip Sync",
+        "director_capability": {
+          "image_policy": "required",
+          "audio_policy": "required",
+          "video_policy": "forbidden",
+          "max_images": 1,
+          "min_images": 1,
+          "image_modes": [
+            "first_frame"
+          ],
+          "duration_strategy": "audio_min",
+          "audio_output": "input_audio",
+          "mixed_segments": false
+        },
         "disvisible": [
           "scene_input_image1",
           "scene_additional_prompt",
@@ -427,7 +440,7 @@
         ],
         "params": [
           {
-            "key": "scene_var_number",
+            "key": "scene_video_duration",
             "label": "Duration limit (seconds) [0 = no limit]",
             "type": "number",
             "default": 0,
@@ -654,10 +667,10 @@
         "negative_prompt": "",
         "seed_random": true,
         "image_seed": 0,
-        "scene_var_number": 0,
         "scene_var_number2": 60,
         "scene_var_number3": 0,
-        "scene_var_number7": 121
+        "scene_var_number7": 121,
+        "scene_video_duration": 0
       },
       "status": "idle",
       "collapsed": false,

@@ -2,7 +2,7 @@
     "default_engine": {
 	"backend_engine": "Flux",
 	"disvisible": ["backend_selection", "performance_selection", "negative_prompt", "refiner_model"],
-	"disinteractive": ["performance_selection", "negative_prompt", "refiner_model", "layer_method", "layer_input_image"],
+	"disinteractive": ["performance_selection", "refiner_model", "layer_method", "layer_input_image"],
 	"available_aspect_ratios_selection": "Flux",
 	"backend_params": {
 	    "task_method": "flux2_aio_cn"
@@ -46,6 +46,7 @@
             1.0
         ]
     ],
+    "default_prompt_negative": "",
     "default_cfg_scale": 1,
     "default_sample_sharpness": 2,
     "default_sampler": "euler",

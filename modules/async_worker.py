@@ -429,6 +429,7 @@ class AsyncTask:
             self.scene_var_number8 = self.params_backend.pop('scene_var_number8', None)
             self.scene_var_number9 = self.params_backend.pop('scene_var_number9', None)
             self.scene_var_number10 = self.params_backend.pop('scene_var_number10', None)
+            self.scene_video_duration = self.params_backend.pop('scene_video_duration', None)
             self.scene_switch_option1 = self.params_backend.pop('scene_switch_option1', None)
             self.scene_switch_option2 = self.params_backend.pop('scene_switch_option2', None)
             self.scene_switch_option3 = self.params_backend.pop('scene_switch_option3', None)
@@ -2155,6 +2156,8 @@ def worker():
                     async_task.params_backend['var_number9'] = int(async_task.scene_var_number9)
                 if async_task.scene_var_number10 is not None:
                     async_task.params_backend['var_number10'] = int(async_task.scene_var_number10)
+                if getattr(async_task, 'scene_video_duration', None) is not None:
+                    async_task.params_backend['video_duration'] = float(async_task.scene_video_duration)
                 if async_task.scene_switch_option1 is not None:
                     async_task.params_backend['switch_option1'] = async_task.scene_switch_option1
                 if async_task.scene_switch_option2 is not None:

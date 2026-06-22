@@ -164,6 +164,7 @@ def javascript_html():
     model_browser_js_path = webpath('javascript/model_browser.js')
     context_menus_js_path = webpath('javascript/contextMenus.js')
     localization_js_path = webpath('javascript/localization.js')
+    scene_director_js_path = webpath('javascript/scene_director.js')
     zoom_js_path = webpath('javascript/zoom.js')
     edit_attention_js_path = webpath('javascript/edit-attention.js')
     viewer_js_path = webpath('javascript/viewer.js')
@@ -202,6 +203,7 @@ def javascript_html():
     canvas_workbench_pose_studio_node_path = webpath('javascript/canvas_workbench/nodes/pose_studio_node.js')
     canvas_workbench_gaussian_studio_node_path = webpath('javascript/canvas_workbench/nodes/gaussian_studio_node.js')
     canvas_workbench_qwen_tts_node_path = webpath('javascript/canvas_workbench/nodes/qwen_tts_node.js')
+    canvas_workbench_director_timeline_node_path = webpath('javascript/canvas_workbench/nodes/director_timeline_node.js')
     canvas_workbench_style_selector_node_path = webpath('javascript/canvas_workbench/nodes/style_selector_node.js')
     pose_studio_editor_path = webpath('javascript/pose_studio_editor.js')
     gaussian_studio_editor_path = webpath('javascript/gaussian_studio_editor.js')
@@ -266,6 +268,7 @@ def javascript_html():
             canvas_workbench_pose_studio_node_path,
             canvas_workbench_gaussian_studio_node_path,
             canvas_workbench_qwen_tts_node_path,
+            canvas_workbench_director_timeline_node_path,
             canvas_workbench_style_selector_node_path,
             canvas_workbench_sketch_adapter_path,
             infinite_canvas_workbench_path,
@@ -336,6 +339,7 @@ def javascript_html():
     head += f'<script type="text/javascript" src="{script_js_path}"></script>\n'
     head += f'<script type="text/javascript" src="{context_menus_js_path}"></script>\n'
     head += f'<script type="text/javascript" src="{localization_js_path}"></script>\n'
+    head += f'<script type="text/javascript" src="{scene_director_js_path}"></script>\n'
     head += f'<script type="text/javascript" src="{zoom_js_path}"></script>\n'
     head += f'<script type="text/javascript" src="{edit_attention_js_path}"></script>\n'
     head += f'<script type="text/javascript" src="{viewer_js_path}"></script>\n'

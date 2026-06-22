@@ -433,7 +433,7 @@
       "expression": "round(a*b/8)*8+9",
       "values.a": [
         "578",
-        10
+        32
       ],
       "values.b": [
         "625",
@@ -540,7 +540,8 @@
       "clip_type": 1,
       "negative_prompt": "",
       "sampler": "euler",
-      "scheduler": "simple"
+      "scheduler": "simple",
+      "video_duration": 0
     },
     "class_type": "SceneInput",
     "_meta": {
@@ -1283,7 +1284,7 @@
       "comparison": "a == b",
       "a": [
         "578",
-        10
+        32
       ],
       "b": [
         "645",
@@ -1712,7 +1713,7 @@
       ],
       "b": [
         "578",
-        10
+        32
       ]
     },
     "class_type": "SimpleMath+",

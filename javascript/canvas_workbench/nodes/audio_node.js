@@ -53,6 +53,7 @@
   <span class="sai-node-kind">${escapeHtml(t('Audio', '音频'))}</span>
   <span class="sai-node-title">${escapeHtml(node.title || t('Audio', '音频'))}</span>
   ${stateBadges}
+  <button type="button" data-node-action="media-reload" title="${escapeHtml(t('Re-upload audio asset', '重新上传音频资产'))}"><i class="fa-solid fa-rotate"></i></button>
   <button type="button" data-node-action="view-media" title="${escapeHtml(t('Open audio', '打开音频'))}"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
   <button type="button" data-node-action="media-play-toggle" title="${escapeHtml(t('Play selection', '播放选区'))}"><i class="fa-solid fa-play"></i></button>
   <button type="button" data-node-action="delete" title="${escapeHtml(t('Delete', '删除'))}"><i class="fa-solid fa-xmark"></i></button>
@@ -78,6 +79,7 @@ ${renderTrimControls(node, range, disabled)}
   ${renderTrimControls(node, mediaRange(node.asset || {}), !!node.locked || !node.asset?.duration)}
 </div>
 <div class="sai-inspector-actions">
+  <button type="button" data-inspector-action="media-reload"><i class="fa-solid fa-rotate"></i><span>${escapeHtml(t('Re-upload', '重新上传'))}</span></button>
   <button type="button" data-inspector-action="view-media"><i class="fa-solid fa-magnifying-glass-plus"></i><span>${escapeHtml(t('Open', '打开'))}</span></button>
   <button type="button" data-inspector-action="media-reset-trim"><i class="fa-solid fa-rotate-left"></i><span>${escapeHtml(t('Reset Trim', '重置裁剪'))}</span></button>
   <button type="button" data-inspector-action="duplicate"><i class="fa-solid fa-copy"></i><span>${escapeHtml(t('Duplicate', '复制'))}</span></button>

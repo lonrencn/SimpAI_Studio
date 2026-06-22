@@ -1,0 +1,737 @@
+{
+  "schema": "simpai.canvas.workbench.v1",
+  "id": "qwen_tts_director_ltx23_ta2v",
+  "title": "Qwen TTS + Director + LTX2.3 TA2V",
+  "created_at": "2026-06-18T00:00:00Z",
+  "updated_at": "2026-06-18T00:00:00Z",
+  "viewport": {
+    "x": 140,
+    "y": 100,
+    "zoom": 0.34
+  },
+  "settings": {
+    "__lang": "cn",
+    "grid": true,
+    "snap": true,
+    "minimap": true,
+    "edgeLabels": true,
+    "reducedMotion": false,
+    "inspectorCollapsed": false
+  },
+  "groups": [
+    {
+      "id": "qwen_director_group_audio",
+      "title": "1. Narration Audio / 旁白音频",
+      "x": -180,
+      "y": -160,
+      "w": 680,
+      "h": 760,
+      "color": "#14b8a6",
+      "alpha": 0.12,
+      "shortcut": "1",
+      "locked": false
+    },
+    {
+      "id": "qwen_director_group_director",
+      "title": "2. Director / 导演时间轴",
+      "x": 580,
+      "y": -160,
+      "w": 780,
+      "h": 940,
+      "color": "#2563eb",
+      "alpha": 0.09,
+      "shortcut": "2",
+      "locked": false
+    },
+    {
+      "id": "qwen_director_group_ltx",
+      "title": "3. LTX2.3 Video / LTX2.3 视频",
+      "x": 1460,
+      "y": -160,
+      "w": 1120,
+      "h": 1160,
+      "color": "#f97316",
+      "alpha": 0.11,
+      "shortcut": "3",
+      "locked": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "qwen_director_note",
+      "type": "note",
+      "x": -120,
+      "y": -104,
+      "w": 500,
+      "h": 125,
+      "title": "Speech Guided Video / 语音驱动视频",
+      "text": "Qwen TTS creates narration audio. The same audio is referenced by Director Timeline and also sent to the LTX2.3 TA2V preset as scene_audio. / Qwen TTS 生成旁白音频，同一段音频会被导演时间轴引用，并作为 scene_audio 传给 LTX2.3 TA2V preset。",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 13
+      },
+      "source": {
+        "kind": "canvas_note"
+      }
+    },
+    {
+      "id": "qwen_director_tts",
+      "type": "qwen_tts_voice_design",
+      "qwen_tts_mode": "voice_design",
+      "x": -120,
+      "y": 76,
+      "w": 500,
+      "h": 560,
+      "title": "Qwen TTS Narration",
+      "params": {
+        "model_choice": "1.7B",
+        "precision": "bf16",
+        "device": "auto",
+        "language": "Auto",
+        "attention": "auto",
+        "seed_random": true,
+        "seed": 0,
+        "max_new_tokens": 4096,
+        "split_max_chars": 200,
+        "split_hard_max_chars": 260,
+        "top_p": 0.8,
+        "top_k": 20,
+        "temperature": 1,
+        "repetition_penalty": 1.05,
+        "unload_model_after_generate": true,
+        "decode_batch_size": 2,
+        "batch_size": 4,
+        "text": "欢迎来到一段由语音驱动的视频演示。镜头会跟随旁白节奏，从安静的室内空间移动到明亮的窗边。",
+        "style_preset": "Warm Female",
+        "instruct": "Female, mid-20s, warm narrator voice, clear articulation, medium pace, natural breath, gentle emotion.",
+        "lock_timbre_with_first_segment": true,
+        "clone_batch_size": 16
+      },
+      "audio_inputs": {},
+      "source": {
+        "kind": "template_qwen_tts",
+        "mode": "voice_design",
+        "module": "enhanced.webui_qwen_tts"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Run Qwen TTS first; the generated audio feeds Director and LTX2.3."
+      }
+    },
+    {
+      "id": "qwen_director_audio_result",
+      "type": "result",
+      "x": 420,
+      "y": 76,
+      "w": 360,
+      "h": 300,
+      "title": "Narration Audio Result / 旁白音频 Result",
+      "producer": {
+        "qwen_tts_node_id": "qwen_director_tts",
+        "preset_node_id": null,
+        "timeline_node_id": null,
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "percent": 0,
+        "message": "Run Qwen TTS; this audio Result is used by Director and LTX2.3."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "qwen_tts",
+        "qwen_tts_node_id": "qwen_director_tts"
+      }
+    },
+    {
+      "id": "qwen_director_image",
+      "type": "image",
+      "x": 640,
+      "y": -104,
+      "w": 300,
+      "h": 280,
+      "title": "Visual Reference / 视觉参考",
+      "asset": null,
+      "status": {
+        "state": "waiting",
+        "message": "Optional: replace with a visual reference for the first shot."
+      },
+      "source": {
+        "kind": "template_input_placeholder",
+        "slot": "director_image_1"
+      }
+    },
+    {
+      "id": "qwen_director_timeline",
+      "type": "director_timeline",
+      "x": 640,
+      "y": 236,
+      "w": 620,
+      "h": 760,
+      "title": "Director Timeline / 导演时间轴",
+      "director": {
+        "schema": "simpai.director_timeline.v1",
+        "width": 1024,
+        "height": 1024,
+        "fps": 30,
+        "duration": 8,
+        "format": "LTXV TA2V",
+        "segments": [
+          {
+            "id": "shot_1",
+            "start": 0,
+            "end": 4,
+            "unit": "seconds",
+            "type": "flf",
+            "prompt": "风格：现实 - 电影风格。安静的室内空间，角色坐在桌前听到旁白后抬头，镜头缓慢靠近。",
+            "images": [
+              {
+                "source_ref": "image_1",
+                "source_node_id": "qwen_director_image",
+                "role": "first_frame"
+              }
+            ],
+            "audio": [
+              {
+                "source_ref": "audio_1",
+                "source_node_id": "qwen_director_audio_result",
+                "role": "voice"
+              }
+            ]
+          },
+          {
+            "id": "shot_2",
+            "start": 4,
+            "end": 8,
+            "unit": "seconds",
+            "type": "t2v",
+            "prompt": "角色走向明亮窗边，镜头跟随旁白节奏轻微环绕，光线从侧面进入，动作自然连贯。",
+            "images": [],
+            "audio": [
+              {
+                "source_ref": "audio_1",
+                "source_node_id": "qwen_director_audio_result",
+                "role": "voice"
+              }
+            ]
+          }
+        ]
+      },
+      "media_inputs": {
+        "image_1": "qwen_director_image",
+        "audio_1": "qwen_director_audio_result"
+      },
+      "source": {
+        "kind": "director_timeline",
+        "schema": "simpai.director_timeline.v1"
+      },
+      "status": {
+        "state": "idle",
+        "message": "Director prompt_override is sent to LTX2.3 prompt."
+      }
+    },
+    {
+      "id": "qwen_director_negative",
+      "type": "text",
+      "x": 640,
+      "y": 1048,
+      "w": 620,
+      "h": 120,
+      "title": "Negative Prompt / 负向提示词",
+      "text": {
+        "value": "字幕，中文字幕，水印，blurry, oversaturated, pixelated, low resolution, distorted, noise, compression artifacts, logo, distorted sound, saturated sound",
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_prompt"
+      }
+    },
+    {
+      "id": "qwen_director_ltx_models",
+      "type": "config",
+      "config_kind": "models",
+      "x": 1520,
+      "y": -104,
+      "w": 400,
+      "h": 400,
+      "title": "LTX Models / LTX 模型",
+      "target_preset_id": "qwen_director_ltx_preset",
+      "config": {
+        "defaults": {
+          "base_model": "ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "refiner_model": "None",
+          "clip_model": "gemma_3_12B_it_fpmixed.safetensors",
+          "vae": "LTX23_video_vae_bf16.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+              "weight": 0.6
+            }
+          ]
+        },
+        "values": {
+          "base_model": "ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "refiner_model": "None",
+          "clip_model": "gemma_3_12B_it_fpmixed.safetensors",
+          "vae": "LTX23_video_vae_bf16.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+              "weight": 0.6
+            }
+          ]
+        },
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "LTX2.3(TA2V)"
+      }
+    },
+    {
+      "id": "qwen_director_ltx_resolution",
+      "type": "config",
+      "config_kind": "resolution",
+      "x": 1520,
+      "y": 352,
+      "w": 400,
+      "h": 340,
+      "title": "Resolution / 分辨率",
+      "target_preset_id": "qwen_director_ltx_preset",
+      "config": {
+        "defaults": {
+          "template": "Flux",
+          "default_aspect_ratio": "1024*1024"
+        },
+        "values": {
+          "template": "Preset",
+          "aspect_ratio": "1024|1:1",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false
+        },
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "LTX2.3(TA2V)"
+      }
+    },
+    {
+      "id": "qwen_director_ltx_advanced",
+      "type": "config",
+      "config_kind": "advanced",
+      "x": 1520,
+      "y": 748,
+      "w": 400,
+      "h": 285,
+      "title": "Advanced / 高级",
+      "target_preset_id": "qwen_director_ltx_preset",
+      "config": {
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 11,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "values": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 11,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "source": {
+        "kind": "template_config",
+        "preset": "LTX2.3(TA2V)"
+      }
+    },
+    {
+      "id": "qwen_director_ltx_preset",
+      "type": "preset",
+      "x": 2020,
+      "y": -104,
+      "w": 450,
+      "h": 660,
+      "title": "LTX2.3 Text+Audio to Video",
+      "preset": {
+        "name": "LTX2.3(TA2V)",
+        "display_name": "LTX2.3(TA2V)",
+        "snapshot_hash": null,
+        "snapshot": {
+          "default_styles": [],
+          "default_prompt": "",
+          "default_prompt_negative": "字幕，中文字幕，水印，blurry, oversaturated, pixelated, low resolution, distorted, noise, compression artifacts, logo, distorted sound, saturated sound"
+        }
+      },
+      "runtime": {
+        "backend_engine": "Comfy",
+        "engine_type": "video",
+        "scene_frontend": "v1.1",
+        "scene_theme": "Text+Audio to Video",
+        "task_method": "ltx2.3_ta2v_cn"
+      },
+      "schema": {
+        "version": "v1.1",
+        "engine_type": "video",
+        "director_capability": {
+          "image_policy": "forbidden",
+          "audio_policy": "required",
+          "video_policy": "forbidden",
+          "max_images": 0,
+          "min_images": 0,
+          "image_modes": [
+            "none"
+          ],
+          "duration_strategy": "audio_min",
+          "audio_output": "input_audio",
+          "mixed_segments": false
+        },
+        "upload_slots": [
+          {
+            "key": "scene_audio",
+            "label": "Scene Audio",
+            "visible": true,
+            "interactive": true
+          },
+          {
+            "key": "scene_canvas_image",
+            "label": "Scene Canvas Image",
+            "visible": false,
+            "interactive": true
+          },
+          {
+            "key": "scene_video",
+            "label": "Scene Video",
+            "visible": false,
+            "interactive": true
+          }
+        ],
+        "params": [
+          {
+            "key": "scene_video_duration",
+            "label": "Video Duration(s)",
+            "type": "number",
+            "default": 8,
+            "visible": true,
+            "interactive": true,
+            "min": 0.1,
+            "max": 60
+          },
+          {
+            "key": "scene_var_number2",
+            "label": "Interpolate to total frames [no interpolation below generation FPS]",
+            "type": "number",
+            "default": 30,
+            "visible": true,
+            "interactive": true,
+            "min": 24,
+            "max": 60
+          },
+          {
+            "key": "scene_var_number7",
+            "label": "Actual output FPS [higher uses more resources]",
+            "type": "number",
+            "default": 30,
+            "visible": true,
+            "interactive": true,
+            "min": 24,
+            "max": 50
+          },
+          {
+            "key": "scene_switch_option1",
+            "label": "Generate with audio input [trim to configured duration]",
+            "type": "checkbox",
+            "default": true,
+            "visible": false,
+            "interactive": false
+          }
+        ],
+        "per_theme": {
+          "Text+Audio to Video": {
+            "task_method": "ltx2.3_ta2v_cn",
+            "defaults": {
+              "scene_var_number": 8,
+              "scene_var_number2": 30,
+              "scene_var_number7": 30,
+              "scene_switch_option1": true,
+              "prompt": "",
+              "scene_aspect_ratio": "896|1:1"
+            },
+            "generation_config_props": {
+              "overwrite_step": {
+                "min": -1,
+                "max": 200,
+                "step": 1
+              }
+            }
+          }
+        },
+        "themes": [
+          "Text+Audio to Video"
+        ],
+        "default_theme": "Text+Audio to Video",
+        "theme_title": "LTX2.3 Text+Audio to Video"
+      },
+      "models_config": {
+        "mode": "external_override",
+        "defaults": {
+          "base_model": "ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "refiner_model": "None",
+          "clip_model": "gemma_3_12B_it_fpmixed.safetensors",
+          "vae": "LTX23_video_vae_bf16.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+              "weight": 0.6
+            }
+          ]
+        },
+        "overrides": {
+          "base_model": "ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "refiner_model": "None",
+          "clip_model": "gemma_3_12B_it_fpmixed.safetensors",
+          "vae": "LTX23_video_vae_bf16.safetensors",
+          "loras": [
+            {
+              "enabled": true,
+              "model": "ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+              "weight": 0.6
+            }
+          ]
+        },
+        "source_node_id": "qwen_director_ltx_models",
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "resolution_config": {
+        "mode": "external_override",
+        "defaults": {
+          "template": "Flux",
+          "default_aspect_ratio": "1024*1024"
+        },
+        "overrides": {
+          "template": "Preset",
+          "aspect_ratio": "1024|1:1",
+          "width": 1024,
+          "height": 1024,
+          "quantize": 16,
+          "multiplier": 1,
+          "edit_mode": "proportional",
+          "random_aspect_ratio": false
+        },
+        "source_node_id": "qwen_director_ltx_resolution",
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "generation_config": {
+        "mode": "external_override",
+        "defaults": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 11,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "overrides": {
+          "guidance_scale": 1,
+          "sharpness": 2,
+          "overwrite_step": 11,
+          "refiner_switch": 0.5,
+          "sampler_name": "euler",
+          "scheduler_name": "simple",
+          "performance_selection": "Speed",
+          "style_selections": [],
+          "image_number": 1
+        },
+        "source_node_id": "qwen_director_ltx_advanced",
+        "updated_at": "2026-06-18T00:00:00Z"
+      },
+      "model_requirements": {
+        "model_list": [
+          "diffusion_models,ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors,25016398608,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/diffusion_models/ltx-2-3-22b-dev_transformer_only_fp8_input_scaled.safetensors",
+          "loras,ltx/ltx-2.3-22b-distilled-lora-384-1.1.safetensors,7605507256,0,https://www.modelscope.cn/models/Lightricks/LTX-2.3/resolve/master/ltx-2.3-22b-distilled-lora-384-1.1.safetensors",
+          "text_encoders,ltx-2.3_text_projection_bf16.safetensors,2312149072,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/text_encoders/ltx-2.3_text_projection_bf16.safetensors",
+          "text_encoders,gemma_3_12B_it_fpmixed.safetensors,13708659515,0,https://www.modelscope.cn/models/Comfy-Org/ltx-2/resolve/master/split_files/text_encoders/gemma_3_12B_it_fpmixed.safetensors",
+          "vae,LTX23_audio_vae_bf16.safetensors,364855188,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/vae/LTX23_audio_vae_bf16.safetensors",
+          "vae,LTX23_video_vae_bf16.safetensors,1452258578,0,https://www.modelscope.cn/models/Kijai/LTX2.3_comfy/resolve/master/vae/LTX23_video_vae_bf16.safetensors",
+          "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+        ],
+        "has_model_probe": true,
+        "source": "presets/LTX2.3(TA2V).json"
+      },
+      "model_status": {
+        "state": "unknown",
+        "missing_count": 0,
+        "message": "Run Qwen TTS first, then check LTX2.3 models before generating video."
+      },
+      "upload_slots": {
+        "scene_audio": "qwen_director_audio_result"
+      },
+      "text_inputs": {
+        "prompt": "qwen_director_timeline",
+        "negative_prompt": "qwen_director_negative"
+      },
+      "params": {
+        "prompt": "",
+        "negative_prompt": "",
+        "seed_random": true,
+        "image_seed": 0,
+        "scene_var_number2": 30,
+        "scene_var_number7": 30,
+        "scene_switch_option1": true,
+        "scene_video_duration": 8
+      },
+      "status": "idle",
+      "collapsed": false,
+      "source": {
+        "kind": "template_runnable_preset",
+        "preset": "LTX2.3(TA2V)"
+      }
+    },
+    {
+      "id": "qwen_director_ltx_result",
+      "type": "result",
+      "x": 2020,
+      "y": 640,
+      "w": 420,
+      "h": 320,
+      "title": "LTX2.3 Video Result / LTX2.3 视频结果",
+      "producer": {
+        "preset_node_id": "qwen_director_ltx_preset",
+        "run_id": null,
+        "task_id": null
+      },
+      "status": {
+        "state": "placeholder",
+        "queue_position": 0,
+        "step": 0,
+        "total_steps": 11,
+        "percent": 0,
+        "message": "After Qwen audio is ready, run LTX2.3 TA2V."
+      },
+      "preview": null,
+      "asset": null,
+      "assets": [],
+      "source": {
+        "kind": "template_result_placeholder",
+        "producer_type": "preset",
+        "preset_node_id": "qwen_director_ltx_preset"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "qwen_director_edge_tts_result",
+      "type": "generate",
+      "from": "qwen_director_tts",
+      "to": "qwen_director_audio_result",
+      "slot": "qwen_tts"
+    },
+    {
+      "id": "qwen_director_edge_image",
+      "type": "media",
+      "from": "qwen_director_image",
+      "to": "qwen_director_timeline",
+      "slot": "image_1"
+    },
+    {
+      "id": "qwen_director_edge_audio",
+      "type": "media",
+      "from": "qwen_director_audio_result",
+      "to": "qwen_director_timeline",
+      "slot": "audio_1"
+    },
+    {
+      "id": "qwen_director_edge_prompt",
+      "type": "text",
+      "from": "qwen_director_timeline",
+      "to": "qwen_director_ltx_preset",
+      "slot": "prompt"
+    },
+    {
+      "id": "qwen_director_edge_negative",
+      "type": "text",
+      "from": "qwen_director_negative",
+      "to": "qwen_director_ltx_preset",
+      "slot": "negative_prompt"
+    },
+    {
+      "id": "qwen_director_edge_scene_audio",
+      "type": "upload",
+      "from": "qwen_director_audio_result",
+      "to": "qwen_director_ltx_preset",
+      "slot": "scene_audio"
+    },
+    {
+      "id": "qwen_director_edge_ltx_models",
+      "type": "config",
+      "from": "qwen_director_ltx_models",
+      "to": "qwen_director_ltx_preset",
+      "slot": "models"
+    },
+    {
+      "id": "qwen_director_edge_ltx_resolution",
+      "type": "config",
+      "from": "qwen_director_ltx_resolution",
+      "to": "qwen_director_ltx_preset",
+      "slot": "resolution"
+    },
+    {
+      "id": "qwen_director_edge_ltx_advanced",
+      "type": "config",
+      "from": "qwen_director_ltx_advanced",
+      "to": "qwen_director_ltx_preset",
+      "slot": "advanced"
+    },
+    {
+      "id": "qwen_director_edge_ltx_result",
+      "type": "generate",
+      "from": "qwen_director_ltx_preset",
+      "to": "qwen_director_ltx_result",
+      "slot": "preset"
+    }
+  ],
+  "runs": [],
+  "batch_jobs": [],
+  "template": {
+    "id": "qwen_tts_director_ltx23_ta2v",
+    "title": "Qwen TTS + Director + LTX2.3 TA2V",
+    "description": "Qwen TTS narration becomes scene_audio while Director Timeline writes the LTX2.3 prompt_override.",
+    "category": "video",
+    "tags": [
+      "qwen",
+      "tts",
+      "director",
+      "ltx",
+      "ta2v",
+      "video",
+      "runnable"
+    ]
+  }
+}

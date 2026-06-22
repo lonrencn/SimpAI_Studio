@@ -2,14 +2,53 @@
     "default_engine": {
         "backend_engine": "Wan",
         "engine_type": "video",
-            "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
-            "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "disvisible": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
+        "disinteractive": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
         "available_aspect_ratios_selection": "Flux",
         "scene_frontend": {
             "version": "v1.1",
-                "theme": ["Animate Outpaint"],
+            "theme": [
+                "Animate Outpaint"
+            ],
             "theme_title": "Wan-Animate Video Outpaint",
-                "disvisible": ["scene_canvas_image", "scene_additional_prompt", "scene_additional_prompt_2", "scene_input_image1", "scene_input_image2", "scene_audio", "scene_var_number6", "scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
+            "director_capability": {
+                "image_policy": "forbidden",
+                "audio_policy": "forbidden",
+                "video_policy": "required",
+                "max_images": 0,
+                "min_images": 0,
+                "image_modes": [
+                    "none"
+                ],
+                "video_modes": [
+                    "explicit"
+                ],
+                "duration_strategy": "video_min",
+                "audio_output": "source_audio",
+                "mixed_segments": false
+            },
+            "disvisible": [
+                "scene_canvas_image",
+                "scene_additional_prompt",
+                "scene_additional_prompt_2",
+                "scene_input_image1",
+                "scene_input_image2",
+                "scene_audio",
+                "scene_var_number6",
+                "scene_switch_option3",
+                "scene_switch_option4",
+                "sam3_input_video",
+                "sam3_mask_video",
+                "scene_var_number"
+            ],
             "task_method": {
                 "Animate Outpaint": "wan_animate_outpaint_cn"
             },
@@ -78,7 +117,15 @@
             "switch_option2": {
                 "Animate Outpaint": true
             },
-            "aspect_ratio" : ["640|1:1", "720|1:1", "832|1:1", "960|1:1", "1024|1:1", "1280|1:1", "origin|Original"],
+            "aspect_ratio": [
+                "640|1:1",
+                "720|1:1",
+                "832|1:1",
+                "960|1:1",
+                "1024|1:1",
+                "1280|1:1",
+                "origin|Original"
+            ],
             "resolution_control": {
                 "mode": "video_keep_input_area",
                 "source": "scene_video",
@@ -92,7 +139,13 @@
                 "preserve_audio": true
             },
             "overwrite_step_min": 8,
-            "overwrite_step_max": 12
+            "overwrite_step_max": 12,
+            "video_duration_title": "Duration limit (seconds) [0 = no limit]",
+            "video_duration_min": 0,
+            "video_duration_max": 60,
+            "video_duration": {
+                "Animate Outpaint": 0
+            }
         }
     },
     "default_model": "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",

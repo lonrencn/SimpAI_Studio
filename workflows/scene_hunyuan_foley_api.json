@@ -75,7 +75,7 @@
         0
       ],
       "video_frames": [
-        "27",
+        "45",
         0
       ]
     },
@@ -90,7 +90,10 @@
       "force_rate": 0,
       "custom_width": 0,
       "custom_height": 0,
-      "frame_load_cap": 0,
+      "frame_load_cap": [
+        "44",
+        0
+      ],
       "skip_first_frames": 0,
       "select_every_nth": 1,
       "format": "AnimateDiff"
@@ -103,8 +106,8 @@
   "28": {
     "inputs": {
       "video_info": [
-        "27",
-        3
+        "49",
+        0
       ]
     },
     "class_type": "VHS_VideoInfoLoaded",
@@ -122,7 +125,7 @@
       ],
       "crf": 19,
       "images": [
-        "27",
+        "45",
         0
       ],
       "audio": [
@@ -158,7 +161,7 @@
   "33": {
     "inputs": {
       "prompt": "",
-      "additional_prompt": "noisy, harsh",
+      "additional_prompt": "",
       "ip_image": "None",
       "ip_image1": "None",
       "ip_image2": "None",
@@ -188,7 +191,8 @@
       "clip_type": 1,
       "negative_prompt": "",
       "sampler": "euler",
-      "scheduler": "simple"
+      "scheduler": "simple",
+      "video_duration": 0
     },
     "class_type": "SceneInput",
     "_meta": {
@@ -225,7 +229,7 @@
     "inputs": {
       "volume": [
         "33",
-        10
+        18
       ],
       "audio": [
         "32",
@@ -260,8 +264,8 @@
         16
       ],
       "audio": [
-        "27",
-        2
+        "48",
+        0
       ]
     },
     "class_type": "AudioAdjustVolume",
@@ -292,6 +296,137 @@
     "class_type": "easy cleanGpuUsed",
     "_meta": {
       "title": "Clean VRAM Used"
+    }
+  },
+  "42": {
+    "inputs": {
+      "video": "example.mp4",
+      "force_rate": 0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "Load Video (Upload) 🎥🅥🅗🅢"
+    }
+  },
+  "43": {
+    "inputs": {
+      "video_info": [
+        "42",
+        3
+      ]
+    },
+    "class_type": "VHS_VideoInfoSource",
+    "_meta": {
+      "title": "Video Info (Source) 🎥🅥🅗🅢"
+    }
+  },
+  "44": {
+    "inputs": {
+      "value": "a*b",
+      "a": [
+        "43",
+        0
+      ],
+      "b": [
+        "33",
+        32
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "45": {
+    "inputs": {
+      "boolean": [
+        "46",
+        0
+      ],
+      "on_true": [
+        "42",
+        0
+      ],
+      "on_false": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "46": {
+    "inputs": {
+      "comparison": "a == b",
+      "a": [
+        "33",
+        32
+      ],
+      "b": [
+        "47",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "47": {
+    "inputs": {
+      "value": 0
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "48": {
+    "inputs": {
+      "boolean": [
+        "46",
+        0
+      ],
+      "on_true": [
+        "42",
+        2
+      ],
+      "on_false": [
+        "27",
+        2
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "49": {
+    "inputs": {
+      "boolean": [
+        "46",
+        0
+      ],
+      "on_true": [
+        "42",
+        3
+      ],
+      "on_false": [
+        "27",
+        3
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
     }
   }
 }

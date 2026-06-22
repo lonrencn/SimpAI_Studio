@@ -1,26 +1,71 @@
 {
     "default_engine": {
-      "backend_engine": "Comfy",
-      "engine_type": "video",
-      "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
-      "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "backend_engine": "Comfy",
+        "engine_type": "video",
+        "disvisible": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
+        "disinteractive": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
         "available_aspect_ratios_selection": "Flux",
         "scene_frontend": {
-        "version": "v1.1",
-            "disvisible": ["scene_aspect_ratio", "scene_additional_prompt", "scene_additional_prompt_2", "scene_canvas_image", "scene_input_image1", "scene_input_image2", "scene_use_lora", "scene_audio", "scene_batch",
-        "scene_var_number3", "scene_var_number4", "scene_refiner_model", "scene_var_number5", "scene_var_number6","scene_var_number9", "scene_var_number10"
-        ,"scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
-            "theme": ["Hunyuan-Foley"],
+            "version": "v1.1",
+            "disvisible": [
+                "scene_aspect_ratio",
+                "scene_additional_prompt",
+                "scene_additional_prompt_2",
+                "scene_canvas_image",
+                "scene_input_image1",
+                "scene_input_image2",
+                "scene_use_lora",
+                "scene_audio",
+                "scene_batch",
+                "scene_var_number3",
+                "scene_var_number4",
+                "scene_refiner_model",
+                "scene_var_number5",
+                "scene_var_number6",
+                "scene_var_number10",
+                "scene_switch_option3",
+                "scene_switch_option4",
+                "sam3_input_video",
+                "sam3_mask_video",
+                "scene_var_number"
+            ],
+            "theme": [
+                "Hunyuan-Foley"
+            ],
             "theme_title": "Hunyuan-Foley Video Audio Effects Generator",
+            "director_capability": {
+                "image_policy": "forbidden",
+                "audio_policy": "forbidden",
+                "video_policy": "required",
+                "max_images": 0,
+                "min_images": 0,
+                "image_modes": [
+                    "none"
+                ],
+                "video_modes": [
+                    "explicit"
+                ],
+                "duration_strategy": "video_min",
+                "audio_output": "generated",
+                "mixed_segments": false
+            },
             "task_method": {
                 "Hunyuan-Foley": "hunyuan_foley"
             },
             "prompt": {
                 "Hunyuan-Foley": "'''Audio Effects Prompt'''\n"
             },
-            "var_number_title": "Voice Volume[Global]",
-            "var_number_min": -50,
-            "var_number_max": 20,
+            "var_number_title": "Duration limit (seconds) [0 = no limit]",
+            "var_number_min": 0,
+            "var_number_max": 120,
             "var_number": {
                 "Hunyuan-Foley": 0
             },
@@ -42,6 +87,12 @@
             "var_number8": {
                 "Hunyuan-Foley": 0
             },
+            "var_number9_title": "Voice Volume[Global]",
+            "var_number9_min": -50,
+            "var_number9_max": 20,
+            "var_number9": {
+                "Hunyuan-Foley": 0
+            },
             "switch_option1_title": "Merge Original Audio",
             "switch_option1": {
                 "Hunyuan-Foley": false
@@ -50,7 +101,15 @@
             "switch_option2": {
                 "Hunyuan-Foley": true
             },
-            "aspect_ratio" : ["origin|Original", "640|1:1", "720|1:1", "832|1:1", "960|1:1", "1024|1:1", "1280|1:1"],
+            "aspect_ratio": [
+                "origin|Original",
+                "640|1:1",
+                "720|1:1",
+                "832|1:1",
+                "960|1:1",
+                "1024|1:1",
+                "1280|1:1"
+            ],
             "resolution_control": {
                 "mode": "video_keep_input_area",
                 "source": "scene_video",
@@ -64,7 +123,13 @@
                 "preserve_audio": true
             },
             "overwrite_step_min": 30,
-            "overwrite_step_max": 100
+            "overwrite_step_max": 100,
+            "video_duration_title": "Duration limit (seconds) [0 = no limit]",
+            "video_duration_min": 0,
+            "video_duration_max": 120,
+            "video_duration": {
+                "Hunyuan-Foley": 0
+            }
         }
     },
     "default_model": "None",

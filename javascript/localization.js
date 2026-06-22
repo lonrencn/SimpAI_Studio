@@ -919,10 +919,27 @@ function refresh_style_layout() {
 }
 
 
+
+let sceneDirectorLocalizationRefreshScheduled = false;
+
+function scheduleSceneDirectorLocalizationRefresh() {
+    if (sceneDirectorLocalizationRefreshScheduled) return;
+    sceneDirectorLocalizationRefreshScheduled = true;
+    const run = () => {
+        sceneDirectorLocalizationRefreshScheduled = false;
+        if (typeof refresh_scene_director_localization === "function") refresh_scene_director_localization();
+    };
+    if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(run);
+    } else {
+        setTimeout(run, 0);
+    }
+}
+
 function refresh_scene_localization() {
     const node = document.querySelector('.scene_aspect_ratio_selections');
-    if (!node) return;
-    processNode(node);
+    if (node) processNode(node);
+    scheduleSceneDirectorLocalizationRefresh();
 }
 
 function refresh_aspect_ratios_label(value) {
@@ -1173,6 +1190,7 @@ function refresh_finished_images_catalog_label(value, type, options) {
         }
         var targetType = type == "video" ? "video" : "image";
         var suppressSwitchRefresh = false;
+        var resultSurfaceActive = false;
         try {
             var switchSuppress = window.__simpleaiGalleryMediaSwitchSuppressRefresh;
             suppressSwitchRefresh = !!(
@@ -1181,11 +1199,22 @@ function refresh_finished_images_catalog_label(value, type, options) {
                 && Date.now() < Number(switchSuppress.until || 0)
             );
         } catch (e) {}
+        try {
+            resultSurfaceActive = document.documentElement.classList.contains("simpai-post-generation-result-surface")
+                || document.documentElement.classList.contains("simpai-comparison-preview")
+                || document.documentElement.classList.contains("simpai-video-result-preview");
+        } catch (e) {}
+        var catalogOpen = is_finished_images_catalog_open();
         var shouldRefresh = !skipRefresh && !suppressSwitchRefresh && (
             !!(options && options.refresh === true)
-            || (!(options && options.refresh === false) && is_finished_images_catalog_open())
+            || (!(options && options.refresh === false) && !resultSurfaceActive && catalogOpen)
         );
-        if (typeof syncGalleryMediaSwitch === "function") {
+        var shouldSyncSwitch = !(options && options.syncSwitch === false) && (
+            galleryBrowserBusy
+            || shouldRefresh
+            || (!resultSurfaceActive && catalogOpen)
+        );
+        if (shouldSyncSwitch && typeof syncGalleryMediaSwitch === "function") {
             syncGalleryMediaSwitch(targetType);
         }
         if (typeof scheduleFinishedGalleryBrowserRefresh === "function") {
@@ -1270,6 +1299,7 @@ function localizeWholePage() {
     }
 
     refresh_qwen_tts_localization();
+    refresh_scene_localization();
     syncLocalizedCssContent();
     syncGradioUploadPromptLanguage();
 }
@@ -1302,6 +1332,15 @@ function scheduleFullLocalizationRefresh(reason) {
     setTimeout(() => {
         try { localizeWholePage(); } catch (e) {}
     }, 220);
+}
+
+function shouldSkipFullLocalizationClick(target) {
+    if (!target || !target.closest) return false;
+    try {
+        return !!target.closest("#scene_director_accordion");
+    } catch (e) {
+        return false;
+    }
 }
 
 function syncGradioUploadPromptLanguage(root) {
@@ -1481,6 +1520,20 @@ window.syncGradioFullscreenPortal = syncGradioFullscreenPortal;
 document.addEventListener("DOMContentLoaded", function() {
     bindSceneNativeImageDropChrome();
     syncGradioFullscreenPortal();
+    try {
+        window.addEventListener("simpai:scene-director-capability-updated", () => {
+            if (typeof refresh_scene_director_editor !== "function") return;
+            const query = typeof sceneDirectorQuery === "function" ? sceneDirectorQuery : (selector) => document.querySelector(selector);
+            const editor = query("#scene_director_editor_root");
+            if (editor) {
+                delete editor.dataset.sceneDirectorRefreshSignature;
+                if (typeof refresh_scene_director_editor === "function") refresh_scene_director_editor();
+            }
+        });
+    } catch (e) {}
+    try {
+        if (typeof refresh_scene_director_editor === "function") refresh_scene_director_editor();
+    } catch (e) {}
     const fullscreenPortalObserver = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
             if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
@@ -1519,6 +1572,7 @@ document.addEventListener("DOMContentLoaded", function() {
         });
         try {
             refresh_qwen_tts_localization();
+            refresh_scene_localization();
         } catch (e) {}
     });
 
@@ -1561,6 +1615,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     });
                     try {
                         refresh_qwen_tts_localization();
+                        refresh_scene_localization();
                         syncLocalizedCssContent();
                     } catch (e) {}
                 });
@@ -1597,6 +1652,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const target = event.target && event.target.closest
             ? event.target.closest('[role="tab"], .tab-nav button, button[aria-controls]')
             : null;
+        if (shouldSkipFullLocalizationClick(target)) return;
         if (target) scheduleFullLocalizationRefresh("tab_click");
     }, true);
     if (typeof onAfterUiUpdate === 'function') {

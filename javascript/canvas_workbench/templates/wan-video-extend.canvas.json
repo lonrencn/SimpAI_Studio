@@ -330,6 +330,25 @@
         ],
         "default_theme": "Basic",
         "theme_title": "Wan2.2 SVI-Pro Video Extend",
+        "director_capability": {
+          "image_policy": "forbidden",
+          "audio_policy": "forbidden",
+          "video_policy": "required",
+          "max_images": 0,
+          "min_images": 0,
+          "image_modes": [
+            "none"
+          ],
+          "video_modes": [
+            "explicit",
+            "previous_segment"
+          ],
+          "chain_output": "last_result",
+          "requires_sequential": true,
+          "duration_strategy": "video_min",
+          "audio_output": "source_audio",
+          "mixed_segments": false
+        },
         "disvisible": [
           "scene_canvas_image",
           "scene_input_image1",
@@ -416,13 +435,13 @@
         ],
         "params": [
           {
-            "key": "scene_var_number",
-            "label": "scene_var_number",
+            "key": "scene_video_duration",
+            "label": "Video Duration(s)",
             "type": "number",
             "default": 5,
             "visible": true,
             "interactive": true,
-            "min": 1,
+            "min": 0.1,
             "max": 10
           },
           {
@@ -683,9 +702,9 @@
         "negative_prompt": "",
         "seed_random": true,
         "image_seed": 0,
-        "scene_var_number": 5,
         "scene_switch_option1": false,
-        "scene_switch_option2": false
+        "scene_switch_option2": false,
+        "scene_video_duration": 5
       },
       "status": "idle",
       "collapsed": false,

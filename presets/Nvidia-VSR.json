@@ -2,24 +2,73 @@
     "default_engine": {
         "backend_engine": "Comfy",
         "engine_type": "video",
-            "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
-            "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "disvisible": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
+        "disinteractive": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
         "available_aspect_ratios_selection": "Flux",
         "scene_frontend": {
             "version": "v1.1",
-            "theme": ["Nvidia-VSR Super Resolution"],
+            "theme": [
+                "Nvidia-VSR Super Resolution"
+            ],
             "theme_title": "Nvidia-VSR Fast Video Super-Resolution Upscale [Optional frame interpolation]",
-            "disvisible": ["scene_canvas_image", "scene_additional_prompt","scene_additional_prompt_2","scene_aspect_ratio", "scene_image_number", "scene_use_lora", "scene_audio","scene_input_image1","scene_input_image2",
-                "scene_var_number4","scene_var_number5","scene_var_number6","scene_var_number8","scene_var_number9","scene_var_number10","scene_switch_option2","scene_switch_option3","scene_switch_option4","scene_steps", "scene_base_model", "scene_refiner_model","sam3_input_video","sam3_mask_video"],
+            "director_capability": {
+                "image_policy": "forbidden",
+                "audio_policy": "forbidden",
+                "video_policy": "required",
+                "max_images": 0,
+                "min_images": 0,
+                "image_modes": [
+                    "none"
+                ],
+                "video_modes": [
+                    "explicit"
+                ],
+                "duration_strategy": "video_min",
+                "audio_output": "source_audio",
+                "mixed_segments": false
+            },
+            "disvisible": [
+                "scene_canvas_image",
+                "scene_additional_prompt",
+                "scene_additional_prompt_2",
+                "scene_aspect_ratio",
+                "scene_image_number",
+                "scene_use_lora",
+                "scene_audio",
+                "scene_input_image1",
+                "scene_input_image2",
+                "scene_var_number4",
+                "scene_var_number5",
+                "scene_var_number6",
+                "scene_var_number9",
+                "scene_var_number10",
+                "scene_switch_option2",
+                "scene_switch_option3",
+                "scene_switch_option4",
+                "scene_steps",
+                "scene_base_model",
+                "scene_refiner_model",
+                "sam3_input_video",
+                "sam3_mask_video",
+                "scene_var_number"
+            ],
             "task_method": {
                 "Nvidia-VSR Super Resolution": "nvidia_vsr"
             },
-            "var_number_title": "Upscale factor",
+            "var_number_title": "Duration limit (seconds) [0 = no limit]",
             "var_number": {
-                "Nvidia-VSR Super Resolution": 2
+                "Nvidia-VSR Super Resolution": 0
             },
-            "var_number_min": 1,
-            "var_number_max": 4,
+            "var_number_min": 0,
+            "var_number_max": 120,
             "var_number2_title": "Save quality (lower = better, larger file size)",
             "var_number2": {
                 "Nvidia-VSR Super Resolution": 19
@@ -38,16 +87,30 @@
             },
             "var_number7_min": 60,
             "var_number7_max": 600,
+            "var_number8_title": "Upscale factor",
+            "var_number8": {
+                "Nvidia-VSR Super Resolution": 2
+            },
+            "var_number8_min": 1,
+            "var_number8_max": 4,
             "switch_option1_title": "Enable frame interpolation",
             "switch_option1": {
                 "Nvidia-VSR Super Resolution": false
             },
-            "aspect_ratio" : ["origin|Original"],
+            "aspect_ratio": [
+                "origin|Original"
+            ],
             "resolution_control": {
                 "mode": "input_passthrough",
                 "source": "scene_video",
                 "interactive": true,
                 "frontend_preprocess": false
+            },
+            "video_duration_title": "Duration limit (seconds) [0 = no limit]",
+            "video_duration_min": 0,
+            "video_duration_max": 120,
+            "video_duration": {
+                "Nvidia-VSR Super Resolution": 0
             }
         }
     },

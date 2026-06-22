@@ -269,16 +269,15 @@
         "engine_type": "video",
         "scene_frontend": "v1.1",
         "scene_theme": "Text+Audio to Video",
-        "task_method": "ltx2.3_t2v_cn"
+        "task_method": "ltx2.3_ta2v_cn"
       },
       "schema": {
         "version": "v1.1",
         "themes": [
-          "Text-to-Video",
           "Text+Audio to Video"
         ],
-        "default_theme": "Text-to-Video",
-        "theme_title": "LTX2.3 Text-to-Video [Optional audio input]",
+        "default_theme": "Text+Audio to Video",
+        "theme_title": "LTX2.3 Text+Audio to Video",
         "disvisible": [
           "scene_canvas_image",
           "scene_input_image1",
@@ -365,13 +364,13 @@
         ],
         "params": [
           {
-            "key": "scene_var_number",
-            "label": "scene_var_number",
+            "key": "scene_video_duration",
+            "label": "Video Duration(s)",
             "type": "number",
             "default": 8,
             "visible": true,
             "interactive": true,
-            "min": 1,
+            "min": 0.1,
             "max": 60
           },
           {
@@ -398,32 +397,14 @@
             "key": "scene_switch_option1",
             "label": "Generate with audio input [trim to configured duration]",
             "type": "checkbox",
-            "default": false,
-            "visible": true,
-            "interactive": true
+            "default": true,
+            "visible": false,
+            "interactive": false
           }
         ],
         "per_theme": {
-          "Text-to-Video": {
-            "task_method": "ltx2.3_t2v_cn",
-            "defaults": {
-              "scene_var_number": 8,
-              "scene_var_number2": 30,
-              "scene_var_number7": 30,
-              "scene_switch_option1": false,
-              "prompt": "",
-              "scene_aspect_ratio": "896|1:1"
-            },
-            "generation_config_props": {
-              "overwrite_step": {
-                "min": -1,
-                "max": 200,
-                "step": 1
-              }
-            }
-          },
           "Text+Audio to Video": {
-            "task_method": "ltx2.3_t2v_cn",
+            "task_method": "ltx2.3_ta2v_cn",
             "defaults": {
               "scene_var_number": 8,
               "scene_var_number2": 30,
@@ -595,10 +576,10 @@
         "negative_prompt": "",
         "seed_random": true,
         "image_seed": 0,
-        "scene_var_number": 8,
         "scene_var_number2": 30,
         "scene_var_number7": 30,
-        "scene_switch_option1": true
+        "scene_switch_option1": true,
+        "scene_video_duration": 8
       },
       "status": "idle",
       "collapsed": false,

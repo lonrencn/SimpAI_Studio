@@ -39,7 +39,7 @@ omegaconf==2.3.0 #
 pydantic==2.12.2
 onnx>=1.14.0
 #onnxruntime==1.20.1 #
-#onnxruntime-gpu==1.20.1
+onnxruntime-gpu==1.25.1
 #onnx-graphsurgeon==0.3.27
 peft==0.17.1
 Pillow #==10.4.0 #

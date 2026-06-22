@@ -2,14 +2,54 @@
     "default_engine": {
         "backend_engine": "Comfy",
         "engine_type": "video",
-            "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
-            "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "disvisible": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
+        "disinteractive": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
         "available_aspect_ratios_selection": "Flux",
         "scene_frontend": {
             "version": "v1.1",
-                "theme": ["LTX-Outpaint"],
+            "theme": [
+                "LTX-Outpaint"
+            ],
             "theme_title": "LTX Video Outpaint",
-                "disvisible": ["scene_canvas_image","scene_steps", "scene_additional_prompt", "scene_additional_prompt_2", "scene_input_image1", "scene_input_image2", "scene_audio", "scene_refiner_model", "scene_var_number5", "scene_var_number6","sam3_input_video","sam3_mask_video"],
+            "director_capability": {
+                "image_policy": "forbidden",
+                "audio_policy": "forbidden",
+                "video_policy": "required",
+                "max_images": 0,
+                "min_images": 0,
+                "image_modes": [
+                    "none"
+                ],
+                "video_modes": [
+                    "explicit"
+                ],
+                "duration_strategy": "video_min",
+                "audio_output": "source_audio",
+                "mixed_segments": false
+            },
+            "disvisible": [
+                "scene_canvas_image",
+                "scene_steps",
+                "scene_additional_prompt",
+                "scene_additional_prompt_2",
+                "scene_input_image1",
+                "scene_input_image2",
+                "scene_audio",
+                "scene_refiner_model",
+                "scene_var_number5",
+                "scene_var_number6",
+                "sam3_input_video",
+                "sam3_mask_video",
+                "scene_var_number"
+            ],
             "task_method": {
                 "LTX-Outpaint": "ltx2.3_outpaint_cn"
             },
@@ -80,7 +120,12 @@
             "switch_option4": {
                 "LTX-Outpaint": false
             },
-                "aspect_ratio" : ["960|1:1","1024|1:1","1280|1:1","1536|1:1"],
+            "aspect_ratio": [
+                "960|1:1",
+                "1024|1:1",
+                "1280|1:1",
+                "1536|1:1"
+            ],
             "resolution_control": {
                 "mode": "video_keep_input_area",
                 "source": "scene_video",
@@ -92,6 +137,12 @@
                 "preprocess_target": "video",
                 "preprocess_fit": "proportional",
                 "preserve_audio": true
+            },
+            "video_duration_title": "Duration limit (seconds) [0 = no limit]",
+            "video_duration_min": 0,
+            "video_duration_max": 60,
+            "video_duration": {
+                "LTX-Outpaint": 0
             }
         }
     },

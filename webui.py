@@ -110,6 +110,18 @@ MAIN_VLM_CUSTOM_KEYS = {
 MAIN_VLM_LOCAL_SETTING_KEYS = tuple(MAIN_VLM_CUSTOM_KEYS.keys()) + ("version",)
 MAIN_VLM_LEGACY_LOCAL_KEYS = tuple(MAIN_VLM_CUSTOM_KEYS.values()) + (MAIN_VLM_USER_VERSION_KEY,)
 
+import modules.scene_director_webui as scene_director_webui
+from modules.scene_director_webui import (
+    SCENE_DIRECTOR_FORMATS,
+    apply_scene_director_prompt_for_generation,
+    render_scene_director_editor_shell,
+    render_scene_director_media_rules,
+    render_scene_director_media_preview,
+    scene_director_default_editor_json,
+    update_scene_director_media_files,
+    update_scene_director_preview,
+)
+
 
 def compare_button_gr_update(value=None, visible=True, ready=False):
     return gr_update(
@@ -3957,6 +3969,7 @@ with shared.gradio_root:
                         scene_aspect_ratio = scene_resolution_control.selection
                         scene_audio = gr.Audio(label="Audio (Upload)", visible=True, sources=["upload"], type="filepath", elem_id="scene_audio", elem_classes=['simpai-mounted-hidden'])
                         scene_audio_placeholder = gr.HTML('<div style="padding: 20px; text-align: center; border: 2px dashed #ccc; border-radius: 8px; background: rgba(128,128,128,0.1); color: #888;">Hide When Generating...</div>', visible=False, elem_id="scene_audio_placeholder")
+                        scene_director_state = gr.State({})
                         scene_additional_prompt_2 = gr.Textbox(label="Additional Prompt", show_label=True, max_lines=1, visible=True, elem_classes=['scene_input_2', 'simpai-mounted-hidden'], elem_id='scene_additional_prompt_2')
                         
                         sam3_input_video.upload(on_sam3_video_upload, inputs=[sam3_input_video], outputs=[sam3_input_video, sam3_original_video_path, active_video_source, resolution_source_meta, sam3_trim_payload], show_progress=True) \
@@ -3977,6 +3990,7 @@ with shared.gradio_root:
                             .then(sam3_generation_finish_updates, outputs=[sam3_generate_btn, sam3_stop_btn], queue=False, show_progress=False)
                         sam3_stop_btn.click(sam3_video_mask.stop_webui_sam3_generation, outputs=[sam3_generate_btn, sam3_stop_btn], queue=False, show_progress=False)
                         with gr.Row(elem_id="scene_duration_row"):
+                            scene_video_duration = gr.Slider(label='Video Duration(s)', minimum=0.1, maximum=60, step=0.1, value=5.0, visible=True, elem_id="scene_video_duration", elem_classes=['simpai-mounted-hidden'])
                             scene_var_number = gr.Slider(label='Duration(s)', minimum=0, maximum=60, step=1, value=0, visible=True, elem_id="scene_var_number", elem_classes=['simpai-mounted-hidden'])
 
                         with gr.Row(elem_id="scene_image_number_row"):
@@ -3989,9 +4003,6 @@ with shared.gradio_root:
                         model_filter_state = gr.State(initial_use_model_filter)
                         model_filter_sync_lock = gr.State(False)
 
-                        with gr.Row(elem_id="scene_seed_row"):
-                            scene_seed_random = gr.Checkbox(label='Random', value=True)
-                            scene_image_seed = gr.Textbox(label='Seed', value=0, max_lines=1, visible=False)
                         gr.HTML(value="", elem_id="scene_panel_bottom_fill")
                 with gr.Accordion("🔧 Advanced Parameters", open=False, visible=True, elem_id="scene_advanced_parameters_accordion"):
                     with gr.Column(elem_id="scene_advanced_values_grid", scale=1, min_width=0):
@@ -4010,6 +4021,57 @@ with shared.gradio_root:
                         scene_switch_option2 = gr.Checkbox(label='Switch Option 2', value=False, visible=True, elem_id="scene_switch_option2", elem_classes=['simpai-mounted-hidden'])
                         scene_switch_option3 = gr.Checkbox(label='Switch Option 3', value=False, visible=True, elem_id="scene_switch_option3", elem_classes=['simpai-mounted-hidden'])
                         scene_switch_option4 = gr.Checkbox(label='Switch Option 4', value=False, visible=True, elem_id="scene_switch_option4", elem_classes=['simpai-mounted-hidden'])
+                with gr.Accordion("Director Workspace", open=False, visible=True, elem_id="scene_director_accordion"):
+                    with gr.Row(elem_id="scene_director_toolbar_row"):
+                        scene_director_enabled = gr.Checkbox(label="Director mode", value=False, elem_id="scene_director_enabled")
+                        scene_director_compose = gr.Checkbox(label="Compose timeline", value=False, elem_id="scene_director_compose")
+                        scene_director_format = gr.Dropdown(label="Timeline format", choices=SCENE_DIRECTOR_FORMATS, value="Wan", visible=False, elem_id="scene_director_format")
+                    with gr.Column(elem_id="scene_director_side_panel"):
+                        with gr.Row(elem_id="scene_director_settings_row"):
+                            scene_director_width = gr.Slider(label="Compose width", minimum=64, maximum=4096, step=8, value=1280, elem_id="scene_director_width")
+                            scene_director_height = gr.Slider(label="Compose height", minimum=64, maximum=4096, step=8, value=720, elem_id="scene_director_height")
+                            scene_director_fps = gr.Slider(label="Compose FPS", minimum=1, maximum=120, step=1, value=24, elem_id="scene_director_fps")
+                            scene_director_duration = gr.Slider(label="Timeline range", minimum=0.1, maximum=120, step=0.1, value=10, elem_id="scene_director_duration")
+                        scene_director_media_rules = gr.HTML(
+                            value=render_scene_director_media_rules(),
+                            elem_id="scene_director_media_rules",
+                        )
+                    scene_director_media_preview = gr.HTML(
+                        value=render_scene_director_media_preview(),
+                        elem_id="scene_director_media_preview",
+                    )
+                    with gr.Row(elem_id="scene_director_media_files_row"):
+                        scene_director_audio_files = gr.File(
+                            label="Director audio pool",
+                            file_count="multiple",
+                            file_types=[".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac"],
+                            type="filepath",
+                            elem_id="scene_director_audio_files",
+                        )
+                        scene_director_video_files = gr.File(
+                            label="Director video pool",
+                            file_count="multiple",
+                            file_types=[".mp4", ".webm", ".mov", ".mkv", ".avi"],
+                            type="filepath",
+                            elem_id="scene_director_video_files",
+                        )
+                    scene_director_media_state = gr.Textbox(
+                        value="{}",
+                        visible=True,
+                        elem_id="scene_director_media_state",
+                        elem_classes=["sai-gradio-hidden-bridge"],
+                    )
+                    scene_director_editor_state = gr.Textbox(
+                        value=scene_director_default_editor_json(),
+                        visible=True,
+                        elem_id="scene_director_editor_state",
+                        elem_classes=["sai-gradio-hidden-bridge"],
+                    )
+                    scene_director_editor = gr.HTML(
+                        value=render_scene_director_editor_shell(),
+                        elem_id="scene_director_editor",
+                    )
+                    scene_director_prompt_preview = gr.Textbox(label="prompt_override", value="", lines=3, interactive=False, elem_id="scene_director_prompt_preview")
                 with floating_shell(visible=False, elem_id="identity_dialog", elem_classes=["identity_note"], modal=False) as identity_dialog:
                     with gr.Tabs(elem_id="identity_dialog_content", elem_classes=["identity_note"]):
                         with gr.Tab(label='IdentityCard') as bind_id_tab:
@@ -4868,26 +4930,8 @@ with shared.gradio_root:
                                 outputs[-1] = value
                             return outputs
 
-                        def _qwen_switch_ltx23_audio_theme_after_send(state, theme, audio_backup, target_label):
-                            target_key = qwen_send_target_options.get(str(target_label or "").strip(), None)
-                            if target_key != "scene_audio":
-                                return state, gr_update()
-                            target_theme = modules.meta_parser.resolve_ltx23_audio_theme_for_audio(state, theme, audio_backup)
-                            if not target_theme:
-                                return state, gr_update()
-                            state["switch_scene_theme"] = True
-                            state["scene_theme"] = target_theme
-                            return state, gr_update(value=target_theme)
-
                         def _bind_qwen_send_audio(button, output_audio, target_dropdown):
                             event = button.click(fn=_qwen_send_audio_to_target, inputs=[output_audio, target_dropdown], outputs=qwen_send_outputs, queue=False, show_progress=False)
-                            event = event.then(
-                                _qwen_switch_ltx23_audio_theme_after_send,
-                                inputs=[state_topbar, scene_theme, scene_audio_backup, target_dropdown],
-                                outputs=[state_topbar, scene_theme],
-                                queue=False,
-                                show_progress=False,
-                            )
                             event = event.then(
                                 switch_scene_theme_safe,
                                 inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme],
@@ -5887,10 +5931,6 @@ with shared.gradio_root:
                                 return gr_update(visible=not r)
 
                             seed_random.change(reversed_checked, inputs=[seed_random], outputs=[image_seed], queue=False, show_progress=False)
-                            scene_seed_random.change(lambda x: [gr_update(value=x), gr_update(visible=not x), gr_update(visible=not x)], inputs=scene_seed_random, outputs=[seed_random, image_seed, scene_image_seed], queue=False, show_progress=False)
-                            seed_random.change(lambda x: [gr_update(value=x), gr_update(visible=not x), gr_update(visible=not x)], inputs=seed_random, outputs=[scene_seed_random, scene_image_seed, image_seed], queue=False, show_progress=False)
-                            scene_image_seed.change(lambda x: gr_update(value=x), inputs=scene_image_seed, outputs=image_seed, queue=False, show_progress=False)
-                            image_seed.change(lambda x: gr_update(value=x), inputs=image_seed, outputs=scene_image_seed, queue=False, show_progress=False)
                             def sync_quick_enhance_for_generation(quick_enabled, quick_strength, enhance_checked, enhance_method, enhance_strength):
                                 if quick_enabled:
                                     try:
@@ -7711,9 +7751,33 @@ with shared.gradio_root:
                 queue=False,
                 show_progress=True
             )
-            scene_params = [scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_mask_color_state, scene_video, scene_audio]
-            scene_preset_save_names = ["scene_theme", "scene_additional_prompt", "scene_additional_prompt_2", "scene_var_number", "scene_var_number2", "scene_var_number3", "scene_var_number4", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10", "scene_steps", "scene_switch_option1", "scene_switch_option2", "scene_switch_option3", "scene_switch_option4", "scene_aspect_ratio", "scene_image_number"]
-            scene_preset_save_ctrls = [scene_theme, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number]
+            scene_params = [scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_video_duration, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_mask_color_state, scene_video, scene_audio]
+            scene_preset_save_names = ["scene_theme", "scene_additional_prompt", "scene_additional_prompt_2", "scene_video_duration", "scene_var_number", "scene_var_number2", "scene_var_number3", "scene_var_number4", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10", "scene_steps", "scene_switch_option1", "scene_switch_option2", "scene_switch_option3", "scene_switch_option4", "scene_aspect_ratio", "scene_image_number"]
+            scene_preset_save_ctrls = [scene_theme, scene_additional_prompt, scene_additional_prompt_2, scene_video_duration, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number]
+            scene_director_inputs = [scene_director_enabled, scene_director_compose, scene_director_editor_state, scene_director_width, scene_director_height, scene_director_fps, scene_director_duration, scene_director_format, scene_director_media_state, state_topbar, scene_theme]
+            scene_director_update_sources = [scene_director_enabled, scene_director_compose, scene_director_editor_state, scene_director_width, scene_director_height, scene_director_fps, scene_director_duration, scene_director_format, scene_director_media_state, scene_theme]
+            for scene_director_file_input in (scene_director_audio_files, scene_director_video_files):
+                scene_director_file_input.change(
+                    update_scene_director_media_files,
+                    inputs=[scene_director_media_state, scene_director_audio_files, scene_director_video_files],
+                    outputs=[scene_director_media_state, scene_director_media_preview],
+                    queue=False,
+                    show_progress=False,
+                ).then(
+                    update_scene_director_preview,
+                    inputs=scene_director_inputs,
+                    outputs=[scene_director_prompt_preview, scene_director_state],
+                    queue=False,
+                    show_progress=False,
+                )
+            for scene_director_input in scene_director_update_sources:
+                scene_director_input.change(
+                    update_scene_director_preview,
+                    inputs=scene_director_inputs,
+                    outputs=[scene_director_prompt_preview, scene_director_state],
+                    queue=False,
+                    show_progress=False,
+                )
             if _qwen_send_audio_binder is not None:
                 for _qwen_send_button, _qwen_send_output_audio, _qwen_send_target_dropdown in _qwen_pending_send_audio_bindings:
                     _qwen_send_audio_binder(_qwen_send_button, _qwen_send_output_audio, _qwen_send_target_dropdown)
@@ -8122,7 +8186,8 @@ with shared.gradio_root:
                 scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio,
                 image_number, scene_video, scene_audio, scene_original_video_path, active_video_source,
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
-                overwrite_step, overwrite_width, overwrite_height, resolution_edit_mode, resolution_original_input_checkbox
+                overwrite_step, overwrite_width, overwrite_height, resolution_edit_mode, resolution_original_input_checkbox,
+                scene_video_duration
             ] + scene_generation_model_ctrls + ctrls + [model_params_state, resolution_multiplier, resolution_quantize_step, state_topbar],
             outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button, generate_button, state_is_generating, scene_batch_status, scene_batch_id],
             show_progress=False
@@ -8737,6 +8802,16 @@ with shared.gradio_root:
                 compare_button_gr_update(ready=False),
             )
 
+        def generate_clicked_or_director(generation_task, state_params, director_enabled, director_runtime):
+            yield from scene_director_webui.generate_clicked_or_director(
+                generation_task,
+                state_params,
+                director_enabled,
+                director_runtime,
+                generate_clicked_fn=generate_clicked,
+                compare_button_update_fn=compare_button_gr_update,
+            )
+
         def finalize_generation_gallery_surface(generation_task):
             results = getattr(generation_task, "results", None)
             try:
@@ -8849,6 +8924,7 @@ with shared.gradio_root:
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
                 overwrite_width, overwrite_height, resolution_multiplier, resolution_quantize_step,
                 resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload, overwrite_step,
+                scene_director_enabled, scene_director_state, scene_video_duration,
             ],
             outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating, index_radio, image_toolbox, prompt_info_box, image_seed, params_backend] + protections + [preset_store, identity_dialog],
             show_progress=False,
@@ -8856,11 +8932,12 @@ with shared.gradio_root:
         generate_event = bind_generation_failure_cleanup(generate_event.success(_sync_model_params_state_from_ui, inputs=model_state_ui_inputs, outputs=model_params_state, show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.wait_for_vlm_completion, outputs=[], show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.avoid_empty_prompt_for_scene, inputs=[prompt, state_topbar, scene_canvas_image, scene_input_image1, scene_theme, scene_additional_prompt, scene_additional_prompt_2], outputs=prompt, show_progress=False, queue=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(apply_scene_director_prompt_for_generation, inputs=[prompt, params_backend, scene_director_enabled, scene_director_state, state_topbar, scene_theme], outputs=[prompt, params_backend], show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(select_random_aspect_ratio, inputs=[random_aspect_ratio_checkbox, random_aspect_ratio_state, aspect_ratios_selection], outputs=[overwrite_width, overwrite_height, aspect_ratios_selection, random_aspect_ratio_state], show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(sync_quick_enhance_for_generation, inputs=[quick_enhance, quick_enhance_uov_strength, enhance_checkbox, enhance_uov_method, enhance_uov_strength], outputs=[enhance_checkbox, enhance_uov_method, enhance_uov_strength], show_progress=False, queue=False, js=sync_enhance_submit_state_js))
         generate_event = bind_generation_failure_cleanup(generate_event.success(sync_inpaint_engine_dropdowns_before_generation, inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls], outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls], show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls + [model_params_state, clip_model, upscale_model, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False, queue=False))
-        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=generate_clicked, inputs=[currentTask, state_topbar], outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button], show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=generate_clicked_or_director, inputs=[currentTask, state_topbar, scene_director_enabled, scene_director_state], outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button], show_progress=False))
         generate_event.success(fn=update_prompt_history, inputs=[currentTask, state_prompt_history, prompt], outputs=[state_prompt_history, history_prompts], show_progress=False)
         generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.process_after_generation, inputs=[state_topbar, currentTask, progress_gallery, progress_video], outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(check_comparison_visibility, inputs=[cached_input_image, currentTask, progress_gallery, progress_video, state_topbar, image_tools_checkbox, scene_input_image1, scene_canvas_image], outputs=[compare_btn, image_toolbox, state_topbar], show_progress=False))
@@ -8894,11 +8971,14 @@ with shared.gradio_root:
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
                 overwrite_width, overwrite_height, resolution_multiplier, resolution_quantize_step,
                 resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload, overwrite_step,
+                scene_director_enabled, scene_director_state, scene_video_duration,
             ],
             outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating, index_radio, image_toolbox, prompt_info_box, image_seed, params_backend] + protections + [preset_store, identity_dialog],
             show_progress=False,
         ))
         preview_event = bind_generation_failure_cleanup(preview_event.success(_sync_model_params_state_from_ui, inputs=model_state_ui_inputs, outputs=model_params_state, show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(apply_scene_director_prompt_for_generation, inputs=[prompt, params_backend, scene_director_enabled, scene_director_state, state_topbar, scene_theme], outputs=[prompt, params_backend], show_progress=False, queue=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(sync_quick_enhance_for_generation, inputs=[quick_enhance, quick_enhance_uov_strength, enhance_checkbox, enhance_uov_method, enhance_uov_strength], outputs=[enhance_checkbox, enhance_uov_method, enhance_uov_strength], show_progress=False, queue=False, js=sync_enhance_submit_state_js))
         preview_event = bind_generation_failure_cleanup(preview_event.success(sync_inpaint_engine_dropdowns_before_generation, inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls], outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls], show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls_preview + [model_params_state, clip_model, upscale_model, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(fn=generate_clicked, inputs=[currentTask, state_topbar], outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button], show_progress=False))
@@ -9195,9 +9275,6 @@ with shared.gradio_root:
         scene_video.clear(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False) \
             .then(lambda: None, js='()=>{try{if(typeof _rc_setTextValue==="function") _rc_setTextValue("resolution_source_meta", "{}", true);}catch(e){} if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_video", "clear");}')
         scene_audio.upload(_remember_scene_audio_for_generation, inputs=[scene_audio], outputs=[scene_audio_backup], queue=False, show_progress=False) \
-            .then(modules.meta_parser.switch_ltx23_audio_theme_when_audio_present, inputs=[state_topbar, scene_theme, scene_audio_backup], outputs=[state_topbar, scene_theme], queue=False, show_progress=False) \
-            .then(switch_scene_theme_safe, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme], outputs=[camera_control_accordion, anglelight_control_accordion, style_transfer_accordion, sam3_video_mask_accordion, pose_studio, gaussian_studio, scene_resolution_override_accordion, scene_use_resolution_override_checkbox, scene_resolution_override] + scene_params[1:], queue=False, show_progress=False) \
-            .then(modules.meta_parser.switch_scene_theme_standard_generation_defaults, inputs=[state_topbar, scene_theme], outputs=[overwrite_step], queue=False, show_progress=False) \
             .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)
         scene_audio.clear(_clear_scene_audio_for_generation, outputs=[scene_audio_backup], queue=False, show_progress=False) \
             .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)

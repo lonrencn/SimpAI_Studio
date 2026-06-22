@@ -247,67 +247,6 @@
       "title": "LTXV Audio VAE Decode"
     }
   },
-  "263": {
-    "inputs": {
-      "samples": [
-        "265",
-        0
-      ],
-      "mask": [
-        "266",
-        0
-      ]
-    },
-    "class_type": "SetLatentNoiseMask",
-    "_meta": {
-      "title": "Set Latent Noise Mask"
-    }
-  },
-  "265": {
-    "inputs": {
-      "audio": [
-        "366",
-        0
-      ],
-      "audio_vae": [
-        "335",
-        0
-      ]
-    },
-    "class_type": "LTXVAudioVAEEncode",
-    "_meta": {
-      "title": "LTXV Audio VAE Encode"
-    }
-  },
-  "266": {
-    "inputs": {
-      "value": 0,
-      "width": [
-        "578",
-        6
-      ],
-      "height": [
-        "578",
-        7
-      ]
-    },
-    "class_type": "SolidMask",
-    "_meta": {
-      "title": "SolidMask"
-    }
-  },
-  "269": {
-    "inputs": {
-      "audio": [
-        "366",
-        0
-      ]
-    },
-    "class_type": "Audio Duration (mtb)",
-    "_meta": {
-      "title": "Audio Duration (mtb)"
-    }
-  },
   "332": {
     "inputs": {
       "clip_name1": "gemma_3_12B_it_fpmixed.safetensors",
@@ -351,8 +290,8 @@
         0
       ],
       "length": [
-        "503",
-        0
+        "546",
+        1
       ],
       "batch_size": 1
     },
@@ -368,7 +307,7 @@
         0
       ],
       "audio_latent": [
-        "420",
+        "421",
         0
       ]
     },
@@ -389,53 +328,6 @@
     "class_type": "LTXVChunkFeedForward",
     "_meta": {
       "title": "LTXV Chunk FeedForward (optional)"
-    }
-  },
-  "358": {
-    "inputs": {
-      "audio": "audio_example.mp3",
-      "audioUI": "/api/view?filename=audio_example.mp3&type=input&subfolder=&rand=0.0943236237841758"
-    },
-    "class_type": "LoadAudio",
-    "_meta": {
-      "title": "Load Audio"
-    }
-  },
-  "364": {
-    "inputs": {
-      "switch": [
-        "578",
-        20
-      ],
-      "on_false": [
-        "201",
-        0
-      ],
-      "on_true": [
-        "366",
-        0
-      ]
-    },
-    "class_type": "ComfySwitchNode",
-    "_meta": {
-      "title": "if else"
-    }
-  },
-  "366": {
-    "inputs": {
-      "start_index": 0,
-      "duration": [
-        "595",
-        0
-      ],
-      "audio": [
-        "358",
-        0
-      ]
-    },
-    "class_type": "TrimAudioDuration",
-    "_meta": {
-      "title": "Trim Audio Duration"
     }
   },
   "374": {
@@ -464,31 +356,11 @@
       "title": "Tiny VAE (for sampler previews)"
     }
   },
-  "420": {
-    "inputs": {
-      "switch": [
-        "578",
-        20
-      ],
-      "on_false": [
-        "421",
-        0
-      ],
-      "on_true": [
-        "263",
-        0
-      ]
-    },
-    "class_type": "ComfySwitchNode",
-    "_meta": {
-      "title": "if else"
-    }
-  },
   "421": {
     "inputs": {
       "frames_number": [
-        "503",
-        0
+        "546",
+        1
       ],
       "frame_rate": [
         "547",
@@ -574,26 +446,6 @@
       "title": "Load LoRA (Model and CLIP)"
     }
   },
-  "503": {
-    "inputs": {
-      "switch": [
-        "578",
-        20
-      ],
-      "on_false": [
-        "546",
-        1
-      ],
-      "on_true": [
-        "548",
-        1
-      ]
-    },
-    "class_type": "ComfySwitchNode",
-    "_meta": {
-      "title": "if else"
-    }
-  },
   "505": {
     "inputs": {
       "weight": 4,
@@ -666,7 +518,7 @@
       "expression": "round(a*b/8)*8+1",
       "values.a": [
         "578",
-        10
+        32
       ],
       "values.b": [
         "586",
@@ -694,10 +546,6 @@
   "548": {
     "inputs": {
       "expression": "round(a/1000*b/8)*8+1",
-      "values.a": [
-        "269",
-        0
-      ],
       "values.b": [
         "586",
         0
@@ -764,7 +612,8 @@
       "clip_type": 1,
       "negative_prompt": "",
       "sampler": "euler",
-      "scheduler": "simple"
+      "scheduler": "simple",
+      "video_duration": 8
     },
     "class_type": "SceneInput",
     "_meta": {
@@ -785,7 +634,7 @@
         0
       ],
       "audio": [
-        "364",
+        "201",
         0
       ]
     },

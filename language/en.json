@@ -524,5 +524,22 @@
     "Delete all wildcards": "Delete all wildcards",
     "Wildcards file": "Wildcards file",
     "File editor": "File editor",
-    "Save wildcard": "Save wildcard"
+    "Save wildcard": "Save wildcard",
+    "LTX2.3(I2V)": "LTX2.3(I2V)",
+    "LTX2.3(I2V)\u2B07": "LTX2.3(I2V)\u2B07",
+    "LTX2.3(IA2V)": "LTX2.3(IA2V)",
+    "LTX2.3(IA2V)\u2B07": "LTX2.3(IA2V)\u2B07",
+    "LTX2.3(T2V)": "LTX2.3(T2V)",
+    "LTX2.3(T2V)\u2B07": "LTX2.3(T2V)\u2B07",
+    "LTX2.3(TA2V)": "LTX2.3(TA2V)",
+    "LTX2.3(TA2V)\u2B07": "LTX2.3(TA2V)\u2B07",
+    "LTX2.3 Image-to-Video": "LTX2.3 Image-to-Video",
+    "LTX2.3 Image-to-Video [Upload first frame; optional last frame]": "LTX2.3 Image-to-Video [Upload first frame; optional last frame]",
+    "LTX2.3 Image-to-Video [Upload first frame; optional last frame; optional audio input]": "LTX2.3 Image-to-Video [Upload first frame; optional last frame; optional audio input]",
+    "LTX2.3 Image+Audio to Video": "LTX2.3 Image+Audio to Video",
+    "LTX2.3 Image+Audio to Video [Upload first frame; optional last frame; audio required]": "LTX2.3 Image+Audio to Video [Upload first frame; optional last frame; audio required]",
+    "LTX2.3 Text-to-Video": "LTX2.3 Text-to-Video",
+    "LTX2.3 Text-to-Video [Optional audio input]": "LTX2.3 Text-to-Video [Optional audio input]",
+    "LTX2.3 Text+Audio to Video": "LTX2.3 Text+Audio to Video",
+    "LTX2.3 Text+Audio to Video [Audio required]": "LTX2.3 Text+Audio to Video [Audio required]"
 }

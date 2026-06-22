@@ -3722,6 +3722,274 @@ async function refresh_identity_qrcode(nickname, did, memo, user_qrcode) {
     }
 }
 
+const SCENE_DIRECTOR_IMAGE_POLICIES = new Set(["optional", "required", "forbidden"]);
+const SCENE_DIRECTOR_MEDIA_POLICIES = new Set(["optional", "required", "forbidden"]);
+
+function sceneDirectorStateParams(systemParams) {
+    return systemParams && typeof systemParams === "object"
+        ? systemParams
+        : (topbarLastSystemParams || window.simpleaiTopbarSystemParams || {});
+}
+
+function sceneDirectorPresetEngineType(systemParams) {
+    const params = sceneDirectorStateParams(systemParams);
+    const prepared = params && typeof params.__preset_prepared === "object" ? params.__preset_prepared : {};
+    const preparedEngine = prepared && typeof prepared.engine === "object" ? prepared.engine : {};
+    const defaultEngine = params && typeof params.default_engine === "object" ? params.default_engine : {};
+    return String(
+        (params && params.engine_type)
+        || defaultEngine.engine_type
+        || preparedEngine.engine_type
+        || "image"
+    ).trim().toLowerCase();
+}
+
+function sceneDirectorSceneFrontend(systemParams) {
+    const params = sceneDirectorStateParams(systemParams);
+    if (params && params.scene_frontend && typeof params.scene_frontend === "object") return params.scene_frontend;
+    const defaultEngine = params && typeof params.default_engine === "object" ? params.default_engine : {};
+    if (defaultEngine.scene_frontend && typeof defaultEngine.scene_frontend === "object") return defaultEngine.scene_frontend;
+    const prepared = params && typeof params.__preset_prepared === "object" ? params.__preset_prepared : {};
+    const preparedEngine = prepared && typeof prepared.engine === "object" ? prepared.engine : {};
+    return preparedEngine.scene_frontend && typeof preparedEngine.scene_frontend === "object" ? preparedEngine.scene_frontend : {};
+}
+
+function sceneDirectorTheme(systemParams) {
+    const params = sceneDirectorStateParams(systemParams);
+    const direct = String(params.__scene_theme || params.scene_theme || "").trim();
+    if (direct) return direct;
+    const sceneFrontend = sceneDirectorSceneFrontend(params);
+    const themes = sceneFrontend.theme;
+    if (typeof themes === "string") return themes;
+    if (Array.isArray(themes)) return String(themes[0] || "");
+    return "";
+}
+
+function sceneDirectorThemeValue(value, theme, fallback) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+        if (theme && Object.prototype.hasOwnProperty.call(value, theme)) return value[theme];
+        if (Object.prototype.hasOwnProperty.call(value, "default")) return value.default;
+        const first = Object.values(value)[0];
+        return first === undefined ? fallback : first;
+    }
+    return value === undefined || value === null ? fallback : value;
+}
+
+function sceneDirectorCapabilityCandidate(value, theme) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    const knownKeys = ["image_policy", "audio_policy", "video_policy", "max_images", "min_images", "image_modes", "video_modes", "chain_output", "requires_sequential", "mixed_segments", "director_supported", "segment_duration_param", "duration_strategy", "audio_output", "min_segment_duration", "max_segment_duration"];
+    if (knownKeys.some((key) => Object.prototype.hasOwnProperty.call(value, key))) return value;
+    if (theme && value[theme] && typeof value[theme] === "object") return value[theme];
+    if (value.default && typeof value.default === "object") return value.default;
+    return {};
+}
+
+function sceneDirectorTaskMethod(systemParams) {
+    const params = sceneDirectorStateParams(systemParams);
+    const sceneFrontend = sceneDirectorSceneFrontend(params);
+    const theme = sceneDirectorTheme(params);
+    const raw = sceneFrontend.task_method || params.task_method || params.__scene_task_method || "";
+    return String(sceneDirectorThemeValue(raw, theme, "") || "").trim();
+}
+
+function sceneDirectorExplicitCapability(systemParams) {
+    const params = sceneDirectorStateParams(systemParams);
+    const theme = sceneDirectorTheme(params);
+    const sceneFrontend = sceneDirectorSceneFrontend(params);
+    const defaultEngine = params && typeof params.default_engine === "object" ? params.default_engine : {};
+    const defaultScene = defaultEngine.scene_frontend && typeof defaultEngine.scene_frontend === "object" ? defaultEngine.scene_frontend : {};
+    const prepared = params && typeof params.__preset_prepared === "object" ? params.__preset_prepared : {};
+    const preparedEngine = prepared && typeof prepared.engine === "object" ? prepared.engine : {};
+    const preparedScene = preparedEngine.scene_frontend && typeof preparedEngine.scene_frontend === "object" ? preparedEngine.scene_frontend : {};
+    const candidates = [
+        params.director_capability,
+        params.__director_capability,
+        sceneFrontend.director_capability,
+        defaultEngine.director_capability,
+        defaultScene.director_capability,
+        preparedEngine.director_capability,
+        preparedScene.director_capability
+    ];
+    for (const candidate of candidates) {
+        const capability = sceneDirectorCapabilityCandidate(candidate, theme);
+        if (capability && Object.keys(capability).length) return capability;
+    }
+    return {};
+}
+
+function sceneDirectorPolicyValue(value, allowed, fallback) {
+    const policy = String(value || "").trim().toLowerCase();
+    return allowed.has(policy) ? policy : fallback;
+}
+
+function sceneDirectorInferImagePolicy(systemParams) {
+    const engineType = sceneDirectorPresetEngineType(systemParams);
+    if (engineType && engineType !== "video") return "forbidden";
+    const sceneFrontend = sceneDirectorSceneFrontend(systemParams);
+    const hidden = new Set(Array.isArray(sceneFrontend.disvisible) ? sceneFrontend.disvisible.map(String) : []);
+    const taskMethod = sceneDirectorTaskMethod(systemParams).toLowerCase();
+    if (taskMethod.includes("t2v")) return "forbidden";
+    if (taskMethod.includes("i2v") || taskMethod.includes("ia2v") || taskMethod === "wan2.2_cn" || taskMethod === "wan2.2") return "required";
+    const resolutionControl = sceneFrontend.resolution_control && typeof sceneFrontend.resolution_control === "object" ? sceneFrontend.resolution_control : {};
+    const source = String(sceneDirectorThemeValue(resolutionControl.source, sceneDirectorTheme(systemParams), "") || "").toLowerCase();
+    if (source === "scene_canvas" || source === "scene_canvas_image") return "required";
+    if (hidden.has("scene_canvas_image") && hidden.has("scene_input_image1")) return "forbidden";
+    return "optional";
+}
+
+function sceneDirectorVisibleImageSlotCount(systemParams) {
+    const sceneFrontend = sceneDirectorSceneFrontend(systemParams);
+    const hidden = new Set(Array.isArray(sceneFrontend.disvisible) ? sceneFrontend.disvisible.map(String) : []);
+    return ["scene_canvas_image", "scene_input_image1", "scene_input_image2", "scene_input_image3", "scene_input_image4"]
+        .filter((slot) => !hidden.has(slot)).length;
+}
+
+function sceneDirectorIntValue(value, fallback, min, max) {
+    const parsed = Number(value);
+    const base = Number.isFinite(parsed) ? Math.round(parsed) : fallback;
+    return Math.max(min, Math.min(max, base));
+}
+
+function sceneDirectorNumberValue(value, fallback, min, max) {
+    const parsed = Number(value);
+    const base = Number.isFinite(parsed) ? parsed : fallback;
+    return Math.max(min, Math.min(max, base));
+}
+
+function sceneDirectorDurationParamValue(value, fallback) {
+    const text = String(value || fallback || "").trim();
+    if (!text) return "";
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(text) ? text : String(fallback || "").trim();
+}
+
+function sceneDirectorDurationStrategyValue(value, fallback) {
+    const text = String(value || fallback || "shot").trim().toLowerCase().replace(/-/g, "_");
+    return ["shot", "audio_min", "video_min"].includes(text) ? text : "shot";
+}
+
+function sceneDirectorAudioOutputValue(value, fallback) {
+    const text = String(value || fallback || "silent").trim().toLowerCase().replace(/-/g, "_");
+    return ["silent", "generated", "input_audio", "source_audio"].includes(text) ? text : "silent";
+}
+
+function sceneDirectorCapabilityFromSystemParams(systemParams) {
+    const params = sceneDirectorStateParams(systemParams);
+    const explicit = sceneDirectorExplicitCapability(systemParams);
+    const inferredImagePolicy = sceneDirectorInferImagePolicy(systemParams);
+    const imagePolicy = sceneDirectorPolicyValue(explicit.image_policy, SCENE_DIRECTOR_IMAGE_POLICIES, inferredImagePolicy);
+    const audioPolicy = sceneDirectorPolicyValue(explicit.audio_policy, SCENE_DIRECTOR_MEDIA_POLICIES, "optional");
+    const videoPolicy = sceneDirectorPolicyValue(explicit.video_policy, SCENE_DIRECTOR_MEDIA_POLICIES, "optional");
+    const defaultMax = imagePolicy === "forbidden" ? 0 : Math.max(1, sceneDirectorVisibleImageSlotCount(systemParams) || 5);
+    const maxImages = imagePolicy === "forbidden" ? 0 : sceneDirectorIntValue(explicit.max_images, defaultMax, 0, 5);
+    const minImages = sceneDirectorIntValue(explicit.min_images, imagePolicy === "required" ? 1 : 0, 0, Math.max(0, maxImages));
+    const imageModes = Array.isArray(explicit.image_modes) && explicit.image_modes.length
+        ? explicit.image_modes.map((item) => String(item))
+        : (imagePolicy === "forbidden" ? ["none"] : ["none", "first_frame", "first_last", "reference_set"]);
+    const videoModes = Array.isArray(explicit.video_modes) && explicit.video_modes.length
+        ? explicit.video_modes.map((item) => String(item))
+        : (videoPolicy === "forbidden" ? ["none"] : ["explicit"]);
+    const chainOutputValue = String(explicit.chain_output || "").trim();
+    const chainOutput = ["timeline", "last_result"].includes(chainOutputValue) ? chainOutputValue : "timeline";
+    const requiresSequential = explicit.requires_sequential === undefined ? chainOutput === "last_result" : !!explicit.requires_sequential;
+    const sceneFrontend = sceneDirectorSceneFrontend(params);
+    const theme = sceneDirectorTheme(params);
+    const defaultDurationParam = sceneDirectorDurationParamValue(sceneDirectorThemeValue(sceneFrontend.director_segment_duration_param, theme, "scene_video_duration"), "scene_video_duration");
+    const durationStrategy = sceneDirectorDurationStrategyValue(explicit.duration_strategy, "shot");
+    const minDurationFloor = durationStrategy === "audio_min" || durationStrategy === "video_min" ? 0 : 0.05;
+    const defaultMinSegmentDuration = sceneDirectorNumberValue(sceneDirectorThemeValue(sceneFrontend.video_duration_min ?? sceneFrontend.var_number_min, theme, 0.1), 0.1, minDurationFloor, 86400);
+    const defaultMaxSegmentDuration = sceneDirectorNumberValue(sceneDirectorThemeValue(sceneFrontend.video_duration_max ?? sceneFrontend.var_number_max, theme, 10), 10, defaultMinSegmentDuration, 86400);
+    const minSegmentDuration = sceneDirectorNumberValue(explicit.min_segment_duration, defaultMinSegmentDuration, minDurationFloor, 86400);
+    const maxSegmentDuration = sceneDirectorNumberValue(explicit.max_segment_duration, defaultMaxSegmentDuration, minSegmentDuration, 86400);
+    return {
+        image_policy: imagePolicy,
+        audio_policy: audioPolicy,
+        video_policy: videoPolicy,
+        max_images: maxImages,
+        min_images: minImages,
+        image_modes: imageModes,
+        video_modes: videoModes,
+        chain_output: chainOutput,
+        requires_sequential: requiresSequential,
+        mixed_segments: explicit.mixed_segments === undefined ? imagePolicy === "optional" : !!explicit.mixed_segments,
+        director_supported: explicit.director_supported === undefined ? true : !!explicit.director_supported,
+        segment_duration_param: sceneDirectorDurationParamValue(explicit.segment_duration_param, defaultDurationParam),
+        duration_strategy: durationStrategy,
+        audio_output: sceneDirectorAudioOutputValue(explicit.audio_output, "silent"),
+        min_segment_duration: minSegmentDuration,
+        max_segment_duration: maxSegmentDuration,
+        source: Object.keys(explicit).length ? "explicit" : "inferred"
+    };
+}
+
+function syncSceneDirectorPresetVisibility(systemParams, traceLabel) {
+    const engineType = sceneDirectorPresetEngineType(systemParams);
+    const capability = sceneDirectorCapabilityFromSystemParams(systemParams);
+    const isVideoPreset = engineType === "video" && capability.director_supported !== false;
+    const root = document.documentElement;
+    try {
+        root.classList.toggle("simpai-scene-director-video-preset", isVideoPreset);
+        root.classList.toggle("simpai-scene-director-non-video-preset", !isVideoPreset);
+        root.classList.toggle("simpai-scene-director-image-required", capability.image_policy === "required");
+        root.classList.toggle("simpai-scene-director-image-forbidden", capability.image_policy === "forbidden");
+        root.classList.toggle("simpai-scene-director-image-optional", capability.image_policy === "optional");
+        root.classList.toggle("simpai-scene-director-audio-required", capability.audio_policy === "required");
+        root.classList.toggle("simpai-scene-director-audio-forbidden", capability.audio_policy === "forbidden");
+        root.classList.toggle("simpai-scene-director-audio-optional", capability.audio_policy === "optional");
+        root.classList.toggle("simpai-scene-director-video-required", capability.video_policy === "required");
+        root.classList.toggle("simpai-scene-director-video-forbidden", capability.video_policy === "forbidden");
+        root.classList.toggle("simpai-scene-director-video-optional", capability.video_policy === "optional");
+        root.dataset.simpaiPresetEngineType = engineType || "image";
+        root.dataset.simpaiSceneDirectorImagePolicy = capability.image_policy;
+        root.dataset.simpaiSceneDirectorAudioPolicy = capability.audio_policy;
+        root.dataset.simpaiSceneDirectorVideoPolicy = capability.video_policy;
+        root.dataset.simpaiSceneDirectorMaxImages = String(capability.max_images);
+        root.dataset.simpaiSceneDirectorMinImages = String(capability.min_images);
+        root.dataset.simpaiSceneDirectorChainOutput = capability.chain_output || "timeline";
+        root.dataset.simpaiSceneDirectorVideoModes = Array.isArray(capability.video_modes) ? capability.video_modes.join(",") : "explicit";
+        root.dataset.simpaiSceneDirectorSegmentDurationParam = capability.segment_duration_param || "scene_video_duration";
+        root.dataset.simpaiSceneDirectorDurationStrategy = capability.duration_strategy || "shot";
+        root.dataset.simpaiSceneDirectorAudioOutput = capability.audio_output || "silent";
+        root.dataset.simpaiSceneDirectorSupported = capability.director_supported === false ? "0" : "1";
+        root.dataset.simpaiSceneDirectorMinSegmentDuration = String(capability.min_segment_duration);
+        root.dataset.simpaiSceneDirectorMaxSegmentDuration = String(capability.max_segment_duration);
+    } catch (e) {}
+    try {
+        window.dispatchEvent(new CustomEvent("simpai:scene-director-capability-updated", { detail: capability }));
+    } catch (e) {}
+    try {
+        const app = typeof gradioApp === "function" ? gradioApp() : document;
+        const accordion = (app && app.getElementById ? app.getElementById("scene_director_accordion") : null)
+            || document.getElementById("scene_director_accordion");
+        if (accordion) {
+            accordion.dataset.simpaiSceneDirectorPresetVisible = isVideoPreset ? "1" : "0";
+            accordion.setAttribute("aria-hidden", isVideoPreset ? "false" : "true");
+            accordion.dataset.simpaiSceneDirectorImagePolicy = capability.image_policy;
+            accordion.dataset.simpaiSceneDirectorMaxImages = String(capability.max_images);
+            accordion.dataset.simpaiSceneDirectorMinImages = String(capability.min_images);
+            accordion.dataset.simpaiSceneDirectorSegmentDurationParam = capability.segment_duration_param || "scene_video_duration";
+            accordion.dataset.simpaiSceneDirectorDurationStrategy = capability.duration_strategy || "shot";
+            accordion.dataset.simpaiSceneDirectorAudioOutput = capability.audio_output || "silent";
+            accordion.dataset.simpaiSceneDirectorSupported = capability.director_supported === false ? "0" : "1";
+            accordion.dataset.simpaiSceneDirectorMinSegmentDuration = String(capability.min_segment_duration);
+            accordion.dataset.simpaiSceneDirectorMaxSegmentDuration = String(capability.max_segment_duration);
+        }
+    } catch (e) {}
+    try {
+        simpaiUiTrace("log", "[UI-TRACE] scene_director_visibility | trace=" + (traceLabel || "") + " engine_type=" + engineType + " visible=" + isVideoPreset + " image_policy=" + capability.image_policy);
+    } catch (e) {}
+    return isVideoPreset;
+}
+window.syncSceneDirectorPresetVisibility = syncSceneDirectorPresetVisibility;
+window.sceneDirectorCapabilityFromSystemParams = sceneDirectorCapabilityFromSystemParams;
+
+if (!window.__simpaiSceneDirectorPresetVisibilityBound) {
+    window.__simpaiSceneDirectorPresetVisibilityBound = true;
+    try {
+        window.addEventListener("simpai:system-params-updated", (event) => {
+            syncSceneDirectorPresetVisibility(event && event.detail, "system-params-updated");
+        });
+    } catch (e) {}
+}
 
 function refresh_topbar_status_js(system_params) {
     markUiAction("refresh_topbar_status_js");
@@ -3753,6 +4021,7 @@ function refresh_topbar_status_js(system_params) {
     preserveFinishedGalleryBrowserFolderInParams(system_params, "refresh_topbar_status_js");
     topbarLastSystemParams = system_params;
     window.simpleaiTopbarSystemParams = system_params;
+    syncSceneDirectorPresetVisibility(system_params, "refresh_topbar_status_js");
     try {
         window.dispatchEvent(new CustomEvent("simpai:system-params-updated", { detail: system_params }));
     } catch (e) {}
@@ -4013,6 +4282,7 @@ function isStaleSystemParamsForPreset(system_params) {
 const SCENE_PRESET_DEFAULT_CONTROL_IDS = [
     "scene_additional_prompt",
     "scene_additional_prompt_2",
+    "scene_video_duration",
     "scene_var_number",
     "scene_var_number2",
     "scene_var_number3",
@@ -4522,6 +4792,7 @@ function reconcileSceneVisibilityForPreset(system_params) {
         scene_input_image4: "scene_input_image4",
         scene_additional_prompt: "scene_additional_prompt",
         scene_additional_prompt_2: "scene_additional_prompt_2",
+        scene_video_duration: "scene_video_duration",
         scene_var_number: "scene_var_number",
         scene_var_number2: "scene_var_number2",
         scene_var_number3: "scene_var_number3",
@@ -4544,6 +4815,7 @@ function reconcileSceneVisibilityForPreset(system_params) {
 
     const rowTargets = [
         ["scene_input_images", ["scene_input_image1", "scene_input_image2", "scene_input_image3", "scene_input_image4"]],
+        ["scene_duration_row", ["scene_video_duration", "scene_var_number"]],
         ["scene_var_number7_8_row", ["scene_var_number7", "scene_var_number8"]],
         ["scene_var_number9_10_row", ["scene_var_number9", "scene_var_number10"]],
         ["scene_switch_option1_2_row", ["scene_switch_option1", "scene_switch_option2"]],

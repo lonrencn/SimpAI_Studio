@@ -351,7 +351,7 @@
       ],
       "b": [
         "724",
-        10
+        32
       ]
     },
     "class_type": "easy compare",
@@ -361,10 +361,10 @@
   },
   "684": {
     "inputs": {
-      "value": "a*b+1",
+      "value": "ceil(a*4)*4+1",
       "a": [
         "724",
-        10
+        32
       ],
       "b": [
         "724",
@@ -675,7 +675,8 @@
       "clip_type": 1,
       "negative_prompt": "",
       "sampler": "euler",
-      "scheduler": "simple"
+      "scheduler": "simple",
+      "video_duration": 5
     },
     "class_type": "SceneInput",
     "_meta": {

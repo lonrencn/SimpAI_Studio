@@ -169,7 +169,7 @@ def check_base_environment():
     print(f'{now_string()} ✦ | 兴趣使然的版本 | ✦ by冰華 ✦')
 
     base_pkg = "simpleai_base"
-    ver_required = "0.3.45"
+    ver_required = "0.3.46"
     REINSTALL_BASE = False
     base_branch = "studio"
     base_url = f"https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/libs/{base_branch}"
@@ -208,7 +208,7 @@ def check_base_environment():
             ('comfyui-embedded-docs', '0.5.4'),
             ('comfy-kitchen', '0.2.10'),
             ('comfy-aimdo', '0.4.10'),
-            ('onnxruntime', '1.25.1'),
+            ('onnxruntime-gpu', '1.25.1'),
             ('av', '17.0.0')
         ]
         for (update_pkg_name, update_pkg_version) in update_pkgs:

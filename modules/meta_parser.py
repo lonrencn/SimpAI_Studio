@@ -39,7 +39,7 @@ re_imagesize = re.compile(r"^(\d+)x(\d+)$")
 SCENE_OPTIONAL_INPUT_IMAGE_SLOTS = ("scene_input_image3", "scene_input_image4")
 SCENE_INPUT_IMAGE_SLOTS = ("scene_input_image1", "scene_input_image2", "scene_input_image3", "scene_input_image4")
 SCENE_AUX_OUTPUT_COUNT = 9
-SCENE_PRIMARY_OUTPUT_COUNT = 27
+SCENE_PRIMARY_OUTPUT_COUNT = 28
 SCENE_SWITCH_OUTPUT_COUNT = SCENE_AUX_OUTPUT_COUNT + SCENE_PRIMARY_OUTPUT_COUNT
 
 get_layout_visible = lambda x,y:gr_update(visible=x not in y)
@@ -79,6 +79,8 @@ def scene_disvisible_with_optional_inputs(scenes):
     for slot in SCENE_OPTIONAL_INPUT_IMAGE_SLOTS:
         if slot not in hidden and slot not in enabled:
             hidden.append(slot)
+    if "scene_video_duration" not in hidden and "scene_video_duration" not in enabled and "video_duration" not in scenes:
+        hidden.append("scene_video_duration")
     return hidden
 
 
@@ -433,77 +435,6 @@ def switch_scene_theme_standard_generation_defaults(state, theme=None):
     return gr_update(**update)
 
 
-def _scene_audio_value_present(audio):
-    if audio is None:
-        return False
-    if isinstance(audio, str):
-        return bool(audio.strip())
-    if isinstance(audio, dict):
-        if audio.get("waveform") is not None and audio.get("sample_rate") is not None:
-            return True
-        return any(bool(audio.get(k)) for k in ("path", "name", "data", "url"))
-    if isinstance(audio, (tuple, list)):
-        return len(audio) == 2 and audio[0] is not None and audio[1] is not None
-    for key in ("path", "name", "orig_name", "filename", "file"):
-        try:
-            if getattr(audio, key, None):
-                return True
-        except Exception:
-            pass
-    return False
-
-
-def _scene_task_method_for_theme(scenes, theme):
-    raw = scenes.get("task_method", "") if isinstance(scenes, dict) else ""
-    if isinstance(raw, dict):
-        return str(raw.get(theme, "") or "")
-    if isinstance(raw, (list, tuple)):
-        themes = scenes.get("theme", []) if isinstance(scenes, dict) else []
-        if isinstance(themes, (list, tuple)) and theme in themes:
-            index = list(themes).index(theme)
-            if 0 <= index < len(raw):
-                return str(raw[index] or "")
-        return str(raw[0] if raw else "")
-    return str(raw or "")
-
-
-def resolve_ltx23_audio_theme_for_audio(state, theme, audio):
-    scenes = state.get("scene_frontend", {}) if isinstance(state, dict) else {}
-    if not isinstance(scenes, dict) or not _scene_audio_value_present(audio):
-        return None
-    current_theme = _resolve_scene_theme_name(scenes, theme)
-    current_method = _scene_task_method_for_theme(scenes, current_theme).lower()
-    if "ltx2.3" not in current_method:
-        return None
-    current_uses_audio = bool(modules.flags.get_value_by_scene_theme(state, current_theme, "switch_option1", False))
-    if current_uses_audio:
-        return None
-    themes = scenes.get("theme", [])
-    if isinstance(themes, str):
-        themes = [themes]
-    if not isinstance(themes, (list, tuple)):
-        return None
-    for candidate in themes:
-        if not isinstance(candidate, str) or not candidate or candidate == current_theme:
-            continue
-        candidate_method = _scene_task_method_for_theme(scenes, candidate).lower()
-        if "ltx2.3" not in candidate_method:
-            continue
-        if candidate_method != current_method:
-            continue
-        if bool(modules.flags.get_value_by_scene_theme(state, candidate, "switch_option1", False)):
-            return candidate
-    return None
-
-
-def switch_ltx23_audio_theme_when_audio_present(state, theme, audio):
-    target_theme = resolve_ltx23_audio_theme_for_audio(state, theme, audio)
-    if not target_theme:
-        return state, gr_update()
-    state["switch_scene_theme"] = True
-    state["scene_theme"] = target_theme
-    return state, gr_update(value=target_theme)
-
 def switch_scene_theme_ready_to_gen(state, image_number, canvas_image, input_image1, additional_prompt, additional_prompt_2, theme=None, video=None, audio=None):
     scenes = state.get("scene_frontend",{})
     theme = _resolve_scene_theme_name(scenes, theme)
@@ -554,7 +485,7 @@ def switch_scene_theme_ready_to_gen(state, image_number, canvas_image, input_ima
     return describe_prompt if describe_prompt else gr_update(), gr_update(interactive=True if not ready_to_gen else img_is_ok)
 
 
-def switch_scene_theme(state, image_number, canvas_image, input_image1, additional_prompt, additional_prompt_2, var_number, var_number2, var_number3, var_number4, var_number5, var_number6, var_number7, var_number8, var_number9, var_number10, scene_steps, switch_option1, switch_option2, switch_option3, switch_option4, theme=None):
+def switch_scene_theme(state, image_number, canvas_image, input_image1, additional_prompt, additional_prompt_2, video_duration, var_number, var_number2, var_number3, var_number4, var_number5, var_number6, var_number7, var_number8, var_number9, var_number10, scene_steps, switch_option1, switch_option2, switch_option3, switch_option4, theme=None):
     scenes = state.get("scene_frontend",{})
     theme = _resolve_scene_theme_name(scenes, theme)
     visible = scene_disvisible_with_optional_inputs(scenes)
@@ -571,6 +502,7 @@ def switch_scene_theme(state, image_number, canvas_image, input_image1, addition
     ui_lines += 0 if 'scene_theme' in visible and 'scene_additional_prompt' in visible else 1.0
     ui_lines += 0 if 'scene_additional_prompt_2' in visible else 1.0
     ui_lines += 0 if 'scene_aspect_ratio' in visible else 1.0
+    ui_lines += 0 if 'scene_video_duration' in visible else 1.0
     ui_lines += 0 if 'scene_var_number' in visible else 1.0
     ui_lines += 0 if 'scene_var_number2' in visible else 1.0
     ui_lines += 0 if 'scene_var_number3' in visible else 1.0
@@ -618,6 +550,13 @@ def switch_scene_theme(state, image_number, canvas_image, input_image1, addition
     title_2 = scenes.get('additional_prompt_title_2', '')
     additional_prompt_2_default = modules.flags.get_value_by_scene_theme(state, theme, 'additional_prompt_2', '')
     results.append(get_layout_update_label_inter(title_2, additional_prompt_2 if ready_to_gen and switch_flag else additional_prompt_2_default, 'scene_additional_prompt_2', inter))
+
+    video_duration_title = scenes.get('video_duration_title', 'Video Duration(s)')
+    video_duration_min = scenes.get('video_duration_min', 0.1)
+    video_duration_max = scenes.get('video_duration_max', 60.0)
+    video_duration_default = modules.flags.get_value_by_scene_theme(state, theme, 'video_duration', 5.0)
+    results.append(get_scene_safe_update('scene_video_duration', video_duration_default if switch_flag else video_duration, visible, inter, label=video_duration_title, minimum=video_duration_min, maximum=video_duration_max, step=0.1))
+
     var_number_title = scenes.get('var_number_title', 'Duration(s)')
     var_number_max = scenes.get('var_number_max', 10)
     var_number_min = scenes.get('var_number_min', 0)
@@ -760,6 +699,7 @@ def switch_scene_theme_safe(state, image_number, canvas_image, input_image1, add
         input_image1,
         additional_prompt,
         additional_prompt_2,
+        None,
         None,
         None,
         None,
@@ -1103,6 +1043,20 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
 
         title_2 = scenes.get('additional_prompt_title_2', '')
         results.append(get_layout_update_label_inter(title_2, modules.flags.get_value_by_scene_theme(state_params, theme_default, 'additional_prompt_2', ''), 'scene_additional_prompt_2', inter))
+
+        video_duration_title = scenes.get('video_duration_title', 'Video Duration(s)')
+        video_duration_min = scenes.get('video_duration_min', 0.1)
+        video_duration_max = scenes.get('video_duration_max', 60.0)
+        results.append(get_scene_safe_update(
+            'scene_video_duration',
+            modules.flags.get_value_by_scene_theme(state_params, theme_default, 'video_duration', 5.0),
+            visible,
+            inter,
+            label=video_duration_title,
+            minimum=video_duration_min,
+            maximum=video_duration_max,
+            step=0.1,
+        ))
 
         var_number_title = scenes.get('var_number_title', 'Duration(s)')
         var_number_min = scenes.get('var_number_min', 0)

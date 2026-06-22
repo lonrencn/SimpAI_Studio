@@ -52,7 +52,7 @@
                 "preprocess_fit": "proportional"
             },
             "overwrite_step_min": 4,
-            "overwrite_step_max": 10
+            "overwrite_step_max": 20
         }
     },
     "default_model": "nunchaku_qwen_image_2511_balance_int4.safetensors",

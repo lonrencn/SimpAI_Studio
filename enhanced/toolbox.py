@@ -773,6 +773,7 @@ def _apply_regen_manifest(parsed_parameters, state_params, manifest):
         scene_value_map = {
             "scene_additional_prompt": "additional_prompt",
             "scene_additional_prompt_2": "additional_prompt_2",
+            "scene_video_duration": "video_duration",
             "scene_var_number": "var_number",
             "scene_var_number2": "var_number2",
             "scene_var_number3": "var_number3",
@@ -999,6 +1000,7 @@ def save_preset(*args):
     scene_theme = None
     scene_additional_prompt = None
     scene_additional_prompt_2 = None
+    scene_video_duration = None
     scene_var_number = None
     scene_var_number2 = None
     scene_var_number3 = None
@@ -1021,6 +1023,7 @@ def save_preset(*args):
         scene_theme = args.pop()
         scene_additional_prompt = args.pop()
         scene_additional_prompt_2 = args.pop()
+        scene_video_duration = args.pop()
         scene_var_number = args.pop()
         scene_var_number2 = args.pop()
         scene_var_number3 = args.pop()
@@ -1147,6 +1150,7 @@ def save_preset(*args):
 
             _set_theme_value("additional_prompt", scene_additional_prompt)
             _set_theme_value("additional_prompt_2", scene_additional_prompt_2)
+            _set_theme_value("video_duration", scene_video_duration)
             _set_theme_value("var_number", scene_var_number)
             _set_theme_value("var_number2", scene_var_number2)
             _set_theme_value("var_number3", scene_var_number3)

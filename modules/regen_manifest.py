@@ -6,12 +6,16 @@ from datetime import datetime
 SCHEMA = "simpleai.regen.v1"
 KEY = "simpleai_regen_manifest"
 LABEL = "SimpleAI Regen Manifest"
+VIDEO_DURATION_KEY = "scene_video_duration"
+EXTRA_BACKEND_ARGS = (KEY, VIDEO_DURATION_KEY)
 
 
 def ensure_api_params_backend_arg(api_params_module):
     backend_args = getattr(api_params_module, "backend_args", None)
-    if isinstance(backend_args, list) and KEY not in backend_args:
-        backend_args.append(KEY)
+    if isinstance(backend_args, list):
+        for key in EXTRA_BACKEND_ARGS:
+            if key not in backend_args:
+                backend_args.append(key)
 
 
 def _is_data_url(value):

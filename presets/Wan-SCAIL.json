@@ -2,16 +2,59 @@
     "default_engine": {
         "backend_engine": "Wan",
         "engine_type": "video",
-        "disvisible": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
-        "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "disvisible": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
+        "disinteractive": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
         "available_aspect_ratios_selection": "Flux",
         "scene_frontend": {
             "version": "v1.1",
-            "theme": ["SCAIL"],
+            "theme": [
+                "SCAIL"
+            ],
             "theme_title": "Wan-SCAIL Motion Transfer",
+            "director_capability": {
+                "image_policy": "optional",
+                "audio_policy": "forbidden",
+                "video_policy": "required",
+                "max_images": 1,
+                "min_images": 0,
+                "image_modes": [
+                    "first_frame"
+                ],
+                "video_modes": [
+                    "explicit"
+                ],
+                "duration_strategy": "video_min",
+                "audio_output": "source_audio",
+                "mixed_segments": false
+            },
             "disable_canvas_mask": true,
-            "disvisible": ["scene_input_image1", "scene_additional_prompt","scene_additional_prompt_2","scene_input_image2", "scene_audio", "scene_refiner_model",
-                "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10","scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
+            "disvisible": [
+                "scene_input_image1",
+                "scene_additional_prompt",
+                "scene_additional_prompt_2",
+                "scene_input_image2",
+                "scene_audio",
+                "scene_refiner_model",
+                "scene_var_number5",
+                "scene_var_number6",
+                "scene_var_number7",
+                "scene_var_number8",
+                "scene_var_number9",
+                "scene_var_number10",
+                "scene_switch_option3",
+                "scene_switch_option4",
+                "sam3_input_video",
+                "sam3_mask_video",
+                "scene_var_number"
+            ],
             "task_method": {
                 "SCAIL": "wan_scail_cn"
             },
@@ -50,7 +93,15 @@
             "switch_option2": {
                 "SCAIL": true
             },
-            "aspect_ratio" : ["640|1:1", "720|1:1", "832|1:1", "960|1:1", "1024|1:1", "1280|1:1", "origin|Original"],
+            "aspect_ratio": [
+                "640|1:1",
+                "720|1:1",
+                "832|1:1",
+                "960|1:1",
+                "1024|1:1",
+                "1280|1:1",
+                "origin|Original"
+            ],
             "resolution_control": {
                 "mode": "video_keep_input_area",
                 "source": "scene_video",
@@ -64,7 +115,13 @@
                 "preserve_audio": true
             },
             "overwrite_step_min": 4,
-            "overwrite_step_max": 6
+            "overwrite_step_max": 6,
+            "video_duration_title": "Duration limit (seconds) [0 = no limit]",
+            "video_duration_min": 0,
+            "video_duration_max": 60,
+            "video_duration": {
+                "SCAIL": 0
+            }
         }
     },
     "default_model": "Wan21-14B-SCAIL-preview_fp8_scaled_mixed.safetensors",

@@ -27,6 +27,7 @@
             translation: 'fa-language',
             text: 'fa-font',
             timeline: 'fa-clapperboard',
+            director_timeline: 'fa-timeline',
             video: 'fa-film',
             audio: 'fa-wave-square',
             note: 'fa-note-sticky',
@@ -133,7 +134,8 @@
             t('Text / Translation / Tag Cart / WD14 / VLM: text-producing helpers for prompts and descriptions.', 'Text / Translation / 标签选择器 / WD14 / VLM：用于提示词和描述的文本辅助节点。'),
             t('Tip Note: non-running annotation node with editable font color, size, and background.', 'Tip Note：不参与运行的标注节点，可编辑字体颜色、大小和底色。'),
             t('Config nodes: Models, Styles, Resolution, Detection and other structured preset inputs.', 'Config 节点：Models、Styles、Resolution、Detection 等结构化 preset 输入。'),
-            t('Timeline and Compare: arrange media over time or compare two image sources.', 'Timeline 和 Compare：用于时间线编排或两路图像对比。')
+            t('Timeline and Compare: arrange media over time or compare two image sources.', 'Timeline 和 Compare：用于时间线编排或两路图像对比。'),
+            t('Director Timeline: plan shots before generation and output an Easy-Media compatible prompt_override.', '导演时间轴：生成前规划分镜，并输出 Easy-Media 兼容的 prompt_override。')
         ];
         const ports = [
             ['image', t('Image / media input or output', '图像 / 媒体输入输出')],
