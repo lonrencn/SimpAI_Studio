@@ -31,6 +31,11 @@
         { key: 'video_4', kind: 'video', label: t('Video 4', '视频 4'), icon: 'fa-film' },
         { key: 'video_5', kind: 'video', label: t('Video 5', '视频 5'), icon: 'fa-film' }
     ];
+    const MEDIA_KIND_GROUPS = [
+        { kind: 'image', label: t('Images', '图片'), portLabel: t('Image pool', '图片素材池'), icon: 'fa-image' },
+        { kind: 'audio', label: t('Audio', '音频'), portLabel: t('Audio pool', '音频素材池'), icon: 'fa-wave-square' },
+        { kind: 'video', label: t('Video', '视频'), portLabel: t('Video pool', '视频素材池'), icon: 'fa-film' }
+    ];
     const IMAGE_REFS = [['', t('None', '无')]].concat(MEDIA_SLOT_SPECS.filter(item => item.kind === 'image').map(item => [item.key, item.label]));
     const AUDIO_REFS = [['', t('None', '无')]].concat(MEDIA_SLOT_SPECS.filter(item => item.kind === 'audio').map(item => [item.key, item.label]));
     const VIDEO_REFS = [['', t('None', '无')]]
@@ -156,7 +161,6 @@
         const fallbackStart = index === 0 ? 0 : numberValue(timeline.segments[index - 1]?.end, index * 5, 0, 86400);
         const start = numberValue(raw.start, fallbackStart, 0, 86400);
         const end = Math.max(start, numberValue(raw.end, start + 5, 0, 86400));
-        const unit = raw.unit === 'frames' ? 'frames' : 'seconds';
         const imageRefs = refsFromList(raw.images);
         ['image_ref'].concat(IMAGE_REF_PARAM_KEYS).forEach((key) => {
             const ref = String(raw[key] || '').trim();
@@ -176,7 +180,7 @@
             id: String(raw.id || `shot_${index + 1}`),
             start,
             end,
-            unit,
+            unit: 'seconds',
             type,
             prompt: String(raw.prompt || ''),
             images: normalizeSegmentImages(type, imageRefs),
@@ -231,9 +235,7 @@
             });
             firstRef(segment.audio) && refs.push(tokenFromRef(firstRef(segment.audio), 'audio'));
             firstRef(segment.video) && refs.push(tokenFromRef(firstRef(segment.video), 'video'));
-            const range = segment.unit === 'frames'
-                ? `[${Math.round(segment.start)}-${Math.round(segment.end)}]`
-                : `[${compactTime(segment.start)}-${compactTime(segment.end)}s]`;
+            const range = `[${compactTime(segment.start)}-${compactTime(segment.end)}s]`;
             return refs.concat([segment.prompt, range]).filter(Boolean).join(' ').trim();
         }).filter(Boolean).join(' | ');
     }
@@ -268,6 +270,50 @@
         return asset.thumb || asset.preview_url || asset.data_url || '';
     }
 
+    function mediaSlotsForKind(kind) {
+        return MEDIA_SLOT_SPECS.filter(item => item.kind === kind);
+    }
+
+    function mediaSlotConnected(context, node, slot) {
+        return !!sourceForRef(context, node, slot.key);
+    }
+
+    function mediaSlotCardHtml(context, node, slot) {
+        const source = sourceForRef(context, node, slot.key);
+        const src = mediaPreviewSrc(context, source);
+        const label = source ? (source.title || source.id || slot.key) : t('Not connected', '未连接');
+        const statusClass = source ? 'has-source' : 'is-empty';
+        const previewBody = src && slot.kind !== 'audio'
+            ? `<img src="${escapeHtml(src)}" alt="">`
+            : `<i class="fa-solid ${escapeHtml(slot.icon)}"></i>`;
+        return `
+      <div class="sai-director-media-card ${statusClass}" data-director-media-slot="${escapeHtml(slot.key)}" data-director-media-kind="${escapeHtml(slot.kind)}">
+        <button type="button" class="sai-node-handle sai-node-handle-in" data-director-media-in="${escapeHtml(slot.key)}" title="${escapeHtml(slot.label)}"></button>
+        <div class="sai-director-media-thumb">${previewBody}</div>
+        <div class="sai-director-media-meta">
+          <b>${escapeHtml(slot.key)}</b>
+          <span>${escapeHtml(label)}</span>
+        </div>
+      </div>`;
+    }
+
+    function renderMediaPoolGroup(group, node, context) {
+        const slots = mediaSlotsForKind(group.kind);
+        const connected = slots.filter(slot => mediaSlotConnected(context, node, slot)).length;
+        return `
+  <section class="sai-director-media-group" data-director-media-kind-group="${escapeHtml(group.kind)}">
+    <div class="sai-director-media-group-head">
+      <button type="button" class="sai-node-handle sai-node-handle-in sai-director-media-group-handle" data-director-media-group-in="${escapeHtml(group.kind)}" title="${escapeHtml(group.portLabel)}"></button>
+      <i class="fa-solid ${escapeHtml(group.icon)}"></i>
+      <span>${escapeHtml(group.label)}</span>
+      <small>${escapeHtml(`${connected}/${slots.length}`)}</small>
+    </div>
+    <div class="sai-director-media-grid">
+      ${slots.map(slot => mediaSlotCardHtml(context, node, slot)).join('')}
+    </div>
+  </section>`;
+    }
+
     function imageRefPreviewHtml(context, node, ref, disabled) {
         if (disabled) {
             return `<div class="sai-director-image-preview is-disabled"><i class="fa-solid fa-ban"></i><span>${escapeHtml(t('No image input', '不使用图片'))}</span></div>`;
@@ -282,9 +328,7 @@
     }
 
     function timelineSegmentSeconds(timeline, segment, key, fallback) {
-        const fps = numberValue(timeline?.fps, 24, 1, 240);
-        const raw = numberValue(segment?.[key], fallback, 0, segment?.unit === 'frames' ? 86400 * fps : 86400);
-        return segment?.unit === 'frames' ? raw / fps : raw;
+        return numberValue(segment?.[key], fallback, 0, 86400);
     }
 
     function timelineSegmentRange(timeline, segment) {
@@ -372,7 +416,9 @@
         const title = `${t('Shot', '分镜')} ${index + 1} · ${formatTimelineSeconds(range.start)}-${formatTimelineSeconds(range.end)}`;
         const duration = Math.max(0, range.end - range.start);
         return `
-<article class="sai-director-timeline-clip ${imageRefs.length ? 'has-image' : ''} ${videoRef ? 'has-video' : ''}" style="${timelineTrackStyle(range, totalSeconds)}" title="${escapeHtml(prompt)}">
+<article class="sai-director-timeline-clip ${imageRefs.length ? 'has-image' : ''} ${videoRef ? 'has-video' : ''}" data-director-timeline-clip="${index}" data-director-timeline-drag="move" style="${timelineTrackStyle(range, totalSeconds)}" title="${escapeHtml(prompt)}">
+  <button type="button" class="sai-director-timeline-handle is-start" data-director-timeline-drag="start" data-director-timeline-clip="${index}" title="${escapeHtml(t('Adjust start', '调整开始'))}"></button>
+  <button type="button" class="sai-director-timeline-handle is-end" data-director-timeline-drag="end" data-director-timeline-clip="${index}" title="${escapeHtml(t('Adjust end', '调整结束'))}"></button>
   <div class="sai-director-timeline-clip-media">${timelinePreviewRefChips(context, node, refs)}</div>
   <div class="sai-director-timeline-clip-body">
     <b>${escapeHtml(title)}</b>
@@ -382,33 +428,17 @@
 </article>`;
     }
 
-    function renderTimelinePreviewAudio(context, node, timeline, segment, totalSeconds) {
-        const audioRef = firstRef(segment.audio);
-        if (!audioRef) return '';
-        const range = timelineSegmentRange(timeline, segment);
-        const preview = timelineSourcePreview(context, node, audioRef, 'audio');
-        return `<span class="sai-director-timeline-audio-segment" style="${timelineTrackStyle(range, totalSeconds)}" title="${escapeHtml(preview.label)}"><i class="fa-solid fa-wave-square"></i>${escapeHtml(audioRef)}</span>`;
-    }
-
-    function renderTimelinePreviewPrompt(timeline, segment, totalSeconds) {
-        const range = timelineSegmentRange(timeline, segment);
-        const prompt = segment.prompt || timelineSegmentTypeLabel(segment);
-        return `<span class="sai-director-timeline-prompt-segment" style="${timelineTrackStyle(range, totalSeconds)}">${escapeHtml(prompt)}</span>`;
-    }
-
     function renderTimelinePreviewRuler(timeline, totalSeconds) {
-        const fps = numberValue(timeline?.fps, 24, 1, 240);
         return Array.from({ length: 5 }, (_item, index) => {
             const seconds = totalSeconds * index / 4;
-            const frame = Math.round(seconds * fps);
-            return `<span style="left:${index * 25}%"><b>${escapeHtml(formatTimelineSeconds(seconds))}</b><small>${escapeHtml(`${frame}f`)}</small></span>`;
+            return `<span style="left:${index * 25}%"><b>${escapeHtml(formatTimelineSeconds(seconds))}</b></span>`;
         }).join('');
     }
 
     function renderTimelinePreview(timeline, node, context) {
         const segments = Array.isArray(timeline?.segments) ? timeline.segments : [];
         const totalSeconds = timelineTotalSeconds(timeline);
-        const meta = `${Math.round(timeline.width)}x${Math.round(timeline.height)} · ${timeline.fps}fps · ${escapeHtml(timeline.format)} · ${formatTimelineSeconds(totalSeconds)}`;
+        const meta = `${Math.round(timeline.width)}x${Math.round(timeline.height)} · ${timeline.fps}fps · ${formatTimelineSeconds(totalSeconds)}`;
         return `
 <div class="sai-director-timeline-preview">
   <div class="sai-director-timeline-preview-head">
@@ -419,14 +449,6 @@
   <div class="sai-director-timeline-video-track">
     <strong>${escapeHtml(t('Video track', '视频轨'))}</strong>
     ${segments.length ? segments.map((segment, index) => renderTimelinePreviewClip(context, node, timeline, segment, index, totalSeconds)).join('') : `<span class="sai-director-timeline-empty">${escapeHtml(t('No shots', '无分镜'))}</span>`}
-  </div>
-  <div class="sai-director-timeline-audio-track">
-    <strong>${escapeHtml(t('Audio track', '音频轨'))}</strong>
-    ${segments.map(segment => renderTimelinePreviewAudio(context, node, timeline, segment, totalSeconds)).join('')}
-  </div>
-  <div class="sai-director-timeline-prompt-track">
-    <strong>${escapeHtml(t('Prompt track', '提示词轨'))}</strong>
-    ${segments.map(segment => renderTimelinePreviewPrompt(timeline, segment, totalSeconds)).join('')}
   </div>
 </div>`;
     }
@@ -469,14 +491,8 @@
     }
 
     function renderMediaRows(node, context) {
-        return `<div class="sai-director-media-list">
-${MEDIA_SLOT_SPECS.map(slot => `
-  <div class="sai-director-media-row" data-director-media-slot="${escapeHtml(slot.key)}">
-    <button type="button" class="sai-node-handle sai-node-handle-in" data-director-media-in="${escapeHtml(slot.key)}" title="${escapeHtml(slot.label)}"></button>
-    <i class="fa-solid ${escapeHtml(slot.icon)}"></i>
-    <span>${escapeHtml(slot.label)}</span>
-    <b>${escapeHtml(sourceLabel(context, node, slot))}</b>
-  </div>`).join('')}
+        return `<div class="sai-director-media-board sai-director-media-list">
+${MEDIA_KIND_GROUPS.map(group => renderMediaPoolGroup(group, node, context)).join('')}
 </div>`;
     }
 
@@ -490,11 +506,7 @@ ${MEDIA_SLOT_SPECS.map(slot => `
 <div class="sai-node-field-row">
   <label class="sai-node-field"><span>${escapeHtml('FPS')}</span><input ${attr}="fps" type="number" min="1" max="240" step="1" value="${escapeHtml(timeline.fps)}"></label>
   <label class="sai-node-field"><span>${escapeHtml(t('Duration', '时长'))}</span><input ${attr}="duration" type="number" min="0.1" max="86400" step="0.1" value="${escapeHtml(timeline.duration)}"></label>
-</div>
-<label class="sai-node-field">
-  <span>${escapeHtml(t('Target format', '目标格式'))}</span>
-  <select ${attr}="format">${optionHtml(FORMATS, timeline.format)}</select>
-</label>`;
+</div>`;
     }
 
     function renderSegmentRow(segment, index, attrName, node, context) {
@@ -512,22 +524,21 @@ ${MEDIA_SLOT_SPECS.map(slot => `
       <button type="button" data-node-action="director-remove-segment:${index}" title="${escapeHtml(t('Delete shot', '删除分镜'))}"><i class="fa-solid fa-trash"></i></button>
     </div>
   </div>
-  <div class="sai-node-field-row">
+  <div class="sai-node-field-row sai-director-segment-time">
     <label class="sai-node-field"><span>${escapeHtml(t('Start', '开始'))}</span><input ${attr}="start" ${indexAttr} type="number" step="0.1" value="${escapeHtml(segment.start)}"></label>
     <label class="sai-node-field"><span>${escapeHtml(t('End', '结束'))}</span><input ${attr}="end" ${indexAttr} type="number" step="0.1" value="${escapeHtml(segment.end)}"></label>
   </div>
-  <div class="sai-node-field-row">
-    <label class="sai-node-field"><span>${escapeHtml(t('Unit', '单位'))}</span><select ${attr}="unit" ${indexAttr}>${optionHtml([['seconds', t('Seconds', '秒')], ['frames', t('Frames', '帧')]], segment.unit)}</select></label>
+  <div class="sai-node-field-row sai-director-segment-mode">
     <label class="sai-node-field"><span>${escapeHtml(t('Type', '类型'))}</span><select ${attr}="type" ${indexAttr}>${optionHtml(SEGMENT_TYPES, segment.type)}</select></label>
   </div>
   <div class="sai-director-image-ref-row">
     ${Array.from({ length: imageFieldCount }, (_, slotIndex) => renderImageRefField(segment, index, attr, indexAttr, node, context, slotIndex)).join('')}
   </div>
-  <div class="sai-node-field-row">
+  <div class="sai-node-field-row sai-director-segment-refs">
     <label class="sai-node-field"><span>${escapeHtml(t('Audio ref', '音频引用'))}</span><select ${attr}="audio_ref" ${indexAttr}>${optionHtml(AUDIO_REFS, firstRef(segment.audio))}</select></label>
     <label class="sai-node-field"><span>${escapeHtml(t('Video ref', '视频引用'))}</span><select ${attr}="video_ref" ${indexAttr}>${optionHtml(VIDEO_REFS, firstRef(segment.video))}</select></label>
   </div>
-  <label class="sai-node-field sai-text-node-field"><span>${escapeHtml(t('Prompt', '提示词'))}</span><textarea ${attr}="prompt" ${indexAttr} rows="3">${escapeHtml(segment.prompt)}</textarea></label>
+  <label class="sai-node-field sai-text-node-field sai-director-segment-prompt"><span>${escapeHtml(t('Prompt', '提示词'))}</span><textarea ${attr}="prompt" ${indexAttr} rows="2">${escapeHtml(segment.prompt)}</textarea></label>
 </div>`;
     }
 
@@ -546,9 +557,18 @@ ${MEDIA_SLOT_SPECS.map(slot => `
   <button type="button" data-node-action="director-add-segment" title="${escapeHtml(t('Add shot', '新增分镜'))}"><i class="fa-solid fa-plus"></i></button>
   <button type="button" data-node-action="delete" title="${escapeHtml(t('Delete', '删除'))}"><i class="fa-solid fa-xmark"></i></button>
 </div>
-${renderMediaRows(node, context)}
-<div class="sai-director-settings">
-${renderGlobalFields(timeline)}
+<div class="sai-director-node-body">
+<div class="sai-director-top-grid">
+  <div class="sai-director-media-panel">
+    <div class="sai-director-section-title"><span>${escapeHtml(t('Media pool', '素材池'))}</span><small>${escapeHtml(t('Connect to a group port for auto slot assignment', '连接到分组入口会自动分配空槽'))}</small></div>
+    ${renderMediaRows(node, context)}
+  </div>
+  <div class="sai-director-settings-panel">
+    <div class="sai-director-section-title"><span>${escapeHtml(t('Timeline settings', '时间线参数'))}</span></div>
+    <div class="sai-director-settings">
+      ${renderGlobalFields(timeline)}
+    </div>
+  </div>
 </div>
 ${renderSegments(timeline, undefined, node, context)}
 ${renderTimelinePreview(timeline, node, context)}
@@ -557,6 +577,7 @@ ${renderTimelinePreview(timeline, node, context)}
   <textarea readonly rows="3">${escapeHtml(output)}</textarea>
 </div>
 <button type="button" class="sai-node-primary" data-node-action="director-add-segment"><i class="fa-solid fa-plus"></i><span>${escapeHtml(t('Add Shot', '新增分镜'))}</span></button>
+</div>
 <button type="button" class="sai-node-handle sai-node-handle-out" data-handle-out="text" title="${escapeHtml(t('prompt_override output', 'prompt_override 输出'))}"></button>`;
     }
 
@@ -601,7 +622,7 @@ ${renderTimelinePreview(timeline, node, context)}
     function createNode(world, options, context) {
         const opts = options || {};
         if (opts.history !== false && typeof context?.pushHistory === 'function') context.pushHistory('Add Director Timeline node');
-        const size = typeof context?.defaultNodeSize === 'function' ? context.defaultNodeSize('director_timeline') : { w: 520, h: 700 };
+        const size = typeof context?.defaultNodeSize === 'function' ? context.defaultNodeSize('director_timeline') : { w: 880, h: 620 };
         const node = {
             id: uid('director'),
             type: 'director_timeline',
@@ -663,7 +684,12 @@ ${renderTimelinePreview(timeline, node, context)}
             const videoRole = videoRef === PREVIOUS_SEGMENT_VIDEO_REF
                 ? 'previous_result'
                 : (segment.video?.[0]?.role || 'reference');
+            const start = numberValue(segment.start, 0, 0, 86400);
+            const end = Math.max(start, numberValue(segment.end, start + 0.1, 0, 86400));
             return Object.assign({}, segment, {
+                start,
+                end,
+                unit: 'seconds',
                 images: imageRefs.map((imageRef, imageIndex) => ({
                     source_ref: imageRef,
                     source_node_id: sourceNodeIds[imageRef] || '',
@@ -688,6 +714,7 @@ ${renderTimelinePreview(timeline, node, context)}
         PREVIOUS_SEGMENT_VIDEO_REF,
         MAX_AUDIO_REFS,
         MAX_VIDEO_REFS,
+        MEDIA_KIND_GROUPS,
         defaultTimeline,
         normalizeTimeline,
         promptOverrideForTimeline,
