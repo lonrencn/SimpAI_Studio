@@ -242,3 +242,38 @@ node tools\director_generation_canary.mjs
 - WebUI 右侧栏由 `#scene_director_side_panel` 承载，不要把规则说明重新放回独立 grid 行。
 - 媒体区域禁止交互时保持可见，避免用户误以为上传区消失。
 - capability 字段变更后，同步检查 preset JSON、WebUI、Infinite Canvas、release matrix 和 contract 测试。
+
+## Infinite Canvas 导演节点布局
+
+2026-06-22 调整无限画布 `Director Timeline` 节点：
+
+- 节点默认尺寸改为 `880 x 620`，避免 15 个素材入口和分镜编辑区被挤成竖条。
+- 节点内容放入内部滚动区，画布上的节点高度按节点尺寸显示，不再被分镜数量自然撑高。
+- 素材入口从 15 条竖排改为三组素材池：图片、音频、视频。
+- 每组素材池提供一个分组连接点。连接图片、音频或视频输出到分组连接点时，会自动写入同类型的第一个空素材槽。
+- 每个素材卡片仍保留自己的精确连接点，需要指定 `image_3`、`audio_2`、`video_5` 时可以直接连到对应卡片。
+- 概览态和缩小态只显示图片素材池、音频素材池、视频素材池三个入口，减少节点边缘端口数量。
+- 分镜编辑区改为两列网格：时间和类型在上层，图片引用和音视频引用并排，提示词单独占整行。
+- 后端字段不变，仍输出 `image_1..5`、`audio_1..5`、`video_1..5`，现有模板和 worker payload 不需要迁移。
+- `Compose timeline` 仍然需要用户手动开启；`chain_output="timeline"` 只表示 preset 支持最终合成，不改变默认状态。
+- 布局 smoke：`node tools\director_canvas_layout_smoke.mjs` 会打开本地页面，生成 `reports/director-layout-smoke/infinite-canvas-director-layout.png` 和同名 JSON 报告。
+
+## Infinite Canvas 导演节点秒制时间线
+
+2026-06-23 调整无限画布 `Director Timeline` 节点：
+
+- 新建节点默认尺寸改为 `1180 x 980`，素材池、参数区、分镜区和时间线预览默认按工作台尺寸展示。
+- 外层节点内容不再整体滚动，滚动范围只放在多分镜列表。素材池、时间线参数、时间线预览、`prompt_override` 会留在节点固定区域。
+- 分镜时间统一按秒传给 preset。分镜 UI 不再提供“秒 / 帧”单位选择，`prompt_override` 的范围统一写成 `[start-ends]`。
+- 节点内不再显示“目标格式”。固定帧格式属于原 Comfy 节点工作流内部概念，SimpAI preset 会在 workflow 内按秒和 FPS 自行换算。
+- 时间线预览加入分镜条拖动：拖整条移动开始/结束时间，拖左右边缘调整开始或结束秒数，变化会同步回分镜输入框和运行 payload。
+- 无限画布节点内的预览区保留单视频轨，避免独立音频轨、提示词轨压缩主时间线；音频引用和提示词仍显示在分镜卡片与 `prompt_override` 中。
+
+## Infinite Canvas 时间线交互约束
+
+2026-06-23 继续调整无限画布 `Director Timeline` 节点：
+
+- 时间线预览拖动会受前后分镜边界限制。拖动开始点、结束点或整条分镜时，当前分镜不能覆盖相邻分镜。
+- 手动修改分镜开始 / 结束秒数时，也会按相邻分镜边界重新限制，避免输入框和预览条出现互相覆盖。
+- 画布全局滚轮事件会放行节点内可滚动区域。多分镜列表拥有自己的滚动范围，可以直接用鼠标滚轮浏览，不需要只拖滚动条。
+- `node tools\director_canvas_layout_smoke.mjs` 会验证时间线拖动不会覆盖下一段，并验证分镜列表滚轮能改变内部 `scrollTop`。

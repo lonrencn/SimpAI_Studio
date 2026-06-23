@@ -43,6 +43,7 @@
                 "scene_var_number4",
                 "scene_var_number5",
                 "scene_var_number6",
+                "scene_var_number3",
                 "scene_var_number8",
                 "scene_var_number9",
                 "scene_var_number10",
@@ -71,12 +72,6 @@
             "var_number2_max": 60,
             "var_number2": {
                 "InfiniteTalk-AI2V": 60
-            },
-            "var_number3_title": "Skip first N seconds of reference audio",
-            "var_number3_min": 0.0,
-            "var_number3_max": 120,
-            "var_number3": {
-                "InfiniteTalk-AI2V": 0.0
             },
             "var_number7_title": "Frames per segment [smaller saves VRAM]",
             "var_number7_min": 45,

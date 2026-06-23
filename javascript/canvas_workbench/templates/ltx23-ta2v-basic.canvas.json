@@ -392,14 +392,6 @@
             "interactive": true,
             "min": 24,
             "max": 50
-          },
-          {
-            "key": "scene_switch_option1",
-            "label": "Generate with audio input [trim to configured duration]",
-            "type": "checkbox",
-            "default": true,
-            "visible": false,
-            "interactive": false
           }
         ],
         "per_theme": {
@@ -409,7 +401,6 @@
               "scene_var_number": 8,
               "scene_var_number2": 30,
               "scene_var_number7": 30,
-              "scene_switch_option1": true,
               "prompt": "",
               "scene_aspect_ratio": "896|1:1"
             },
@@ -578,7 +569,6 @@
         "image_seed": 0,
         "scene_var_number2": 30,
         "scene_var_number7": 30,
-        "scene_switch_option1": true,
         "scene_video_duration": 8
       },
       "status": "idle",

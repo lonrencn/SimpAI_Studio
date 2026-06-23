@@ -2,12 +2,22 @@
     "default_engine": {
         "backend_engine": "Wan",
         "engine_type": "video",
-        "disvisible": ["input_image_checkbox","prompt_panel_checkbox","advanced_checkbox"],
-        "disinteractive": ["input_image_checkbox", "prompt_panel_checkbox", "performance_selection"],
+        "disvisible": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "advanced_checkbox"
+        ],
+        "disinteractive": [
+            "input_image_checkbox",
+            "prompt_panel_checkbox",
+            "performance_selection"
+        ],
         "available_aspect_ratios_selection": "Flux",
         "scene_frontend": {
             "version": "v1.1",
-            "theme": ["Basic"],
+            "theme": [
+                "Basic"
+            ],
             "theme_title": "Bernini Video Edit[Optional Image]",
             "director_capability": {
                 "image_policy": "optional",
@@ -15,17 +25,39 @@
                 "video_policy": "required",
                 "max_images": 2,
                 "min_images": 0,
-                "image_modes": ["reference_set"],
-                "video_modes": ["explicit"],
+                "image_modes": [
+                    "reference_set"
+                ],
+                "video_modes": [
+                    "explicit"
+                ],
                 "chain_output": "last_result",
                 "requires_sequential": false,
                 "duration_strategy": "shot",
                 "audio_output": "source_audio",
                 "mixed_segments": false
             },
-            "disvisible": ["scene_input_image2", "scene_additional_prompt","scene_additional_prompt_2", "scene_audio", "scene_var_number", "scene_var_number2","scene_var_number4",
-                "scene_var_number3", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10", "scene_batch"
-                ,"scene_switch_option2","scene_switch_option3","scene_switch_option4","sam3_input_video","sam3_mask_video"],
+            "disvisible": [
+                "scene_input_image2",
+                "scene_additional_prompt",
+                "scene_additional_prompt_2",
+                "scene_audio",
+                "scene_var_number",
+                "scene_var_number2",
+                "scene_var_number4",
+                "scene_var_number3",
+                "scene_var_number5",
+                "scene_var_number6",
+                "scene_var_number8",
+                "scene_var_number9",
+                "scene_var_number10",
+                "scene_batch",
+                "scene_switch_option2",
+                "scene_switch_option3",
+                "scene_switch_option4",
+                "sam3_input_video",
+                "sam3_mask_video"
+            ],
             "prompt": {
                 "Basic": ""
             },
@@ -36,11 +68,11 @@
             "multimodal_prompt": {
                 "Basic": ""
             },
-            "video_duration_title": "Video Duration(s)",
-            "video_duration_min": 0.1,
-            "video_duration_max": 10,
+            "video_duration_title": "Duration limit (seconds) [0 = no limit]",
+            "video_duration_min": 0,
+            "video_duration_max": 120,
             "video_duration": {
-                "Basic": 5
+                "Basic": 0
             },
             "var_number_min": 1,
             "var_number_max": 10,
@@ -51,7 +83,15 @@
             "switch_option1": {
                 "Basic": false
             },
-            "aspect_ratio" : ["640|1:1", "720|1:1", "832|1:1", "960|1:1", "1024|1:1", "1280|1:1","origin|Original"],
+            "aspect_ratio": [
+                "640|1:1",
+                "720|1:1",
+                "832|1:1",
+                "960|1:1",
+                "1024|1:1",
+                "1280|1:1",
+                "origin|Original"
+            ],
             "resolution_control": {
                 "mode": "video_keep_input_area",
                 "source": "scene_video",
@@ -65,7 +105,13 @@
                 "preserve_audio": true
             },
             "overwrite_step_min": 6,
-            "overwrite_step_max": 10
+            "overwrite_step_max": 10,
+            "var_number7_title": "Frames per segment [smaller saves VRAM]",
+            "var_number7_min": 45,
+            "var_number7_max": 185,
+            "var_number7": {
+                "Basic": 81
+            }
         }
     },
     "default_model": "wan2.2_bernini_r_high_noise_fp8_scaled.safetensors",
@@ -106,7 +152,7 @@
     "default_scheduler": "simple",
     "default_performance": "Speed",
     "default_styles": [],
-    "default_aspect_ratio": "1024*1024",
+    "default_aspect_ratio": "640*640",
     "default_image_number": 1,
     "default_overwrite_step": 6,
     "default_prompt": "",
