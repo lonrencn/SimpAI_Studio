@@ -72,23 +72,6 @@
       "title": "vae_model"
     }
   },
-  "16": {
-    "inputs": {
-      "weight": 2,
-      "model": [
-        "215",
-        0
-      ],
-      "latent": [
-        "22",
-        0
-      ]
-    },
-    "class_type": "WanVideoEnhanceAVideoKJ",
-    "_meta": {
-      "title": "WanVideo Enhance A Video (native)"
-    }
-  },
   "18": {
     "inputs": {
       "anything": [
@@ -550,7 +533,7 @@
   },
   "143": {
     "inputs": {
-      "expression": "ceil(a/2-1)",
+      "expression": "int(a/2)",
       "a": [
         "150",
         9
@@ -648,7 +631,7 @@
       "end_at_step": 10000,
       "return_with_leftover_noise": "disable",
       "model": [
-        "16",
+        "215",
         0
       ],
       "positive": [
