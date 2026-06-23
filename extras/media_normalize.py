@@ -204,7 +204,7 @@ def _write_bytes_temp(data: bytes, suffix: str):
         return None
 
 
-def _write_wav_temp(sample_rate: int, wav_data):
+def _write_wav_temp(sample_rate: int, wav_data, prefix=None):
     if sample_rate is None or wav_data is None:
         return None
     try:
@@ -227,7 +227,10 @@ def _write_wav_temp(sample_rate: int, wav_data):
             audio = (audio_f * 32767.0).astype(np.int16)
         audio = np.ascontiguousarray(audio)
         channels = int(audio.shape[1])
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        tmp_kwargs = {"delete": False, "suffix": ".wav"}
+        if prefix is not None:
+            tmp_kwargs["prefix"] = prefix
+        with tempfile.NamedTemporaryFile(**tmp_kwargs) as tmp:
             out_path = os.path.abspath(tmp.name)
         with wave.open(out_path, "wb") as wf:
             wf.setnchannels(channels)
@@ -241,6 +244,7 @@ def _write_wav_temp(sample_rate: int, wav_data):
 
 _AUDIO_COPY_PREFIX = "simpleai_audio_copy_"
 _AUDIO_TRANSCODE_PREFIX = "simpleai_audio_wav_"
+_AUDIO_TRIM_PREFIX = "simpleai_audio_trim_"
 
 
 def _copy_existing_media_to_temp(src_path: str, prefix: str):
@@ -371,6 +375,44 @@ def _normalize_existing_audio_path(path: str, copy_existing=True):
     return p
 
 
+def _audio_crop_range_from_dict(audio):
+    if not isinstance(audio, dict):
+        return None
+    if "crop_min" not in audio and "crop_max" not in audio:
+        return None
+    try:
+        crop_min = float(audio.get("crop_min", 0))
+        crop_max = float(audio.get("crop_max", 100))
+    except Exception:
+        return None
+    if not np.isfinite(crop_min) or not np.isfinite(crop_max):
+        return None
+    crop_min = max(0.0, min(100.0, crop_min))
+    crop_max = max(0.0, min(100.0, crop_max))
+    if crop_max < crop_min:
+        crop_min, crop_max = crop_max, crop_min
+    if abs(crop_min) < 1e-6 and abs(crop_max - 100.0) < 1e-6:
+        return None
+    return crop_min, crop_max
+
+
+def _trim_existing_audio_path(path: str, crop_min: float, crop_max: float):
+    if not isinstance(path, str):
+        return None
+    p = path.strip()
+    if not p or not os.path.exists(p):
+        return None
+    try:
+        import gradio.processing_utils as _gr_processing_utils
+
+        sample_rate, data = _gr_processing_utils.audio_from_file(
+            p, crop_min=crop_min, crop_max=crop_max
+        )
+        return _write_wav_temp(sample_rate, data, prefix=_AUDIO_TRIM_PREFIX)
+    except Exception:
+        return None
+
+
 def normalize_gradio_audio_value(audio, copy_existing=True):
     if audio is None:
         return None
@@ -386,10 +428,15 @@ def normalize_gradio_audio_value(audio, copy_existing=True):
                 return None
         return _normalize_existing_audio_path(p, copy_existing=copy_existing)
     if isinstance(audio, dict):
+        crop_range = _audio_crop_range_from_dict(audio)
         if "waveform" in audio and "sample_rate" in audio:
             return _write_wav_temp(audio.get("sample_rate", None), audio.get("waveform", None))
         p = _first_existing_path(audio)
         if p:
+            if crop_range is not None:
+                trimmed_path = _trim_existing_audio_path(p, crop_range[0], crop_range[1])
+                if trimmed_path:
+                    return trimmed_path
             return _normalize_existing_audio_path(p, copy_existing=copy_existing)
         data = audio.get("data", None)
         name = audio.get("name", None)
@@ -400,6 +447,10 @@ def normalize_gradio_audio_value(audio, copy_existing=True):
         if isinstance(data, bytes):
             tmp_path = _write_bytes_temp(data, suffix or ".wav")
             if tmp_path and os.path.exists(tmp_path):
+                if crop_range is not None:
+                    trimmed_path = _trim_existing_audio_path(tmp_path, crop_range[0], crop_range[1])
+                    if trimmed_path:
+                        return trimmed_path
                 normalized = _normalize_existing_audio_path(tmp_path, copy_existing=False)
                 if normalized:
                     return normalized
@@ -412,6 +463,10 @@ def normalize_gradio_audio_value(audio, copy_existing=True):
                 raw = base64.b64decode(s, validate=False)
                 tmp_path = _write_bytes_temp(raw, suffix or ".wav")
                 if tmp_path and os.path.exists(tmp_path):
+                    if crop_range is not None:
+                        trimmed_path = _trim_existing_audio_path(tmp_path, crop_range[0], crop_range[1])
+                        if trimmed_path:
+                            return trimmed_path
                     normalized = _normalize_existing_audio_path(tmp_path, copy_existing=False)
                     return normalized if normalized else tmp_path
                 return None

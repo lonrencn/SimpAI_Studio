@@ -9276,6 +9276,8 @@ with shared.gradio_root:
             .then(lambda: None, js='()=>{try{if(typeof _rc_setTextValue==="function") _rc_setTextValue("resolution_source_meta", "{}", true);}catch(e){} if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_video", "clear");}')
         scene_audio.upload(_remember_scene_audio_for_generation, inputs=[scene_audio], outputs=[scene_audio_backup], queue=False, show_progress=False) \
             .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)
+        scene_audio.change(_remember_scene_audio_for_generation, inputs=[scene_audio], outputs=[scene_audio_backup], queue=False, show_progress=False) \
+            .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)
         scene_audio.clear(_clear_scene_audio_for_generation, outputs=[scene_audio_backup], queue=False, show_progress=False) \
             .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)
 

@@ -7586,8 +7586,19 @@ function syncFinishedGalleryGridResolutionBadges(gallery, gridItems, paths, reas
     return applied > 0;
 }
 
-function syncFinishedGalleryResolutionBadges(reason) {
-    const gallery = getFinishedGalleryBrowserElement("finished_gallery") || document.getElementById("finished_gallery");
+function finishedGalleryResolutionBadgeRoots() {
+    const roots = [];
+    const add = (node) => {
+        if (node && !roots.includes(node)) roots.push(node);
+    };
+    try { add(getFinishedGalleryBrowserElement("finished_gallery")); } catch (e) {}
+    try { add(document.getElementById("finished_gallery")); } catch (e) {}
+    try { add(getFinishedGalleryBrowserElement("final_gallery")); } catch (e) {}
+    try { add(document.getElementById("final_gallery")); } catch (e) {}
+    return roots;
+}
+
+function syncFinishedGalleryResolutionBadgesForGallery(gallery, reason) {
     if (!gallery) return false;
     const hasBrowserPaths = Array.isArray(finishedGalleryBrowserState.paths) && finishedGalleryBrowserState.paths.length > 0;
     const paths = hasBrowserPaths ? finishedGalleryBrowserState.paths : [];
@@ -7633,6 +7644,14 @@ function syncFinishedGalleryResolutionBadges(reason) {
     clearFinishedGalleryPreviewResolutionBadges(gallery);
     return false;
 }
+
+function syncFinishedGalleryResolutionBadges(reason) {
+    let applied = false;
+    finishedGalleryResolutionBadgeRoots().forEach((gallery) => {
+        applied = syncFinishedGalleryResolutionBadgesForGallery(gallery, reason) || applied;
+    });
+    return applied;
+}
 window.syncFinishedGalleryResolutionBadges = syncFinishedGalleryResolutionBadges;
 
 function scheduleFinishedGalleryResolutionBadges(reason) {
@@ -7669,8 +7688,7 @@ function isFinishedGalleryResolutionBadgeMutation(mutation) {
     });
 }
 
-function bindFinishedGalleryResolutionBadgeObserver() {
-    const gallery = getFinishedGalleryBrowserElement("finished_gallery") || document.getElementById("finished_gallery");
+function bindFinishedGalleryResolutionBadgeObserverForGallery(gallery) {
     if (!gallery || gallery.dataset.simpleaiResolutionBadgeObserver === "1") return false;
     gallery.dataset.simpleaiResolutionBadgeObserver = "1";
     const observer = new MutationObserver((mutations) => {
@@ -7695,6 +7713,14 @@ function bindFinishedGalleryResolutionBadgeObserver() {
     }, true);
     scheduleFinishedGalleryResolutionBadges("gallery_observer_bind");
     return true;
+}
+
+function bindFinishedGalleryResolutionBadgeObserver() {
+    let bound = false;
+    finishedGalleryResolutionBadgeRoots().forEach((gallery) => {
+        bound = bindFinishedGalleryResolutionBadgeObserverForGallery(gallery) || bound;
+    });
+    return bound;
 }
 
 function syncFinishedGalleryBrowserTopbarState(data, reason) {
@@ -11963,6 +11989,10 @@ function syncPostGenerationResultControls(stateOverride) {
         showElement(finalGallery);
     }
     showElement(catalog);
+    try {
+        bindFinishedGalleryResolutionBadgeObserver();
+        scheduleFinishedGalleryResolutionBadges("post_generation_result_controls");
+    } catch (e) {}
 
     if (isVideoContext) {
         if (stateImageToolsEnabled && singlePreviewOpen) showElement(find("image_toolbox"));
@@ -12131,6 +12161,10 @@ function syncGenerationResultGallerySurface(reason) {
             document.documentElement.classList.remove("simpai-main-gallery-browser-closed");
             document.documentElement.classList.remove("simpai-gallery-browser-welcome-pending");
             document.documentElement.classList.remove("simpai-gallery-browser-loading-silent");
+        } catch (e) {}
+        try {
+            bindFinishedGalleryResolutionBadgeObserver();
+            scheduleFinishedGalleryResolutionBadges(reason || "generation_result_surface");
         } catch (e) {}
         simpaiUiTrace("log", "[UI-TRACE] generation_result_gallery.surface_revealed", { reason: reason || "generation_result_surface" });
     }
@@ -12519,6 +12553,95 @@ function scheduleSceneAndAdvancedSync(traceLabel, isSceneFrontend) {
 }
 
 
+let sceneAudioPointerReleaseGuardBound = false;
+const sceneAudioPointerReleaseState = {
+    active: false,
+    clientX: 0,
+    clientY: 0,
+    pointerId: 1,
+    pointerType: "mouse",
+};
+
+function getSceneAudioElement() {
+    const app = typeof gradioApp === "function" ? gradioApp() : document;
+    return (app && app.getElementById ? app.getElementById("scene_audio") : null) || document.getElementById("scene_audio");
+}
+
+function isSceneAudioPointerTarget(target) {
+    return !!(target && target.closest && target.closest("#scene_audio"));
+}
+
+function makeSceneAudioReleaseEvent(eventName, sourceEvent) {
+    const init = {
+        bubbles: true,
+        cancelable: true,
+        clientX: Number.isFinite(sourceEvent && sourceEvent.clientX) ? sourceEvent.clientX : sceneAudioPointerReleaseState.clientX,
+        clientY: Number.isFinite(sourceEvent && sourceEvent.clientY) ? sourceEvent.clientY : sceneAudioPointerReleaseState.clientY,
+        button: 0,
+    };
+    if (eventName.indexOf("pointer") === 0 && typeof PointerEvent === "function") {
+        return new PointerEvent(eventName, {
+            ...init,
+            pointerId: sceneAudioPointerReleaseState.pointerId || 1,
+            pointerType: sceneAudioPointerReleaseState.pointerType || "mouse",
+            isPrimary: true,
+        });
+    }
+    if (eventName.indexOf("touch") === 0 && typeof TouchEvent === "function") {
+        return new TouchEvent(eventName, { bubbles: true, cancelable: true });
+    }
+    return new MouseEvent(eventName, init);
+}
+
+function dispatchSceneAudioRelease(eventName, sourceEvent) {
+    const targets = [document, window, getSceneAudioElement()].filter(Boolean);
+    for (const target of targets) {
+        try {
+            target.dispatchEvent(makeSceneAudioReleaseEvent(eventName, sourceEvent));
+        } catch (e) {}
+    }
+}
+
+function releaseSimpleAISceneAudioPointerState(reason, sourceEvent) {
+    if (!sceneAudioPointerReleaseState.active && reason !== "force") return;
+    sceneAudioPointerReleaseState.active = false;
+    setTimeout(() => {
+        dispatchSceneAudioRelease("pointerup", sourceEvent);
+        dispatchSceneAudioRelease("mouseup", sourceEvent);
+        dispatchSceneAudioRelease("touchend", sourceEvent);
+    }, 0);
+}
+
+window.releaseSimpleAISceneAudioPointerState = releaseSimpleAISceneAudioPointerState;
+
+function bindSceneAudioPointerReleaseGuard() {
+    if (sceneAudioPointerReleaseGuardBound) return;
+    sceneAudioPointerReleaseGuardBound = true;
+    document.addEventListener("pointerdown", (event) => {
+        if (!isSceneAudioPointerTarget(event.target)) return;
+        sceneAudioPointerReleaseState.active = true;
+        sceneAudioPointerReleaseState.clientX = Number.isFinite(event.clientX) ? event.clientX : 0;
+        sceneAudioPointerReleaseState.clientY = Number.isFinite(event.clientY) ? event.clientY : 0;
+        sceneAudioPointerReleaseState.pointerId = event.pointerId || 1;
+        sceneAudioPointerReleaseState.pointerType = event.pointerType || "mouse";
+        setTimeout(() => releaseSimpleAISceneAudioPointerState("timeout"), 15000);
+    }, true);
+    document.addEventListener("pointermove", (event) => {
+        if (!sceneAudioPointerReleaseState.active) return;
+        if (Number.isFinite(event.clientX)) sceneAudioPointerReleaseState.clientX = event.clientX;
+        if (Number.isFinite(event.clientY)) sceneAudioPointerReleaseState.clientY = event.clientY;
+    }, true);
+    ["pointerup", "pointercancel", "mouseup", "touchend", "touchcancel"].forEach((eventName) => {
+        window.addEventListener(eventName, (event) => releaseSimpleAISceneAudioPointerState(eventName, event), true);
+        document.addEventListener(eventName, (event) => releaseSimpleAISceneAudioPointerState(eventName, event), true);
+    });
+    window.addEventListener("blur", (event) => releaseSimpleAISceneAudioPointerState("blur", event), true);
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) releaseSimpleAISceneAudioPointerState("visibilitychange");
+    }, true);
+}
+
+
 const cookieToken = getCookie("aitoken");
 if (typeof window.__simpleai_ui_ready === "undefined") {
     window.__simpleai_ui_ready = false;
@@ -12798,6 +12921,7 @@ document.addEventListener("DOMContentLoaded", function() {
     bindSimpleAIPresetSwitchGalleryClearControls();
     bindSimpleAIGalleryFrostControls();
     bindFinishedGalleryBrowserControls();
+    bindSceneAudioPointerReleaseGuard();
     ensurePreviewGeneratingFitObserver();
     bindMainLayoutResponsiveStack();
     setTimeout(bindFinishedGalleryBrowserControls, 300);
@@ -12818,6 +12942,7 @@ if (typeof onAfterUiUpdate === "function") {
     onAfterUiUpdate(() => {
         bindSimpleAIPresetSwitchGalleryClearControls();
         bindFinishedGalleryBrowserControls();
+        bindSceneAudioPointerReleaseGuard();
         ensurePreviewGeneratingFitObserver();
         try { syncGenerationResultGallerySurface("after_ui_update"); } catch (e) {}
         try { setTimeout(() => restoreWelcomePreviewIfResultSurfaceIdle("after_ui_update"), 0); } catch (e) {}

@@ -215,6 +215,7 @@ PRESET_STORE_ORDER = [
     "Wan-SCAIL",
     "Wan-Remover",
     "InfiniteTalk",
+    "InfiniteTalk-AV2V",
     "LTX2.3(I2V)",
     "LTX2.3(IA2V)",
     "LTX2.3(T2V)",

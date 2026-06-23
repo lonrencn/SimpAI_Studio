@@ -345,6 +345,9 @@
                 width: 100%;
                 height: 100%;
                 z-index: 1;
+                touch-action: none;
+                user-select: none;
+                -webkit-user-drag: none;
             }
             .simpai-sketch__stage.has-image canvas.mask {
                 opacity: 0.65;
@@ -943,6 +946,9 @@
         const bgCtx = bgCanvas.getContext("2d", { willReadFrequently: true });
         const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
         editor.querySelectorAll(".simpai-sketch__dock").forEach(bindSketchDockAutoHide);
+        [editor, stage, bgCanvas, maskCanvas, proxyImage].forEach((node) => {
+            try { node.setAttribute("draggable", "false"); } catch (e) {}
+        });
         const defaultAspectRatio = 3 / 2;
         const configuredHeight = Number(classValue(root, "simpai-sketch-height-")) || 420;
         const configuredWidth = Number(classValue(root, "simpai-sketch-width-")) || Math.round(configuredHeight * defaultAspectRatio);
@@ -2122,6 +2128,17 @@
             maskCtx.restore();
         }
 
+        function consumeSketchPaintEvent(event, options = {}) {
+            if (!event) return;
+            try {
+                if (event.cancelable !== false) event.preventDefault();
+            } catch (e) {}
+            try { event.stopPropagation(); } catch (e) {}
+            if (options.immediate) {
+                try { event.stopImmediatePropagation(); } catch (e) {}
+            }
+        }
+
         editor.querySelector("button[data-action='upload']").addEventListener("click", () => fileInput.click());
         editor.querySelector("button[data-action='paste']")?.addEventListener("click", () => {
             pasteClipboardImage();
@@ -2239,6 +2256,13 @@
             stage.classList.remove("is-drag-over");
             await openDroppedImage(event.dataTransfer);
         });
+        editor.addEventListener("dragstart", (event) => {
+            if (!drawing && !event.target?.closest?.(".simpai-sketch__stage")) return;
+            consumeSketchPaintEvent(event, { immediate: true });
+            try {
+                if (event.dataTransfer) event.dataTransfer.effectAllowed = "none";
+            } catch (e) {}
+        }, true);
         stage.addEventListener("click", () => {
             if (!hasImage) fileInput.click();
         });
@@ -2327,11 +2351,14 @@
         maskCanvas.addEventListener("pointerdown", (event) => {
             if (maskDisabled || cropMode || panGestureMode || panFloatingMode) return;
             if (!hasImage) return;
+            if (event.isPrimary === false) return;
+            if (typeof event.button === "number" && event.button !== 0) return;
+            consumeSketchPaintEvent(event, { immediate: true });
             editor.classList.add("is-drawing");
             updateBrushCursor(event);
             pushUndoState(true, true);
             drawing = true;
-            maskCanvas.setPointerCapture(event.pointerId);
+            try { maskCanvas.setPointerCapture(event.pointerId); } catch (e) {}
             const p = point(event);
             maskCtx.beginPath();
             maskCtx.moveTo(p.x, p.y);
@@ -2341,6 +2368,7 @@
         });
         maskCanvas.addEventListener("pointermove", (event) => {
             if (maskDisabled || cropMode || panGestureMode || panFloatingMode) return;
+            if (drawing) consumeSketchPaintEvent(event);
             if (hasImage) {
                 stage.classList.add("is-cursor-visible");
                 updateBrushCursor(event);
@@ -2357,8 +2385,10 @@
             if (drawing) return;
             stage.classList.remove("is-cursor-visible");
         });
-        maskCanvas.addEventListener("pointerup", () => {
+        maskCanvas.addEventListener("pointerup", (event) => {
             if (!drawing) return;
+            consumeSketchPaintEvent(event, { immediate: true });
+            try { maskCanvas.releasePointerCapture(event.pointerId); } catch (e) {}
             drawing = false;
             editor.classList.remove("is-drawing");
             stage.classList.remove("is-cursor-visible");
@@ -2367,7 +2397,9 @@
             markDirty();
             refreshToolbarState();
         });
-        maskCanvas.addEventListener("pointercancel", () => {
+        maskCanvas.addEventListener("pointercancel", (event) => {
+            if (drawing) consumeSketchPaintEvent(event, { immediate: true });
+            try { maskCanvas.releasePointerCapture(event.pointerId); } catch (e) {}
             drawing = false;
             editor.classList.remove("is-drawing");
             stage.classList.remove("is-cursor-visible");

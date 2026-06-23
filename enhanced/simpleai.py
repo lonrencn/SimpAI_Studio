@@ -163,12 +163,23 @@ def find_available_port(start_port=8187, max_attempts=100, suppress_logging=Fals
         logger.error(f"无法找到可用端口，尝试使用端口: {fallback_port}")
     return fallback_port
 
-def _select_comfyd_input_workspace_did():
-    if hasattr(shared.token, "get_local_did"):
-        return shared.token.get_local_did()
-    if hasattr(shared.token, "get_default_workspace_did"):
-        return shared.token.get_default_workspace_did()
-    return shared.token.get_guest_did()
+def _get_local_comfyd_input_dir():
+    candidates = [
+        os.path.abspath(os.path.join(shared.root, "..", "..", "users")),
+    ]
+    userhome = str(getattr(shared, "path_userhome", "") or "").strip()
+    if userhome:
+        candidates.append(os.path.abspath(userhome))
+    candidates.append(os.path.abspath(os.path.join(shared.root, "users")))
+
+    for candidate in candidates:
+        if os.path.isfile(os.path.join(candidate, "config.txt")) or os.path.isdir(os.path.join(candidate, "Local")):
+            userhome = candidate
+            break
+    else:
+        userhome = candidates[0]
+
+    return os.path.abspath(os.path.join(userhome, "Local", "comfyd_inputs"))
 
 
 def _select_comfyd_output_workspace_did(user_did=None):
@@ -183,9 +194,8 @@ def _select_comfyd_output_workspace_did(user_did=None):
 
 
 def get_comfyd_io_paths(user_did=None):
-    input_did = _select_comfyd_input_workspace_did()
     output_did = _select_comfyd_output_workspace_did(user_did)
-    comfyd_input = os.path.abspath(shared.token.get_path_in_user_dir(input_did, "comfyd_inputs"))
+    comfyd_input = _get_local_comfyd_input_dir()
     comfyd_output = os.path.abspath(os.path.join(shared.token.get_path_in_user_dir(output_did, "outputs"), 'ComfyUI'))
     return output_did, comfyd_input, comfyd_output
 
@@ -310,6 +320,8 @@ def update_comfyd_io_paths(user_did=None, update_runtime=True, update_startup=Tr
     target_did, comfyd_input, comfyd_output = get_comfyd_io_paths(user_did)
     os.makedirs(comfyd_output, exist_ok=True)
     os.makedirs(comfyd_input, exist_ok=True)
+    if hasattr(comfyclient_pipeline, "set_input_directory"):
+        comfyclient_pipeline.set_input_directory(comfyd_input)
     sync_intput_reserved(target_did)
 
     if update_runtime and comfyd.is_running():
@@ -369,8 +381,7 @@ def reset_simpleai_args():
 
 def sync_intput_reserved(user_did=None):
     try:
-        target_did = _select_comfyd_input_workspace_did()
-        comfyd_intput = os.path.abspath(shared.token.get_path_in_user_dir(target_did, "comfyd_inputs"))
+        comfyd_intput = _get_local_comfyd_input_dir()
         comfyd_intput_reserved = os.path.join(shared.root, 'presets/input_reserved')
         image_extensions = {'.jpg', '.png', '.jpeg', '.webp', '.mp4', '.mp3'}
 

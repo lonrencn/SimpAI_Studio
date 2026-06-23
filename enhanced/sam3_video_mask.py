@@ -519,20 +519,17 @@ def _local_comfyd_inputs_dir() -> str:
     try:
         import shared
 
-        token = getattr(shared, "token", None)
-        if token is not None and hasattr(token, "get_path_in_user_dir"):
-            did = ""
-            for name in ("get_local_did", "get_default_workspace_did", "get_guest_did"):
-                getter = getattr(token, name, None)
-                if callable(getter):
-                    did = getter()
-                    if did:
-                        break
-            if did:
-                return os.path.abspath(token.get_path_in_user_dir(did, "comfyd_inputs"))
+        root = str(getattr(shared, "root", "") or "").strip()
+        candidates = []
+        if root:
+            candidates.append(os.path.abspath(os.path.join(root, "..", "..", "users")))
         userhome = str(getattr(shared, "path_userhome", "") or "").strip()
         if userhome:
-            return os.path.abspath(os.path.join(userhome, "Local", "comfyd_inputs"))
+            candidates.append(os.path.abspath(userhome))
+        candidates.append(os.path.abspath(os.path.join(_repo_root(), "..", "..", "users")))
+        for candidate in candidates:
+            if os.path.isfile(os.path.join(candidate, "config.txt")) or os.path.isdir(os.path.join(candidate, "Local")):
+                return os.path.abspath(os.path.join(candidate, "Local", "comfyd_inputs"))
     except Exception:
         pass
     return os.path.abspath(os.path.join(_repo_root(), "..", "..", "users", "Local", "comfyd_inputs"))
