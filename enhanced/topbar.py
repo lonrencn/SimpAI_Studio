@@ -1212,6 +1212,10 @@ def _scene_disvisible_with_optional_inputs(scene_frontend):
     for slot in optional_slots:
         if slot not in hidden and slot not in enabled:
             hidden.append(slot)
+    optional_video_slots = getattr(meta_parser, "SCENE_OPTIONAL_VIDEO_SLOTS", ("scene_reference_video",))
+    for slot in optional_video_slots:
+        if slot not in hidden and slot not in enabled:
+            hidden.append(slot)
     if "scene_video_duration" not in hidden and "scene_video_duration" not in enabled and "video_duration" not in scene_frontend:
         hidden.append("scene_video_duration")
     return hidden
@@ -1264,6 +1268,7 @@ def _build_canvas_scene_schema(scene_frontend):
 
     slot_defs = [
         ("scene_video", "Scene Video"),
+        ("scene_reference_video", "Reference Video"),
         ("sam3_input_video", "SAM3 Input Video"),
         ("sam3_mask_video", "SAM3 Mask Video"),
         ("scene_audio", "Scene Audio"),
@@ -1711,6 +1716,7 @@ def _build_regen_manifest_for_generation(
     scene_aspect_ratio,
     scene_image_number,
     scene_video,
+    scene_reference_video,
     scene_audio,
     scene_original_video_path,
     active_video_source,
@@ -1770,6 +1776,7 @@ def _build_regen_manifest_for_generation(
             "scene_aspect_ratio": scene_aspect_ratio,
             "scene_image_number": scene_image_number,
             "active_video_source": active_video_source,
+            "scene_reference_video": scene_reference_video,
         })
 
     asset_refs = {}
@@ -1781,6 +1788,7 @@ def _build_regen_manifest_for_generation(
             "scene_input_image3": _asset_ref(scene_input_image3),
             "scene_input_image4": _asset_ref(scene_input_image4),
             "scene_video": _asset_ref(scene_video),
+            "scene_reference_video": _asset_ref(scene_reference_video),
             "scene_audio": _asset_ref(scene_audio),
             "scene_original_video_path": _asset_ref(scene_original_video_path),
             "sam3_input_video": _asset_ref(sam3_input_video),
@@ -1796,6 +1804,7 @@ def _build_regen_manifest_for_generation(
         "scene_input_image3",
         "scene_input_image4",
         "video",
+        "reference_video",
         "audio",
         "mask_video",
         regen_manifest.KEY,
@@ -1847,7 +1856,7 @@ def _scene_director_audio_status_for_generation(scene_director_enabled=False, sc
     return status
 
 
-def process_before_generation(state_params, seed_random, image_seed, backend_params, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source, sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None, resolution_multiplier=1.0, resolution_quantize_step=None, resolution_edit_mode=None, resolution_original_input=False, sam3_trim_payload=None, overwrite_step=None, scene_director_enabled=False, scene_director_state=None, scene_video_duration=None):
+def process_before_generation(state_params, seed_random, image_seed, backend_params, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source, sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None, resolution_multiplier=1.0, resolution_quantize_step=None, resolution_edit_mode=None, resolution_original_input=False, sam3_trim_payload=None, overwrite_step=None, scene_director_enabled=False, scene_director_state=None, scene_video_duration=None, scene_reference_video=None, scene_reference_video_original_path=None):
     regen_scene_additional_prompt = scene_additional_prompt
     regen_scene_additional_prompt_2 = scene_additional_prompt_2
     backend_params.update(dict(
@@ -1900,6 +1909,9 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             scene_original_video_path = None
             if active_video_source == "scene":
                 active_video_source = None
+        if 'scene_reference_video' in disvisible:
+            scene_reference_video = None
+            scene_reference_video_original_path = None
         if 'scene_audio' in disvisible:
             scene_audio = None
         sam3_hidden = (
@@ -1990,6 +2002,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             resolution_quantize_step=resolution_quantize_step,
             resolution_edit_mode=resolution_edit_mode,
             resolution_original_input=resolution_original_input,
+            scene_video_duration=scene_video_duration,
         )
         if resolution_preprocess_result.get("changed"):
             scene_canvas_image = resolution_preprocess_result.get("scene_canvas_image")
@@ -2053,6 +2066,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             video_effective = sam3_video_effective if sam3_video_effective else scene_video_effective
         else:
             video_effective = sam3_video_effective if sam3_video_effective else scene_video_effective
+        reference_video_effective = scene_reference_video_original_path if scene_reference_video and scene_reference_video_original_path else scene_reference_video
         scene_task_method_value = meta_parser.get_scene_task_method(scene_frontend, scene_theme)
 
         def _scene_image_trace_shape(value, *, sketch=False):
@@ -2188,6 +2202,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             scene_aspect_ratio=_scene_aspect_to_resolution(scene_aspect_ratio),
             scene_image_number=scene_image_number,
             video=video_effective,
+            reference_video=reference_video_effective,
             audio=scene_audio,
             mask_video=sam3_mask_video,
             scene_steps=None,
@@ -2221,6 +2236,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
         scene_aspect_ratio,
         scene_image_number,
         scene_video,
+        reference_video_effective if 'scene_frontend' in state_params else scene_reference_video,
         scene_audio,
         scene_original_video_path,
         active_video_source,
@@ -2428,14 +2444,15 @@ SCENE_PRESET_SWITCH_CLEAR_OUTPUTS = {
     19: "scene_input_image3",
     20: "scene_input_image4",
     42: "scene_video",
-    43: "scene_audio",
-    44: "sam3_input_video",
-    45: "sam3_original_video_path",
-    46: "sam3_mask_video",
-    47: "sam3_trim_payload",
+    43: "scene_reference_video",
+    44: "scene_audio",
+    45: "sam3_input_video",
+    46: "sam3_original_video_path",
+    47: "sam3_mask_video",
+    48: "sam3_trim_payload",
 }
 SCENE_PRESET_SWITCH_CLEAR_VALUES = {
-    47: "",
+    48: "",
 }
 
 def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpaint_mode, comfyd_active_checkbox, bar_button = None, include_scene_outputs=True):

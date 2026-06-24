@@ -44,8 +44,10 @@ except Exception:
     Image = None
 
 
-UPLOAD_ORDER_WITH_CANVAS = ["scene_canvas_image", "scene_input_image1", "scene_input_image2", "scene_input_image3", "scene_input_image4", "scene_video", "sam3_input_video", "sam3_mask_video", "scene_audio"]
-UPLOAD_ORDER_NO_CANVAS = ["scene_input_image1", "scene_input_image2", "scene_input_image3", "scene_input_image4", "scene_canvas_image", "scene_video", "sam3_input_video", "sam3_mask_video", "scene_audio"]
+UPLOAD_ORDER_WITH_CANVAS = ["scene_canvas_image", "scene_input_image1", "scene_input_image2", "scene_input_image3", "scene_input_image4", "scene_video", "scene_reference_video", "sam3_input_video", "sam3_mask_video", "scene_audio"]
+UPLOAD_ORDER_NO_CANVAS = ["scene_input_image1", "scene_input_image2", "scene_input_image3", "scene_input_image4", "scene_canvas_image", "scene_video", "scene_reference_video", "sam3_input_video", "sam3_mask_video", "scene_audio"]
+SCENE_MEDIA_BACKEND_KEYS = tuple(dict.fromkeys(UPLOAD_ORDER_WITH_CANVAS + UPLOAD_ORDER_NO_CANVAS))
+SCENE_MEDIA_ALIAS_KEYS = ("scene_original_video_path", "sam3_original_video_path", "video", "reference_video", "audio", "mask_video")
 CANVAS_RUNS = {}
 CANVAS_RUNS_LOCK = threading.Lock()
 CANVAS_RUN_RETENTION_SECONDS = 60 * 60 * 6
@@ -657,6 +659,27 @@ def _normalization_backend_value(item):
     return value.get("path") or value.get("asset_id")
 
 
+def _materialized_input_slots(materialized_inputs):
+    slots = set()
+    for item in materialized_inputs or []:
+        if isinstance(item, dict) and item.get("slot"):
+            slots.add(str(item.get("slot")))
+    return slots
+
+
+def _clear_unmaterialized_scene_media_params(params_backend, materialized_inputs):
+    if not isinstance(params_backend, dict):
+        return params_backend
+    connected_slots = _materialized_input_slots(materialized_inputs)
+    for key in SCENE_MEDIA_BACKEND_KEYS:
+        if key not in connected_slots:
+            params_backend.pop(key, None)
+    for key in SCENE_MEDIA_ALIAS_KEYS:
+        params_backend.pop(key, None)
+    params_backend.pop("active_video_source", None)
+    return params_backend
+
+
 def _apply_scene_media_backend_aliases(params_backend):
     if not isinstance(params_backend, dict):
         return params_backend
@@ -671,6 +694,8 @@ def _apply_scene_media_backend_aliases(params_backend):
         video_effective = sam3_video_effective or scene_video_effective
     if video_effective:
         params_backend["video"] = video_effective
+    if params_backend.get("scene_reference_video") is not None:
+        params_backend["reference_video"] = params_backend.get("scene_reference_video")
     if params_backend.get("scene_audio") is not None:
         params_backend["audio"] = params_backend.get("scene_audio")
     if params_backend.get("sam3_mask_video") is not None:
@@ -1105,6 +1130,7 @@ def build_canvas_async_task_args(api_arg_overrides, enabled_loras, materialized_
                     defaults[img_key] = None
 
     params_backend = copy.deepcopy(defaults.get("params_backend") or {})
+    params_backend = _clear_unmaterialized_scene_media_params(params_backend, materialized_inputs)
     for item in materialized_inputs:
         slot = item.get("slot")
         if slot:
@@ -1651,6 +1677,7 @@ def build_canvas_task_args_preview(payload, materialized_inputs, state_params):
         if key in scene_params:
             params_backend[key] = scene_params.get(key)
 
+    params_backend = _clear_unmaterialized_scene_media_params(params_backend, materialized_inputs)
     input_backend = {}
     for item in materialized_inputs:
         slot = item.get("slot")

@@ -11,6 +11,7 @@
         'scene_input_image3',
         'scene_input_image4',
         'scene_video',
+        'scene_reference_video',
         'sam3_input_video',
         'sam3_mask_video',
         'scene_audio'
@@ -22,6 +23,7 @@
         scene_input_image3: t('Input Image 3', '输入图 3'),
         scene_input_image4: t('Input Image 4', '输入图 4'),
         scene_video: t('Scene Video', '场景视频'),
+        scene_reference_video: t('Reference Video', '参考视频'),
         sam3_input_video: t('SAM3 Input Video', 'SAM3 输入视频'),
         sam3_mask_video: t('SAM3 Mask Video', 'SAM3 遮罩视频'),
         scene_audio: t('Scene Audio', '场景音频')

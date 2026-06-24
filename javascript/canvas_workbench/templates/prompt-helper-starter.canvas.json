@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "prompt_helper_starter_20260605060342_template_20260605060451",
+  "id": "prompt_helper_starter",
   "title": "提示词助手入门",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-05T06:04:52Z",
@@ -16,96 +16,7 @@
     "minimap": true,
     "edgeLabels": true,
     "reducedMotion": false,
-    "inspectorCollapsed": false,
-    "__onboarding_template": true,
-    "__onboarding_checklist_title": {
-      "en": "Prompt Helper Tour",
-      "zh": "提示词助手导览"
-    },
-    "__onboarding_checklist_steps": [
-      {
-        "key": "prompt_seed",
-        "action": "focus_node",
-        "target_node_id": "prompt_text_seed",
-        "icon": "fa-font",
-        "title": {
-          "en": "Start with seed text",
-          "zh": "从基础提示词开始"
-        },
-        "detail": {
-          "en": "This Text node is the editable prompt source.",
-          "zh": "这个 Text 节点是可编辑的提示词来源。"
-        }
-      },
-      {
-        "key": "prompt_translation",
-        "action": "focus_node",
-        "target_node_id": "prompt_translation",
-        "icon": "fa-language",
-        "title": {
-          "en": "Check Translation",
-          "zh": "查看翻译节点"
-        },
-        "detail": {
-          "en": "Translation nodes can transform prompt text.",
-          "zh": "Translation 节点可以转换提示词文本。"
-        }
-      },
-      {
-        "key": "prompt_wildcards",
-        "action": "focus_node",
-        "target_node_id": "prompt_wildcards",
-        "icon": "fa-tags",
-        "title": {
-          "en": "Inspect Wildcards Helper",
-          "zh": "检查通配符助手"
-        },
-        "detail": {
-          "en": "Wildcards can expand variations without a model.",
-          "zh": "通配符无需模型也能生成变化。"
-        }
-      },
-      {
-        "key": "prompt_final",
-        "action": "focus_node",
-        "target_node_id": "prompt_text_final",
-        "icon": "fa-pen-nib",
-        "title": {
-          "en": "Review the final draft",
-          "zh": "查看最终草稿"
-        },
-        "detail": {
-          "en": "Use this text as a preset prompt input.",
-          "zh": "这段文本可接入 preset 的 prompt 输入。"
-        }
-      },
-      {
-        "key": "prompt_templates",
-        "action": "template_library",
-        "icon": "fa-graduation-cap",
-        "title": {
-          "en": "Return to templates",
-          "zh": "回到模板库"
-        },
-        "detail": {
-          "en": "Compare this starter with the other guides.",
-          "zh": "可以和其他新手模板对照学习。"
-        }
-      }
-    ],
-    "__minimap_initialized": true,
-    "__template_source": "user",
-    "__onboarding_checklist": {
-      "completed": {
-        "add_text": true,
-        "select_node": true,
-        "inspect_node": true,
-        "prompt_seed": true,
-        "prompt_translation": true,
-        "prompt_wildcards": true,
-        "prompt_final": true
-      }
-    }
+    "inspectorCollapsed": false
   },
   "groups": [
     {
@@ -304,22 +215,37 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "prompt_helper_starter_20260605060342_template_20260605060451",
-    "title": "提示词助手入门",
-    "description": "从当前画布保存。",
+    "id": "prompt_helper_starter",
+    "title": {
+      "en": "Prompt Helper Starter",
+      "zh": "提示词助手入门"
+    },
+    "description": {
+      "en": "A guided canvas showing Text, Translation, Wildcards Helper, and notes for prompt building.",
+      "zh": "用 Text、Translation、通配符助手和提示贴演示提示词搭建流程。"
+    },
     "category": "starter",
     "tags": [
-      "user",
-      "canvas"
+      "starter",
+      "prompt",
+      "text",
+      "wildcards"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Prompt tools",
+      "zh": "提示词工具"
+    },
     "model_dependency": {
       "mode": "model_free",
-      "label": "无模型依赖",
-      "note": "未检测到可运行的 Preset 或 Classic 节点。",
-      "models": []
+      "label": {
+        "en": "Model-free",
+        "zh": "无模型依赖"
+      },
+      "note": {
+        "en": "Prompt helper nodes can be inspected without model files.",
+        "zh": "提示词辅助节点无需模型文件即可查看。"
+      }
     },
-    "preview": "",
-    "saved_at": "2026-06-05T06:04:52Z"
+    "preview": ""
   }
 }

@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "flux2_a2r_image_edit_20260605062039_template_20260605062335",
+  "id": "flux2_a2r_image_edit",
   "title": "Flux2-A2R 图像编辑",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-05T06:23:36Z",
@@ -16,9 +16,7 @@
     "minimap": true,
     "edgeLabels": true,
     "reducedMotion": false,
-    "inspectorCollapsed": false,
-    "__minimap_initialized": true,
-    "__template_source": "user"
+    "inspectorCollapsed": false
   },
   "groups": [
     {
@@ -383,7 +381,7 @@
             "visible": true,
             "interactive": true,
             "min": 0,
-            "max": 1.0
+            "max": 1
           }
         ],
         "per_theme": {
@@ -713,29 +711,49 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "flux2_a2r_image_edit_20260605062039_template_20260605062335",
-    "title": "Flux2-A2R 图像编辑",
-    "description": "从当前画布保存。",
+    "id": "flux2_a2r_image_edit",
+    "title": {
+      "en": "Flux2-A2R Image Edit",
+      "zh": "Flux2-A2R 图像编辑"
+    },
+    "description": {
+      "en": "A runnable Image-edit template for Flux2-A2R anime-to-real conversion with a source image placeholder, prompt text, configs, and Result placeholder.",
+      "zh": "可运行的 Flux2-A2R 动漫转写实图像编辑模板，包含源图占位、提示词、配置节点和结果占位。"
+    },
     "category": "image",
     "tags": [
-      "user",
-      "canvas"
+      "image",
+      "flux",
+      "flux2",
+      "a2r",
+      "edit",
+      "anime-to-real",
+      "preset",
+      "runnable"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Image edit preset",
+      "zh": "图像编辑 Preset"
+    },
     "model_dependency": {
       "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点和 6 个模型依赖。运行前请检查模型。",
+      "label": {
+        "en": "Requires models",
+        "zh": "需要模型"
+      },
+      "note": {
+        "en": "Requires Flux2-A2R model files and a source image before Run.",
+        "zh": "运行前需要 Flux2-A2R 模型文件和一张源图。"
+      },
       "models": [
-        "diffusion_models,Flux2-Klein-9B-True-v2-fp8mixed.safetensors,9433058560,0,https://modelscope.cn/models/wikeeyang/Flux2-Klein-9B-True-V2/resolve/master/Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
-        "text_encoders,qwen3_8b_abliterated_v2-fp8mixed.safetensors,8191194604,0,https://www.modelscope.cn/models/silveroxides/FLUX.2-dev-fp8_scaled/resolve/master/qwen3_8b_abliterated_v2-fp8mixed.safetensors",
-        "loras,Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors,165704392,0,https://www.modelscope.cn/models/zhouwenbin1994/Klein9BAnythingtoRealC/resolve/20260128232821/Flux2%20Klein%E5%8A%A8%E6%BC%AB%E8%BD%AC%E5%86%99%E5%AE%9E%E7%9C%9F%E4%BA%BA%20AnythingtoRealCharacters.safetensors",
-        "vae,flux2-vae.safetensors,336211292,0,https://www.modelscope.cn/models/Comfy-Org/flux2-klein-4B/resolve/master/split_files/vae/flux2-vae.safetensors",
-        "controlnet/hr16/DWPose-TorchScript-BatchSize5,dw-ll_ucoco_384_bs5.torchscript.pt,135059124,0,https://www.modelscope.cn/models/svjack/DWPose-TorchScript-BatchSize5/resolve/master/dw-ll_ucoco_384_bs5.torchscript.pt",
-        "controlnet/yzd-v/DWPose,yolox_l.onnx,216746733,0,https://www.modelscope.cn/models/zhangjin/DWPose/resolve/master/yolox_l.onnx"
+        "Flux2-Klein-9B-True-v2-fp8mixed.safetensors",
+        "qwen3_8b_abliterated_v2-fp8mixed.safetensors",
+        "Flux2 Klein动漫转写实真人 AnythingtoRealCharacters.safetensors",
+        "flux2-vae.safetensors",
+        "dw-ll_ucoco_384_bs5.torchscript.pt",
+        "yolox_l.onnx"
       ]
     },
-    "preview": "",
-    "saved_at": "2026-06-05T06:23:36Z"
+    "preview": ""
   }
 }

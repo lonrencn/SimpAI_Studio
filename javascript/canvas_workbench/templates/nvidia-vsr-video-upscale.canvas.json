@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "nvidia_vsr_video_upscale_20260606070657_template_20260606070744",
+  "id": "nvidia_vsr_video_upscale",
   "title": "Nvidia-VSR 视频超分",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-06T07:07:45Z",
@@ -17,7 +17,6 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__minimap_initialized": true,
     "canvasAgent": {
       "enabled": true,
       "executionRoute": "programmatic",
@@ -61,8 +60,7 @@
       "panelPosition": null,
       "bubblePosition": null,
       "allowPresetInstructionOverride": true
-    },
-    "__template_source": "user"
+    }
   },
   "groups": [
     {
@@ -620,24 +618,46 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "nvidia_vsr_video_upscale_20260606070657_template_20260606070744",
-    "title": "Nvidia-VSR 视频超分",
-    "description": "从当前画布保存。",
-    "category": "image",
+    "id": "nvidia_vsr_video_upscale",
+    "title": {
+      "en": "Nvidia-VSR Video Upscale",
+      "zh": "Nvidia-VSR 视频超分"
+    },
+    "description": {
+      "en": "A runnable Nvidia-VSR video super-resolution template with a reserved source video placeholder and optional interpolation settings.",
+      "zh": "可运行的 Nvidia-VSR 视频超分模板，预载源视频占位素材，并包含可选插帧设置。"
+    },
+    "category": "video",
     "tags": [
-      "user",
-      "canvas"
+      "video",
+      "nvidia",
+      "vsr",
+      "upscale",
+      "super-resolution",
+      "interpolation",
+      "reserved-input",
+      "runnable",
+      "视频超分",
+      "插帧"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Video upscale",
+      "zh": "视频超分"
+    },
     "model_dependency": {
       "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点和 1 个模型依赖。运行前请检查模型。",
+      "label": {
+        "en": "Requires runtime + optional model",
+        "zh": "需要运行环境和可选模型"
+      },
+      "note": {
+        "en": "Uses Nvidia-VSR runtime support; optional frame interpolation requires RIFE flownet.",
+        "zh": "使用 Nvidia-VSR 运行环境；可选插帧需要 RIFE flownet。"
+      },
       "models": [
-        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+        "flownet.pkl"
       ]
     },
-    "preview": "",
-    "saved_at": "2026-06-06T07:07:45Z"
+    "preview": ""
   }
 }

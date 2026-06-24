@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "preset_node_basics_20260605060454_template_20260605060919",
+  "id": "preset_node_basics",
   "title": "Preset 节点入门",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-05T06:09:20Z",
@@ -16,114 +16,7 @@
     "minimap": true,
     "edgeLabels": true,
     "reducedMotion": false,
-    "inspectorCollapsed": false,
-    "__onboarding_template": true,
-    "__onboarding_checklist_title": {
-      "en": "Preset Basics Tour",
-      "zh": "Preset 入门导览"
-    },
-    "__onboarding_checklist_steps": [
-      {
-        "key": "preset_focus",
-        "action": "focus_node",
-        "target_node_id": "preset_basic_scene",
-        "inspect": true,
-        "icon": "fa-wand-magic-sparkles",
-        "title": {
-          "en": "Inspect the Preset node",
-          "zh": "检查 Preset 节点"
-        },
-        "detail": {
-          "en": "Select it and review model status, ports, and parameters.",
-          "zh": "选中它，查看模型状态、接口和参数。"
-        }
-      },
-      {
-        "key": "preset_prompt",
-        "action": "focus_node",
-        "target_node_id": "preset_prompt_text",
-        "icon": "fa-font",
-        "title": {
-          "en": "Trace the Prompt input",
-          "zh": "追踪 Prompt 输入"
-        },
-        "detail": {
-          "en": "Text nodes can feed Prompt and Negative Prompt ports.",
-          "zh": "Text 节点可以接入 Prompt 和 Negative Prompt 接口。"
-        }
-      },
-      {
-        "key": "preset_resolution",
-        "action": "focus_node",
-        "target_node_id": "preset_resolution_config",
-        "inspect": true,
-        "icon": "fa-ruler-combined",
-        "title": {
-          "en": "Open Resolution Config",
-          "zh": "打开 Resolution Config"
-        },
-        "detail": {
-          "en": "Resolution can be managed as a reusable config node.",
-          "zh": "分辨率可以用可复用的配置节点管理。"
-        }
-      },
-      {
-        "key": "preset_advanced",
-        "action": "focus_node",
-        "target_node_id": "preset_advanced_config",
-        "inspect": true,
-        "icon": "fa-sliders",
-        "title": {
-          "en": "Open Advanced Config",
-          "zh": "打开 Advanced Config"
-        },
-        "detail": {
-          "en": "Sampler, scheduler, steps, and guidance live here.",
-          "zh": "采样器、调度器、步数和引导强度在这里。"
-        }
-      },
-      {
-        "key": "preset_result",
-        "action": "focus_node",
-        "target_node_id": "preset_result_example",
-        "icon": "fa-image",
-        "title": {
-          "en": "Review the Result example",
-          "zh": "查看 Result 示例"
-        },
-        "detail": {
-          "en": "Real runs create Result nodes that can be reused downstream.",
-          "zh": "真实运行会生成可下游复用的 Result 节点。"
-        }
-      },
-      {
-        "key": "preset_queue",
-        "action": "run_queue",
-        "icon": "fa-list-check",
-        "title": {
-          "en": "Open Run Queue",
-          "zh": "打开运行队列"
-        },
-        "detail": {
-          "en": "Queued preset runs are tracked from the top widget.",
-          "zh": "排队中的 preset 任务会显示在顶部控件中。"
-        }
-      }
-    ],
-    "__minimap_initialized": true,
-    "__template_source": "user",
-    "__onboarding_checklist": {
-      "completed": {
-        "add_text": true,
-        "select_node": true,
-        "inspect_node": true,
-        "preset_prompt": true,
-        "preset_resolution": true,
-        "preset_focus": true,
-        "preset_advanced": true,
-        "preset_result": true
-      }
-    }
+    "inspectorCollapsed": false
   },
   "groups": [
     {
@@ -512,22 +405,39 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "preset_node_basics_20260605060454_template_20260605060919",
-    "title": "Preset 节点入门",
-    "description": "从当前画布保存。",
+    "id": "preset_node_basics",
+    "title": {
+      "en": "Preset Node Basics",
+      "zh": "Preset 节点入门"
+    },
+    "description": {
+      "en": "A model-free starter canvas that explains Preset nodes, prompt links, configs, model readiness, Run Queue, and Results.",
+      "zh": "不依赖模型的入门画布，讲解 Preset 节点、提示词接线、配置、模型状态、运行队列和结果。"
+    },
     "category": "starter",
     "tags": [
-      "user",
-      "canvas"
+      "starter",
+      "preset",
+      "config",
+      "models",
+      "queue",
+      "result"
     ],
-    "type_label": "用户模板",
-    "model_dependency": {
-      "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点。运行前请检查模型就绪状态。",
-      "models": []
+    "type_label": {
+      "en": "Preset guide",
+      "zh": "Preset 引导"
     },
-    "preview": "",
-    "saved_at": "2026-06-05T06:09:20Z"
+    "model_dependency": {
+      "mode": "teaching_only",
+      "label": {
+        "en": "Teaching only",
+        "zh": "教学示例"
+      },
+      "note": {
+        "en": "Uses a skipped static Preset node; no backend model is required.",
+        "zh": "使用跳过的静态 Preset 节点，不需要后端模型。"
+      }
+    },
+    "preview": ""
   }
 }

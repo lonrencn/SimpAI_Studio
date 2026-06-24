@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "timeline_composite_basics_20260605061618_template_20260605061755",
+  "id": "timeline_composite_basics",
   "title": "Timeline 合成入门",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-05T06:17:56Z",
@@ -16,100 +16,48 @@
     "minimap": true,
     "edgeLabels": true,
     "reducedMotion": false,
-    "inspectorCollapsed": false,
-    "__onboarding_template": true,
-    "__onboarding_checklist_title": {
-      "en": "Timeline Composite Checklist",
-      "zh": "Timeline 合成检查"
-    },
-    "__onboarding_checklist_steps": [
-      {
-        "key": "timeline_sources",
-        "action": "focus_node",
-        "target_node_id": "timeline_source_video",
-        "icon": "fa-photo-film",
-        "title": {
-          "en": "Replace media placeholders",
-          "zh": "替换媒体占位"
-        },
-        "detail": {
-          "en": "Replace the Video, Image, and Audio placeholders with real media or generated Results.",
-          "zh": "将 Video、Image、Audio 占位替换为真实素材或生成的 Result。"
-        }
-      },
-      {
-        "key": "timeline_node",
-        "action": "focus_node",
-        "target_node_id": "timeline_composite_node",
-        "inspect": true,
-        "icon": "fa-clapperboard",
-        "title": {
-          "en": "Edit Timeline",
-          "zh": "编辑 Timeline"
-        },
-        "detail": {
-          "en": "Inspect the Timeline to adjust size, FPS, duration, clip timing, crop, mask, transform, and volume.",
-          "zh": "在 Inspector 中调整尺寸、FPS、时长、片段时序、裁剪、遮罩、变换和音量。"
-        }
-      },
-      {
-        "key": "timeline_result",
-        "action": "focus_node",
-        "target_node_id": "timeline_composite_result",
-        "icon": "fa-circle-dot",
-        "title": {
-          "en": "Render to Result",
-          "zh": "渲染到 Result"
-        },
-        "detail": {
-          "en": "Use the Timeline render action to materialize a video Result without any generation model.",
-          "zh": "使用 Timeline 渲染动作生成视频 Result，不需要生成模型。"
-        }
-      },
-      {
-        "key": "timeline_reuse",
-        "action": "run_queue",
-        "icon": "fa-share-nodes",
-        "title": {
-          "en": "Reuse composite output",
-          "zh": "复用合成输出"
-        },
-        "detail": {
-          "en": "Rendered Results can feed Wan-Extent, Hunyuan-Foley, media viewers, or another Timeline.",
-          "zh": "渲染后的 Result 可接入 Wan-Extent、Hunyuan-Foley、媒体浏览器或另一个 Timeline。"
-        }
-      }
-    ],
-    "__minimap_initialized": true,
-    "__template_source": "user",
-    "__onboarding_checklist": {
-      "completed": {
-        "select_node": true,
-        "inspect_node": true,
-        "timeline_sources": true,
-        "timeline_node": true,
-        "timeline_result": true
-      }
-    }
+    "inspectorCollapsed": false
   },
   "template": {
-    "id": "timeline_composite_basics_20260605061618_template_20260605061755",
-    "title": "Timeline 合成入门",
-    "description": "从当前画布保存。",
+    "id": "timeline_composite_basics",
+    "title": {
+      "en": "Timeline Composite Basics",
+      "zh": "Timeline 合成入门"
+    },
+    "description": {
+      "en": "A model-free Timeline template showing video, image, audio, keyframes, rendering, and Result reuse.",
+      "zh": "无模型依赖的 Timeline 模板，演示视频、图片、音频、关键帧、渲染和 Result 复用。"
+    },
     "category": "starter",
     "tags": [
-      "user",
-      "canvas"
+      "starter",
+      "timeline",
+      "composite",
+      "video",
+      "audio",
+      "image",
+      "result",
+      "model-free",
+      "剪辑",
+      "合成"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Timeline guide",
+      "zh": "Timeline 引导"
+    },
     "model_dependency": {
       "mode": "model_free",
-      "label": "无模型依赖",
-      "note": "未检测到可运行的 Preset 或 Classic 节点。",
+      "label": {
+        "en": "Model-free",
+        "zh": "无模型依赖"
+      },
+      "note": {
+        "en": "Uses Timeline rendering and placeholder media; no generation model is required.",
+        "zh": "使用 Timeline 渲染和占位媒体，不需要生成模型。"
+      },
       "models": []
     },
-    "preview": "",
-    "saved_at": "2026-06-05T06:17:56Z"
+    "preview": ""
   },
   "groups": [
     {

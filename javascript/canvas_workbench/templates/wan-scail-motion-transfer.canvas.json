@@ -1,7 +1,7 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "wan_scail_motion_transfer_20260606070244_template_20260606070353",
-  "title": "Wan-SCAIL动作迁移",
+  "id": "wan_scail_motion_transfer",
+  "title": "Wan-SCAIL 动作迁移",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-06T07:03:55Z",
   "viewport": {
@@ -17,7 +17,6 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__minimap_initialized": true,
     "canvasAgent": {
       "enabled": true,
       "executionRoute": "programmatic",
@@ -61,8 +60,7 @@
       "panelPosition": null,
       "bubblePosition": null,
       "allowPresetInstructionOverride": true
-    },
-    "__template_source": "user"
+    }
   },
   "groups": [
     {
@@ -447,20 +445,20 @@
             "key": "scene_var_number3",
             "label": "Reference video override FPS",
             "type": "number",
-            "default": 24.0,
+            "default": 24,
             "visible": true,
             "interactive": true,
-            "min": 16.0,
-            "max": 30.0
+            "min": 16,
+            "max": 30
           },
           {
             "key": "scene_var_number4",
             "label": "Skip first N seconds of reference video",
             "type": "number",
-            "default": 0.0,
+            "default": 0,
             "visible": true,
             "interactive": true,
-            "min": 0.0,
+            "min": 0,
             "max": 60
           },
           {
@@ -503,8 +501,8 @@
             "defaults": {
               "scene_var_number": 0,
               "scene_var_number2": 30,
-              "scene_var_number3": 24.0,
-              "scene_var_number4": 0.0,
+              "scene_var_number3": 24,
+              "scene_var_number4": 0,
               "scene_switch_option1": true,
               "scene_switch_option2": true,
               "scene_aspect_ratio": "640|1:1"
@@ -827,33 +825,51 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "wan_scail_motion_transfer_20260606070244_template_20260606070353",
-    "title": "Wan-SCAIL动作迁移",
-    "description": "从当前画布保存。",
-    "category": "image",
+    "id": "wan_scail_motion_transfer",
+    "title": {
+      "en": "Wan-SCAIL Motion Transfer",
+      "zh": "Wan-SCAIL 动作迁移"
+    },
+    "description": {
+      "en": "A runnable Wan-SCAIL template that transfers motion from a reserved video placeholder to a reserved subject image placeholder.",
+      "zh": "可运行的 Wan-SCAIL 模板，将预占位视频动作迁移到预占位主体图。"
+    },
+    "category": "video",
     "tags": [
-      "user",
-      "canvas"
+      "video",
+      "wan",
+      "wan-scail",
+      "motion-transfer",
+      "reference-image",
+      "reserved-input",
+      "runnable",
+      "动作迁移",
+      "视频编辑"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Motion transfer",
+      "zh": "动作迁移"
+    },
     "model_dependency": {
       "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点和 10 个模型依赖。运行前请检查模型。",
+      "label": {
+        "en": "Requires video + image + models",
+        "zh": "需要视频、图片和模型"
+      },
+      "note": {
+        "en": "Requires the Wan-SCAIL model, UMT5, CLIP vision, Wan VAE, lightx2v LoRA, RIFE, detection, and NLF models.",
+        "zh": "需要 Wan-SCAIL 模型、UMT5、CLIP vision、Wan VAE、lightx2v LoRA、RIFE、检测模型和 NLF。"
+      },
       "models": [
-        "diffusion_models,Wan21-14B-SCAIL-preview_fp8_scaled_mixed.safetensors,16642119256,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy_fp8_scaled/resolve/master/SCAIL/Wan21-14B-SCAIL-preview_fp8_scaled_mixed.safetensors",
-        "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
-        "clip_vision,clip_vision_h.safetensors,1264219396,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/clip_vision/clip_vision_h.safetensors",
-        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
-        "loras,lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,738005744,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
-        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl",
-        "detection,vitpose_h_wholebody_data.bin,2548958740,0,https://modelscope.cn/models/Kijai/vitpose_comfy/resolve/master/onnx/vitpose_h_wholebody_data.bin",
-        "detection,vitpose_h_wholebody_model.onnx,420252,0,https://modelscope.cn/models/Kijai/vitpose_comfy/resolve/master/onnx/vitpose_h_wholebody_model.onnx",
-        "detection,yolov10m.onnx,61659339,0,https://modelscope.cn/models/Wan-AI/Wan2.2-Animate-14B/resolve/master/process_checkpoint/det/yolov10m.onnx",
-        "nlf,nlf_l_multi_0.3.2.torchscript,493117974,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/nlf/nlf_l_multi_0.3.2.torchscript"
+        "Wan21-14B-SCAIL-preview_fp8_scaled_mixed.safetensors",
+        "umt5-xxl-encoder-Q8_0.gguf",
+        "clip_vision_h.safetensors",
+        "wan_2.1_vae.safetensors",
+        "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+        "flownet.pkl",
+        "nlf_l_multi_0.3.2.torchscript"
       ]
     },
-    "preview": "",
-    "saved_at": "2026-06-06T07:03:55Z"
+    "preview": ""
   }
 }

@@ -38,7 +38,7 @@
         if (!asset || typeof asset !== 'object') return '';
         const rel = assetRelativePath(asset);
         if (!rel || rel.includes('..')) return '';
-        const root = String(window.SimpAICanvasWorkbenchAssetRoot || '').trim();
+        const root = String(asset.asset_root || window.SimpAICanvasWorkbenchAssetRoot || '').trim();
         if (!root) return '';
         return pathToFileUrl(`${root.replace(/[\\/]+$/g, '')}/${rel}`);
     }

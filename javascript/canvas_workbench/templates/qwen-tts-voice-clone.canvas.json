@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "qwen_tts_voice_clone_20260606070836_template_20260606070912",
+  "id": "qwen_tts_voice_clone",
   "title": "Qwen TTS 音色克隆",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-06T07:09:13Z",
@@ -17,7 +17,6 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__minimap_initialized": true,
     "canvasAgent": {
       "enabled": true,
       "executionRoute": "programmatic",
@@ -61,8 +60,7 @@
       "panelPosition": null,
       "bubblePosition": null,
       "allowPresetInstructionOverride": true
-    },
-    "__template_source": "user"
+    }
   },
   "groups": [
     {
@@ -268,22 +266,47 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "qwen_tts_voice_clone_20260606070836_template_20260606070912",
-    "title": "Qwen TTS 音色克隆",
-    "description": "从当前画布保存。",
-    "category": "image",
-    "tags": [
-      "user",
-      "canvas"
-    ],
-    "type_label": "用户模板",
-    "model_dependency": {
-      "mode": "model_free",
-      "label": "无模型依赖",
-      "note": "未检测到可运行的 Preset 或 Classic 节点。",
-      "models": []
+    "id": "qwen_tts_voice_clone",
+    "title": {
+      "en": "Qwen TTS Voice Clone",
+      "zh": "Qwen TTS 音色克隆"
     },
-    "preview": "",
-    "saved_at": "2026-06-06T07:09:13Z"
+    "description": {
+      "en": "A runnable audio template for cloning a reference voice and speaking new target text.",
+      "zh": "可运行的音频模板，用参考音频克隆音色并朗读新的目标文本。"
+    },
+    "category": "audio",
+    "tags": [
+      "audio",
+      "tts",
+      "qwen",
+      "qwen3-tts",
+      "voice-clone",
+      "reference-audio",
+      "speech",
+      "runnable",
+      "克隆",
+      "参考音频"
+    ],
+    "type_label": {
+      "en": "Voice clone",
+      "zh": "音色克隆"
+    },
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": {
+        "en": "Requires audio + models",
+        "zh": "需要音频和模型"
+      },
+      "note": {
+        "en": "Requires Qwen3-TTS Base, tokenizer, and a reference audio clip.",
+        "zh": "需要 Qwen3-TTS Base、tokenizer 和一段参考音频。"
+      },
+      "models": [
+        "Qwen/Qwen3-TTS-Tokenizer-12Hz",
+        "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+      ]
+    },
+    "preview": ""
   }
 }

@@ -37,9 +37,10 @@ re_param_code = r'\s*(\w[\w \-/]+):\s*("(?:\\.|[^\\"])+"|[^,]*)(?:,|$)'
 re_param = re.compile(re_param_code)
 re_imagesize = re.compile(r"^(\d+)x(\d+)$")
 SCENE_OPTIONAL_INPUT_IMAGE_SLOTS = ("scene_input_image3", "scene_input_image4")
+SCENE_OPTIONAL_VIDEO_SLOTS = ("scene_reference_video",)
 SCENE_INPUT_IMAGE_SLOTS = ("scene_input_image1", "scene_input_image2", "scene_input_image3", "scene_input_image4")
 SCENE_AUX_OUTPUT_COUNT = 9
-SCENE_PRIMARY_OUTPUT_COUNT = 28
+SCENE_PRIMARY_OUTPUT_COUNT = 29
 SCENE_SWITCH_OUTPUT_COUNT = SCENE_AUX_OUTPUT_COUNT + SCENE_PRIMARY_OUTPUT_COUNT
 
 get_layout_visible = lambda x,y:gr_update(visible=x not in y)
@@ -76,7 +77,7 @@ def scene_disvisible_with_optional_inputs(scenes):
         hidden = []
     enabled = scenes.get("divisible", [])
     enabled = set(str(item) for item in enabled) if isinstance(enabled, list) else set()
-    for slot in SCENE_OPTIONAL_INPUT_IMAGE_SLOTS:
+    for slot in (*SCENE_OPTIONAL_INPUT_IMAGE_SLOTS, *SCENE_OPTIONAL_VIDEO_SLOTS):
         if slot not in hidden and slot not in enabled:
             hidden.append(slot)
     if "scene_video_duration" not in hidden and "scene_video_duration" not in enabled and "video_duration" not in scenes:
@@ -660,12 +661,14 @@ def switch_scene_theme(state, image_number, canvas_image, input_image1, addition
     results.append(modules.flags.get_value_by_scene_theme(state, theme, 'mask_color', "#70FF81"))
     results.append(gr_update())
     results.append(gr_update())
+    results.append(gr_update())
     if simpai_ui_trace_enabled():
         try:
             task_method = get_scene_task_method(scenes, theme)
             logger.info(
                 f"[UI-TRACE] switch_scene_theme.visibility | theme={theme!r}, task_method={task_method!r}, "
                 f"resolution_box={'t2v' in task_method.lower()}, scene_video={'scene_video' not in visible}, "
+                f"scene_reference_video={'scene_reference_video' not in visible}, "
                 f"scene_audio={'scene_audio' not in visible}, disvisible={visible!r}"
             )
         except Exception:
@@ -1026,7 +1029,8 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
                 logger.info(
                     f"[UI-TRACE] switch_layout_template.scene_visibility | preset={presetdata_dict.get('preset', None)!r}, "
                     f"theme={theme_default!r}, task_method={task_method!r}, resolution_box={'t2v' in task_method.lower()}, "
-                    f"scene_video={'scene_video' not in visible}, scene_audio={'scene_audio' not in visible}, "
+                    f"scene_video={'scene_video' not in visible}, scene_reference_video={'scene_reference_video' not in visible}, "
+                    f"scene_audio={'scene_audio' not in visible}, "
                     f"resolution_output_index={scene_resolution_start}"
                 )
             except Exception:
@@ -1223,6 +1227,7 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
         results.append(get_scene_safe_update('scene_image_number', scene_image_number_default, visible, inter))
 
         results.append(modules.flags.get_value_by_scene_theme(state_params, theme_default, 'mask_color', "#70FF81"))
+        results.append(gr_update())
         results.append(gr_update())
         results.append(gr_update())
 

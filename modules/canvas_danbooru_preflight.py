@@ -120,7 +120,13 @@ def prompt_preflight_check(payload):
     unescaped_parenthetical_tags = prompt_preflight_unescaped_parenthetical_tags(prompt)
     character_resolution = {}
     unknown_character_tags = []
-    if target_is_anima(target_key_lower, target):
+    if target_key_lower == "outpaint_instruction" or action.lower() == "outpaint" or purpose.lower() == "outpaint":
+        if has_chinese:
+            add("block", "outpaint_chinese", "FLUX outpaint prompt contains Chinese characters.", "Translate the final prompt into concise English before submitting.")
+        elif prompt:
+            add("pass", "outpaint_instruction", "Outpaint prompt is present.")
+
+    elif target_is_anima(target_key_lower, target):
         matches = canvas_danbooru_service._canvas_lookup_danbooru_tags(prompt, limit=28, source_mode=tag_source_mode)
         unmatched_terms = prompt_preflight_unmatched_terms(prompt, matches)
         prompt_tag_set = {

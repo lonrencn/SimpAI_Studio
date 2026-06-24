@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "wan_animate_sam3_face_swap_20260606065441_template_20260606065607",
+  "id": "wan_animate_sam3_face_swap",
   "title": "Wan-Animate SAM3 人脸替换",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-06T06:56:08Z",
@@ -17,7 +17,6 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__minimap_initialized": true,
     "canvasAgent": {
       "enabled": true,
       "executionRoute": "programmatic",
@@ -61,8 +60,7 @@
       "panelPosition": null,
       "bubblePosition": null,
       "allowPresetInstructionOverride": true
-    },
-    "__template_source": "user"
+    }
   },
   "groups": [
     {
@@ -473,41 +471,41 @@
             "key": "scene_var_number3",
             "label": "Reference video override FPS",
             "type": "number",
-            "default": 16.0,
+            "default": 16,
             "visible": true,
             "interactive": true,
-            "min": 16.0,
-            "max": 30.0
+            "min": 16,
+            "max": 30
           },
           {
             "key": "scene_var_number4",
             "label": "Skip first N seconds of reference video",
             "type": "number",
-            "default": 0.0,
+            "default": 0,
             "visible": true,
             "interactive": true,
-            "min": 0.0,
+            "min": 0,
             "max": 60
           },
           {
             "key": "scene_var_number5",
             "label": "Motion reference strength",
             "type": "number",
-            "default": 1.0,
+            "default": 1,
             "visible": true,
             "interactive": true,
             "min": 0,
-            "max": 2.0
+            "max": 2
           },
           {
             "key": "scene_var_number6",
             "label": "Face reference strength",
             "type": "number",
-            "default": 1.0,
+            "default": 1,
             "visible": true,
             "interactive": true,
             "min": 0,
-            "max": 2.0
+            "max": 2
           },
           {
             "key": "scene_var_number7",
@@ -585,10 +583,10 @@
             "defaults": {
               "scene_var_number": 0,
               "scene_var_number2": 30,
-              "scene_var_number3": 16.0,
-              "scene_var_number4": 0.0,
-              "scene_var_number5": 1.0,
-              "scene_var_number6": 1.0,
+              "scene_var_number3": 16,
+              "scene_var_number4": 0,
+              "scene_var_number5": 1,
+              "scene_var_number6": 1,
               "scene_var_number7": 1,
               "scene_var_number8": 35,
               "scene_switch_option1": true,
@@ -611,8 +609,8 @@
             "defaults": {
               "scene_var_number": 0,
               "scene_var_number2": 30,
-              "scene_var_number3": 16.0,
-              "scene_var_number4": 0.0,
+              "scene_var_number3": 16,
+              "scene_var_number4": 0,
               "scene_var_number5": 0.25,
               "scene_var_number6": 0.6,
               "scene_var_number7": 5,
@@ -637,9 +635,9 @@
             "defaults": {
               "scene_var_number": 0,
               "scene_var_number2": 30,
-              "scene_var_number3": 16.0,
-              "scene_var_number4": 0.0,
-              "scene_var_number5": 1.0,
+              "scene_var_number3": 16,
+              "scene_var_number4": 0,
+              "scene_var_number5": 1,
               "scene_var_number6": 0.6,
               "scene_var_number7": 5,
               "scene_var_number8": 35,
@@ -995,34 +993,52 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "wan_animate_sam3_face_swap_20260606065441_template_20260606065607",
-    "title": "Wan-Animate SAM3 人脸替换",
-    "description": "从当前画布保存。",
-    "category": "image",
+    "id": "wan_animate_sam3_face_swap",
+    "title": {
+      "en": "Wan-Animate SAM3 Face Swap",
+      "zh": "Wan-Animate SAM3 人脸替换"
+    },
+    "description": {
+      "en": "A runnable Wan-Animate face-swap template with source video, SAM3 face mask, and face reference image.",
+      "zh": "可运行的 Wan-Animate 人脸替换模板，包含源视频、SAM3 人脸遮罩和人脸参考图。"
+    },
+    "category": "video",
     "tags": [
-      "user",
-      "canvas"
+      "video",
+      "wan",
+      "wan-animate",
+      "sam3",
+      "face-swap",
+      "mask",
+      "reference-image",
+      "runnable",
+      "人脸替换",
+      "口型"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Face swap preset",
+      "zh": "人脸替换 Preset"
+    },
     "model_dependency": {
       "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点和 11 个模型依赖。运行前请检查模型。",
+      "label": {
+        "en": "Requires video + image + models",
+        "zh": "需要视频、图片和模型"
+      },
+      "note": {
+        "en": "Requires the Wan-Animate and SAM3 model set plus a source video, mask video, and face reference.",
+        "zh": "需要 Wan-Animate 与 SAM3 模型组，以及源视频、遮罩视频和人脸参考图。"
+      },
       "models": [
-        "diffusion_models,Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors,17317143060,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy_fp8_scaled/resolve/master/Wan22Animate/Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
-        "checkpoints,sam3.1_multiplex_fp16.safetensors,1745546848,0,https://www.modelscope.cn/models/Comfy-Org/sam3.1/resolve/master/checkpoints/sam3.1_multiplex_fp16.safetensors",
-        "clip_vision,clip_vision_h.safetensors,1264219396,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/clip_vision/clip_vision_h.safetensors",
-        "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
-        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
-        "loras,lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,738005744,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
-        "loras,WanAnimate_relight_lora_fp16.safetensors,1436672440,0,https://modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/LoRAs/Wan22_relight/WanAnimate_relight_lora_fp16.safetensors",
-        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl",
-        "detection,vitpose_h_wholebody_data.bin,2548958740,0,https://modelscope.cn/models/Kijai/vitpose_comfy/resolve/master/onnx/vitpose_h_wholebody_data.bin",
-        "detection,vitpose_h_wholebody_model.onnx,420252,0,https://modelscope.cn/models/Kijai/vitpose_comfy/resolve/master/onnx/vitpose_h_wholebody_model.onnx",
-        "detection,yolov10m.onnx,61659339,0,https://modelscope.cn/models/Wan-AI/Wan2.2-Animate-14B/resolve/master/process_checkpoint/det/yolov10m.onnx"
+        "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+        "sam3.1_multiplex_fp16.safetensors",
+        "clip_vision_h.safetensors",
+        "umt5-xxl-encoder-Q8_0.gguf",
+        "wan_2.1_vae.safetensors",
+        "WanAnimate_relight_lora_fp16.safetensors",
+        "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
       ]
     },
-    "preview": "",
-    "saved_at": "2026-06-06T06:56:08Z"
+    "preview": ""
   }
 }

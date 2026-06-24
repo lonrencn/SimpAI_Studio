@@ -48,6 +48,10 @@
         const stateBadges = typeof ctx.renderNodeStateBadges === 'function' ? ctx.renderNodeStateBadges(node) : '';
         const range = mediaRange(node.asset || {});
         const disabled = !!node.locked || !src || !range.duration;
+        const emptyUpload = `<button type="button" class="sai-node-empty sai-media-empty-upload" data-node-action="media-reload">${escapeHtml(t('No audio', '无音频'))}</button>`;
+        const waveform = src
+            ? renderWaveform(node.asset || {}, range)
+            : `<button type="button" class="sai-audio-waveform sai-media-empty-upload sai-media-empty-upload-strip" data-node-action="media-reload"><i></i></button>`;
         return `
 <div class="sai-node-head">
   <span class="sai-node-kind">${escapeHtml(t('Audio', '音频'))}</span>
@@ -58,8 +62,8 @@
   <button type="button" data-node-action="media-play-toggle" title="${escapeHtml(t('Play selection', '播放选区'))}"><i class="fa-solid fa-play"></i></button>
   <button type="button" data-node-action="delete" title="${escapeHtml(t('Delete', '删除'))}"><i class="fa-solid fa-xmark"></i></button>
 </div>
-<div class="sai-node-media sai-node-audio-media">${src ? `<audio src="${escapeHtml(src)}" controls preload="metadata" data-media-player></audio>` : `<div class="sai-node-empty">${escapeHtml(t('No audio', '无音频'))}</div>`}</div>
-${renderWaveform(node.asset || {}, range)}
+<div class="sai-node-media sai-node-audio-media${src ? '' : ' is-empty-upload'}">${src ? `<audio src="${escapeHtml(src)}" controls preload="metadata" data-media-player></audio>` : emptyUpload}</div>
+${waveform}
 ${renderTrimControls(node, range, disabled)}
 <div class="sai-node-info">${info.map(bit => `<span>${escapeHtml(bit)}</span>`).join('') || `<span>${escapeHtml(t('No metadata', '无元数据'))}</span>`}</div>
 <button type="button" class="sai-node-handle sai-node-handle-out" data-handle-out="audio" title="${escapeHtml(t('Output', '输出'))}"></button>`;

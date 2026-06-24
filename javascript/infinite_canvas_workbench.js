@@ -38,7 +38,7 @@
     function runtimeUiLang(source) {
         return getUiLang(source || window.simpleaiTopbarSystemParams || {});
     }
-    const SLOT_ORDER = WORKBENCH_REGISTRY.SLOT_ORDER || ['scene_canvas_image', 'scene_input_image1', 'scene_input_image2', 'scene_input_image3', 'scene_input_image4', 'scene_video', 'sam3_input_video', 'sam3_mask_video', 'scene_audio'];
+    const SLOT_ORDER = WORKBENCH_REGISTRY.SLOT_ORDER || ['scene_canvas_image', 'scene_input_image1', 'scene_input_image2', 'scene_input_image3', 'scene_input_image4', 'scene_video', 'scene_reference_video', 'sam3_input_video', 'sam3_mask_video', 'scene_audio'];
     const SLOT_LABELS = WORKBENCH_REGISTRY.SLOT_LABELS || {
         scene_canvas_image: t('Canvas / Main Image', '画布 / 主图'),
         scene_input_image1: t('Input Image 1', '输入图 1'),
@@ -46,6 +46,7 @@
         scene_input_image3: t('Input Image 3', '输入图 3'),
         scene_input_image4: t('Input Image 4', '输入图 4'),
         scene_video: t('Scene Video', '场景视频'),
+        scene_reference_video: t('Reference Video', '参考视频'),
         sam3_input_video: t('SAM3 Input Video', 'SAM3 输入视频'),
         sam3_mask_video: t('SAM3 Mask Video', 'SAM3 遮罩视频'),
         scene_audio: t('Scene Audio', '场景音频')
@@ -69,9 +70,11 @@
     const VLM_CHAT_CONTEXT_CHARS_MIN = WORKBENCH_VLM.VLM_CHAT_CONTEXT_CHARS_MIN || 1200;
     const VLM_CHAT_DEFAULT_CONTEXT_CHARS = WORKBENCH_VLM.VLM_CHAT_DEFAULT_CONTEXT_CHARS || 6000;
     const VLM_CHAT_CONTEXT_CHARS_HARD_MAX = WORKBENCH_VLM.VLM_CHAT_CONTEXT_CHARS_HARD_MAX || 18000;
-    const COLLAPSED_PROMPT_NODE_DEFAULT_HEIGHT = 168;
-    const COLLAPSED_PROMPT_NODE_MIN_HEIGHT = 150;
+    const COLLAPSED_PROMPT_NODE_DEFAULT_HEIGHT = 280;
+    const COLLAPSED_PROMPT_NODE_MIN_HEIGHT = 220;
     const COLLAPSED_PROMPT_NODE_MAX_HEIGHT = 520;
+    const COLLAPSED_PROMPT_PORT_ROW_HEIGHT = 32;
+    const COLLAPSED_PROMPT_TEXT_BLOCK_HEIGHT = 150;
     const VLM_CONTEXT_WINDOWS = WORKBENCH_VLM.VLM_CONTEXT_WINDOWS || {
         'Qwen3.5-9B-abliterated-Q4_K_M': 8192,
         'Qwen3.5-9B-abliterated-Q2_K': 8192,
@@ -100,14 +103,15 @@
     const CANVAS_AGENT_DEFAULT_EDIT_PRESET_QUEUE = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_EDIT_PRESET_QUEUE || ['Flux2-KleinEdit'];
     const CANVAS_AGENT_DEFAULT_I2V_PRESET_QUEUE = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_I2V_PRESET_QUEUE || ['Wan(I2V)', 'Dasiwa(I2V)'];
     const CANVAS_AGENT_DEFAULT_T2V_PRESET_QUEUE = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_T2V_PRESET_QUEUE || ['Wan(T2V)', 'Wan-TTP'];
-    const CANVAS_AGENT_DEFAULT_VIDEO_EDIT_PRESET_QUEUE = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_VIDEO_EDIT_PRESET_QUEUE || ['Wan-Extent', 'Dasiwa-Extent'];
+    const CANVAS_AGENT_DEFAULT_VIDEO_EDIT_PRESET_QUEUE = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_VIDEO_EDIT_PRESET_QUEUE || ['Bernini-VideoEdit', 'Wan-Extent', 'Dasiwa-Extent'];
     const CANVAS_AGENT_DEFAULT_AUDIO_TO_VIDEO_PRESET_QUEUE = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_AUDIO_TO_VIDEO_PRESET_QUEUE || ['LTX2.3(TA2V)', 'LTX2.3(IA2V)'];
     const CANVAS_AGENT_DEFAULT_AUDIO_IMAGE_TO_VIDEO_PRESET_QUEUE = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_AUDIO_IMAGE_TO_VIDEO_PRESET_QUEUE || ['LTX2.3(IA2V)', 'LTX2.3(TA2V)'];
     const CANVAS_AGENT_DEFAULT_VIDEO_OUTPAINT_PRESET = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_VIDEO_OUTPAINT_PRESET || 'LTX-Outpaint';
     const CANVAS_AGENT_DEFAULT_VIDEO_ERASE_PRESET = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_VIDEO_ERASE_PRESET || 'Wan-Remover';
-    const CANVAS_AGENT_DEFAULT_VIDEO_REPLACE_PRESET = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_VIDEO_REPLACE_PRESET || 'Wan-Animate';
+    const CANVAS_AGENT_DEFAULT_VIDEO_REPLACE_PRESET = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_VIDEO_REPLACE_PRESET || 'Bernini-VideoEdit';
     const CANVAS_AGENT_DEFAULT_VIDEO_UPSCALE_PRESET = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_VIDEO_UPSCALE_PRESET || 'Nvidia-VSR';
     const CANVAS_AGENT_DEFAULT_AUDIO_PRESET_QUEUE = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_AUDIO_PRESET_QUEUE || [];
+    const CANVAS_AGENT_PROMPT_REWRITE_TIMEOUT_MS = Math.max(5000, Number(WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_PROMPT_REWRITE_TIMEOUT_MS || 25000));
     const COMMON_CANVAS_LABELS_CN = {
         preset: '预设',
         Preset: '预设',
@@ -244,6 +248,7 @@
         videoOutpaintPreset: CANVAS_AGENT_DEFAULT_VIDEO_OUTPAINT_PRESET,
         videoErasePreset: CANVAS_AGENT_DEFAULT_VIDEO_ERASE_PRESET,
         videoReplacePreset: CANVAS_AGENT_DEFAULT_VIDEO_REPLACE_PRESET,
+        videoEditQuickToolDefaultMigrated: false,
         videoUpscalePreset: CANVAS_AGENT_DEFAULT_VIDEO_UPSCALE_PRESET,
         outpaintUpPercent: 15,
         outpaintDownPercent: 15,
@@ -477,7 +482,6 @@
     let toastEl = null;
     let systemInfoEl = null;
     let backendAlertEl = null;
-    let onboardingChecklistEl = null;
     let perfHudEl = null;
     let templateLibraryItemsCache = null;
     let canvasAgentPresetStatusCache = new Map();
@@ -500,6 +504,7 @@
     let minimapDragState = null;
     let wheelPreviewLodUntil = 0;
     let wheelPreviewLodTimer = 0;
+    let viewportZoomSettleTimer = 0;
     let nodeSpatialIndex = null;
     let nodeSpatialIndexDirty = true;
     let canvasRenderMode = 'full';
@@ -629,7 +634,8 @@
 
     let canvasProjectAssetCatalog = [];
     let storageScope = getStorageScope();
-    let storageKey = getStorageKey(storageScope);
+    let storageBaseKey = getStorageKey(storageScope);
+    let storageKey = initialBrowserStorageKey(storageScope);
     let project = loadProject(storageKey, storageScope);
     let selectedNodeId = null;
     let selectedNodeIds = new Set();
@@ -749,6 +755,86 @@
             : `simpai.infiniteCanvasWorkbench.v1:${sanitizeStoragePart(scope?.mode || 'local')}:${sanitizeStoragePart(scope?.owner || 'local')}`;
     }
 
+    function browserCacheBaseKey(scope) {
+        return getStorageKey(scope || storageScope || getStorageScope());
+    }
+
+    function browserCacheProjectId(projectId) {
+        return sanitizeStoragePart(String(projectId || PROJECT_ID || 'default')).replace(/[:]/g, '_') || 'default';
+    }
+
+    function browserCacheActiveProjectIdKey(scope) {
+        return `${browserCacheBaseKey(scope)}:active_project_id`;
+    }
+
+    function browserCacheProjectIndexKey(scope) {
+        return `${browserCacheBaseKey(scope)}:project_index`;
+    }
+
+    function browserCacheProjectKey(projectId, scope) {
+        return `${browserCacheBaseKey(scope)}:project:${browserCacheProjectId(projectId)}`;
+    }
+
+    function browserCacheProjectScope(scope) {
+        return Object.assign({}, scope || storageScope || getStorageScope(), { allowLegacyFallback: false });
+    }
+
+    function browserCacheActiveProjectId(scope) {
+        try {
+            const raw = String(localStorage.getItem(browserCacheActiveProjectIdKey(scope)) || '').trim();
+            return raw ? browserCacheProjectId(raw) : '';
+        } catch (err) {
+            return '';
+        }
+    }
+
+    function browserCacheProjectIndex(scope) {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(browserCacheProjectIndexKey(scope)) || '{}');
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        } catch (err) {
+            return {};
+        }
+    }
+
+    function rememberBrowserCacheProject(projectId, key, scope) {
+        const id = browserCacheProjectId(projectId);
+        if (!id || !key) return;
+        try {
+            const index = browserCacheProjectIndex(scope);
+            index[id] = { key, updated_at: nowIso() };
+            localStorage.setItem(browserCacheProjectIndexKey(scope), JSON.stringify(index));
+        } catch (err) {
+            console.warn('[SimpAI Canvas] failed to update browser cache project index:', err);
+        }
+    }
+
+    function setActiveBrowserCacheProject(projectId, scope) {
+        const targetScope = scope || storageScope || getStorageScope();
+        const id = browserCacheProjectId(projectId);
+        storageBaseKey = browserCacheBaseKey(targetScope);
+        storageKey = browserCacheProjectKey(id, targetScope);
+        try {
+            localStorage.setItem(browserCacheActiveProjectIdKey(targetScope), id);
+        } catch (err) {
+            console.warn('[SimpAI Canvas] failed to update active browser cache project:', err);
+        }
+        rememberBrowserCacheProject(id, storageKey, targetScope);
+        return storageKey;
+    }
+
+    function initialBrowserStorageKey(scope) {
+        const baseKey = browserCacheBaseKey(scope);
+        const activeId = browserCacheActiveProjectId(scope);
+        if (activeId) {
+            const activeKey = browserCacheProjectKey(activeId, scope);
+            try {
+                if (localStorage.getItem(activeKey)) return activeKey;
+            } catch (err) {}
+        }
+        return baseKey;
+    }
+
     function createDefaultProject() {
         const created = typeof WORKBENCH_PROJECT.createDefaultProject === 'function'
             ? WORKBENCH_PROJECT.createDefaultProject(projectStoreOptions())
@@ -838,97 +924,34 @@
             title: t('Canvas Quick Start', '画布快速入门'),
             created_at: now,
             updated_at: now,
-            viewport: { x: 260, y: 150, zoom: 0.82 },
+            viewport: { x: 120, y: 120, zoom: 0.9 },
             settings: Object.assign({}, DEFAULT_SETTINGS, {
                 minimap: true,
                 edgeLabels: true,
-                __demo_initialized: true,
-                __onboarding_template: true,
-                __onboarding_checklist_title: t('Quick Start Checklist', '快速入门清单'),
-                __onboarding_checklist_steps: [
-                    { key: 'quick_select', action: 'select_node', icon: 'fa-arrow-pointer', title: t('Select any node', '选中任意节点'), detail: t('Click a note or text node and drag it around.', '点击提示贴或文本节点，并试着拖动。') },
-                    { key: 'quick_inspector', action: 'inspect_node', icon: 'fa-sliders', title: t('Inspect details', '查看 Inspector'), detail: t('Keep a node selected and check the right inspector.', '保持选中节点，在右侧检查参数。') },
-                    { key: 'quick_text', action: 'focus_node', target_node_id: 'quick_text_prompt', icon: 'fa-font', title: t('Find the Text node', '找到 Text 节点'), detail: t('Text nodes can feed prompt ports.', 'Text 节点可以接入 prompt 接口。') },
-                    { key: 'quick_templates', action: 'template_library', icon: 'fa-graduation-cap', title: t('Open Template Library', '打开模板库'), detail: t('Starter canvases live in the template library.', '新手模板都在模板库中。') },
-                    { key: 'quick_queue', action: 'run_queue', icon: 'fa-list-check', title: t('Open Run Queue', '打开运行队列'), detail: t('Use it to inspect progress and recent outputs.', '用它查看进度和最近结果。') }
-                ]
+                inspectorCollapsed: false,
+                __demo_initialized: true
             }),
-            groups: [
-                { id: 'quick_group_start', title: t('1. First Look', '1. 先看这里'), x: -120, y: -120, w: 520, h: 360, color: '#14b8a6', alpha: 0.14, shortcut: '1', locked: false },
-                { id: 'quick_group_nodes', title: t('2. Nodes And Ports', '2. 节点与接口'), x: 460, y: -120, w: 560, h: 450, color: '#2563eb', alpha: 0.12, shortcut: '2', locked: false },
-                { id: 'quick_group_run', title: t('3. Run And Inspect', '3. 运行与检查'), x: 1080, y: -120, w: 560, h: 360, color: '#22c55e', alpha: 0.11, shortcut: '3', locked: false }
-            ],
+            groups: [],
             nodes: [
                 {
-                    id: 'quick_note_welcome',
-                    type: 'note',
-                    x: -60,
-                    y: -50,
-                    w: 390,
-                    h: 150,
-                    title: t('Welcome', '欢迎'),
-                    text: t('This starter canvas is safe to edit. Select any node, drag it around, then inspect its settings on the right.', '这个入门画布可以放心编辑。选中任意节点、拖动它，然后在右侧 Inspector 查看设置。'),
-                    style: { color: '#f8fafc', background: '#164e63', font_size: 14 },
-                    source: { kind: 'canvas_note' }
-                },
-                {
-                    id: 'quick_note_library',
-                    type: 'note',
-                    x: -60,
+                    id: 'quick_start_image_input',
+                    type: 'image',
+                    x: 120,
                     y: 120,
-                    w: 390,
-                    h: 95,
-                    title: t('Template Library', '模板库'),
-                    text: t('Use the top Template Library button to create guided starter projects. This Quick Start is the default empty-canvas guide.', '用顶部“模板库”按钮创建引导模板。这个快速入门会作为空画布默认引导。'),
-                    style: { color: '#f8fafc', background: '#0f766e', font_size: 13 },
-                    source: { kind: 'canvas_note' }
-                },
-                {
-                    id: 'quick_note_ports',
-                    type: 'note',
-                    x: 520,
-                    y: -50,
-                    w: 430,
-                    h: 120,
-                    title: t('Nodes And Ports', '节点与接口'),
-                    text: t('Nodes are tools or media. Drag from an output port to a matching input port to build a chain. Port colors show media, text, config, and generation links.', '节点代表工具或素材。从输出接口拖到匹配输入接口即可搭建链路。接口颜色区分媒体、文本、配置和生成链路。'),
-                    style: { color: '#f8fafc', background: '#1d4ed8', font_size: 13 },
-                    source: { kind: 'canvas_note' }
-                },
-                {
-                    id: 'quick_text_prompt',
-                    type: 'text',
-                    x: 535,
-                    y: 95,
-                    w: 380,
-                    h: 220,
-                    title: t('Example Text Node', '示例文本节点'),
-                    text: { value: t('a cozy studio desk, warm light, organized creative tools', '温暖灯光下的创作书桌，整齐的工具与素材'), updated_at: now },
-                    source: { kind: 'onboarding_text' }
-                },
-                {
-                    id: 'quick_note_run',
-                    type: 'note',
-                    x: 1140,
-                    y: -50,
-                    w: 430,
-                    h: 120,
-                    title: t('Run Queue', '运行队列'),
-                    text: t('When you run a preset chain, the top Run Queue widget shows active tasks, progress, failed runs, and recent results.', '运行 preset 链路时，顶部运行队列控件会显示活动任务、进度、失败任务和最近结果。'),
-                    style: { color: '#052e16', background: '#bbf7d0', font_size: 13 },
-                    source: { kind: 'canvas_note' }
-                },
-                {
-                    id: 'quick_note_inspector',
-                    type: 'note',
-                    x: 1140,
-                    y: 95,
-                    w: 430,
-                    h: 115,
-                    title: t('Inspector', 'Inspector'),
-                    text: t('The right Inspector exposes full node details. Collapse it when you need space; hover the edge handle to bring it back.', '右侧 Inspector 展示节点完整参数。需要空间时可以折叠；移动到边缘把手即可展开。'),
-                    style: { color: '#f8fafc', background: '#166534', font_size: 13 },
-                    source: { kind: 'canvas_note' }
+                    w: 640,
+                    h: 420,
+                    title: t('Image Input', '图像输入'),
+                    display_mode: 'frameless',
+                    asset: null,
+                    mask: null,
+                    status: {
+                        state: 'waiting',
+                        message: t('Click the empty node body to upload an image.', '点击空白节点主体上传图片。')
+                    },
+                    source: {
+                        kind: 'quick_start_image_upload',
+                        slot: 'scene_canvas_image'
+                    }
                 }
             ],
             edges: [],
@@ -1032,6 +1055,9 @@
     }
 
     function saveProjectToBrowserCache(context) {
+        const projectId = project?.id || PROJECT_ID;
+        const cacheKey = setActiveBrowserCacheProject(projectId, storageScope);
+        project.storage = Object.assign({}, project.storage || {}, buildProjectStorageInfo(cacheKey, storageScope, project.storage?.migrated_from_legacy));
         const attempts = [
             { stripAllMaterializedDataUrls: true, maxInlineDataUrlChars: 1800000 },
             { stripAllMaterializedDataUrls: true, maxInlineDataUrlChars: 260000, runHistoryLimit: 4 },
@@ -1042,7 +1068,7 @@
             try {
                 const compact = compactProjectForStorage(project, Object.assign({}, opts, { stripStorage: false }));
                 const text = JSON.stringify(compact);
-                localStorage.setItem(storageKey, text);
+                localStorage.setItem(cacheKey, text);
                 return true;
             } catch (err) {
                 lastError = err;
@@ -1376,8 +1402,8 @@
     function syncStorageScope(options) {
         const opts = options || {};
         const nextScope = getStorageScope();
-        const nextKey = getStorageKey(nextScope);
-        if (nextKey === storageKey) return false;
+        const nextBaseKey = getStorageKey(nextScope);
+        if (nextBaseKey === storageBaseKey) return false;
 
         if (opts.saveCurrent !== false && project && project.nodes) {
             try {
@@ -1390,10 +1416,12 @@
         }
 
         storageScope = nextScope;
-        storageKey = nextKey;
+        storageBaseKey = nextBaseKey;
+        storageKey = initialBrowserStorageKey(storageScope);
         backendLoadedStorageKey = '';
         project = loadProject(storageKey, storageScope);
         setCanvasProjectAssetRoot('');
+        resetRenderedProjectDomCache();
         selectedNodeId = null;
         selectedGroupId = null;
         selectedEdgeId = null;
@@ -1964,8 +1992,51 @@
         return WORKBENCH_API.wd14Tag(withWorkbenchUserContext(payload));
     }
 
+    function canvasVlmCancelPayloadFromRunPayload(payload) {
+        const body = payload || {};
+        const params = body.params && typeof body.params === 'object' ? body.params : {};
+        return {
+            project_id: String(body.project_id || PROJECT_ID || '').trim(),
+            node_id: String(body.node_id || params.node_id || '').trim(),
+            conversation_id: String(body.conversation_id || params.conversation_id || '').trim(),
+            request_id: String(body.request_id || params.request_id || '').trim()
+        };
+    }
+
+    async function requestCanvasVlmCancelForRunPayload(payload) {
+        const cancelPayload = canvasVlmCancelPayloadFromRunPayload(payload);
+        if (!cancelPayload.node_id && !cancelPayload.conversation_id && !cancelPayload.request_id) return;
+        try {
+            await sendCanvasVlmCancelRequest(cancelPayload);
+        } catch (err) {
+            console.warn('[SimpAI Canvas] VLM cancel after timeout failed', err);
+        }
+    }
+
     async function sendCanvasVlmRunRequest(payload, options) {
-        return WORKBENCH_API.vlmRun(payload, options || {});
+        const opts = options || {};
+        const timeoutMs = Math.max(0, Number(opts.timeoutMs || 0));
+        const canUseTimeout = timeoutMs > 0 && !opts.signal && typeof AbortController === 'function';
+        const controller = canUseTimeout ? new AbortController() : null;
+        let timer = null;
+        let timedOut = false;
+        if (controller) {
+            timer = window.setTimeout(() => {
+                timedOut = true;
+                controller.abort();
+            }, timeoutMs);
+        }
+        const response = await WORKBENCH_API.vlmRun(payload, Object.assign({}, opts, controller ? { signal: controller.signal } : {}));
+        if (timer) window.clearTimeout(timer);
+        if (timedOut && response?.aborted) {
+            await requestCanvasVlmCancelForRunPayload(payload);
+            return Object.assign({}, response, {
+                ok: false,
+                timeout: true,
+                error: opts.timeoutError || t('VLM request timed out.', 'VLM 请求超时。')
+            });
+        }
+        return response;
     }
 
     async function sendCanvasVlmCancelRequest(payload) {
@@ -2081,14 +2152,17 @@
             const decision = browserBackendProjectDecision(incoming, Object.assign({}, opts, { backendFound: directLoad.found !== false }));
             if (decision.keepBrowser) {
                 syncCanvasProjectAssetRoot(project);
+                resetRenderedProjectDomCache();
                 backendLoadedStorageKey = storageKey;
-                renderStatus();
+                renderAll();
                 scheduleAutoPresetModelChecks();
                 if (!opts.silent) showToast(t('Browser cache is newer; keeping local canvas.', 'Browser cache is newer; keeping local canvas.'));
                 return true;
             }
             project = incoming;
+            setActiveBrowserCacheProject(project.id || PROJECT_ID, storageScope);
             syncCanvasProjectAssetRoot(project);
+            resetRenderedProjectDomCache();
             saveProjectToBrowserCache({ reason: 'backend_direct_load_apply' });
             backendLoadedStorageKey = storageKey;
             selectedNodeId = null;
@@ -2122,13 +2196,16 @@
             const decision = browserBackendProjectDecision(incoming, Object.assign({}, opts, { backendFound: result.found !== false }));
             if (decision.keepBrowser) {
                 syncCanvasProjectAssetRoot(project);
+                resetRenderedProjectDomCache();
                 backendLoadedStorageKey = storageKey;
-                renderStatus();
+                renderAll();
                 if (!opts.silent) showToast(t('Browser cache is newer; keeping local canvas.', 'Browser cache is newer; keeping local canvas.'));
                 return true;
             }
             project = incoming;
+            setActiveBrowserCacheProject(project.id || PROJECT_ID, storageScope);
             syncCanvasProjectAssetRoot(project);
+            resetRenderedProjectDomCache();
             saveProjectToBrowserCache({ reason: 'backend_bridge_load_apply' });
             backendLoadedStorageKey = storageKey;
             selectedNodeId = null;
@@ -2281,6 +2358,7 @@
         const storage = project.storage || buildProjectStorageInfo(storageKey, storageScope);
         project = sanitizeProject(cloneRunValue(entry.project, createDefaultProject()));
         project.storage = project.storage || storage;
+        resetRenderedProjectDomCache();
         selectedNodeId = entry.selectedNodeId || null;
         selectedEdgeId = entry.selectedEdgeId || null;
         selectedGroupId = entry.selectedGroupId || null;
@@ -2336,7 +2414,8 @@
         const style = document.createElement('style');
         style.id = 'simpai-canvas-runtime-style';
         style.textContent = `
-.sai-canvas-stage { will-change: transform; }
+.sai-canvas-viewport.is-panning .sai-canvas-stage,
+.sai-canvas-viewport.is-zooming .sai-canvas-stage { will-change: transform; }
 .sai-canvas-viewport.is-panning .sai-canvas-stage,
 .sai-canvas-viewport.is-panning .sai-canvas-node { text-rendering: optimizeSpeed; }
 .sai-canvas-viewport.is-panning .sai-canvas-node {
@@ -2475,7 +2554,6 @@
 <section class="sai-canvas-settings-panel" hidden aria-label="${escapeHtml(t('Canvas Settings', '画布设置'))}"></section>
 <section class="sai-run-queue-panel" hidden aria-label="${escapeHtml(t('Run Queue', '运行队列'))}"></section>
 <section class="sai-run-history-panel" hidden aria-label="${escapeHtml(t('Run History', '运行历史'))}"></section>
-<aside class="sai-onboarding-checklist" data-onboarding-checklist hidden aria-label="${escapeHtml(t('Onboarding checklist', '新手清单'))}"></aside>
 <div class="sai-canvas-perf-hud" data-canvas-perf-hud aria-label="${escapeHtml(t('Canvas performance', '画布性能'))}"></div>
 <div class="sai-canvas-toast" hidden></div>
 `;
@@ -2523,7 +2601,6 @@
         toastEl = root.querySelector('.sai-canvas-toast');
         systemInfoEl = root.querySelector('[data-canvas-system-info]');
         backendAlertEl = root.querySelector('[data-canvas-backend-alert]');
-        onboardingChecklistEl = root.querySelector('[data-onboarding-checklist]');
         perfHudEl = root.querySelector('[data-canvas-perf-hud]');
         zoomLabel = root.querySelector('.sai-canvas-zoom-label');
         syncStandaloneCanvasControls();
@@ -3513,16 +3590,6 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
                 return;
             }
 
-            const onboardingButton = evt.target.closest('[data-onboarding-action]');
-            if (onboardingButton) {
-                evt.preventDefault();
-                handleOnboardingChecklistAction(
-                    onboardingButton.getAttribute('data-onboarding-action') || '',
-                    onboardingButton.getAttribute('data-onboarding-step') || ''
-                );
-                return;
-            }
-
             const vlmJumpButton = evt.target.closest('[data-vlm-chat-jump-bottom]');
             if (vlmJumpButton) {
                 evt.preventDefault();
@@ -3596,6 +3663,11 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
                 if (output) output.textContent = decisionRange.value + '%';
                 const decision = canvasAgentState.pendingDecision;
                 if (decision && decision.form && key) decision.form[key] = Number(decisionRange.value);
+                return;
+            }
+            const decisionField = evt.target.closest?.('[data-canvas-agent-decision-field]');
+            if (decisionField) {
+                handleCanvasAgentDecisionFieldInput(decisionField);
                 return;
             }
             const outpaintSlider = evt.target.closest?.('[data-outpaint-slider]');
@@ -4102,7 +4174,6 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
         renderMinimap();
         renderCanvasAgentPanel();
         renderRunQueuePanelIfOpen();
-        renderOnboardingChecklist();
         if (runHistoryPanel && !runHistoryPanel.hidden) renderRunHistoryPanel();
         perfStats.renderTotalMs = performance.now() - startedAt;
         renderPerformanceHud(true);
@@ -4211,6 +4282,14 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
         next.videoOutpaintPreset = normalizePresetName(next.videoOutpaintPreset || CANVAS_AGENT_DEFAULT_SETTINGS.videoOutpaintPreset);
         next.videoErasePreset = normalizePresetName(next.videoErasePreset || CANVAS_AGENT_DEFAULT_SETTINGS.videoErasePreset);
         next.videoReplacePreset = normalizePresetName(next.videoReplacePreset || CANVAS_AGENT_DEFAULT_SETTINGS.videoReplacePreset);
+        const oldVideoEditQuickToolDefault = normalizePresetName('Wan-Animate');
+        const skipVideoEditDefaultMigration = !!project?.settings?.__template_source;
+        if (!skipVideoEditDefaultMigration && next.videoEditQuickToolDefaultMigrated !== true && next.videoReplacePreset === oldVideoEditQuickToolDefault) {
+            next.videoReplacePreset = normalizePresetName(CANVAS_AGENT_DEFAULT_SETTINGS.videoReplacePreset);
+            next.videoEditQuickToolDefaultMigrated = true;
+        } else {
+            next.videoEditQuickToolDefaultMigrated = next.videoEditQuickToolDefaultMigrated === true || next.videoReplacePreset !== oldVideoEditQuickToolDefault;
+        }
         next.videoUpscalePreset = normalizePresetName(next.videoUpscalePreset || CANVAS_AGENT_DEFAULT_SETTINGS.videoUpscalePreset);
         next.outpaintUpPercent = clamp(Number(next.outpaintUpPercent ?? CANVAS_AGENT_DEFAULT_SETTINGS.outpaintUpPercent), 0, 100);
         next.outpaintDownPercent = clamp(Number(next.outpaintDownPercent ?? CANVAS_AGENT_DEFAULT_SETTINGS.outpaintDownPercent), 0, 100);
@@ -4249,6 +4328,18 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
         project.settings.canvasAgent = Object.assign({}, getCanvasAgentSettings(), patch);
         scheduleSave();
         if (options?.render !== false) renderCanvasAgentPanel();
+    }
+
+    function revealCanvasAgentPanelForToolCard() {
+        const settings = getCanvasAgentSettings();
+        const patch = {};
+        if (settings.minimized) patch.minimized = false;
+        if (settings.minimized && settings.bubblePosition && !settings.panelPosition) {
+            patch.panelPosition = settings.bubblePosition;
+        }
+        if (Object.keys(patch).length) setCanvasAgentLayoutPatch(patch, { render: false });
+        canvasAgentState.pickReference = false;
+        canvasAgentState.expanded = false;
     }
 
     function dockCanvasAgentPanelBottomLeft(options) {
@@ -4313,14 +4404,23 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
         return `${t('Agent on', 'Agent 作用于')} ${type} · ${node.title || node.id}`;
     }
 
+    function nodeHasViewableImage(node) {
+        if (!node) return false;
+        if (typeof WORKBENCH_MEDIA_VIEWERS.getNodeImageSrc === 'function') {
+            return !!WORKBENCH_MEDIA_VIEWERS.getNodeImageSrc(node);
+        }
+        const asset = node.type === 'result' ? getSelectedResultAsset(node) : node.asset;
+        return !!safeAssetDisplaySrc(asset, asset?.thumb || asset?.preview_url || asset?.data_url || '');
+    }
+
     function isCanvasAgentImageTarget(node) {
         if (!node) return false;
-        if (node.type === 'image') return !!node.asset;
+        if (node.type === 'image') return nodeHasViewableImage(node);
         if (node.type === 'pose_studio') return isPoseStudioImageSource(node);
         if (node.type === 'gaussian_studio') return isGaussianStudioImageSource(node);
         if (node.type === 'result') {
             const asset = getSelectedResultAsset(node);
-            return !!asset && assetMediaKind(asset) === 'image';
+            return !!asset && assetMediaKind(asset) === 'image' && nodeHasViewableImage({ type: 'image', asset });
         }
         return false;
     }
@@ -4383,7 +4483,8 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
     function isCanvasAgentMediaReferenceTarget(node) {
         if (!node || isNodeIgnored(node)) return false;
         if (node.type === 'text') return true;
-        if (['image', 'video', 'audio'].includes(node.type)) return !!node.asset;
+        if (node.type === 'image') return nodeHasViewableImage(node);
+        if (['video', 'audio'].includes(node.type)) return !!node.asset;
         if (node.type === 'result') return !!getSelectedResultAsset(node);
         return false;
     }
@@ -4619,9 +4720,12 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
         return normalizeCanvasAgentReferences().find(ref => ref.kind === cleanKind) || null;
     }
 
-    function getCanvasAgentPrimaryMediaNode(kind) {
+    function getCanvasAgentPrimaryMediaNode(kind, options) {
+        const opts = options || {};
         const cleanKind = String(kind || '').trim().toLowerCase();
         if (!cleanKind) return null;
+        const explicitNode = getNode(opts.targetNodeId || '');
+        if (explicitNode && getCanvasAgentTargetMediaKind(explicitNode) === cleanKind) return explicitNode;
         const refNode = canvasAgentReferenceNode(getCanvasAgentPrimaryReferenceByKind(cleanKind));
         if (refNode && getCanvasAgentTargetMediaKind(refNode) === cleanKind) return refNode;
         const target = getCanvasAgentTargetNode();
@@ -5182,6 +5286,13 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
 </div>`;
     }
 
+    function ensureOutpaintOverlayMatchesAgentTarget(target) {
+        if (!outpaintOverlayState.active) return;
+        if (!target || target.id !== outpaintOverlayState.nodeId || !isCanvasAgentImageTarget(target)) {
+            hideOutpaintOverlay();
+        }
+    }
+
     function renderCanvasAgentPanel() {
         if (!canvasAgentPanel || !root || root.hidden) return;
         const settings = getCanvasAgentSettings();
@@ -5193,6 +5304,7 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
         }
         canvasAgentPanel.hidden = false;
         const target = getCanvasAgentTargetNode();
+        ensureOutpaintOverlayMatchesAgentTarget(target);
         const primary = canvasAgentPrimaryActionMeta(target);
         const input = canvasAgentState.input || '';
         const decision = canvasAgentState.pendingDecision;
@@ -5443,6 +5555,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         if (canvasAgentState.pendingDecision && typeof canvasAgentState.pendingDecision.resolve === 'function') {
             canvasAgentState.pendingDecision.resolve('cancel');
         }
+        revealCanvasAgentPanelForToolCard();
         return new Promise((resolve) => {
             canvasAgentState.pendingDecision = {
                 id: uid('agent_decision'),
@@ -5453,6 +5566,11 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
                 facts: Array.isArray(options.facts) ? options.facts : [],
                 fields: Array.isArray(options.fields) ? options.fields : [],
                 form: options.form && typeof options.form === 'object' ? options.form : {},
+                promptField: options.promptField || '',
+                promptPresetField: options.promptPresetField || '',
+                promptFallback: options.promptFallback || '',
+                promptAutoValue: options.promptAutoValue || '',
+                promptEdited: !!options.promptEdited,
                 actions: Array.isArray(options.actions) ? options.actions : [],
                 resolve
             };
@@ -5460,15 +5578,44 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         });
     }
 
+    function syncCanvasAgentDecisionPromptFromPreset(decision, presetName) {
+        if (!decision || !decision.form || typeof decision.form !== 'object') return;
+        const promptKey = decision.promptField || 'prompt';
+        if (!promptKey || !decision.promptPresetField) return;
+        const entry = findCanvasAgentPresetEntryByAlias(presetName);
+        if (!entry) return;
+        const nextPrompt = canvasAgentPresetDefaultPrompt(entry, decision.promptFallback || '');
+        if (!nextPrompt) return;
+        const currentPrompt = String(decision.form[promptKey] || '').trim();
+        const autoPrompt = String(decision.promptAutoValue || '').trim();
+        if (decision.promptEdited && currentPrompt && currentPrompt !== autoPrompt) return;
+        decision.form[promptKey] = nextPrompt;
+        decision.promptAutoValue = nextPrompt;
+        decision.promptEdited = false;
+        const field = canvasAgentPanel?.querySelector(`[data-canvas-agent-decision-field="${CSS.escape(promptKey)}"]`);
+        if (field && field.value !== nextPrompt) field.value = nextPrompt;
+    }
+
     function handleCanvasAgentDecisionFieldInput(field) {
         const decision = canvasAgentState.pendingDecision;
         if (!decision || !decision.form || typeof decision.form !== 'object') return;
         const key = field.getAttribute('data-canvas-agent-decision-field');
         if (!key) return;
-        decision.form[key] = field.value;
+        const value = String(field.type || '').toLowerCase() === 'range' ? Number(field.value) : field.value;
+        decision.form[key] = value;
+        if (key === (decision.promptField || 'prompt')) {
+            const autoPrompt = String(decision.promptAutoValue || '').trim();
+            const currentPrompt = String(value || '').trim();
+            decision.promptEdited = !!currentPrompt && currentPrompt !== autoPrompt;
+            return;
+        }
+        if (key === decision.promptPresetField) {
+            syncCanvasAgentDecisionPromptFromPreset(decision, value);
+        }
     }
 
-    function canvasAgentPresetDecisionOptions(selectedEntry) {
+    function canvasAgentPresetDecisionOptions(selectedEntry, options) {
+        const opts = options || {};
         const selectedName = normalizePresetName(selectedEntry?.name || selectedEntry?.display_name || '');
         const rows = [];
         const add = (name, label) => {
@@ -5477,9 +5624,89 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             rows.push({ value: clean, label: label || clean });
         };
         add(selectedName, selectedEntry?.display_name || selectedEntry?.name || selectedName);
-        canvasAgentReadyPresetEntries().forEach(entry => add(entry.name || entry.display_name, entry.display_name || entry.name));
+        const entries = Array.isArray(opts.entries) ? opts.entries : canvasAgentReadyPresetEntries();
+        entries.forEach(entry => add(entry.name || entry.display_name, entry.display_name || entry.name));
         if (!rows.length && selectedName) add(selectedName, selectedName);
         return rows;
+    }
+
+    function canvasAgentPresetSearchText(entry) {
+        const parts = [
+            entry?.name,
+            entry?.display_name,
+            entry?.task_method,
+            entry?.backend_engine,
+            entry?.engine_type,
+            entry?.schema?.theme_title,
+            entry?.schema?.default_theme,
+            entry?.default_engine?.backend_params?.task_method,
+            entry?.default_engine?.backend_params?.backend_engine,
+            entry?.default_engine?.scene_frontend?.theme_title
+        ];
+        return parts.filter(Boolean).join(' ').toLowerCase();
+    }
+
+    function isCanvasAgentUpscalePresetEntry(entry) {
+        if (isCanvasAgentNonUpscalePresetEntry(entry)) return false;
+        const text = canvasAgentPresetSearchText(entry);
+        if (!text) return false;
+        return /(upscale|uov|super[\s_-]*resolution|esrgan|realesrgan|upscaler|ttp|sr\b|vsr\b|放大|超分|高清|高分辨率|无损放大)/i.test(text);
+    }
+
+    function isCanvasAgentNonUpscalePresetEntry(entry) {
+        const text = canvasAgentPresetSearchText(entry);
+        if (!text) return false;
+        return /\bscail\b|motion[\s_-]*transfer|动作迁移/i.test(text);
+    }
+
+    function canvasAgentUpscalePresetEntries(selectedEntry) {
+        const settings = getCanvasAgentSettings();
+        const rows = [];
+        const add = (entry) => {
+            const name = normalizePresetName(entry?.name || entry?.display_name || '');
+            if (!entry || !name || rows.some(item => normalizePresetName(item.name || item.display_name || '') === name)) return;
+            rows.push(entry);
+        };
+        add(findCanvasAgentPresetEntryByAlias(settings.upscalePreset));
+        if (isCanvasAgentUpscalePresetEntry(selectedEntry)) add(selectedEntry);
+        canvasAgentReadyPresetEntries().filter(isCanvasAgentUpscalePresetEntry).forEach(add);
+        getPresetCatalog().filter(isCanvasAgentUpscalePresetEntry).forEach(add);
+        if (!rows.length) add(selectedEntry);
+        return rows;
+    }
+
+    function canvasAgentPreferredUpscalePresetEntry() {
+        const settings = getCanvasAgentSettings();
+        if (settings.upscalePresetMode === 'dedicated_preset' && settings.upscalePreset) {
+            const configured = findCanvasAgentPresetEntryByAlias(settings.upscalePreset);
+            if (configured) return configured;
+        }
+        return canvasAgentReadyPresetEntries().find(isCanvasAgentUpscalePresetEntry)
+            || getPresetCatalog().find(isCanvasAgentUpscalePresetEntry)
+            || null;
+    }
+
+    function canvasAgentVideoUpscalePresetEntries(selectedName) {
+        const rows = [];
+        const add = (entry) => {
+            const name = normalizePresetName(entry?.name || entry?.display_name || '');
+            if (!entry || !name || !isCanvasAgentUpscalePresetEntry(entry)) return;
+            if (rows.some(item => normalizePresetName(item.name || item.display_name || '') === name)) return;
+            rows.push(entry);
+        };
+        add(findCanvasAgentPresetEntryByAlias(selectedName));
+        canvasAgentReadyPresetEntries().forEach(add);
+        getPresetCatalog().forEach(add);
+        return rows;
+    }
+
+    function canvasAgentQuickToolPresetOptions(toolKey, selectedEntry) {
+        if (toolKey === 'upscale') {
+            return canvasAgentPresetDecisionOptions(selectedEntry, {
+                entries: canvasAgentUpscalePresetEntries(selectedEntry)
+            });
+        }
+        return canvasAgentPresetDecisionOptions(selectedEntry);
     }
 
     function canvasAgentPresetQueueConfig(kind) {
@@ -5714,6 +5941,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             wan_video_cn: t('Wan / Chinese video prompt', 'Wan / 中文视频动态提示词'),
             flux_t5_en: t('FLUX/T5XXL / English prompt', 'FLUX/T5XXL / 英文提示词'),
             sdxl_danbooru: t('SDXL / Danbooru tags', 'SDXL / Danbooru 标签'),
+            outpaint_instruction: t('FLUX outpaint / English prompt', 'FLUX 扩图 / 英文提示词'),
             unknown_default: t('Default queue target', '默认队列目标')
         };
         return labels[key] || labels.unknown_default;
@@ -5766,16 +5994,18 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             data.engine_type || '',
             modelList.join('|')
         ].join('|').toLowerCase();
-        let key = 'unknown_default';
+        let key = purposeText.includes('outpaint') ? 'outpaint_instruction' : 'unknown_default';
         const taskMethodLower = taskMethod.toLowerCase();
         const taskMethodIsChinese = /(?:^|[_-])cn$/.test(taskMethodLower);
-        if (/(^|[^a-z0-9])anima(?:[_\s-]?aio|-base|$|[^a-z0-9])|anima-base-v/i.test(haystack)) key = 'anima';
-        else if (taskMethodIsChinese && (purposeText.includes('video') || /wan|umt5/i.test(haystack))) key = 'wan_video_cn';
-        else if (taskMethodIsChinese) key = 'qwen_natural';
-        else if (/(qwen|z[-_ ]?image|zimage|lumina2|flux2|flux[-_ ]?2)/i.test(haystack)) key = 'qwen_natural';
-        else if (/(wan|umt5)/i.test(haystack)) key = 'wan_video_cn';
-        else if (/(illustrious|noob|sd15|sdxl|fooocus|pony|danbooru|chenkin|animagine)/i.test(haystack)) key = 'sdxl_danbooru';
-        else if (/(flux|t5xxl|t5[-_ ]?xxl)/i.test(haystack)) key = 'flux_t5_en';
+        if (key === 'unknown_default') {
+            if (/(^|[^a-z0-9])anima(?:[_\s-]?aio|-base|$|[^a-z0-9])|anima-base-v/i.test(haystack)) key = 'anima';
+            else if (taskMethodIsChinese && (purposeText.includes('video') || /wan|umt5/i.test(haystack))) key = 'wan_video_cn';
+            else if (taskMethodIsChinese) key = 'qwen_natural';
+            else if (/(qwen|z[-_ ]?image|zimage|lumina2|flux2|flux[-_ ]?2)/i.test(haystack)) key = 'qwen_natural';
+            else if (/(wan|umt5)/i.test(haystack)) key = 'wan_video_cn';
+            else if (/(illustrious|noob|sd15|sdxl|fooocus|pony|danbooru|chenkin|animagine)/i.test(haystack)) key = 'sdxl_danbooru';
+            else if (/(flux|t5xxl|t5[-_ ]?xxl)/i.test(haystack)) key = 'flux_t5_en';
+        }
         if (key === 'unknown_default') {
             if (purposeText.includes('video')) key = 'wan_video_cn';
             else if (purposeText.includes('edit')) key = 'qwen_natural';
@@ -5893,12 +6123,21 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             ? entryOrNode.schema
             : (entry?.schema && typeof entry.schema === 'object' ? entry.schema : {});
         const themes = Array.isArray(schema.themes) ? schema.themes : [];
-        const selectedTheme = entryOrNode?.runtime?.scene_theme || schema.default_theme || themes[0] || '';
+        const defaultEngine = entry?.default_engine && typeof entry.default_engine === 'object' ? entry.default_engine : {};
+        const schemaSceneFrontend = schema.scene_frontend && typeof schema.scene_frontend === 'object' ? schema.scene_frontend : {};
+        const defaultSceneFrontend = defaultEngine.scene_frontend && typeof defaultEngine.scene_frontend === 'object' ? defaultEngine.scene_frontend : {};
+        const sceneFrontend = Object.assign({}, schemaSceneFrontend, defaultSceneFrontend);
+        const sceneThemes = Array.isArray(sceneFrontend.theme) ? sceneFrontend.theme : [];
+        const selectedTheme = entryOrNode?.runtime?.scene_theme
+            || schema.default_theme
+            || sceneFrontend.default_theme
+            || sceneFrontend.defaultTheme
+            || themes[0]
+            || sceneThemes[0]
+            || '';
         const perTheme = schema.per_theme && typeof schema.per_theme === 'object' ? schema.per_theme : {};
         const themeInfo = perTheme[selectedTheme] && typeof perTheme[selectedTheme] === 'object' ? perTheme[selectedTheme] : {};
         const themeDefaults = themeInfo.defaults && typeof themeInfo.defaults === 'object' ? themeInfo.defaults : {};
-        const defaultEngine = entry?.default_engine && typeof entry.default_engine === 'object' ? entry.default_engine : {};
-        const sceneFrontend = defaultEngine.scene_frontend && typeof defaultEngine.scene_frontend === 'object' ? defaultEngine.scene_frontend : {};
         const nodeGeneration = entryOrNode?.generation_config && typeof entryOrNode.generation_config === 'object' ? entryOrNode.generation_config : {};
         const nodeGenerationDefaults = nodeGeneration.defaults && typeof nodeGeneration.defaults === 'object' ? nodeGeneration.defaults : {};
         const nodeGenerationOverrides = nodeGeneration.overrides && typeof nodeGeneration.overrides === 'object' ? nodeGeneration.overrides : {};
@@ -5957,6 +6196,10 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             prompt,
             negative_prompt: negative
         };
+    }
+
+    function canvasAgentPresetDefaultPrompt(entryOrNode, fallback) {
+        return firstNonBlankText(canvasAgentPresetPromptDefaults(entryOrNode).prompt, fallback);
     }
 
     function applyCanvasAgentPresetDefaultsToGenerator(node, entryOrNode) {
@@ -6027,6 +6270,9 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             return /[\u3400-\u9fff]/.test(text)
                 || canvasAgentPromptLooksDanbooru(text)
                 || canvasAgentPromptLooksDanbooruTagListish(text);
+        }
+        if (key === 'outpaint_instruction') {
+            return /[\u3400-\u9fff]/.test(text);
         }
         return false;
     }
@@ -6678,6 +6924,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         if (key === 'wan_video_cn') return 'Final prompt target: Wan / UMT5 Chinese video prompt. Write Chinese natural language focused on action progression, camera movement, temporal continuity, and what remains stable.';
         if (key === 'flux_t5_en') return 'Final prompt target: FLUX/T5XXL English prompt. The final prompt must be English natural language only; no Chinese characters.';
         if (key === 'sdxl_danbooru') return 'Final prompt target: SDXL/Danbooru tags. Output only comma-separated canonical English tags such as 1girl, solo, long_hair, looking_at_viewer, best_quality. Prefer several short known tags over one descriptive phrase. Do not write prose, full sentences, captions, explanations, Chinese, or made-up long underscore tags.';
+        if (key === 'outpaint_instruction') return 'Final prompt target: FLUX outpaint English prompt. Write concise English only for seamless image-border expansion. Preserve the original subject, lighting, perspective, camera angle, style, color palette, and texture. Do not output Chinese, Danbooru tags, or only the word outpaint.';
         if (key === 'qwen_natural') return 'Final prompt target: Qwen/Z-image natural language. For Chinese user requests, write a coherent Chinese natural-language image prompt with subject, action, setting, composition, light, and mood.';
         return 'Final prompt target: unknown/default. Infer from the chosen preset queue; prefer Z-image natural language for T2I, Wan Chinese motion prompts for video, and Qwen-style natural language for image edits.';
     }
@@ -6707,6 +6954,9 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         }
         if (key === 'flux_t5_en' && /[\u3400-\u9fff]/.test(text)) {
             return { label: t('Prompt check', '提示词检查'), value: t('Warning: FLUX/T5XXL prompt still contains Chinese.', '警告：FLUX/T5XXL 提示词仍包含中文。') };
+        }
+        if (key === 'outpaint_instruction' && /[\u3400-\u9fff]/.test(text)) {
+            return { label: t('Prompt check', '提示词检查'), value: t('Warning: FLUX outpaint prompt must be English.', '警告：FLUX 扩图提示词必须是英文。') };
         }
         if (key === 'sdxl_danbooru') {
             if (/[\u3400-\u9fff]/.test(text)) {
@@ -6783,6 +7033,46 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         return { ok: true, mainSlot, refCount };
     }
 
+    function canvasAgentReferenceUploadSlotForGenerator(generator, mainSlot) {
+        if (!generator) return '';
+        const probeImageNode = { type: 'image', asset: null };
+        return canvasAgentUploadSlotsForNode(generator)
+            .filter(slot => !isCanvasAgentMaskSlot(slot) && getUploadSlotMediaKind(slot.key) === 'image')
+            .find(slot => slot.key !== mainSlot && !generator.upload_slots?.[slot.key] && canNodeConnectToUploadSlot(probeImageNode, slot.key))?.key
+            || '';
+    }
+
+    function createCanvasAgentReferencePlaceholderForGenerator(generator, mainSlot, toolKey, spec) {
+        const refSlot = canvasAgentReferenceUploadSlotForGenerator(generator, mainSlot);
+        if (!refSlot) return null;
+        const label = spec?.label || t('Quick tool', '快捷工具');
+        const imageNode = createEmptyImageNodeForInput(generator, getSlotLabel(generator, refSlot), null);
+        if (!imageNode) return null;
+        imageNode.title = t('{tool} Ref Image', '{tool} 参考图').replace('{tool}', label);
+        imageNode.source = Object.assign({}, imageNode.source || {}, {
+            kind: 'canvas_agent_reference_placeholder',
+            agent_tool: toolKey || '',
+            target_node_id: generator.id,
+            target_slot: refSlot,
+            created_at: nowIso()
+        });
+        createUploadEdge(imageNode.id, generator.id, refSlot, { silent: true });
+        return imageNode;
+    }
+
+    function startCanvasAgentReferencePickForTool(target, spec) {
+        if (target && isCanvasAgentImageTarget(target)) {
+            addCanvasAgentReferenceFromNode(target, { role: 'primary', silent: true });
+            selectedNodeId = target.id;
+            selectedNodeIds = new Set([target.id]);
+            selectedEdgeId = null;
+        }
+        canvasAgentState.expanded = true;
+        canvasAgentState.pickReference = true;
+        setCanvasAgentMessage(t('{tool} needs another reference image. Click an image or result node to add it as Ref, then use the tool again.', '{tool} 还需要另一张参考图。点击图像或结果节点加入 Ref，然后再次使用工具。').replace('{tool}', spec?.label || t('Quick tool', '快捷工具')));
+        showToast(t('Pick a reference image for {tool}.', '请选择 {tool} 的参考图。').replace('{tool}', spec?.label || t('Quick tool', '快捷工具')));
+    }
+
     function canvasAgentQuickToolSpec(key) {
         const specs = {
             outpaint: {
@@ -6836,7 +7126,10 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         const settings = getCanvasAgentSettings();
         const spec = canvasAgentQuickToolSpec(key);
         if (!spec) return '';
-        if (key === 'upscale' && settings.upscalePresetMode === 'uov_auto') {
+        if (key === 'upscale') {
+            if (settings.upscalePresetMode === 'dedicated_preset' && settings.upscalePreset) return settings.upscalePreset;
+            const preferred = canvasAgentPreferredUpscalePresetEntry();
+            if (preferred) return normalizePresetName(preferred.name || preferred.display_name || '');
             return settings.t2iPreset || CANVAS_AGENT_DEFAULT_T2I_PRESET_QUEUE[0] || '';
         }
         return settings[spec.presetSetting] || spec.defaultPreset || '';
@@ -6862,14 +7155,13 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
                 autoRun: false
             },
             replace: {
-                label: t('Video Replace', '视频替换'),
+                label: t('Video Edit', '视频编辑'),
                 presetSetting: 'videoReplacePreset',
                 defaultPreset: CANVAS_AGENT_DEFAULT_VIDEO_REPLACE_PRESET,
                 icon: 'fa-wand-magic-sparkles',
-                prompt: t('Replace masked area in video with reference.', '使用参考内容替换视频中的蒙版区域。'),
-                requiresMask: true,
-                wantsReference: true,
-                autoRun: false
+                prompt: t('Edit this video while preserving temporal consistency.', '编辑这段视频并保持时序一致。'),
+                animateRequiresMask: true,
+                autoRun: true
             },
             upscale: {
                 label: t('Video Upscale', '视频放大'),
@@ -6888,6 +7180,27 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         if (!spec) return '';
         const settings = getCanvasAgentSettings();
         return settings[spec.presetSetting] || spec.defaultPreset || '';
+    }
+
+    function isCanvasAgentAnimateVideoPreset(entryOrName) {
+        const raw = typeof entryOrName === 'string'
+            ? entryOrName
+            : [
+                entryOrName?.name,
+                entryOrName?.display_name,
+                entryOrName?.schema?.theme_title,
+                entryOrName?.schema?.default_theme,
+                entryOrName?.default_engine?.scene_frontend?.theme_title
+            ].filter(Boolean).join(' ');
+        return normalizePresetName(raw).toLowerCase().includes('animate');
+    }
+
+    function canvasAgentVideoQuickToolRequiresSam3Mask(key, entry, spec) {
+        if (!spec) return false;
+        if (key === 'replace' && spec.animateRequiresMask) {
+            return isCanvasAgentAnimateVideoPreset(entry || spec.defaultPreset);
+        }
+        return !!spec.requiresMask;
     }
 
     function canvasAgentAudioQuickToolSpec(key) {
@@ -6943,7 +7256,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         return [
             { key: 'video_outpaint', label: t('V-Outpaint', '视频扩图'), icon: 'fa-expand' },
             { key: 'video_erase', label: t('V-Erase', '视频擦除'), icon: 'fa-eraser' },
-            { key: 'video_replace', label: t('V-Replace', '视频替换'), icon: 'fa-wand-magic-sparkles' },
+            { key: 'video_replace', label: t('Video Edit', '视频编辑'), icon: 'fa-wand-magic-sparkles' },
             { key: 'video_upscale', label: t('V-Upscale', '视频放大'), icon: 'fa-magnifying-glass-plus' }
         ];
     }
@@ -6955,7 +7268,8 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         ];
     }
 
-    async function runCanvasAgentVideoQuickTool(videoToolKey) {
+    async function runCanvasAgentVideoQuickTool(videoToolKey, options) {
+        const opts = options || {};
         const spec = canvasAgentVideoQuickToolSpec(videoToolKey);
         if (!spec) {
             showToast(t('Unknown video quick tool.', '未知视频快捷工具'));
@@ -6965,8 +7279,9 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             showToast(t('Agent is still working. Please wait for the current step to finish.', 'Agent 当前步骤还在运行，请等待完成。'));
             return;
         }
-        const primaryRef = getCanvasAgentPrimaryImageReference();
-        let target = canvasAgentReferenceNode(primaryRef) || getCanvasAgentTargetNode();
+        const explicitTarget = getNode(opts.targetNodeId || '');
+        const primaryRef = getCanvasAgentPrimaryReferenceByKind('video');
+        let target = (explicitTarget && isCanvasAgentVideoTarget(explicitTarget) ? explicitTarget : null) || canvasAgentReferenceNode(primaryRef) || getCanvasAgentTargetNode();
         if (!isCanvasAgentVideoTarget(target)) {
             showToast(t('Select a video clip first.', '请先选中一个视频片段'));
             return;
@@ -6977,25 +7292,41 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             showToast(t('Video quick tool preset is unavailable: {preset}', '视频快捷工具 preset 不可用：{preset}').replace('{preset}', initialPresetName || spec.label));
             return;
         }
+        const initialRequiresMask = canvasAgentVideoQuickToolRequiresSam3Mask(videoToolKey, entry, spec);
+        const agentPrompt = String(canvasAgentState.input || '').trim();
+        const promptFromPreset = !agentPrompt;
+        const prompt = agentPrompt || canvasAgentPresetDefaultPrompt(entry, spec.prompt);
         const decisionForm = {
-            preset: normalizePresetName(entry.name || entry.display_name || '')
+            preset: normalizePresetName(entry.name || entry.display_name || ''),
+            prompt
         };
         const ok = await askCanvasAgentDecision({
-            title: spec.autoRun ? t('Start video quick tool?', '开始视频快捷工具？') : t('Create video quick tool node?', '创建视频快捷工具节点？'),
-            message: spec.requiresMask
+            title: (spec.autoRun || initialRequiresMask) ? t('Start video quick tool?', '开始视频快捷工具？') : t('Create video quick tool node?', '创建视频快捷工具节点？'),
+            message: initialRequiresMask
                 ? t('{tool} needs a mask. Agent will create and connect the node, then wait for manual mask editing.', '{tool} 需要蒙版。Agent 会创建并连接节点，然后等待手动绘制蒙版。').replace('{tool}', spec.label)
-                : t('Agent will use {tool} on the selected video clip.', 'Agent 将对所选视频片段执行 {tool}。').replace('{tool}', spec.label),
+                : t('Agent will use {tool}, connect the selected video, and submit this prompt.', 'Agent 将使用 {tool}，连接当前视频，并提交以下提示词。').replace('{tool}', spec.label),
             form: decisionForm,
             fields: [
-                { key: 'preset', label: t('Target preset', '目标 preset'), options: canvasAgentPresetDecisionOptions(entry) }
+                { key: 'preset', label: t('Target preset', '目标 preset'), options: canvasAgentPresetDecisionOptions(entry) },
+                canvasAgentPromptDecisionField()
             ],
+            promptField: 'prompt',
+            promptPresetField: 'preset',
+            promptFallback: spec.prompt,
+            promptAutoValue: promptFromPreset ? prompt : '',
+            promptEdited: !promptFromPreset,
             facts: [
                 { label: t('Action', '动作'), value: spec.label },
                 { label: t('Preset', '预设'), value: entry.display_name || entry.name || initialPresetName },
-                { label: t('Source', '源'), value: canvasAgentShortNodeLabel(target) }
+                { label: t('Source', '源'), value: canvasAgentShortNodeLabel(target) },
+                initialRequiresMask ? { label: t('Mask', '蒙版'), value: 'SAM3' } : null
             ].filter(Boolean),
+            details: prompt,
+            note: initialRequiresMask
+                ? t('Animate presets use SAM3 mask workflow. Bernini VideoEdit runs as a direct video edit.', 'Animate preset 使用 SAM3 蒙版工作流；Bernini VideoEdit 会直接作为视频编辑运行。')
+                : t('Choose an Animate preset only when you need the SAM3 mask workflow.', '只有需要 SAM3 蒙版工作流时才选择 Animate preset。'),
             actions: [
-                { value: 'continue', label: spec.autoRun ? t('Start', '开始') : t('Create node', '创建节点'), icon: spec.autoRun ? 'fa-play' : 'fa-plus', primary: true },
+                { value: 'continue', label: initialRequiresMask ? t('Create SAM3 workflow', '创建 SAM3 工作流') : (spec.autoRun ? t('Start', '开始') : t('Create node', '创建节点')), icon: initialRequiresMask ? 'fa-wand-magic-sparkles' : (spec.autoRun ? 'fa-play' : 'fa-plus'), primary: true },
                 { value: 'cancel', label: t('Cancel', '取消'), icon: 'fa-xmark' }
             ]
         });
@@ -7003,27 +7334,31 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             setCanvasAgentMessage(t('Video quick tool cancelled.', '视频快捷工具已取消。'));
             return;
         }
+        const finalPrompt = canvasAgentPromptFromDecision(decisionForm, prompt);
         const finalEntry = findCanvasAgentPresetEntryByAlias(decisionForm.preset) || entry;
+        const finalRequiresMask = canvasAgentVideoQuickToolRequiresSam3Mask(videoToolKey, finalEntry, spec);
         const node = markCanvasAgentCreatedNode(addPresetNode(finalEntry, canvasAgentWorkflowPresetPosition(target), {
             collapsed: true,
             source: { kind: 'canvas_agent_created', created_at: nowIso() }
         }));
+        applyCanvasAgentPromptToGenerator(node, finalPrompt);
         const uploadSlots = canvasAgentUploadSlotsForNode(node);
         const videoSlot = canvasAgentVideoSourceUploadSlot(node, target)
             || uploadSlots.find(item => canNodeConnectToUploadSlot(target, item.key))?.key
             || uploadSlots[0]?.key
             || '';
         if (videoSlot) createUploadEdge(target.id, node.id, videoSlot, { silent: true });
+        applyCanvasAgentResolutionToGenerator(node);
         selectedNodeId = node.id;
         selectedNodeIds = new Set([node.id]);
         selectedEdgeId = null;
         mutate({ inspector: true });
-        if (spec.requiresMask) {
-            const workflowSpec = Object.assign({ key: videoToolKey }, spec);
+        if (finalRequiresMask) {
+            const workflowSpec = Object.assign({}, spec, { key: videoToolKey, requiresMask: true });
             const workflow = prepareCanvasAgentVideoMaskWorkflow(target, node, null, workflowSpec, {
                 toolKey: videoToolKey,
                 title: `${t('Agent video quick tool', 'Agent 视频快捷工具')}: ${spec.label}`,
-                prompt: String(canvasAgentState.input || '').trim(),
+                prompt: finalPrompt,
                 openEditor: true
             });
             if (workflow?.ok === false) {
@@ -7044,7 +7379,8 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         clearCanvasAgentRunInfo(1800);
     }
 
-    async function runCanvasAgentAudioQuickTool(audioToolKey) {
+    async function runCanvasAgentAudioQuickTool(audioToolKey, options) {
+        const opts = options || {};
         const spec = canvasAgentAudioQuickToolSpec(audioToolKey);
         if (!spec) {
             showToast(t('Unknown audio quick tool.', '未知音频快捷工具'));
@@ -7057,7 +7393,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         const rawPrompt = String(canvasAgentState.input || '').trim();
         const prompt = rawPrompt || spec.prompt;
         if (audioToolKey === 'edit') {
-            await runCanvasAgentAudioEdit(prompt, { originalPrompt: rawPrompt || prompt });
+            await runCanvasAgentAudioEdit(prompt, { originalPrompt: rawPrompt || prompt, targetNodeId: opts.targetNodeId || '' });
             return;
         }
         if (audioToolKey === 'generate') {
@@ -7097,12 +7433,14 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         renderCanvasAgentPanel();
         if (bridgeAction === 'audio_to_video') {
             await runCanvasAgentAudioToVideo(canvasAgentState.input || t('Create a video guided by this audio.', '根据这段音频生成视频。'), {
-                originalPrompt: canvasAgentState.input || ''
+                originalPrompt: canvasAgentState.input || '',
+                targetNodeId: node?.id || ''
             });
             return;
         }
         await runCanvasAgentAudioEdit(canvasAgentState.input || t('Edit or process this audio.', '编辑或处理这段音频。'), {
-            originalPrompt: canvasAgentState.input || ''
+            originalPrompt: canvasAgentState.input || '',
+            targetNodeId: node?.id || ''
         });
     }
 
@@ -7505,6 +7843,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         const purposeText = String(purpose || '').toLowerCase();
         const isVideoPurpose = purposeText.includes('video');
         const isAudioPurpose = purposeText.includes('audio');
+        const isOutpaintPurpose = purposeText.includes('outpaint');
         const visualFallbackTarget = isAudioPurpose && imageTarget && isCanvasAgentImageTarget(imageTarget)
             ? imageTarget
             : (mediaTarget || imageTarget);
@@ -7526,14 +7865,19 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
                 ? 'Refine the user prompt into a clearer, stronger generator-ready prompt while preserving the original intent.'
                 : (isImageEdit
                 ? 'Refine the user request into a concise, high-quality image editing prompt.'
+                : (isOutpaintPurpose
+                    ? 'Translate and refine the user request into a concise English FLUX outpainting prompt for seamless image-border expansion.'
                 : (isVideoPurpose
                     ? 'Refine the user request into a concise, high-quality video generation/editing prompt.'
                     : (isAudioPurpose
                         ? 'Refine the user request into a concise audio generation/editing prompt.'
-                        : 'Refine the user request into a concise, high-quality image generation prompt.'))),
+                        : 'Refine the user request into a concise, high-quality image generation prompt.')))),
             'Output only the final prompt text. No explanation, markdown, JSON, labels, metadata, policy notes, or internal state.',
             'If the request is brief or underspecified, expand it with visible subject, action/pose, setting, composition/camera, lighting, mood, and concrete visual details.',
             'Do not return the unchanged original request unless it is already a detailed generator prompt.',
+            isOutpaintPurpose
+                ? 'For FLUX outpaint, write English only. Preserve the original image content, lighting, perspective, camera angle, style, color palette, texture, and depth; describe seamless continuation beyond the current borders.'
+                : '',
             isImageEdit && assetSources.length
                 ? 'Use the attached source image as the grounding reference. Preserve the source identity, subject, pose, composition, and lighting unless the user explicitly asks to change them.'
                 : '',
@@ -7546,7 +7890,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             presetHint ? `Target preset hint: ${presetHint}` : '',
             `Target: ${canvasAgentPromptTargetContextLine(promptTarget)}`,
             canvasAgentPromptTargetInstruction(promptTarget),
-            !isVideoPurpose && !isAudioPurpose
+            !isVideoPurpose && !isAudioPurpose && !isOutpaintPurpose
                 ? 'For natural-language image prompts, write one coherent scene prompt with subject, visible action, setting, composition/camera, lighting, and mood.'
                 : '',
             isVideoPurpose
@@ -7569,6 +7913,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
                 : '',
             `User request: ${prompt}`
         ].filter(Boolean).join('\n');
+        const rewriteRequestId = uid('vlm_rewrite');
         const response = await sendCanvasVlmRunRequest({
             project_id: project.id || PROJECT_ID,
             node_id: isImageEdit ? 'canvas_agent_prompt_rewrite:image_edit' : 'canvas_agent_prompt_rewrite:text_to_image',
@@ -7579,12 +7924,15 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             params: Object.assign({
                 version: model,
                 mode: 'chat',
+                request_id: rewriteRequestId,
                 prompt: rewritePrompt,
                 system_prompt: isImageEdit
                     ? 'You are a prompt refinement assistant for SimpAI Studio image editing. Use compact built-in prompt rules. Ground edits in the attached image when provided. Follow the prompt target rules in the user message.'
+                    : (isOutpaintPurpose
+                        ? 'You are a prompt refinement assistant for SimpAI Studio FLUX outpainting. Output English only and follow the prompt target rules in the user message.'
                     : (isVideoPurpose
                         ? 'You are a prompt refinement assistant for SimpAI Studio video generation and editing. Use compact built-in prompt rules. Follow the prompt target rules in the user message.'
-                        : 'You are a prompt refinement assistant for SimpAI Studio. Use compact built-in prompt rules. Follow the prompt target rules in the user message.'),
+                        : 'You are a prompt refinement assistant for SimpAI Studio. Use compact built-in prompt rules. Follow the prompt target rules in the user message.')),
                 save_context: false,
                 compact_agent_prompt: true,
                 agent_use_skills: true,
@@ -7601,6 +7949,9 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
                 seed: -1,
                 free_after: false
             }, model === 'Custom' ? getCanvasAgentCustomRuntimeParams() : {})
+        }, {
+            timeoutMs: CANVAS_AGENT_PROMPT_REWRITE_TIMEOUT_MS,
+            timeoutError: t('Prompt rewrite timed out. Please run with the current prompt or try again.', '提示词改写超时。请使用当前提示词运行，或稍后重试。')
         });
         if (!response?.ok || !String(response.text || '').trim()) {
             return { ok: false, error: response?.details || response?.error || 'LLM refine returned no text' };
@@ -7647,6 +7998,9 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         if (!text) return '';
         const key = String(target?.key || '').toLowerCase();
         const hasChinese = /[\u3400-\u9fff]/.test(text);
+        if (key === 'outpaint_instruction') {
+            return 'seamless outpainting, natural image-border expansion, preserve the original subject, preserve lighting and perspective, match camera angle and composition, match style, color palette, texture, and depth, coherent background continuation, clean seamless edges';
+        }
         if ((key.includes('flux') || key.includes('t5') || key.endsWith('_en')) && hasChinese) return '';
         if (canvasAgentPromptTargetNeedsDanbooru(target)) {
             return canvasAgentDanbooruFallbackPrompt(text, target, {}, []) || (text.includes(',') ? text : `${text}, detailed, high quality, atmospheric lighting, dynamic composition`);
@@ -8649,6 +9003,208 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         return { x: Math.round(start.x + stepX), y: Math.round(start.y + stepY) };
     }
 
+    function canvasAgentReferenceWorkflowRect(position, presetSize, referenceSize) {
+        const presetX = Math.round(position?.x || 0);
+        const presetY = Math.round(position?.y || 0);
+        const presetW = Number(presetSize?.w || 430);
+        const presetH = Number(presetSize?.h || COLLAPSED_PROMPT_NODE_DEFAULT_HEIGHT);
+        const referenceW = Number(referenceSize?.w || 264);
+        const referenceH = Number(referenceSize?.h || 300);
+        const gap = 90;
+        const referenceX = Math.round(presetX - referenceW - gap);
+        const referenceY = presetY;
+        const minX = Math.min(referenceX, presetX);
+        const minY = Math.min(referenceY, presetY);
+        const maxX = Math.max(referenceX + referenceW, presetX + presetW);
+        const maxY = Math.max(referenceY + referenceH, presetY + presetH);
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+
+    function findOpenCanvasAgentReferencePresetPosition(base, presetSize, referenceSize, options) {
+        const opts = options || {};
+        const padding = Number(opts.padding ?? 42);
+        const occupied = canvasAgentWorkflowOccupiedRects(opts.excludeIds);
+        const workflowSize = canvasAgentReferenceWorkflowRect({ x: 0, y: 0 }, presetSize, referenceSize);
+        const stepX = Number(opts.stepX || workflowSize.w + padding + 80);
+        const stepY = Number(opts.stepY || workflowSize.h + padding + 64);
+        const isFree = (candidate) => {
+            const rect = canvasAgentReferenceWorkflowRect(candidate, presetSize, referenceSize);
+            return !occupied.some(used => rectsOverlap(rect, used, padding));
+        };
+        const start = { x: Math.round(base?.x || 0), y: Math.round(base?.y || 0) };
+        if (isFree(start)) return start;
+        const offsets = [];
+        for (let ring = 1; ring <= 10; ring += 1) {
+            offsets.push([ring, 0], [ring, 1], [ring, -1], [0, ring], [0, -ring]);
+            for (let dy = -ring; dy <= ring; dy += 1) offsets.push([ring, dy]);
+            for (let dx = -ring; dx <= ring; dx += 1) offsets.push([dx, ring], [dx, -ring]);
+        }
+        const seen = new Set();
+        for (const [dx, dy] of offsets) {
+            const candidate = { x: Math.round(start.x + dx * stepX), y: Math.round(start.y + dy * stepY) };
+            const key = `${candidate.x},${candidate.y}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (isFree(candidate)) return candidate;
+        }
+        return { x: Math.round(start.x + stepX), y: Math.round(start.y + stepY) };
+    }
+
+    function canvasAgentReferenceWorkflowPresetPosition(target, options) {
+        const opts = options || {};
+        const sourceRect = target ? getNodeRect(target) : null;
+        const visible = target?.type === 'vlm' ? getVisibleWorldRect() : null;
+        const defaultPreset = defaultNodeSize('preset');
+        const defaultImage = defaultNodeSize('image');
+        const referenceGap = 90;
+        const presetSize = opts.presetSize || {
+            w: Math.max(430, Number(defaultPreset?.w || 0)),
+            h: Math.max(COLLAPSED_PROMPT_NODE_DEFAULT_HEIGHT, Number(defaultPreset?.h || 0))
+        };
+        const referenceSize = opts.referenceSize || {
+            w: Math.max(264, Number(defaultImage?.w || 0)),
+            h: Math.max(300, Number(defaultImage?.h || 0))
+        };
+        const sourcePad = target?.type === 'vlm' ? 300 : 140;
+        const base = sourceRect
+            ? {
+                x: Math.round(Math.max(
+                    sourceRect.x + sourceRect.w + sourcePad + referenceSize.w + referenceGap,
+                    visible ? visible.x + visible.w * 0.56 + referenceSize.w : -Infinity
+                )),
+                y: Math.round(sourceRect.y)
+            }
+            : (() => {
+                const center = viewportCenterWorld();
+                return { x: Math.round(center.x + referenceSize.w / 2), y: Math.round(center.y - 160) };
+            })();
+        return findOpenCanvasAgentReferencePresetPosition(base, presetSize, referenceSize, opts);
+    }
+
+    function positionCanvasAgentReferenceWorkflow(target, presetNode, referenceNode) {
+        if (!presetNode || !referenceNode) return;
+        const defaultPreset = defaultNodeSize(presetNode.type || 'preset');
+        const defaultReference = defaultNodeSize(referenceNode.type || 'image');
+        const presetSize = {
+            w: Math.max(430, Number(presetNode.w || defaultPreset?.w || 0)),
+            h: Math.max(COLLAPSED_PROMPT_NODE_DEFAULT_HEIGHT, Number(presetNode.h || defaultPreset?.h || 0))
+        };
+        const referenceSize = {
+            w: Math.max(264, Number(referenceNode.w || defaultReference?.w || 0)),
+            h: Math.max(300, Number(referenceNode.h || defaultReference?.h || 0))
+        };
+        const position = canvasAgentReferenceWorkflowPresetPosition(target, {
+            presetSize,
+            referenceSize,
+            excludeIds: [presetNode.id, referenceNode.id]
+        });
+        presetNode.x = Math.round(position.x);
+        presetNode.y = Math.round(position.y);
+        referenceNode.x = Math.round(position.x - referenceSize.w - 90);
+        referenceNode.y = Math.round(position.y);
+    }
+
+    function canvasAgentStyleTransferWorkflowRect(position, presetSize, selectorSize) {
+        const presetX = Math.round(position?.x || 0);
+        const presetY = Math.round(position?.y || 0);
+        const presetW = Number(presetSize?.w || 430);
+        const presetH = Number(presetSize?.h || COLLAPSED_PROMPT_NODE_DEFAULT_HEIGHT);
+        const selectorW = Number(selectorSize?.w || 360);
+        const selectorH = Number(selectorSize?.h || 420);
+        const gap = 90;
+        const selectorX = Math.round(presetX - selectorW - gap);
+        const selectorY = presetY;
+        const minX = Math.min(selectorX, presetX);
+        const minY = Math.min(selectorY, presetY);
+        const maxX = Math.max(selectorX + selectorW, presetX + presetW);
+        const maxY = Math.max(selectorY + selectorH, presetY + presetH);
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+
+    function findOpenCanvasAgentStyleTransferPresetPosition(base, presetSize, selectorSize, options) {
+        const opts = options || {};
+        const padding = Number(opts.padding ?? 42);
+        const occupied = canvasAgentWorkflowOccupiedRects(opts.excludeIds);
+        const workflowSize = canvasAgentStyleTransferWorkflowRect({ x: 0, y: 0 }, presetSize, selectorSize);
+        const stepX = Number(opts.stepX || workflowSize.w + padding + 80);
+        const stepY = Number(opts.stepY || workflowSize.h + padding + 64);
+        const isFree = (candidate) => {
+            const rect = canvasAgentStyleTransferWorkflowRect(candidate, presetSize, selectorSize);
+            return !occupied.some(used => rectsOverlap(rect, used, padding));
+        };
+        const start = { x: Math.round(base?.x || 0), y: Math.round(base?.y || 0) };
+        if (isFree(start)) return start;
+        const offsets = [];
+        for (let ring = 1; ring <= 10; ring += 1) {
+            offsets.push([ring, 0], [ring, 1], [ring, -1], [0, ring], [0, -ring]);
+            for (let dy = -ring; dy <= ring; dy += 1) offsets.push([ring, dy]);
+            for (let dx = -ring; dx <= ring; dx += 1) offsets.push([dx, ring], [dx, -ring]);
+        }
+        const seen = new Set();
+        for (const [dx, dy] of offsets) {
+            const candidate = { x: Math.round(start.x + dx * stepX), y: Math.round(start.y + dy * stepY) };
+            const key = `${candidate.x},${candidate.y}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (isFree(candidate)) return candidate;
+        }
+        return { x: Math.round(start.x + stepX), y: Math.round(start.y + stepY) };
+    }
+
+    function canvasAgentStyleTransferPresetPosition(target, options) {
+        const opts = options || {};
+        const sourceRect = target ? getNodeRect(target) : null;
+        const visible = target?.type === 'vlm' ? getVisibleWorldRect() : null;
+        const defaultPreset = defaultNodeSize('preset');
+        const defaultSelector = defaultNodeSize('style_selector');
+        const presetSize = opts.presetSize || {
+            w: Math.max(430, Number(defaultPreset?.w || 0)),
+            h: Math.max(COLLAPSED_PROMPT_NODE_DEFAULT_HEIGHT, Number(defaultPreset?.h || 0))
+        };
+        const selectorSize = opts.selectorSize || {
+            w: Math.max(360, Number(defaultSelector?.w || 0)),
+            h: Math.max(420, Number(defaultSelector?.h || 0))
+        };
+        const selectorGap = 90;
+        const sourcePad = target?.type === 'vlm' ? 300 : 140;
+        const base = sourceRect
+            ? {
+                x: Math.round(Math.max(
+                    sourceRect.x + sourceRect.w + sourcePad + selectorSize.w + selectorGap,
+                    visible ? visible.x + visible.w * 0.56 + selectorSize.w : -Infinity
+                )),
+                y: Math.round(sourceRect.y)
+            }
+            : (() => {
+                const center = viewportCenterWorld();
+                return { x: Math.round(center.x + selectorSize.w / 2), y: Math.round(center.y - 190) };
+            })();
+        return findOpenCanvasAgentStyleTransferPresetPosition(base, presetSize, selectorSize, opts);
+    }
+
+    function positionCanvasAgentStyleTransferWorkflow(target, presetNode, selectorNode) {
+        if (!presetNode || !selectorNode) return;
+        const defaultPreset = defaultNodeSize(presetNode.type || 'preset');
+        const defaultSelector = defaultNodeSize(selectorNode.type || 'style_selector');
+        const presetSize = {
+            w: Math.max(430, Number(presetNode.w || defaultPreset?.w || 0)),
+            h: Math.max(COLLAPSED_PROMPT_NODE_DEFAULT_HEIGHT, Number(presetNode.h || defaultPreset?.h || 0))
+        };
+        const selectorSize = {
+            w: Math.max(360, Number(selectorNode.w || defaultSelector?.w || 0)),
+            h: Math.max(420, Number(selectorNode.h || defaultSelector?.h || 0))
+        };
+        const position = canvasAgentStyleTransferPresetPosition(target, {
+            presetSize,
+            selectorSize,
+            excludeIds: [presetNode.id, selectorNode.id]
+        });
+        presetNode.x = Math.round(position.x);
+        presetNode.y = Math.round(position.y);
+        selectorNode.x = Math.round(position.x - selectorSize.w - 90);
+        selectorNode.y = Math.round(position.y);
+    }
+
     function markCanvasAgentCreatedNode(node) {
         if (!node) return node;
         node.collapsed = true;
@@ -9292,14 +9848,14 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
 
     async function runCanvasAgentAudioToVideo(prompt, options) {
         const opts = options || {};
-        const target = getCanvasAgentPrimaryMediaNode('audio');
+        const target = getCanvasAgentPrimaryMediaNode('audio', opts);
         if (!isCanvasAgentAudioTarget(target)) {
             resetCanvasAgentRunInfo();
             showToast(t('Select or attach an audio node first.', '请先选择或挂载一个音频节点。'));
             setCanvasAgentMessage(t('Audio to video needs an Audio node or audio Result as the upstream source.', '音频转视频需要音频节点或音频结果作为上游输入。'));
             return;
         }
-        const imageNode = getCanvasAgentPrimaryMediaNode('image');
+        const imageNode = getCanvasAgentPrimaryMediaNode('image', opts);
         const bridgeKind = imageNode ? 'audio_image_to_video' : 'audio_to_video';
         const choice = await chooseCanvasAgentPresetEntry(bridgeKind, { prompt: opts.originalPrompt || prompt, presetName: opts.presetName || opts.plan?.preset || '' });
         let entry = choice.entry;
@@ -9538,7 +10094,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
 
     async function runCanvasAgentVideoEdit(prompt, options) {
         const opts = options || {};
-        const target = getCanvasAgentPrimaryMediaNode('video');
+        const target = getCanvasAgentPrimaryMediaNode('video', opts);
         if (!isCanvasAgentVideoTarget(target)) {
             resetCanvasAgentRunInfo();
             showToast(t('Select or attach a video first.', '请先选择或挂载一个视频'));
@@ -9816,7 +10372,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
 
     async function runCanvasAgentAudioEdit(prompt, options) {
         const opts = options || {};
-        const target = getCanvasAgentPrimaryMediaNode('audio');
+        const target = getCanvasAgentPrimaryMediaNode('audio', opts);
         if (!isCanvasAgentAudioTarget(target)) {
             resetCanvasAgentRunInfo();
             showToast(t('Select or attach an audio node first.', '请先选择或挂载一个音频节点。'));
@@ -9892,7 +10448,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             return;
         }
         createUploadEdge(target.id, node.id, slot, { silent: true });
-        const imageNode = getCanvasAgentPrimaryMediaNode('image');
+        const imageNode = getCanvasAgentPrimaryMediaNode('image', opts);
         if (imageNode && imageNode.id !== target.id) {
             const imageSlot = findCanvasAgentUploadSlotForTarget(node, imageNode, '');
             if (imageSlot) createUploadEdge(imageNode.id, node.id, imageSlot, { silent: true });
@@ -9912,7 +10468,8 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         clearCanvasAgentRunInfo(1800);
     }
 
-    async function runCanvasAgentQuickTool(toolKey) {
+    async function runCanvasAgentQuickTool(toolKey, options) {
+        const opts = options || {};
         const spec = canvasAgentQuickToolSpec(toolKey);
         if (!spec) {
             showToast(t('Unknown quick tool.', '未知快捷工具'));
@@ -9922,13 +10479,15 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             showToast(t('Agent is still working. Please wait for the current step to finish.', 'Agent 当前步骤还在运行，请等待完成。'));
             return;
         }
+        const explicitTarget = getNode(opts.targetNodeId || '');
         const primaryRef = getCanvasAgentPrimaryImageReference();
-        const target = canvasAgentReferenceNode(primaryRef) || getCanvasAgentTargetNode();
+        const target = (explicitTarget && isCanvasAgentImageTarget(explicitTarget) ? explicitTarget : null) || canvasAgentReferenceNode(primaryRef) || getCanvasAgentTargetNode();
         if (!isCanvasAgentImageTarget(target)) {
             showToast(t('Select or attach a main image first.', '请先选择或挂载一张主图'));
             return;
         }
         if (toolKey === 'outpaint') {
+            revealCanvasAgentPanelForToolCard();
             showOutpaintOverlay(target.id);
             renderCanvasAgentPanel();
             return;
@@ -9947,21 +10506,33 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             createCanvasAgentStyleTransferWorkflow(target, entry, extraImageRefs, spec);
             return;
         }
-        const prompt = String(canvasAgentState.input || '').trim() || spec.prompt;
+        const agentPrompt = String(canvasAgentState.input || '').trim();
+        const promptFromPreset = !agentPrompt;
+        const prompt = agentPrompt || canvasAgentPresetDefaultPrompt(entry, spec.prompt);
         const decisionForm = {
             preset: normalizePresetName(entry.name || entry.display_name || ''),
             prompt
         };
+        const missingRequiredReference = !!spec.wantsReference && !extraImageRefs.length;
         const ok = await askCanvasAgentDecision({
-            title: (spec.autoRun || spec.requiresMask) ? t('Start quick tool?', '开始快捷工具？') : t('Create quick tool node?', '创建快捷工具节点？'),
-            message: spec.requiresMask
+            title: missingRequiredReference
+                ? t('Reference image required', '需要参考图')
+                : ((spec.autoRun || spec.requiresMask) ? t('Start quick tool?', '开始快捷工具？') : t('Create quick tool node?', '创建快捷工具节点？')),
+            message: missingRequiredReference
+                ? t('{tool} needs the main image plus another reference image. Pick a Ref first, or create the node and connect the reference manually.', '{tool} 需要主图加另一张参考图。先选择 Ref，或只创建节点后手动连接参考图。').replace('{tool}', spec.label)
+                : spec.requiresMask
                 ? t('{tool} needs a mask. Agent will reserve the result, open Sketch, then auto-run after you save the mask.', '{tool} 需要蒙版。Agent 会先预留结果节点并打开 Sketch，保存蒙版后自动运行。').replace('{tool}', spec.label)
                 : t('Agent will use {tool}, connect the main image, and submit this prompt.', 'Agent 将使用 {tool}，连接主图并提交以下提示词。').replace('{tool}', spec.label),
             form: decisionForm,
             fields: [
-                { key: 'preset', label: t('Target preset', '目标 preset'), options: canvasAgentPresetDecisionOptions(entry) },
+                { key: 'preset', label: t('Target preset', '目标 preset'), options: canvasAgentQuickToolPresetOptions(toolKey, entry) },
                 canvasAgentPromptDecisionField()
             ],
+            promptField: 'prompt',
+            promptPresetField: 'preset',
+            promptFallback: spec.prompt,
+            promptAutoValue: promptFromPreset ? prompt : '',
+            promptEdited: !promptFromPreset,
             facts: [
                 { label: t('Action', '动作'), value: spec.label },
                 { label: t('Preset', '预设'), value: entry.display_name || entry.name || initialPresetName },
@@ -9975,15 +10546,24 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             note: spec.requiresMask
                 ? t('Sketch saves the mask onto the image. The reserved result node will receive the run output.', 'Sketch 会把蒙版保存到图像上；预留的结果节点会承接本次输出。')
                 : '',
-            actions: [
+            actions: missingRequiredReference ? [
+                { value: 'pick-reference', label: t('Pick Ref', '选择 Ref'), icon: 'fa-crosshairs', primary: true },
+                { value: 'create-node', label: t('Create node only', '只创建节点'), icon: 'fa-plus' },
+                { value: 'cancel', label: t('Cancel', '取消'), icon: 'fa-xmark' }
+            ] : [
                 { value: 'continue', label: spec.requiresMask ? t('Open Sketch', '打开 Sketch') : (spec.autoRun ? t('Start', '开始') : t('Create node', '创建节点')), icon: spec.requiresMask ? 'fa-paintbrush' : (spec.autoRun ? 'fa-play' : 'fa-plus'), primary: true },
                 { value: 'cancel', label: t('Cancel', '取消'), icon: 'fa-xmark' }
             ]
         });
-        if (ok !== 'continue') {
+        if (ok === 'pick-reference') {
+            startCanvasAgentReferencePickForTool(target, spec);
+            return;
+        }
+        if (ok !== 'continue' && ok !== 'create-node') {
             setCanvasAgentMessage(t('Quick tool cancelled.', '快捷工具已取消。'));
             return;
         }
+        const createOnlyBecauseReferenceMissing = missingRequiredReference && ok === 'create-node';
         const finalPrompt = canvasAgentPromptFromDecision(decisionForm, prompt);
         entry = findCanvasAgentPresetEntryByAlias(decisionForm.preset) || entry;
         const node = markCanvasAgentCreatedNode(addPresetNode(entry, canvasAgentWorkflowPresetPosition(target), {
@@ -9998,6 +10578,26 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             return;
         }
         applyCanvasAgentResolutionToGenerator(node);
+        if (createOnlyBecauseReferenceMissing) {
+            const referenceNode = createCanvasAgentReferencePlaceholderForGenerator(node, connections.mainSlot, toolKey, spec);
+            if (referenceNode) positionCanvasAgentReferenceWorkflow(target, node, referenceNode);
+            const workflowNodes = [referenceNode, node].filter(Boolean);
+            const group = createCanvasAgentWorkflowGroup(workflowNodes, `${spec.label} workflow`);
+            selectedNodeId = referenceNode?.id || node.id;
+            selectedNodeIds = new Set(workflowNodes.map(item => item.id));
+            selectedEdgeId = null;
+            selectedGroupId = group?.id || selectedGroupId;
+            mutate({ inspector: true });
+            centerCanvasAgentWorkflow(workflowNodes);
+            if (referenceNode) {
+                setCanvasAgentMessage(t('{tool} node and reference image input created. Upload the reference image, then add the mask and run it manually.', '{tool} 节点和参考图输入已创建。上传参考图后，再添加蒙版并手动运行。').replace('{tool}', spec.label));
+                showToast(t('{tool} reference image input created.', '{tool} 参考图输入已创建。').replace('{tool}', spec.label));
+            } else {
+                setCanvasAgentMessage(t('{tool} node created, but no free reference image slot was found. Connect a reference image manually before running.', '{tool} 节点已创建，但没有找到空闲参考图槽。运行前请手动连接参考图。').replace('{tool}', spec.label));
+                showToast(t('{tool} node created; reference image is still missing.', '{tool} 节点已创建，仍缺参考图。').replace('{tool}', spec.label));
+            }
+            return;
+        }
         selectedNodeId = node.id;
         selectedNodeIds = new Set([node.id]);
         selectedEdgeId = null;
@@ -10020,10 +10620,13 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
     }
 
     function createCanvasAgentStyleTransferWorkflow(target, entry, extraImageRefs, spec) {
+        hideOutpaintOverlay();
         const label = spec?.label || t('Style Transfer', '风格转换');
-        const node = markCanvasAgentCreatedNode(addPresetNode(entry, canvasAgentWorkflowPresetPosition(target), {
+        const presetPosition = canvasAgentStyleTransferPresetPosition(target);
+        const node = markCanvasAgentCreatedNode(addPresetNode(entry, presetPosition, {
             collapsed: true,
             render: false,
+            avoidOverlap: false,
             source: { kind: 'canvas_agent_created', created_at: nowIso(), agent_tool: 'style_transfer' }
         }));
         if (!node) {
@@ -10042,13 +10645,18 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             history: false,
             render: false,
             select: true,
-            toast: false
+            toast: false,
+            avoidOverlap: false
         });
+        if (selector) positionCanvasAgentStyleTransferWorkflow(target, node, selector);
+        const workflowNodes = [selector, node].filter(Boolean);
+        const group = createCanvasAgentWorkflowGroup(workflowNodes, `${label} workflow`);
         selectedNodeId = selector?.id || node.id;
-        selectedNodeIds = new Set([selectedNodeId]);
+        selectedNodeIds = new Set(workflowNodes.map(item => item.id));
         selectedEdgeId = null;
-        selectedGroupId = null;
+        selectedGroupId = group?.id || null;
         mutate({ inspector: true });
+        centerCanvasAgentWorkflow(workflowNodes);
         setCanvasAgentMessage(t('{tool} workflow is ready. Pick a style in the Style Selector, then run Style Transfer+.', '{tool} 工作流已铺好。先在 Style Selector 里选风格，再运行 Style Transfer+。').replace('{tool}', label));
         showToast(t('Style Transfer+ workflow created.', '已创建 Style Transfer+ 工作流。'));
     }
@@ -10539,11 +11147,9 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
     }
 
     function openRunQueuePanel() {
-        markOnboardingChecklistStep('run_queue', { render: false });
         const result = WORKBENCH_RUN_QUEUE.openPanel(runQueueContext());
         syncRunSidePanelLayout();
         renderRunQueueWidget();
-        renderOnboardingChecklist();
         return result;
     }
 
@@ -11013,16 +11619,14 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             window.clearTimeout(wheelPreviewLodTimer);
             wheelPreviewLodTimer = 0;
         }
+        if (viewportZoomSettleTimer) {
+            window.clearTimeout(viewportZoomSettleTimer);
+            viewportZoomSettleTimer = 0;
+        }
         wheelPreviewLodUntil = 0;
         viewport?.classList.remove('is-zooming');
         if (!root || root.hidden) return;
-        const startedAt = performance.now();
-        renderNodes();
-        renderEdges();
-        renderSelectedChainOverlay();
-        renderMinimap();
-        perfStats.renderTotalMs = performance.now() - startedAt;
-        renderPerformanceHud(true);
+        renderViewportSettledState();
     }
 
     function cancelWheelPreviewLod() {
@@ -11030,8 +11634,13 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             window.clearTimeout(wheelPreviewLodTimer);
             wheelPreviewLodTimer = 0;
         }
+        if (viewportZoomSettleTimer) {
+            window.clearTimeout(viewportZoomSettleTimer);
+            viewportZoomSettleTimer = 0;
+        }
         wheelPreviewLodUntil = 0;
         viewport?.classList.remove('is-zooming');
+        viewport?.classList.remove('is-post-zoom-refresh');
     }
 
     function beginWheelPreviewLod(oldZoom, nextZoom) {
@@ -11040,6 +11649,39 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         viewport?.classList.add('is-zooming');
         if (wheelPreviewLodTimer) window.clearTimeout(wheelPreviewLodTimer);
         wheelPreviewLodTimer = window.setTimeout(flushWheelPreviewLodRender, WHEEL_PREVIEW_LOD_SETTLE_MS);
+    }
+
+    function renderViewportSettledState() {
+        if (!root || root.hidden) return;
+        viewport?.classList.add('is-post-zoom-refresh');
+        const startedAt = performance.now();
+        renderNodes();
+        renderEdges();
+        renderSelectedChainOverlay();
+        renderMinimap();
+        perfStats.renderTotalMs = performance.now() - startedAt;
+        renderPerformanceHud(true);
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                viewport?.classList.remove('is-post-zoom-refresh');
+            });
+        });
+    }
+
+    function flushViewportZoomSettleRender() {
+        if (viewportZoomSettleTimer) {
+            window.clearTimeout(viewportZoomSettleTimer);
+            viewportZoomSettleTimer = 0;
+        }
+        if (isWheelPreviewLodActive()) return;
+        viewport?.classList.remove('is-zooming');
+        renderViewportSettledState();
+    }
+
+    function scheduleViewportZoomSettleRender() {
+        viewport?.classList.add('is-zooming');
+        if (viewportZoomSettleTimer) window.clearTimeout(viewportZoomSettleTimer);
+        viewportZoomSettleTimer = window.setTimeout(flushViewportZoomSettleRender, 180);
     }
 
     function scheduleViewportNodeRender() {
@@ -12026,6 +12668,34 @@ ${renderMinimapNodeRects(nextCache.records)}
         });
     }
 
+    function resetRenderedProjectDomCache() {
+        if (nodesLayer) {
+            Array.from(renderedNodeElsById.values()).forEach((nodeEl) => {
+                if (nodeEl?.parentElement) nodeEl.remove();
+            });
+            Array.from(nodesLayer.children || []).forEach((nodeEl) => nodeEl.remove());
+        }
+        if (groupsLayer) {
+            Array.from(groupsLayer.children || []).forEach((groupEl) => groupEl.remove());
+        }
+        clearTempEdge();
+        if (edgesLayer) edgesLayer.innerHTML = '';
+        edgeRenderCacheKey = '';
+        cancelEdgeIncidentIndexWarmup();
+        edgeIncidentIndex = null;
+        clearEdgeCanvas();
+        if (chainRunOverlay) chainRunOverlay.hidden = true;
+        renderedNodeElsById.clear();
+        nodeLayoutRects.clear();
+        nodeRenderCoverageRect = null;
+        mediaBrowserNodeRuntime.clear();
+        mediaBrowserScrollMemory.clear();
+        vlmChatScrollMemory.clear();
+        activeInlineTagCartNodeId = '';
+        invalidateMinimapStaticCache();
+        invalidateNodeSpatialIndex();
+    }
+
     function captureVlmChatScroll(nodeEl) {
         const log = nodeEl?.querySelector?.('.sai-vlm-chat-log');
         const nodeId = nodeEl?.dataset?.nodeId || log?.getAttribute?.('data-vlm-chat-log') || '';
@@ -12256,6 +12926,13 @@ ${renderMinimapNodeRects(nextCache.records)}
         const renderMode = nodeEffectiveRenderMode(node, options);
         const signature = renderMode === 'overview' ? nodeOverviewRenderSignature(node) : nodeRenderSignature(node);
         return `${renderMode}|${signature}|collapsed:${isNodeCollapsed(node) ? '1' : '0'}`;
+    }
+
+    function invalidateRenderedNode(nodeId) {
+        const id = String(nodeId || '');
+        if (!id) return;
+        const nodeEl = renderedNodeElsById.get(id) || nodesLayer?.querySelector?.(`[data-node-id="${CSS.escape(id)}"]`);
+        if (nodeEl) nodeEl.__simpaiRenderKey = undefined;
     }
 
     function nodeOverviewRenderSignature(node) {
@@ -12601,7 +13278,6 @@ ${renderMinimapNodeRects(nextCache.records)}
         renderInspector();
         renderMinimap();
         renderCanvasAgentPanel();
-        renderOnboardingChecklist();
     }
 
     function selectNodeLight(id) {
@@ -12610,10 +13286,6 @@ ${renderMinimapNodeRects(nextCache.records)}
         selectedNodeIds = new Set(id ? [id] : []);
         selectedEdgeId = null;
         selectedGroupId = null;
-        if (id) {
-            markOnboardingChecklistStep('select_node', { render: false });
-            if (!project.settings?.inspectorCollapsed) markOnboardingChecklistStep('inspect_node', { render: false });
-        }
         refreshSelectionUi();
     }
 
@@ -12628,8 +13300,6 @@ ${renderMinimapNodeRects(nextCache.records)}
         }
         selectedEdgeId = null;
         selectedGroupId = null;
-        markOnboardingChecklistStep('select_node', { render: false });
-        if (!project.settings?.inspectorCollapsed) markOnboardingChecklistStep('inspect_node', { render: false });
         refreshSelectionUi();
     }
 
@@ -12680,7 +13350,37 @@ ${renderMinimapNodeRects(nextCache.records)}
     function collapsedPromptNodeHeight(node) {
         const raw = Number(node?.collapsed_h);
         const value = Number.isFinite(raw) && raw > 0 ? raw : COLLAPSED_PROMPT_NODE_DEFAULT_HEIGHT;
-        return Math.round(clamp(value, COLLAPSED_PROMPT_NODE_MIN_HEIGHT, COLLAPSED_PROMPT_NODE_MAX_HEIGHT));
+        const required = collapsedPromptNodeRequiredHeight(node);
+        return Math.round(clamp(Math.max(value, required), COLLAPSED_PROMPT_NODE_MIN_HEIGHT, COLLAPSED_PROMPT_NODE_MAX_HEIGHT));
+    }
+
+    function collapsedPromptNodeRequiredHeight(node) {
+        if (!supportsCollapsedPromptHeight(node)) return COLLAPSED_PROMPT_NODE_MIN_HEIGHT;
+        const headerHeight = 36;
+        const nodeFramePadding = 18;
+        const connectedRows = collapsedPromptConnectedPortRows(node);
+        const promptHeight = collapsedPromptHasPromptEditor(node) ? COLLAPSED_PROMPT_TEXT_BLOCK_HEIGHT : 0;
+        return headerHeight + nodeFramePadding + connectedRows * COLLAPSED_PROMPT_PORT_ROW_HEIGHT + promptHeight;
+    }
+
+    function collapsedPromptConnectedPortRows(node) {
+        if (!node || !project) return 0;
+        let rows = 0;
+        if (node.type === 'preset') {
+            rows += getVisibleUploadSlots(node).filter(slot => hasIncomingEdge(node, 'upload', slot.key)).length;
+            rows += PRESET_CONFIG_KINDS.filter(kind => hasIncomingEdge(node, 'config', kind)).length;
+        } else if (node.type === 'classic') {
+            rows += getVisibleClassicUploadSlots(node).filter(slot => hasIncomingEdge(node, 'upload', slot.key)).length;
+            rows += PRESET_CONFIG_KINDS.filter(kind => hasIncomingEdge(node, 'config', kind)).length;
+        }
+        return clamp(rows, 0, 10);
+    }
+
+    function collapsedPromptHasPromptEditor(node) {
+        if (!node) return false;
+        if (node.type === 'classic') return true;
+        if (node.type !== 'preset') return false;
+        return getVisiblePresetParams(node).some(param => param?.key === 'prompt' && param.type === 'textarea');
     }
 
     function defaultNodeSize(type) {
@@ -12719,6 +13419,46 @@ ${renderMinimapNodeRects(nextCache.records)}
             w: Math.max(380, Number(base.w || 340)),
             h: Math.max(380, Number(base.h || 330))
         };
+    }
+
+    function boundedImageNodeSizeForAsset(asset) {
+        const minW = 180;
+        const minH = 160;
+        const maxW = 640;
+        const maxH = 520;
+        const width = Number(asset?.width || asset?.preview_width || asset?.display_width || asset?.source_width || 0);
+        const height = Number(asset?.height || asset?.preview_height || asset?.display_height || asset?.source_height || 0);
+        if (!width || !height) return { w: 360, h: 360 };
+        const minAspect = minW / maxH;
+        const maxAspect = maxW / minH;
+        const aspect = clamp(width / Math.max(1, height), minAspect, maxAspect);
+        let w = maxW;
+        let h = w / aspect;
+        if (h > maxH) {
+            h = maxH;
+            w = h * aspect;
+        }
+        return {
+            w: Math.round(clamp(w, minW, maxW)),
+            h: Math.round(clamp(h, minH, maxH))
+        };
+    }
+
+    function fitImageNodeToAssetBounds(node, asset, options) {
+        if (!node || node.type !== 'image' || !asset) return false;
+        const displayMode = String(node.display_mode || node.image_display_mode || '').toLowerCase();
+        if (displayMode === 'card') return false;
+        const size = boundedImageNodeSizeForAsset(asset);
+        const previousW = Number(node.w || defaultNodeSize('image').w || size.w);
+        const previousH = Number(node.h || defaultNodeSize('image').h || size.h);
+        if (Math.abs(previousW - size.w) < 1 && Math.abs(previousH - size.h) < 1) return false;
+        if (options?.preserveCenter !== false) {
+            node.x = Math.round(Number(node.x || 0) + (previousW - size.w) / 2);
+            node.y = Math.round(Number(node.y || 0) + (previousH - size.h) / 2);
+        }
+        node.w = size.w;
+        node.h = size.h;
+        return true;
     }
 
     function ensureResultNodeReadableSize(resultNode, asset) {
@@ -12760,6 +13500,12 @@ ${renderMinimapNodeRects(nextCache.records)}
             h: Number(node.h || defaults.h)
         };
         if (node.type === 'group') return fallback;
+        if (supportsCollapsedPromptHeight(node)) {
+            return {
+                w: fallback.w,
+                h: collapsedPromptNodeHeight(node)
+            };
+        }
         const measured = nodeLayoutRects.get(node.id || '');
         if (!measured || !Number.isFinite(measured.w) || !Number.isFinite(measured.h)) return fallback;
         return {
@@ -12816,7 +13562,7 @@ ${renderMinimapNodeRects(nextCache.records)}
             isNodeCollapsed(node) ? 1 : 0,
             Number(node?.w || defaults.w),
             Number(node?.h || defaults.h),
-            Number(node?.collapsed_h || 0)
+            supportsCollapsedPromptHeight(node) ? collapsedPromptNodeHeight(node) : Number(node?.collapsed_h || 0)
         ].join(':');
     }
 
@@ -14265,12 +15011,13 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         if (slotKey === 'sam3_input_video') return t('Double-click to upload source video; connect this video to a SAM3 Video Mask node input', '双击上传源视频；此视频应连接到 SAM3 视频遮罩节点输入');
         if (slotKey === 'sam3_mask_video') return t('Double-click to create/select SAM3 Video Mask; connect the SAM3 output here', '双击创建/选择 SAM3 视频遮罩；SAM3 输出接到这里');
         if (slotKey === 'scene_video') return t('Double-click to upload scene video; right-click port to disconnect', '双击上传场景视频；右键接口断开');
+        if (slotKey === 'scene_reference_video') return t('Double-click to upload reference video; right-click port to disconnect', '双击上传参考视频；右键接口断开');
         if (slotKey === 'scene_audio') return t('Connect an Audio node here; right-click port to disconnect', '连接音频节点到这里；右键接口断开');
         return imagePortTitle();
     }
 
     function slotPortButtonTitle(slotKey) {
-        if (slotKey === 'sam3_input_video' || slotKey === 'scene_video') return t('Double-click to upload video', '双击上传视频');
+        if (slotKey === 'sam3_input_video' || slotKey === 'scene_video' || slotKey === 'scene_reference_video') return t('Double-click to upload video', '双击上传视频');
         if (slotKey === 'sam3_mask_video') return t('Double-click to add SAM3 Video Mask', '双击添加 SAM3 视频遮罩');
         if (slotKey === 'scene_audio') return t('Audio input', '音频输入');
         return imagePortButtonTitle();
@@ -15429,7 +16176,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         scope.querySelectorAll('.sai-node-media video, .sai-node-media audio').forEach((media) => {
             if (media.__simpaiCanvasMediaControlsBound) return;
             media.__simpaiCanvasMediaControlsBound = true;
-            ['pointerdown', 'pointerup', 'click', 'dblclick', 'contextmenu'].forEach((eventName) => {
+            ['pointerdown', 'pointerup', 'click', 'dblclick'].forEach((eventName) => {
                 media.addEventListener(eventName, (evt) => {
                     if (eventName === 'pointerdown') {
                         const nodeEl = media.closest('[data-node-id]');
@@ -15558,7 +16305,8 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
     }
 
     function isImageNodeFrameless(node) {
-        return !!(node && node.type === 'image' && String(node.display_mode || node.image_display_mode || '').toLowerCase() === 'frameless');
+        if (!node || node.type !== 'image') return false;
+        return String(node.display_mode || node.image_display_mode || '').toLowerCase() !== 'card';
     }
 
     function renderNodeStateBadges(node) {
@@ -15652,7 +16400,14 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
     }
 
     function renderImageNodeHtml(node) {
-        return WORKBENCH_IMAGE_NODE.renderNodeHtml(node, { renderNodeStateBadges });
+        return WORKBENCH_IMAGE_NODE.renderNodeHtml(node, {
+            renderNodeStateBadges,
+            getNodeImageSrc,
+            assetDisplaySrc: (asset) => safeAssetDisplaySrc(asset, asset?.thumb || asset?.preview_url || asset?.data_url || ''),
+            readImageInfo,
+            mediaAspectStyle,
+            readAssetSize
+        });
     }
 
     function renderVideoNodeHtml(node) {
@@ -17411,6 +18166,13 @@ ${status ? `<div class="sai-node-foot">${escapeHtml(status)}</div>` : ''}
                 const edge = project.edges.find(item => item.type === 'text' && item.to === presetNode.id && item.slot === 'prompt' && getNode(item.from)?.type === 'style_selector');
                 return edge ? getNode(edge.from) : null;
             })();
+    }
+
+    function styleSelectorLinkedPreset(selectorNode) {
+        if (!selectorNode || selectorNode.type !== 'style_selector') return null;
+        const state = selectorNode.style_selector || {};
+        const edgeTarget = project.edges.find(edge => edge.type === 'text' && edge.from === selectorNode.id && edge.slot === 'prompt');
+        return getNode(state.target_preset_id || '') || getNode(edgeTarget?.to || '');
     }
 
     function renderStyleTransferPresetController(node) {
@@ -21919,6 +22681,21 @@ ${actions}
                 openResultAssetContextMenu(node, index, evt.clientX, evt.clientY);
                 return;
             }
+            const imageMedia = evt.target.closest('.sai-image-node-media,[data-image-drop-zone]');
+            if (imageMedia && node.type === 'image' && !evt.target.closest('.sai-node-head')) {
+                openImageMediaContextMenu(node, evt.clientX, evt.clientY);
+                return;
+            }
+            const videoMedia = evt.target.closest('.sai-node-video-media,.sai-media-storyboard');
+            if (videoMedia && node.type === 'video' && !evt.target.closest('.sai-node-head')) {
+                openVideoMediaContextMenu(node, evt.clientX, evt.clientY);
+                return;
+            }
+            const audioMedia = evt.target.closest('.sai-node-audio-media,.sai-audio-waveform');
+            if (audioMedia && node.type === 'audio' && !evt.target.closest('.sai-node-head')) {
+                openAudioMediaContextMenu(node, evt.clientX, evt.clientY);
+                return;
+            }
             const inHandle = evt.target.closest('[data-handle-in]');
             if (inHandle) {
                 openInputHandleContextMenu(node, inHandle.getAttribute('data-handle-in'), evt.clientX, evt.clientY);
@@ -22899,6 +23676,49 @@ ${actions}
         });
     }
 
+    function canvasAgentOutpaintDirectionText(state) {
+        const s = state || {};
+        const dirs = [];
+        if (Number(s.up || 0) > 0) dirs.push('top');
+        if (Number(s.down || 0) > 0) dirs.push('bottom');
+        if (Number(s.left || 0) > 0) dirs.push('left');
+        if (Number(s.right || 0) > 0) dirs.push('right');
+        return dirs.length ? `extend the ${dirs.join(' and ')} borders` : 'extend the image borders';
+    }
+
+    function canvasAgentOutpaintPromptIsGeneric(rawPrompt) {
+        const text = String(rawPrompt || '').trim();
+        return !text || /^(扩图|扩展|扩边|扩画布|延展|补边|outpaint|outpainting|extend|extend image|image extension)$/i.test(text);
+    }
+
+    function canvasAgentOutpaintPrompt(rawPrompt, state) {
+        const userText = String(rawPrompt || '').trim();
+        const generic = canvasAgentOutpaintPromptIsGeneric(userText);
+        const base = `Create a seamless FLUX outpaint to ${canvasAgentOutpaintDirectionText(state)}. Preserve the original subject while keeping the same lighting and perspective. Keep the camera angle composition style color palette texture and depth consistent with the source image. Continue the background naturally with coherent details and clean seamless edges.`;
+        if (generic) return base;
+        if (/[\u3400-\u9fff]/.test(userText)) {
+            return `${base}. Preserve the user-requested visual intent while extending the image naturally.`;
+        }
+        return `${base}. User intent: ${userText}`;
+    }
+
+    async function resolveCanvasAgentOutpaintPrompt(rawPrompt, state, targetNode, entry, initialPresetName) {
+        const userText = String(rawPrompt || '').trim();
+        const presetName = normalizePresetName(entry?.name || entry?.display_name || initialPresetName || '');
+        const promptTarget = canvasAgentPromptTargetFromEntry(entry, 'outpaint');
+        const presetDefaults = canvasAgentPresetPromptDefaults(entry);
+        let prompt = canvasAgentOutpaintPrompt(userText, state);
+        const targetRewrite = await ensureCanvasAgentPromptMatchesTarget(prompt, promptTarget, 'outpaint', {
+            entry,
+            presetName,
+            userPrompt: userText,
+            presetDefaults,
+            promptSource: userText ? 'outpaint_user_intent' : 'outpaint_default'
+        });
+        if (targetRewrite.ok && targetRewrite.prompt) prompt = targetRewrite.prompt;
+        return { prompt, promptTarget, presetDefaults };
+    }
+
     async function confirmOutpaintFromOverlay() {
         if (!outpaintOverlayState.active) return;
         const s = outpaintOverlayState;
@@ -22916,7 +23736,21 @@ ${actions}
             scene_var_number9: s.left,
             scene_var_number10: s.right
         };
-        const prompt = String(canvasAgentState.input || '').trim() || t('Outpaint image', '扩图');
+        const resolvedPrompt = await resolveCanvasAgentOutpaintPrompt(canvasAgentState.input, s, node, entry, initialPresetName);
+        let prompt = resolvedPrompt.prompt;
+        const promptTarget = resolvedPrompt.promptTarget;
+        const preflightGate = await ensureCanvasAgentPromptPreflightAllows(prompt, promptTarget, 'outpaint', {
+            entry,
+            action: 'outpaint',
+            presetName: normalizePresetName(entry.name || entry.display_name || initialPresetName),
+            userPrompt: String(canvasAgentState.input || '').trim(),
+            presetDefaults: resolvedPrompt.presetDefaults
+        });
+        if (!preflightGate.ok) {
+            setCanvasAgentMessage(preflightGate.error || t('Prompt preflight blocked outpaint.', '提示词预检查阻止了扩图。'));
+            return;
+        }
+        prompt = preflightGate.prompt || prompt;
         const presetNode = markCanvasAgentCreatedNode(addPresetNode(entry, canvasAgentWorkflowPresetPosition(node), {
             collapsed: true,
             source: { kind: 'canvas_agent_created', created_at: nowIso() }
@@ -22950,7 +23784,9 @@ ${actions}
         });
         setCanvasAgentMessage(t('Submitted outpaint ({up}%↑ {down}%↓ {left}%← {right}%→)', '已提交扩图 ({up}%↑ {down}%↓ {left}%← {right}%→)').replace('{up}', s.up).replace('{down}', s.down).replace('{left}', s.left).replace('{right}', s.right));
         await runPresetNode(presetNode, {
-            agentWorkflowTitle: `${t('Agent outpaint', 'Agent 扩图')}: ${s.up}%↑ ${s.down}%↓ ${s.left}%← ${s.right}%→`
+            agentWorkflowTitle: `${t('Agent outpaint', 'Agent 扩图')}: ${s.up}%↑ ${s.down}%↓ ${s.left}%← ${s.right}%→`,
+            promptPreflight: preflightGate.preflight,
+            skipInputPreflight: true
         });
         clearCanvasAgentRunInfo(1800);
     }
@@ -24070,7 +24906,7 @@ ${renderGenerationMetadataInspectorSection(node)}
                 }
                 else if (action === 'run') {
                     const node = getNode(selectedNodeId);
-                    if (node && ['preset', 'classic'].includes(node.type)) runPresetNode(node);
+                    if (node && ['preset', 'classic'].includes(node.type)) runPresetNodeFromUi(node);
                 } else {
                     const node = getNode(selectedNodeId);
                     if (node) handleNodeAction(node, action, button, evt);
@@ -25438,6 +26274,67 @@ ${renderGenerationMetadataInspectorSection(node)}
         items.push({ label: t('Agent audio to video', 'Agent 音频转视频'), icon: 'fa-film', action: () => runCanvasAgentAudioBridgeFromNode(node, 'audio_to_video') });
     }
 
+    function openImageMediaContextMenu(node, x, y) {
+        const hasImage = !!getNodeImageSrc(node);
+        const quickTools = canvasAgentQuickTools().map(tool => ({
+            label: tool.label,
+            icon: tool.icon,
+            action: () => runCanvasAgentQuickTool(tool.key, { targetNodeId: node.id }),
+            disabled: !hasImage
+        }));
+        openContextMenu(x, y, [
+            ...quickTools,
+            { separator: true },
+            { label: t('View image', '查看图像'), icon: 'fa-magnifying-glass-plus', action: () => openImageViewer(node), disabled: !hasImage },
+            { label: t('Replace image', '替换图片'), icon: 'fa-arrows-rotate', action: () => replaceNodeImage(node) },
+            { label: t('Edit in Sketch', 'Sketch 编辑'), icon: 'fa-pen-ruler', action: () => openSketchForNode(node), disabled: !hasImage },
+            { label: t('Paint Mask', '绘制遮罩'), icon: 'fa-paintbrush', action: () => openMaskEditor(node), disabled: !hasImage }
+        ]);
+    }
+
+    function openVideoMediaContextMenu(node, x, y) {
+        const hasVideo = !!assetDisplaySrc(node?.asset || {});
+        const quickTools = canvasAgentVideoQuickTools().map(tool => {
+            const key = String(tool.key || '').slice('video_'.length);
+            const spec = canvasAgentVideoQuickToolSpec(key);
+            return {
+                label: spec?.label || tool.label,
+                icon: spec?.icon || tool.icon,
+                action: () => runCanvasAgentVideoQuickTool(key, { targetNodeId: node.id }),
+                disabled: !hasVideo
+            };
+        });
+        openContextMenu(x, y, [
+            ...quickTools,
+            { separator: true },
+            { label: t('View video', '查看视频'), icon: 'fa-magnifying-glass-plus', action: () => openMediaViewer(node), disabled: !hasVideo },
+            { label: t('Re-upload video asset', '重新上传视频资产'), icon: 'fa-rotate', action: () => reloadMediaNode(node) },
+            { label: t('Create media timeline', '创建媒体时间线'), icon: 'fa-clapperboard', action: () => createTimelineNodeFromSources([node]), disabled: !isTimelineSource(node) }
+        ]);
+    }
+
+    function openAudioMediaContextMenu(node, x, y) {
+        const hasAudio = !!assetDisplaySrc(node?.asset || {});
+        const quickTools = canvasAgentAudioQuickTools().map(tool => {
+            const key = String(tool.key || '').slice('audio_'.length);
+            const spec = canvasAgentAudioQuickToolSpec(key);
+            return {
+                label: spec?.label || tool.label,
+                icon: spec?.icon || tool.icon,
+                action: () => runCanvasAgentAudioQuickTool(key, { targetNodeId: node.id }),
+                disabled: key === 'edit' && !hasAudio
+            };
+        });
+        openContextMenu(x, y, [
+            ...quickTools,
+            { label: t('Audio to Video', '音频转视频'), icon: 'fa-film', action: () => runCanvasAgentAudioBridgeFromNode(node, 'audio_to_video'), disabled: !hasAudio },
+            { separator: true },
+            { label: t('Open audio', '打开音频'), icon: 'fa-magnifying-glass-plus', action: () => openMediaViewer(node), disabled: !hasAudio },
+            { label: t('Re-upload audio asset', '重新上传音频资产'), icon: 'fa-rotate', action: () => reloadMediaNode(node) },
+            { label: t('Create media timeline', '创建媒体时间线'), icon: 'fa-clapperboard', action: () => createTimelineNodeFromSources([node]), disabled: !isTimelineSource(node) }
+        ]);
+    }
+
     function closeWildcardsV2Panel() {
         wildcardsV2State?.modal?.remove();
         wildcardsV2State = null;
@@ -25972,7 +26869,7 @@ ${renderGenerationMetadataInspectorSection(node)}
     function openNodeContextMenu(node, x, y) {
         const items = [];
         if (node.type === 'preset' || node.type === 'classic') {
-            items.push({ label: t('Run', '运行'), icon: 'fa-play', action: () => runPresetNode(node) });
+            items.push({ label: t('Run', '运行'), icon: 'fa-play', action: () => runPresetNodeFromUi(node) });
             items.push({ label: t('X/Y/Z Plot', 'X/Y/Z 对比生成'), icon: 'fa-table-cells-large', action: () => openXyzPlotPanel(node) });
             items.push({ label: t('Check/download models', '检查/下载模型'), icon: 'fa-cloud-arrow-down', action: () => handlePresetModelAction(node) });
             items.push({ label: t('Run upstream to here', '运行上游到这里'), icon: 'fa-arrow-turn-down', action: () => runNodeChain(node, 'to-here') });
@@ -26021,9 +26918,9 @@ ${renderGenerationMetadataInspectorSection(node)}
             items.push({ label: t('Open Gaussian Studio', '打开 Gaussian Studio'), icon: 'fa-cube', action: () => openGaussianStudioEditor(node) });
             items.push({ label: t('View media', '查看媒体'), icon: 'fa-magnifying-glass-plus', action: () => openMediaViewer(node), disabled: !node.asset });
         }
-        if (node.type === 'image' || node.type === 'result') {
+        if (node.type === 'result') {
             items.push({ label: t('View media', '查看媒体'), icon: 'fa-magnifying-glass-plus', action: () => node.type === 'result' ? openAssetViewer(getSelectedResultAsset(node), node.title || 'Result') : openImageViewer(node), disabled: !(node.type === 'result' ? getSelectedResultAsset(node) : node.asset) });
-            if (node.type === 'image' || isCanvasAgentImageTarget(node)) {
+            if (isCanvasAgentImageTarget(node)) {
                 items.push({ label: t('Edit in Sketch', 'Sketch 编辑'), icon: 'fa-pen-ruler', action: () => openSketchForNode(node), disabled: !(node.type === 'result' ? getSelectedResultAsset(node) : node.asset) });
                 items.push({ label: t('Replace image', '替换图片'), icon: 'fa-arrows-rotate', action: () => replaceNodeImage(node) });
             }
@@ -26047,9 +26944,6 @@ ${renderGenerationMetadataInspectorSection(node)}
         }
         if (node.type === 'xy_matrix' || node.type === 'xyz_matrix') {
             items.push({ label: t('Locate source', '定位来源'), icon: 'fa-location-crosshairs', action: () => focusXyzMatrixSource(node) });
-        }
-        if (node.type === 'image') {
-            items.push({ label: t('Paint Mask', '绘制遮罩'), icon: 'fa-paintbrush', action: () => openMaskEditor(node), disabled: !node.asset });
         }
         if (node.type === 'video') {
             items.push({ label: t('Re-upload video asset', '重新上传视频资产'), icon: 'fa-rotate', action: () => reloadMediaNode(node) });
@@ -26308,8 +27202,9 @@ ${renderGenerationMetadataInspectorSection(node)}
         return Array.isArray(canvasAgentPresetScanState.entries) ? canvasAgentPresetScanState.entries : [];
     }
 
-    function canvasAgentPresetOptionHtml(selectedName) {
-        const entries = canvasAgentReadyPresetEntries();
+    function canvasAgentPresetOptionHtml(selectedName, options) {
+        const opts = options || {};
+        const entries = Array.isArray(opts.entries) ? opts.entries : canvasAgentReadyPresetEntries();
         if (!entries.length) {
             return `<option value="">${escapeHtml(t('Refresh ready presets first', '请先刷新可用 preset'))}</option>`;
         }
@@ -26437,8 +27332,8 @@ ${renderGenerationMetadataInspectorSection(node)}
       <h3>${escapeHtml(t('Video Quick Tool Presets', '视频快捷工具 Preset'))}</h3>
       <label><span>${escapeHtml(t('Video outpaint preset', '视频扩图 preset'))}</span><select data-canvas-agent-setting="videoOutpaintPreset" ${readyCount ? '' : 'disabled'}>${canvasAgentPresetOptionHtml(settings.videoOutpaintPreset)}</select></label>
       <label><span>${escapeHtml(t('Video erase preset', '视频擦除 preset'))}</span><select data-canvas-agent-setting="videoErasePreset" ${readyCount ? '' : 'disabled'}>${canvasAgentPresetOptionHtml(settings.videoErasePreset)}</select></label>
-      <label><span>${escapeHtml(t('Video replace preset', '视频替换 preset'))}</span><select data-canvas-agent-setting="videoReplacePreset" ${readyCount ? '' : 'disabled'}>${canvasAgentPresetOptionHtml(settings.videoReplacePreset)}</select></label>
-      <label><span>${escapeHtml(t('Video upscale preset', '视频放大 preset'))}</span><select data-canvas-agent-setting="videoUpscalePreset" ${readyCount ? '' : 'disabled'}>${canvasAgentPresetOptionHtml(settings.videoUpscalePreset)}</select></label>
+      <label><span>${escapeHtml(t('Video edit preset', '视频编辑 preset'))}</span><select data-canvas-agent-setting="videoReplacePreset" ${readyCount ? '' : 'disabled'}>${canvasAgentPresetOptionHtml(settings.videoReplacePreset)}</select></label>
+      <label><span>${escapeHtml(t('Video upscale preset', '视频放大 preset'))}</span><select data-canvas-agent-setting="videoUpscalePreset" ${readyCount ? '' : 'disabled'}>${canvasAgentPresetOptionHtml(settings.videoUpscalePreset, { entries: canvasAgentVideoUpscalePresetEntries(settings.videoUpscalePreset) })}</select></label>
     </section>
     <section class="sai-settings-section">
       <h3>${escapeHtml(t('Fallback Rules', 'Fallback 规则'))}</h3>
@@ -26546,6 +27441,10 @@ ${renderGenerationMetadataInspectorSection(node)}
                 customSupportsImages: provider.supportsImages !== false,
                 customApiCollapsed: false
             });
+            return;
+        }
+        if (key === 'videoReplacePreset') {
+            setCanvasAgentSettingsPatch({ [key]: value, videoEditQuickToolDefaultMigrated: true });
             return;
         }
         setCanvasAgentSettingsPatch({ [key]: value });
@@ -27132,274 +28031,17 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
         mutate();
     }
 
-    function defaultOnboardingChecklistSteps() {
-        return [
-            {
-                key: 'select_node',
-                action: 'select_node',
-                icon: 'fa-arrow-pointer',
-                title: t('Select a node', '选中一个节点'),
-                detail: t('Click any node and try dragging it.', '点击任意节点，并试着拖动它。')
-            },
-            {
-                key: 'inspect_node',
-                action: 'inspect_node',
-                icon: 'fa-sliders',
-                title: t('Open Inspector', '打开 Inspector'),
-                detail: t('Select a node while the right Inspector is visible.', '在右侧 Inspector 可见时选中节点。')
-            },
-            {
-                key: 'template_library',
-                action: 'template_library',
-                icon: 'fa-graduation-cap',
-                title: t('Open Template Library', '打开模板库'),
-                detail: t('Use the top or left Template Library button.', '使用顶部或左侧模板库按钮。')
-            },
-            {
-                key: 'add_text',
-                action: 'add_text',
-                icon: 'fa-font',
-                title: t('Add or view a Text node', '添加或查看 Text 节点'),
-                detail: t('Text nodes can feed prompt ports.', 'Text 节点可以接入 prompt 接口。')
-            },
-            {
-                key: 'run_queue',
-                action: 'run_queue',
-                icon: 'fa-list-check',
-                title: t('Open Run Queue', '打开运行队列'),
-                detail: t('The top queue widget shows runs and progress.', '顶部队列控件显示任务与进度。')
-            }
-        ];
-    }
-
-    function localizeOnboardingChecklistText(value, fallback) {
-        if (value && typeof value === 'object') {
-            return t(value.en || fallback || '', value.zh || value.cn || value.en || fallback || '');
-        }
-        return String(value || fallback || '');
-    }
-
-    function normalizeOnboardingChecklistStep(raw, index) {
-        const item = raw && typeof raw === 'object' ? raw : {};
-        const targetNodeId = String(item.target_node_id || item.node_id || '').trim();
-        const action = String(item.action || item.key || (targetNodeId ? 'focus_node' : '')).trim() || 'focus_node';
-        const key = sanitizeStoragePart(item.key || targetNodeId || action || `step_${index + 1}`) || `step_${index + 1}`;
-        return {
-            key,
-            action,
-            icon: String(item.icon || (targetNodeId ? 'fa-crosshairs' : 'fa-circle-dot')).trim() || 'fa-circle-dot',
-            title: localizeOnboardingChecklistText(item.title, key),
-            detail: localizeOnboardingChecklistText(item.detail || item.description, ''),
-            targetNodeId,
-            inspect: item.inspect === true
-        };
-    }
-
-    function onboardingChecklistSteps() {
-        const custom = project?.settings?.__onboarding_checklist_steps;
-        if (Array.isArray(custom) && custom.length) {
-            const steps = custom.map(normalizeOnboardingChecklistStep).filter((step) => step.key && step.title);
-            if (steps.length) return steps;
-        }
-        return defaultOnboardingChecklistSteps();
-    }
-
-    function onboardingChecklistTitle() {
-        return localizeOnboardingChecklistText(project?.settings?.__onboarding_checklist_title, t('Starter Checklist', '新手清单'));
-    }
-
-    function onboardingChecklistState() {
-        project.settings = Object.assign({}, DEFAULT_SETTINGS, project.settings || {});
-        const existing = project.settings.__onboarding_checklist;
-        const state = existing && typeof existing === 'object' ? existing : {};
-        state.completed = state.completed && typeof state.completed === 'object' ? state.completed : {};
-        project.settings.__onboarding_checklist = state;
-        return state;
-    }
-
-    function isOnboardingChecklistEnabled() {
-        const settings = project?.settings || {};
-        const state = settings.__onboarding_checklist || {};
-        return !!settings.__onboarding_template && !state.dismissed;
-    }
-
-    function inferOnboardingCompletedSteps() {
-        const completed = Object.assign({}, onboardingChecklistState().completed || {});
-        const steps = onboardingChecklistSteps();
-        if (selectedNodeId) completed.select_node = true;
-        if (selectedNodeId && !project.settings?.inspectorCollapsed) completed.inspect_node = true;
-        if ((Array.isArray(project.nodes) ? project.nodes : []).some(node => node?.type === 'text')) completed.add_text = true;
-        steps.forEach((step) => {
-            if (step.targetNodeId && selectedNodeId === step.targetNodeId) completed[step.key] = true;
-            if (step.action === 'select_node' && selectedNodeId) completed[step.key] = true;
-            if (step.action === 'inspect_node' && selectedNodeId && !project.settings?.inspectorCollapsed) completed[step.key] = true;
-            if (step.action === 'add_text' && completed.add_text) completed[step.key] = true;
-        });
-        return completed;
-    }
-
-    function updateOnboardingChecklistSteps(options) {
-        if (!project?.settings?.__onboarding_template) return false;
-        const state = onboardingChecklistState();
-        const next = inferOnboardingCompletedSteps();
-        let changed = false;
-        Object.keys(next).forEach((key) => {
-            if (next[key] && !state.completed[key]) {
-                state.completed[key] = true;
-                changed = true;
-            }
-        });
-        if (changed && options?.save !== false) scheduleSave();
-        return changed;
-    }
-
-    function onboardingStepMatchesKey(step, key) {
-        return !!step && !!key && (step.key === key || step.action === key || step.targetNodeId === key);
-    }
-
-    function markOnboardingChecklistStep(key, options) {
-        if (!project?.settings?.__onboarding_template || !key) return;
-        const state = onboardingChecklistState();
-        let changed = false;
-        const matched = onboardingChecklistSteps().filter(step => onboardingStepMatchesKey(step, key));
-        if (matched.length) {
-            matched.forEach((step) => {
-                if (!state.completed[step.key]) {
-                    state.completed[step.key] = true;
-                    changed = true;
-                }
-            });
-        } else if (!state.completed[key]) {
-            state.completed[key] = true;
-            changed = true;
-        }
-        if (changed && options?.save !== false) scheduleSave();
-        if (options?.render !== false) renderOnboardingChecklist();
-    }
-
-    function onboardingChecklistProgress() {
-        const steps = onboardingChecklistSteps();
-        const state = onboardingChecklistState();
-        const completed = state.completed || {};
-        const count = steps.filter(step => completed[step.key]).length;
-        return { steps, state, completed, count, total: steps.length };
-    }
-
-    function renderOnboardingChecklist() {
-        if (!onboardingChecklistEl) return;
-        if (!isOnboardingChecklistEnabled()) {
-            onboardingChecklistEl.hidden = true;
-            return;
-        }
-        updateOnboardingChecklistSteps({ save: false });
-        const { steps, completed, count, total } = onboardingChecklistProgress();
-        const percent = total ? Math.round((count / total) * 100) : 0;
-        onboardingChecklistEl.hidden = false;
-        onboardingChecklistEl.innerHTML = `
-<div class="sai-onboarding-head">
-  <span><i class="fa-solid fa-graduation-cap"></i><b>${escapeHtml(onboardingChecklistTitle())}</b></span>
-  <button type="button" data-onboarding-action="dismiss" title="${escapeHtml(t('Hide checklist', '隐藏清单'))}" aria-label="${escapeHtml(t('Hide checklist', '隐藏清单'))}"><i class="fa-solid fa-xmark"></i></button>
-</div>
-<div class="sai-onboarding-progress"><i style="width:${escapeHtml(String(percent))}%"></i></div>
-<div class="sai-onboarding-count">${escapeHtml(t('{count}/{total} done', '已完成 {count}/{total}').replace('{count}', count).replace('{total}', total))}</div>
-<div class="sai-onboarding-list">
-  ${steps.map((step) => {
-            const done = !!completed[step.key];
-            return `<button type="button" data-onboarding-action="${escapeHtml(step.action || step.key)}" data-onboarding-step="${escapeHtml(step.key)}" class="${done ? 'is-done' : ''}">
-      <i class="fa-solid ${escapeHtml(done ? 'fa-check' : step.icon)}"></i>
-      <span><b>${escapeHtml(step.title)}</b><small>${escapeHtml(step.detail)}</small></span>
-    </button>`;
-        }).join('')}
-</div>
-<div class="sai-onboarding-actions">
-  <button type="button" data-onboarding-action="open-templates"><i class="fa-solid fa-layer-group"></i><span>${escapeHtml(t('Templates', '模板库'))}</span></button>
-  <button type="button" data-onboarding-action="reset"><i class="fa-solid fa-rotate-left"></i><span>${escapeHtml(t('Reset', '重置'))}</span></button>
-</div>`;
-    }
-
-    function findOnboardingChecklistStep(action, stepKey) {
-        const steps = onboardingChecklistSteps();
-        return steps.find(step => step.key === stepKey) || steps.find(step => onboardingStepMatchesKey(step, action)) || null;
-    }
-
-    function selectAndFocusOnboardingNode(node, options) {
-        if (!node) return false;
-        if (options?.openInspector && project.settings.inspectorCollapsed) toggleSetting('inspectorCollapsed');
-        selectedNodeId = node.id;
-        selectedNodeIds = new Set([node.id]);
-        selectedEdgeId = null;
-        selectedGroupId = null;
-        refreshSelectionUi();
-        focusOnboardingNode(node);
-        return true;
-    }
-
-    function handleOnboardingChecklistAction(action, stepKey) {
-        if (!action) return;
-        if (action === 'dismiss') {
-            const state = onboardingChecklistState();
-            state.dismissed = true;
-            scheduleSave();
-            renderOnboardingChecklist();
-            return;
-        }
-        if (action === 'reset') {
-            project.settings.__onboarding_checklist = { completed: {}, dismissed: false };
-            scheduleSave();
-            renderOnboardingChecklist();
-            return;
-        }
-        const step = findOnboardingChecklistStep(action, stepKey);
-        if (action === 'open-templates' || action === 'template_library') {
-            markOnboardingChecklistStep('template_library', { render: false });
-            openTemplateLibrary();
-            return;
-        }
-        if (action === 'run_queue') {
-            openRunQueuePanel();
-            return;
-        }
-        if (action === 'add_text') {
-            addTextNode(viewportCenterWorld());
-            return;
-        }
-        if (step?.targetNodeId) {
-            const node = (Array.isArray(project.nodes) ? project.nodes : []).find(item => item?.id === step.targetNodeId);
-            if (selectAndFocusOnboardingNode(node, { openInspector: step.inspect || action === 'inspect_node' })) {
-                if (action === 'check_models' && node && ['preset', 'classic'].includes(node.type)) {
-                    handlePresetModelAction(node);
-                }
-                markOnboardingChecklistStep(step.key);
-            }
-            return;
-        }
-        if (action === 'inspect_node') {
-            if (!selectedNodeId) {
-                const node = (Array.isArray(project.nodes) ? project.nodes : []).find(item => item?.type !== 'note') || (project.nodes || [])[0];
-                selectAndFocusOnboardingNode(node, { openInspector: true });
-            } else if (project.settings.inspectorCollapsed) {
-                toggleSetting('inspectorCollapsed');
-            }
-            markOnboardingChecklistStep(step?.key || 'inspect_node');
-            return;
-        }
-        if (action === 'select_node') {
-            const node = (Array.isArray(project.nodes) ? project.nodes : [])[0];
-            selectAndFocusOnboardingNode(node);
-            markOnboardingChecklistStep(step?.key || 'select_node');
-        }
-    }
-
-    function focusOnboardingNode(node) {
-        if (!node) return;
-        const size = defaultNodeSize(node.type);
-        centerViewportOnWorld((node.x || 0) + (node.w || size.w) / 2, (node.y || 0) + (node.h || size.h) / 2);
-        renderAll();
-    }
-
     function clearBrowserCache() {
         try {
+            const index = browserCacheProjectIndex(storageScope);
+            Object.values(index).forEach((entry) => {
+                const key = String(entry?.key || '').trim();
+                if (key) localStorage.removeItem(key);
+            });
             localStorage.removeItem(storageKey);
+            localStorage.removeItem(storageBaseKey);
+            localStorage.removeItem(browserCacheActiveProjectIdKey(storageScope));
+            localStorage.removeItem(browserCacheProjectIndexKey(storageScope));
             localStorage.removeItem(LEGACY_STORAGE_KEY);
             showToast(t('Browser localStorage cache cleared; project files in the directory were not deleted.', '浏览器 localStorage 缓存已清空，目录项目文件未删除'));
         } catch (err) {
@@ -27417,7 +28059,9 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
         }
         project = sanitizeProject(result.project || createDefaultProject());
         project.settings = Object.assign({}, project.settings || {}, { __demo_initialized: true });
+        setActiveBrowserCacheProject(project.id || PROJECT_ID, storageScope);
         if (result.storage) project.storage = result.storage;
+        resetRenderedProjectDomCache();
         saveProjectToBrowserCache();
         selectedNodeId = null;
         selectedGroupId = null;
@@ -27436,6 +28080,7 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
         const storage = project.storage || buildProjectStorageInfo(storageKey, storageScope);
         project = createDemoWorkbenchProject({ id: project.id || PROJECT_ID, storage });
         project.storage = storage;
+        resetRenderedProjectDomCache();
         selectedNodeId = null;
         selectedNodeIds = new Set();
         selectedEdgeId = null;
@@ -27450,14 +28095,14 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
             {
                 id: 'canvas_quick_start',
                 title: t('Canvas Quick Start', '画布快速入门'),
-                description: t('A model-free starter canvas for navigation, node selection, ports, Inspector, and the template library.', '不依赖模型的入门画布，介绍导航、节点选择、接口、Inspector 和模板库。'),
+                description: t('A model-free canvas with one blank Image node for local image upload.', '只包含一个空白图像节点，用于上传本地图片。'),
                 category: 'starter',
-                tags: ['starter', 'onboarding', 'basics'],
-                typeLabel: t('Node graph', '节点图'),
+                tags: ['starter', 'image', 'upload'],
+                typeLabel: t('Image upload', '图片上传'),
                 modelDependency: {
                     mode: 'model_free',
                     label: t('Model-free', '无模型依赖'),
-                    note: t('Safe to browse and edit without installed models.', '无需安装模型即可浏览和编辑。')
+                    note: t('No generation model is required for the blank upload node.', '空白上传节点不需要生成模型。')
                 },
                 path: 'javascript/canvas_workbench/demo/infinite-canvas-demo-workbench.canvas.json',
                 preview: ''
@@ -27924,7 +28569,6 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
     }
 
     async function openTemplateLibrary() {
-        markOnboardingChecklistStep('template_library', { render: false });
         closeTemplateLibrary();
         closeContextMenu();
         closeCanvasSettingsPanel();
@@ -27940,7 +28584,6 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
         bindTemplateLibraryModal(modal);
         const input = modal.querySelector('[data-template-search]');
         if (input) input.focus({ preventScroll: true });
-        renderOnboardingChecklist();
     }
 
     function renderTemplateLibraryHtml(state, sourceItems) {
@@ -28199,7 +28842,7 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
             const templateMeta = project && typeof project.template === 'object' ? project.template : {};
             const defaultCategory = TEMPLATE_MEDIA_CATEGORIES.includes(templateMeta.category)
                 ? templateMeta.category
-                : (project.settings?.__onboarding_template ? 'starter' : 'image');
+                : 'image';
             const defaultTitle = project.title || project.id || t('Canvas Template', '画布模板');
             const modal = document.createElement('div');
             modal.className = `sai-canvas-modal sai-template-create-modal ${detectWorkbenchTheme() === 'dark' ? 'theme-dark' : ''}`;
@@ -28360,6 +29003,7 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
         if (!nextId) return;
         const safeId = sanitizeStoragePart(nextId).replace(/[:]/g, '_') || defaultId;
         await saveProject(true, { persist: false });
+        setActiveBrowserCacheProject(safeId, storageScope);
         let templateProject = await loadWorkbenchTemplateData(item);
         templateProject = sanitizeProject(templateProject || createDefaultProject());
         const now = nowIso();
@@ -28371,6 +29015,7 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
         applyTemplateProjectSettings(templateProject, item.source === 'user' ? `user:${item.id}` : item.id);
         project = templateProject;
         syncCanvasProjectAssetRoot(project);
+        resetRenderedProjectDomCache();
         refreshCanvasProjectAssetRoot({ render: false }).catch((err) => {
             console.warn('[SimpAI Canvas] template asset root refresh skipped:', err);
         });
@@ -28390,15 +29035,26 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
         const nextId = window.prompt(t('Enter project file name (saved under user directory canvas_workbench/projects)', '输入项目文件名（保存在用户目录 canvas_workbench/projects 下）'), project.id || PROJECT_ID);
         if (!nextId) return;
         const safeId = sanitizeStoragePart(nextId).replace(/[:]/g, '_') || PROJECT_ID;
-        await saveProject(true, { persist: false });
-        project = createDefaultProject();
-        project.id = safeId;
-        project.title = safeId;
+        const cachedCurrent = await saveProject(true, { persist: false });
+        if (!cachedCurrent) {
+            showToast(t('Current workbench could not be saved to browser cache; switch cancelled.', '当前工作台无法保存到浏览器缓存，已取消切换。'));
+            return;
+        }
+        setActiveBrowserCacheProject(safeId, storageScope);
+        project = loadProject(storageKey, browserCacheProjectScope(storageScope));
+        if ((project.id || PROJECT_ID) !== safeId) {
+            project.id = safeId;
+            project.title = project.title || safeId;
+        }
+        resetRenderedProjectDomCache();
         backendLoadedStorageKey = '';
         selectedNodeId = null;
+        selectedNodeIds = new Set();
         selectedEdgeId = null;
+        selectedGroupId = null;
         resetHistory();
-        const ok = await loadProjectFromBackend({ force: true });
+        renderAll();
+        const ok = await loadProjectFromBackend({ force: false });
         if (!ok) {
             project.storage = buildProjectStorageInfo(storageKey, storageScope);
             await saveProject(true, { persist: false });
@@ -28422,7 +29078,7 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
             if (canRunCanvasAction && !editable) {
                 const node = getNode(selectedNodeId);
                 if (evt.shiftKey) runSelectedChain();
-                else if (node && (node.type === 'preset' || node.type === 'classic')) runPresetNode(node);
+                else if (node && (node.type === 'preset' || node.type === 'classic')) runPresetNodeFromUi(node);
                 return;
             }
             return;
@@ -28505,7 +29161,7 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
         if ((evt.ctrlKey || evt.metaKey) && evt.key === 'Enter') {
             const node = getNode(selectedNodeId);
             if (evt.shiftKey) runSelectedChain();
-            else if (node && (node.type === 'preset' || node.type === 'classic')) runPresetNode(node);
+            else if (node && (node.type === 'preset' || node.type === 'classic')) runPresetNodeFromUi(node);
             return;
         }
         if (!evt.ctrlKey && !evt.metaKey && !evt.altKey && evt.code === 'Space') {
@@ -28657,6 +29313,7 @@ ${children ? `<div class="sai-canvas-context-submenu" role="menu">${renderContex
         preferSvgEdgesForViewportInteraction(5000);
         applyViewport();
         scheduleViewportNodeRender();
+        scheduleViewportZoomSettleRender();
         renderStatus();
         updateMinimapForViewportInteraction();
         scheduleViewportSave();
@@ -30276,6 +30933,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             w: 264,
             h: 300,
             title: item.name || 'transfer image',
+            display_mode: 'frameless',
             asset: {
                 kind: 'browser_upload',
                 asset_id: `transfer:${item.id}`,
@@ -30288,6 +30946,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             },
             source: { kind: 'transfer_station', transfer_id: item.id }
         };
+        fitImageNodeToAssetBounds(node, node.asset, { preserveCenter: false });
         placeNodeAvoidingOverlap(node, world);
         project.nodes.push(node);
         selectedNodeId = node.id;
@@ -30315,6 +30974,8 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             thumb
         };
         node.title = item.name || node.title || 'image';
+        if (String(node.display_mode || node.image_display_mode || '').toLowerCase() !== 'card') node.display_mode = 'frameless';
+        fitImageNodeToAssetBounds(node, node.asset);
         node.mask = null;
         node.source = Object.assign({}, node.source || {}, {
             kind: 'transfer_station_drop',
@@ -30323,6 +30984,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         selectedNodeId = node.id;
         selectedNodeIds = new Set([node.id]);
         selectedEdgeId = null;
+        invalidateRenderedNode(node.id);
         mutate();
         syncPresetSpecialViewersForAssetNode(node.id);
         showToast(t('Image placed into Image node.', '图片已放入图像节点'));
@@ -30352,10 +31014,14 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         if (node.type === 'result') {
             node.status = Object.assign({}, node.status || {}, { state: 'manual', percent: 1, message: t('Output image manually replaced.', '手动替换的输出图片') });
             node.source = Object.assign({}, node.source || {}, { kind: 'manual_output' });
+        } else if (String(node.display_mode || node.image_display_mode || '').toLowerCase() !== 'card') {
+            node.display_mode = 'frameless';
+            fitImageNodeToAssetBounds(node, node.asset);
         }
         selectedNodeId = node.id;
         selectedNodeIds = new Set([node.id]);
         selectedEdgeId = null;
+        invalidateRenderedNode(node.id);
         mutate();
         syncPresetSpecialViewersForAssetNode(node.id);
         showToast(t('Image replaced.', '图片已替换'));
@@ -30487,6 +31153,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             w: 264,
             h: 300,
             title: file.name || 'image',
+            display_mode: 'frameless',
             asset: {
                 kind: 'browser_upload',
                 asset_id: uid('asset'),
@@ -30499,6 +31166,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             },
             source: { kind: 'dropped_file' }
         };
+        fitImageNodeToAssetBounds(node, node.asset, { preserveCenter: false });
         placeNodeAvoidingOverlap(node, world);
         project.nodes.push(node);
         selectedNodeId = node.id;
@@ -30527,6 +31195,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             w: size.w,
             h: size.h,
             title: slotLabel ? `${slotLabel} Image` : 'Input Image',
+            display_mode: 'frameless',
             asset: null,
             source: {
                 kind: 'manual_input_placeholder',
@@ -31262,6 +31931,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             materialized_at: nowIso()
         });
         saveProjectToBrowserCache();
+        invalidateRenderedNode(current.id);
         renderAll({ inspector: false });
         syncPresetSpecialViewersForAssetNode(current.id);
         return response;
@@ -31310,10 +31980,12 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             const incoming = extractWorkbenchProjectJson(await readFileAsText(file));
             await saveProject(true, { persist: false });
             const nextProjectId = importedProjectId(incoming, file);
+            setActiveBrowserCacheProject(nextProjectId, storageScope);
             project = sanitizeProject(incoming);
             project.id = nextProjectId;
             project.title = project.title || nextProjectId;
             project.storage = buildProjectStorageInfo(storageKey, storageScope);
+            resetRenderedProjectDomCache();
             selectedNodeId = null;
             selectedEdgeId = null;
             selectedNodeIds = new Set();
@@ -32615,6 +33287,9 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 showToast(t('Already on workbench: {id}', '已经在工作台：{id}').replace('{id}', safeId));
                 return true;
             }
+            const confirmed = window.confirm(t('Reload this workbench from disk? Unsaved browser edits for this workbench will be replaced.', '从磁盘重新加载当前工作台？当前工作台未保存到磁盘的浏览器临时修改会被替换。'));
+            if (!confirmed) return false;
+            setActiveBrowserCacheProject(safeId, storageScope);
             backendLoadedStorageKey = '';
             const ok = await loadProjectFromBackend({ force: true });
             showToast(ok ? t('Reloaded workbench: {id}', '已重新加载工作台：{id}').replace('{id}', safeId) : t('Failed to reload workbench: {id}', '重新加载工作台失败：{id}').replace('{id}', safeId));
@@ -32624,17 +33299,28 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         const previousSelectedNodeId = selectedNodeId;
         const previousSelectedNodeIds = new Set(selectedNodeIds);
         const previousSelectedEdgeId = selectedEdgeId;
+        const previousSelectedGroupId = selectedGroupId;
         const previousBackendLoadedStorageKey = backendLoadedStorageKey;
-        await saveProject(true, { persist: false });
-        project = createDefaultProject();
-        project.id = safeId;
-        project.title = safeId;
+        const cachedCurrent = await saveProject(true, { persist: false });
+        if (!cachedCurrent) {
+            showToast(t('Current workbench could not be saved to browser cache; open cancelled.', '当前工作台无法保存到浏览器缓存，已取消打开。'));
+            return false;
+        }
+        setActiveBrowserCacheProject(safeId, storageScope);
+        project = loadProject(storageKey, browserCacheProjectScope(storageScope));
+        if ((project.id || PROJECT_ID) !== safeId) {
+            project.id = safeId;
+            project.title = project.title || safeId;
+        }
+        resetRenderedProjectDomCache();
         backendLoadedStorageKey = '';
         selectedNodeId = null;
         selectedNodeIds = new Set();
         selectedEdgeId = null;
+        selectedGroupId = null;
         resetHistory();
-        const ok = await loadProjectFromBackend({ force: true });
+        renderAll();
+        const ok = await loadProjectFromBackend({ force: false });
         if (!ok && options?.createIfMissing) {
             project.storage = buildProjectStorageInfo(storageKey, storageScope);
             await saveProject(true, { persist: false });
@@ -32644,9 +33330,12 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         }
         if (!ok) {
             project = previousProject;
+            setActiveBrowserCacheProject(project.id || PROJECT_ID, storageScope);
+            resetRenderedProjectDomCache();
             selectedNodeId = previousSelectedNodeId;
             selectedNodeIds = previousSelectedNodeIds;
             selectedEdgeId = previousSelectedEdgeId;
+            selectedGroupId = previousSelectedGroupId;
             backendLoadedStorageKey = previousBackendLoadedStorageKey;
             renderAll();
         }
@@ -33452,9 +34141,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             if (!options?.silent) showToast(t('Choose a style first.', '请先选择一个风格。'));
             return false;
         }
-        const state = selectorNode.style_selector || {};
-        const edgeTarget = project.edges.find(edge => edge.type === 'text' && edge.from === selectorNode.id && edge.slot === 'prompt');
-        const presetNode = getNode(state.target_preset_id || '') || getNode(edgeTarget?.to || '');
+        const presetNode = styleSelectorLinkedPreset(selectorNode);
         if (!presetNode || !['preset', 'classic'].includes(presetNode.type)) {
             if (!options?.silent) showToast(t('Link this Style Selector to a Style Transfer+ preset first.', '请先把 Style Selector 连接到 Style Transfer+ preset。'));
             return false;
@@ -33484,6 +34171,50 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             showToast(t('Style applied to Style Transfer+.', '风格已应用到 Style Transfer+。'));
         }
         return true;
+    }
+
+    async function runStyleTransferPresetNode(node, options) {
+        if (!node || !['preset', 'classic'].includes(node.type)) return { ok: false, error: 'preset missing' };
+        const selector = findStyleSelectorForPreset(node);
+        if (selector) {
+            const style = WORKBENCH_STYLE_SELECTOR_NODE.selectedStyle?.(selector);
+            if (!style) {
+                showToast(t('Choose a style first.', '请先选择一个风格。'));
+                return { ok: false, error: 'style missing' };
+            }
+            if (!applyStyleSelectorToPreset(selector, style, { silent: true })) {
+                return { ok: false, error: 'style apply failed' };
+            }
+        }
+        return runPresetNode(node, Object.assign({}, options || {}, { skipPromptResolve: true }));
+    }
+
+    async function runStyleSelectorTargetPreset(selectorNode, options) {
+        if (!selectorNode || selectorNode.type !== 'style_selector') return { ok: false, error: 'style selector missing' };
+        const presetNode = styleSelectorLinkedPreset(selectorNode);
+        if (!presetNode || !['preset', 'classic'].includes(presetNode.type)) {
+            showToast(t('Link this Style Selector to a Style Transfer+ preset first.', '请先把 Style Selector 连接到 Style Transfer+ preset。'));
+            return { ok: false, error: 'style transfer preset missing' };
+        }
+        const style = WORKBENCH_STYLE_SELECTOR_NODE.selectedStyle?.(selectorNode);
+        if (!style) {
+            showToast(t('Choose a style first.', '请先选择一个风格。'));
+            return { ok: false, error: 'style missing' };
+        }
+        if (!applyStyleSelectorToPreset(selectorNode, style, { silent: true })) {
+            return { ok: false, error: 'style apply failed' };
+        }
+        selectedNodeId = presetNode.id;
+        selectedNodeIds = new Set([presetNode.id]);
+        selectedEdgeId = null;
+        selectedGroupId = null;
+        mutate({ inspector: true });
+        return runStyleTransferPresetNode(presetNode, options);
+    }
+
+    function runPresetNodeFromUi(node, options) {
+        if (isStyleTransferPresetNode(node)) return runStyleTransferPresetNode(node, options);
+        return runPresetNode(node, options);
     }
 
     function updateStyleSelectorSearch(nodeId, value, nodeEl) {
@@ -33516,8 +34247,6 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         selectedNodeId = node.id;
         selectedNodeIds = new Set([node.id]);
         selectedEdgeId = null;
-        markOnboardingChecklistStep('add_text', { render: false });
-        markOnboardingChecklistStep('select_node', { render: false });
         mutate();
         showToast(autoMessage ? `Text node added, ${autoMessage}` : 'Text node added');
         return node;
@@ -33681,6 +34410,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         node.text = String(value || '');
         scheduleSave();
         if (options?.render) mutate({ inspector: true });
+        else refreshNoteDom(nodeId);
     }
 
     function updateNoteStyle(nodeId, key, value, inputType) {
@@ -37632,7 +38362,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         if (!next || typeof next !== 'object') return next;
         const uploadSources = cloneRunValue(next.upload_slot_sources || {}, {});
         const uploadSlots = cloneRunValue(next.upload_slots || {}, {});
-        DIRECTOR_IMAGE_REF_UPLOAD_SLOTS.concat(['scene_audio', 'scene_video']).forEach((slot) => {
+        DIRECTOR_IMAGE_REF_UPLOAD_SLOTS.concat(['scene_audio', 'scene_video', 'scene_reference_video']).forEach((slot) => {
             delete uploadSources[slot];
             delete uploadSlots[slot];
         });
@@ -39949,6 +40679,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             w: 264,
             h: 300,
             title: title || asset.name || 'Canvas output',
+            display_mode: options?.displayMode || 'frameless',
             asset: cloneRunValue(asset, {}),
             mask: null,
             source: {
@@ -39957,6 +40688,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 source_asset_id: asset.asset_id || ''
             }
         };
+        fitImageNodeToAssetBounds(node, node.asset, { preserveCenter: false });
         placeNodeAvoidingOverlap(node, world, options);
         project.nodes.push(node);
         return node;
@@ -40328,6 +41060,9 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             image,
             mask: node.type === 'image' ? (node.mask?.data_url || '') : '',
             title: node.title || 'LayerForge',
+            mount: root || document.getElementById('simpai-infinite-canvas-workbench'),
+            mountSelector: '#simpai-infinite-canvas-workbench',
+            modalClassName: `sai-canvas-layerforge-modal ${detectWorkbenchTheme() === 'dark' ? 'theme-dark' : 'theme-light'}`,
             onSave: ({ image: editedImage, mask, metadata }) => createImageNodeFromLayerForgeOutput(node, editedImage, mask, metadata)
         });
     }
@@ -40508,7 +41243,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             selectedEdgeId = null;
             deleteSelection({ forceNode: true });
         } else if (action === 'run' && (node.type === 'preset' || node.type === 'classic')) {
-            runPresetNode(node);
+            runPresetNodeFromUi(node);
         } else if (action === 'batch-any-import' && node.type === 'batch_any') {
             openBatchAnyFilePicker(node);
         } else if (action === 'batch-any-run-current' && node.type === 'batch_any') {
@@ -40531,7 +41266,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         } else if (action === 'add-style-selector' && node.type === 'preset') {
             ensureStyleSelectorForPreset(node, { select: true });
         } else if (action === 'apply-style-selector' && node.type === 'style_selector') {
-            applyStyleSelectorToPreset(node);
+            runStyleSelectorTargetPreset(node);
         } else if (action === 'check-models' && ['preset', 'classic'].includes(node.type)) {
             handlePresetModelAction(node);
         } else if (action === 'check-vlm-model' && node.type === 'vlm') {
@@ -43076,6 +43811,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 runs: [],
                 settings: Object.assign({}, previousProject?.settings || {}, { __pose_studio_smoke: true })
             }));
+            resetRenderedProjectDomCache();
             selectedNodeId = null;
             selectedNodeIds = new Set();
             selectedEdgeId = null;
@@ -43158,6 +43894,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             return result;
         } finally {
             project = sanitizeProject(previousProject || loadProject(storageKey, storageScope));
+            resetRenderedProjectDomCache();
             selectedNodeId = previousSelectedNodeId;
             selectedNodeIds = previousSelectedNodeIds;
             selectedEdgeId = previousSelectedEdgeId;
@@ -43232,6 +43969,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         const opts = options || {};
         project = sanitizeProject(nextProject);
         resetCanvasRenderModeForProject(project);
+        resetRenderedProjectDomCache();
         selectedNodeId = null;
         selectedNodeIds = new Set();
         selectedEdgeId = null;
@@ -43248,11 +43986,6 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         cancelDragEdgeSettleRender();
         endDragEdgeLodVisual();
         clearEdgeCanvas();
-        nodeLayoutRects.clear();
-        renderedNodeElsById.forEach((nodeEl) => {
-            if (nodeEl?.parentElement) nodeEl.remove();
-        });
-        renderedNodeElsById.clear();
         resetCanvasPerfStats();
         if (opts.persist) saveProject(true).catch((err) => console.warn('[SimpAI Canvas] perf load save failed:', err));
         renderAll();
@@ -43269,6 +44002,7 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         loadProject: (nextProject) => {
             project = sanitizeProject(nextProject);
             resetCanvasRenderModeForProject(project);
+            resetRenderedProjectDomCache();
             selectedNodeId = null;
             selectedEdgeId = null;
             minimapRenderCacheKey = '';

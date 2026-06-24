@@ -106,7 +106,8 @@ ${response && !response.ok ? `<div class="sai-inspector-note">${escapeHtml(respo
                 const row = button.closest('[data-project-id]');
                 const nextProjectId = row?.getAttribute('data-project-id') || '';
                 if (!nextProjectId) return;
-                await call(context, 'switchProjectById', null, nextProjectId, { createIfMissing: false, reloadActive: true });
+                const isActiveProject = nextProjectId === projectId(context);
+                await call(context, 'switchProjectById', null, nextProjectId, { createIfMissing: false, reloadActive: isActiveProject });
                 modal.remove();
             });
         });

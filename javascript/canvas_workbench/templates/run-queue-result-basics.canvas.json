@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "run_queue_result_basics_20260605061502_template_20260605061534_template_20260606",
+  "id": "run_queue_result_basics",
   "title": "运行队列与结果入门",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-06T07:25:24Z",
@@ -16,95 +16,7 @@
     "minimap": true,
     "edgeLabels": true,
     "reducedMotion": false,
-    "inspectorCollapsed": false,
-    "__onboarding_template": true,
-    "__onboarding_checklist_title": {
-      "en": "Run Queue Tour",
-      "zh": "运行队列导览"
-    },
-    "__onboarding_checklist_steps": [
-      {
-        "key": "queue_widget",
-        "action": "run_queue",
-        "icon": "fa-list-check",
-        "title": {
-          "en": "Open the queue panel",
-          "zh": "打开运行队列面板"
-        },
-        "detail": {
-          "en": "The top widget opens live and recent runs.",
-          "zh": "顶部控件可打开实时任务和最近任务。"
-        }
-      },
-      {
-        "key": "queue_placeholder",
-        "action": "focus_node",
-        "target_node_id": "queue_result_queued",
-        "icon": "fa-clock",
-        "title": {
-          "en": "Queued placeholder",
-          "zh": "排队占位"
-        },
-        "detail": {
-          "en": "A Result node appears before output is ready.",
-          "zh": "输出准备好前会先出现 Result 节点。"
-        }
-      },
-      {
-        "key": "queue_running",
-        "action": "focus_node",
-        "target_node_id": "queue_result_running",
-        "icon": "fa-spinner",
-        "title": {
-          "en": "Running preview",
-          "zh": "运行预览"
-        },
-        "detail": {
-          "en": "Progress and preview update while a run is active.",
-          "zh": "任务运行时会更新进度和预览。"
-        }
-      },
-      {
-        "key": "queue_finished",
-        "action": "focus_node",
-        "target_node_id": "queue_result_finished",
-        "icon": "fa-circle-check",
-        "title": {
-          "en": "Finished result",
-          "zh": "完成结果"
-        },
-        "detail": {
-          "en": "Finished outputs remain reusable on canvas.",
-          "zh": "完成输出会留在画布上继续复用。"
-        }
-      },
-      {
-        "key": "queue_reuse",
-        "action": "focus_node",
-        "target_node_id": "queue_note_reuse",
-        "icon": "fa-share-nodes",
-        "title": {
-          "en": "Downstream reuse",
-          "zh": "下游复用"
-        },
-        "detail": {
-          "en": "Result outputs can feed later workflow nodes.",
-          "zh": "Result 输出可以接入后续工作流节点。"
-        }
-      }
-    ],
-    "__minimap_initialized": true,
-    "__template_source": "user",
-    "__onboarding_checklist": {
-      "completed": {
-        "select_node": true,
-        "inspect_node": true,
-        "queue_placeholder": true,
-        "queue_running": true,
-        "queue_finished": true,
-        "queue_reuse": true
-      }
-    }
+    "inspectorCollapsed": false
   },
   "scheduler": {
     "state": "finished",
@@ -352,22 +264,37 @@
   ],
   "batch_jobs": [],
   "template": {
-    "id": "run_queue_result_basics_20260605061502_template_20260605061534_template_20260606",
-    "title": "运行队列与结果入门",
-    "description": "从当前画布保存。",
+    "id": "run_queue_result_basics",
+    "title": {
+      "en": "Run Queue & Result Basics",
+      "zh": "运行队列与结果入门"
+    },
+    "description": {
+      "en": "A safe walkthrough of queued runs, Result placeholders, retry/history concepts, and downstream reuse.",
+      "zh": "安全演示排队任务、结果占位、重试/历史概念和下游复用。"
+    },
     "category": "starter",
     "tags": [
-      "user",
-      "canvas"
+      "starter",
+      "queue",
+      "result",
+      "history"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Workflow guide",
+      "zh": "工作流引导"
+    },
     "model_dependency": {
       "mode": "model_free",
-      "label": "无模型依赖",
-      "note": "未检测到可运行的 Preset 或 Classic 节点。",
-      "models": []
+      "label": {
+        "en": "Model-free",
+        "zh": "无模型依赖"
+      },
+      "note": {
+        "en": "Uses safe Result examples rather than real generation.",
+        "zh": "使用安全的 Result 示例，不触发真实生成。"
+      }
     },
-    "preview": "",
-    "saved_at": "2026-06-06T07:25:24Z"
+    "preview": ""
   }
 }

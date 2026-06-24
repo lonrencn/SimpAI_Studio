@@ -39,6 +39,10 @@
             return !!(node.asset || (Array.isArray(node.assets) && node.assets.length));
         }
         if (node.type === 'text') return !!String(node.text?.value || node.params?.text || node.value || '').trim();
+        if (node.type === 'style_selector') {
+            const selector = node.style_selector || {};
+            return !!String(selector.prompt || node.text?.value || '').trim();
+        }
         if (['translation', 'tag_cart', 'wd14', 'vlm'].includes(node.type)) return !!String(node.text?.value || '').trim();
         if (node.type && String(node.type).startsWith('qwen_tts_')) {
             const state = String(node.status?.state || node.status || '').toLowerCase();

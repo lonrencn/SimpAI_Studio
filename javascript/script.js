@@ -2538,6 +2538,7 @@ document.addEventListener("DOMContentLoaded", function() {
         { id: 'scene_switch_option3', group: 'scene' },
         { id: 'scene_switch_option4', group: 'scene' },
         { id: 'scene_video', group: 'scene' },
+        { id: 'scene_reference_video', group: 'scene' },
         { id: 'scene_audio', group: 'scene' },
         { id: 'camera_control_accordion', group: 'scene-aux' },
         { id: 'anglelight_control_accordion', group: 'scene-aux' },
@@ -2785,7 +2786,7 @@ document.addEventListener("DOMContentLoaded", function() {
             'scene_var_number8', 'scene_var_number9', 'scene_var_number10',
             'scene_steps', 'scene_switch_option1', 'scene_switch_option2',
             'scene_switch_option3', 'scene_switch_option4', 'scene_video',
-            'scene_audio'
+            'scene_reference_video', 'scene_audio'
         ].forEach((id) => {
             setVisible(id, !disvisible.has(id));
         });

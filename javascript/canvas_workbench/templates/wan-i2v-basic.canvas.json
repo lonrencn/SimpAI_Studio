@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "wan_i2v_basic_20260604124114_template_20260604124507_20260605063748_template_202",
+  "id": "wan_i2v_basic",
   "title": "Wan 图生视频基础",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-05T06:39:14Z",
@@ -17,8 +17,6 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__minimap_initialized": true,
-    "__template_source": "user",
     "canvasAgent": {
       "enabled": true,
       "executionRoute": "programmatic",
@@ -498,10 +496,10 @@
             "key": "scene_var_number4",
             "label": "Motion boost strength [>1 increases motion]",
             "type": "number",
-            "default": 1.0,
+            "default": 1,
             "visible": true,
             "interactive": true,
-            "min": 1.0,
+            "min": 1,
             "max": 1.3
           },
           {
@@ -544,7 +542,7 @@
             "defaults": {
               "scene_var_number": 5,
               "scene_var_number2": 30,
-              "scene_var_number4": 1.0,
+              "scene_var_number4": 1,
               "scene_switch_option1": false,
               "scene_switch_option2": true,
               "scene_aspect_ratio": "640|1:1",
@@ -918,30 +916,49 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "wan_i2v_basic_20260604124114_template_20260604124507_20260605063748_template_202",
-    "title": "Wan 图生视频基础",
-    "description": "从当前画布保存。",
-    "category": "image",
+    "id": "wan_i2v_basic",
+    "title": {
+      "en": "Wan I2V Basic",
+      "zh": "Wan 图生视频基础"
+    },
+    "description": {
+      "en": "A runnable Wan2.2 image-to-video template with first-frame and optional last-frame placeholders, motion prompt, model checks, and video Result placeholder.",
+      "zh": "可运行的 Wan2.2 图生视频模板，包含首帧和可选尾帧占位、运动提示词、模型检查和视频结果占位。"
+    },
+    "category": "video",
     "tags": [
-      "user",
-      "canvas"
+      "video",
+      "wan",
+      "wan2.2",
+      "i2v",
+      "image-to-video",
+      "motion",
+      "runnable"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Image to video",
+      "zh": "图生视频"
+    },
     "model_dependency": {
       "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点和 7 个模型依赖。运行前请检查模型。",
+      "label": {
+        "en": "Requires models",
+        "zh": "需要模型"
+      },
+      "note": {
+        "en": "Requires Wan I2V model files and a first-frame image before Run.",
+        "zh": "运行前需要 Wan I2V 模型文件和一张首帧图。"
+      },
       "models": [
-        "checkpoints,Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf,9651728896,0,",
-        "checkpoints,Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf,9651728896,0,",
-        "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
-        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
-        "loras,wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors,634645944,0,https://www.modelscope.cn/models/lightx2v/Wan2.2-Distill-Loras/resolve/master/wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
-        "loras,wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors,739472104,0,https://www.modelscope.cn/models/lightx2v/Wan2.2-Distill-Loras/resolve/master/wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
-        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+        "Wan2.2-I2V-A14B-HighNoise-Q4_K_M.gguf",
+        "Wan2.2-I2V-A14B-LowNoise-Q4_K_M.gguf",
+        "umt5-xxl-encoder-Q8_0.gguf",
+        "wan_2.1_vae.safetensors",
+        "wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+        "wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+        "flownet.pkl"
       ]
     },
-    "preview": "",
-    "saved_at": "2026-06-05T06:39:14Z"
+    "preview": ""
   }
 }

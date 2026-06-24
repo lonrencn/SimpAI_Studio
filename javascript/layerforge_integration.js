@@ -412,6 +412,42 @@
         return value + (value.includes('?') ? '&' : '?') + 't=' + Date.now();
     }
 
+    function resolveLayerForgeModalMount(options) {
+        const opts = options || {};
+        if (opts.mount && typeof opts.mount.appendChild === 'function') {
+            return opts.mount;
+        }
+        const selector = String(opts.mountSelector || '').trim();
+        if (selector) {
+            const found = document.querySelector(selector);
+            if (found && typeof found.appendChild === 'function') return found;
+        }
+        return document.body;
+    }
+
+    function mountLayerForgeModal(modal, options) {
+        const mount = resolveLayerForgeModalMount(options);
+        const scoped = !!mount && mount !== document.body && mount !== document.documentElement;
+        const className = String(options?.modalClassName || '').trim();
+        if (className) modal.className = className;
+        modal.dataset.layerforgeModalMount = scoped ? 'container' : 'body';
+        modal.style.position = scoped ? 'absolute' : 'fixed';
+        modal.style.inset = '0';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = scoped ? '100%' : '100vw';
+        modal.style.height = scoped ? '100%' : '100vh';
+        if (scoped) {
+            try {
+                const style = window.getComputedStyle(mount);
+                if (style.position === 'static') mount.style.position = 'relative';
+            } catch {
+            }
+        }
+        mount.appendChild(modal);
+        return mount;
+    }
+
     function openLayerForgeWithAdapter(options = {}) {
         const imageUrl = String(options.image || options.imageUrl || '');
         if (!imageUrl) {
@@ -422,11 +458,6 @@
         const onSave = typeof options.onSave === 'function' ? options.onSave : null;
         const sessionId = Math.random().toString(36).substring(2, 15);
         const modal = document.createElement('div');
-        modal.style.position = 'fixed';
-        modal.style.top = '0';
-        modal.style.left = '0';
-        modal.style.width = '100vw';
-        modal.style.height = '100vh';
         modal.style.backgroundColor = 'rgba(0,0,0,0.82)';
         modal.style.zIndex = LAYERFORGE_MODAL_Z_INDEX;
         modal.style.display = 'flex';
@@ -442,7 +473,7 @@
         iframe.style.borderRadius = '8px';
         iframe.style.backgroundColor = '#1e1e1e';
         modal.appendChild(iframe);
-        document.body.appendChild(modal);
+        mountLayerForgeModal(modal, options);
 
         const closeModal = () => {
             window.removeEventListener('message', messageHandler);

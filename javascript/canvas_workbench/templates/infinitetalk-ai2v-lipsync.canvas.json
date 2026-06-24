@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "infinitetalk_ai2v_lipsync_20260605070553_template_20260605070725",
+  "id": "infinitetalk_ai2v_lipsync",
   "title": "InfiniteTalk 图片+音频口型视频",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-05T07:07:27Z",
@@ -17,8 +17,6 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__minimap_initialized": true,
-    "__template_source": "user",
     "canvasAgent": {
       "enabled": true,
       "executionRoute": "programmatic",
@@ -807,31 +805,51 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "infinitetalk_ai2v_lipsync_20260605070553_template_20260605070725",
-    "title": "InfiniteTalk 图片+音频口型视频",
-    "description": "从当前画布保存。",
-    "category": "image",
+    "id": "infinitetalk_ai2v_lipsync",
+    "title": {
+      "en": "InfiniteTalk AI2V Lip Sync",
+      "zh": "InfiniteTalk 图片+音频口型视频"
+    },
+    "description": {
+      "en": "A runnable talking-portrait template that connects a portrait image and speech audio to InfiniteTalk.",
+      "zh": "可运行的口型视频模板，把人物图片和语音音频连接到 InfiniteTalk。"
+    },
+    "category": "video",
     "tags": [
-      "user",
-      "canvas"
+      "video",
+      "audio",
+      "image",
+      "infinitetalk",
+      "lip-sync",
+      "talking-portrait",
+      "tts-chain",
+      "runnable",
+      "口型",
+      "数字人"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Lip sync video",
+      "zh": "口型视频"
+    },
     "model_dependency": {
       "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点和 8 个模型依赖。运行前请检查模型。",
+      "label": {
+        "en": "Requires image + audio + models",
+        "zh": "需要图片、音频和模型"
+      },
+      "note": {
+        "en": "Requires Wan I2V, MelBandRoFormer, InfiniteTalk patch, wav2vec2, RIFE, a portrait image, and speech audio.",
+        "zh": "需要 Wan I2V、MelBandRoFormer、InfiniteTalk patch、wav2vec2、RIFE，以及人物图片和语音音频。"
+      },
       "models": [
-        "diffusion_models,Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors,16993877896,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
-        "text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf",
-        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
-        "loras,lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,738005744,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
-        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl",
-        "diffusion_models,MelBandRoformer_fp16.safetensors,456479072,0,https://www.modelscope.cn/models/Kijai/MelBandRoFormer_comfy/resolve/master/MelBandRoformer_fp16.safetensors",
-        "model_patches,wan2.1_infiniteTalk_single_fp16.safetensors,5125258232,0,https://www.modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/model_patches/wan2.1_infiniteTalk_single_fp16.safetensors",
-        "audio_encoders,wav2vec2-chinese-base_fp16.safetensors,190115368,0,https://www.modelscope.cn/models/Kijai/wav2vec2_safetensors/resolve/master/wav2vec2-chinese-base_fp16.safetensors"
+        "Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
+        "umt5-xxl-encoder-Q8_0.gguf",
+        "wan_2.1_vae.safetensors",
+        "MelBandRoformer_fp16.safetensors",
+        "wan2.1_infiniteTalk_single_fp16.safetensors",
+        "wav2vec2-chinese-base_fp16.safetensors"
       ]
     },
-    "preview": "",
-    "saved_at": "2026-06-05T07:07:27Z"
+    "preview": ""
   }
 }

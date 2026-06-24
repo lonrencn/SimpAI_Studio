@@ -111,7 +111,7 @@
   <span class="sai-node-kind">${escapeHtml(t('Style', '风格'))}</span>
   <span class="sai-node-title">${escapeHtml(node.title || 'Style Selector')}</span>
   ${call(context, 'renderNodeStateBadges', '', node)}
-  <button type="button" data-node-action="apply-style-selector" title="${escapeHtml(t('Apply to linked Style Transfer+ preset', '应用到已连接的 Style Transfer+ preset'))}"><i class="fa-solid fa-paper-plane"></i></button>
+  <button type="button" data-node-action="apply-style-selector" title="${escapeHtml(t('Apply and run linked Style Transfer+ preset', '应用并运行已连接的 Style Transfer+ preset'))}"><i class="fa-solid fa-paper-plane"></i></button>
   <button type="button" data-node-action="delete" title="${escapeHtml(t('Delete', '删除'))}"><i class="fa-solid fa-xmark"></i></button>
 </div>
 <div class="sai-style-selector-meta">
@@ -126,7 +126,7 @@ ${renderSelectedPreview(node)}
 <div class="sai-style-selector-grid" data-style-selector-grid>
   ${renderCards(node)}
 </div>
-<button type="button" class="sai-node-primary" data-node-action="apply-style-selector"><i class="fa-solid fa-paper-plane"></i><span>${escapeHtml(t('Apply Style', '应用风格'))}</span></button>
+<button type="button" class="sai-node-primary" data-node-action="apply-style-selector"><i class="fa-solid fa-paper-plane"></i><span>${escapeHtml(t('Apply & Run', '应用并运行'))}</span></button>
 <button type="button" class="sai-node-handle sai-node-handle-out" data-handle-out="text" title="${escapeHtml(t('Style prompt output', '风格提示词输出'))}"></button>`;
     }
 
@@ -150,7 +150,7 @@ ${getNegative(node) ? `<div class="sai-inspector-section">
   <textarea readonly rows="3">${escapeHtml(getNegative(node))}</textarea>
 </div>` : ''}
 <div class="sai-inspector-actions">
-  <button type="button" data-node-action="apply-style-selector"><i class="fa-solid fa-paper-plane"></i><span>${escapeHtml(t('Apply', '应用'))}</span></button>
+  <button type="button" data-node-action="apply-style-selector"><i class="fa-solid fa-paper-plane"></i><span>${escapeHtml(t('Apply & Run', '应用并运行'))}</span></button>
   <button type="button" data-inspector-action="duplicate"><i class="fa-solid fa-copy"></i><span>${escapeHtml(t('Duplicate', '复制'))}</span></button>
   <button type="button" data-inspector-action="delete" class="danger"><i class="fa-solid fa-trash"></i><span>${escapeHtml(t('Delete', '删除'))}</span></button>
 </div>`;

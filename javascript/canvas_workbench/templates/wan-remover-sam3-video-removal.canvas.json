@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "wan_remover_sam3_video_removal_20260606065634_template_20260606065742",
+  "id": "wan_remover_sam3_video_removal",
   "title": "Wan-Remover SAM3 视频移除",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-06T06:57:43Z",
@@ -17,7 +17,6 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__minimap_initialized": true,
     "canvasAgent": {
       "enabled": true,
       "executionRoute": "programmatic",
@@ -61,8 +60,7 @@
       "panelPosition": null,
       "bubblePosition": null,
       "allowPresetInstructionOverride": true
-    },
-    "__template_source": "user"
+    }
   },
   "groups": [
     {
@@ -446,20 +444,20 @@
             "key": "scene_var_number3",
             "label": "Reference video override FPS",
             "type": "number",
-            "default": 30.0,
+            "default": 30,
             "visible": true,
             "interactive": true,
-            "min": 16.0,
-            "max": 60.0
+            "min": 16,
+            "max": 60
           },
           {
             "key": "scene_var_number4",
             "label": "Skip first N seconds of reference video",
             "type": "number",
-            "default": 0.0,
+            "default": 0,
             "visible": true,
             "interactive": true,
-            "min": 0.0,
+            "min": 0,
             "max": 60
           },
           {
@@ -511,8 +509,8 @@
             "defaults": {
               "scene_var_number": 0,
               "scene_var_number2": 30,
-              "scene_var_number3": 30.0,
-              "scene_var_number4": 0.0,
+              "scene_var_number3": 30,
+              "scene_var_number4": 0,
               "scene_var_number7": 20,
               "scene_switch_option1": true,
               "scene_switch_option2": true,
@@ -832,27 +830,49 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "wan_remover_sam3_video_removal_20260606065634_template_20260606065742",
-    "title": "Wan-Remover SAM3 视频移除",
-    "description": "从当前画布保存。",
-    "category": "image",
+    "id": "wan_remover_sam3_video_removal",
+    "title": {
+      "en": "Wan-Remover SAM3 Video Removal",
+      "zh": "Wan-Remover SAM3 视频移除"
+    },
+    "description": {
+      "en": "A runnable video-removal template using a source video and SAM3 mask video to reconstruct removed regions.",
+      "zh": "可运行的视频移除模板，使用源视频和 SAM3 遮罩视频重建被移除区域。"
+    },
+    "category": "video",
     "tags": [
-      "user",
-      "canvas"
+      "video",
+      "wan",
+      "wan-remover",
+      "sam3",
+      "removal",
+      "inpaint",
+      "mask",
+      "runnable",
+      "视频移除",
+      "局部编辑"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Video removal",
+      "zh": "视频移除"
+    },
     "model_dependency": {
       "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点和 4 个模型依赖。运行前请检查模型。",
+      "label": {
+        "en": "Requires video + models",
+        "zh": "需要视频和模型"
+      },
+      "note": {
+        "en": "Requires MiniMaxRemover, SAM3.1, Wan VAE, RIFE, and a source/mask video pair.",
+        "zh": "需要 MiniMaxRemover、SAM3.1、Wan VAE、RIFE，以及源视频/遮罩视频组合。"
+      },
       "models": [
-        "diffusion_models,Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors,2254156824,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors",
-        "checkpoints,sam3.1_multiplex_fp16.safetensors,1745546848,0,https://www.modelscope.cn/models/Comfy-Org/sam3.1/resolve/master/checkpoints/sam3.1_multiplex_fp16.safetensors",
-        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
-        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+        "Wan2_1-MiniMaxRemover_1_3B_fp16.safetensors",
+        "sam3.1_multiplex_fp16.safetensors",
+        "wan_2.1_vae.safetensors",
+        "flownet.pkl"
       ]
     },
-    "preview": "",
-    "saved_at": "2026-06-06T06:57:43Z"
+    "preview": ""
   }
 }

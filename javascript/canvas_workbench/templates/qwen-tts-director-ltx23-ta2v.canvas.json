@@ -24,8 +24,8 @@
       "title": "1. Narration Audio / 旁白音频",
       "x": -180,
       "y": -160,
-      "w": 680,
-      "h": 760,
+      "w": 684,
+      "h": 1120,
       "color": "#14b8a6",
       "alpha": 0.12,
       "shortcut": "1",
@@ -36,8 +36,8 @@
       "title": "2. Director / 导演时间轴",
       "x": 580,
       "y": -160,
-      "w": 780,
-      "h": 940,
+      "w": 836,
+      "h": 1792,
       "color": "#2563eb",
       "alpha": 0.09,
       "shortcut": "2",
@@ -48,8 +48,8 @@
       "title": "3. LTX2.3 Video / LTX2.3 视频",
       "x": 1460,
       "y": -160,
-      "w": 1120,
-      "h": 1160,
+      "w": 1588,
+      "h": 1264,
       "color": "#f97316",
       "alpha": 0.11,
       "shortcut": "3",
@@ -122,10 +122,10 @@
     {
       "id": "qwen_director_audio_result",
       "type": "result",
-      "x": 420,
-      "y": 76,
+      "x": 960,
+      "y": -120,
       "w": 360,
-      "h": 300,
+      "h": 330,
       "title": "Narration Audio Result / 旁白音频 Result",
       "producer": {
         "qwen_tts_node_id": "qwen_director_tts",
@@ -172,8 +172,8 @@
       "type": "director_timeline",
       "x": 640,
       "y": 236,
-      "w": 620,
-      "h": 760,
+      "w": 728,
+      "h": 1348,
       "title": "Director Timeline / 导演时间轴",
       "director": {
         "schema": "simpai.director_timeline.v1",
@@ -234,22 +234,6 @@
       "status": {
         "state": "idle",
         "message": "Director prompt_override is sent to LTX2.3 prompt."
-      }
-    },
-    {
-      "id": "qwen_director_negative",
-      "type": "text",
-      "x": 640,
-      "y": 1048,
-      "w": 620,
-      "h": 120,
-      "title": "Negative Prompt / 负向提示词",
-      "text": {
-        "value": "字幕，中文字幕，水印，blurry, oversaturated, pixelated, low resolution, distorted, noise, compression artifacts, logo, distorted sound, saturated sound",
-        "updated_at": "2026-06-18T00:00:00Z"
-      },
-      "source": {
-        "kind": "template_prompt"
       }
     },
     {
@@ -387,7 +371,7 @@
         }
       },
       "runtime": {
-        "backend_engine": "Comfy",
+        "backend_engine": "LTX",
         "engine_type": "video",
         "scene_frontend": "v1.1",
         "scene_theme": "Text+Audio to Video",
@@ -459,14 +443,6 @@
             "interactive": true,
             "min": 24,
             "max": 50
-          },
-          {
-            "key": "scene_switch_option1",
-            "label": "Generate with audio input [trim to configured duration]",
-            "type": "checkbox",
-            "default": true,
-            "visible": false,
-            "interactive": false
           }
         ],
         "per_theme": {
@@ -476,7 +452,6 @@
               "scene_var_number": 8,
               "scene_var_number2": 30,
               "scene_var_number7": 30,
-              "scene_switch_option1": true,
               "prompt": "",
               "scene_aspect_ratio": "896|1:1"
             },
@@ -595,7 +570,7 @@
       },
       "text_inputs": {
         "prompt": "qwen_director_timeline",
-        "negative_prompt": "qwen_director_negative"
+        "negative_prompt": null
       },
       "params": {
         "prompt": "",
@@ -604,7 +579,6 @@
         "image_seed": 0,
         "scene_var_number2": 30,
         "scene_var_number7": 30,
-        "scene_switch_option1": true,
         "scene_video_duration": 8
       },
       "status": "idle",
@@ -617,10 +591,10 @@
     {
       "id": "qwen_director_ltx_result",
       "type": "result",
-      "x": 2020,
-      "y": 640,
+      "x": 2592,
+      "y": -72,
       "w": 420,
-      "h": 320,
+      "h": 330,
       "title": "LTX2.3 Video Result / LTX2.3 视频结果",
       "producer": {
         "preset_node_id": "qwen_director_ltx_preset",
@@ -675,13 +649,6 @@
       "slot": "prompt"
     },
     {
-      "id": "qwen_director_edge_negative",
-      "type": "text",
-      "from": "qwen_director_negative",
-      "to": "qwen_director_ltx_preset",
-      "slot": "negative_prompt"
-    },
-    {
       "id": "qwen_director_edge_scene_audio",
       "type": "upload",
       "from": "qwen_director_audio_result",
@@ -732,6 +699,6 @@
       "ta2v",
       "video",
       "runnable"
-    ]
+      ]
   }
 }

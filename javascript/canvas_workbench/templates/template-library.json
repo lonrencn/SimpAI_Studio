@@ -8,14 +8,14 @@
         "zh": "画布快速入门"
       },
       "description": {
-        "en": "A model-free starter canvas for navigation, node selection, ports, Inspector, and the template library.",
-        "zh": "不依赖模型的入门画布，介绍导航、节点选择、接口、Inspector 和模板库。"
+        "en": "A model-free canvas with one blank Image node for local image upload.",
+        "zh": "只包含一个空白图像节点，用于上传本地图片。"
       },
       "category": "starter",
-      "tags": ["starter", "onboarding", "basics"],
+      "tags": ["starter", "image", "upload"],
       "type_label": {
-        "en": "Node graph",
-        "zh": "节点图"
+        "en": "Image upload",
+        "zh": "图片上传"
       },
       "model_dependency": {
         "mode": "model_free",
@@ -24,8 +24,8 @@
           "zh": "无模型依赖"
         },
         "note": {
-          "en": "Safe to browse and edit without installed models.",
-          "zh": "无需安装模型即可浏览和编辑。"
+          "en": "No generation model is required for the blank upload node.",
+          "zh": "空白上传节点不需要生成模型。"
         }
       },
       "path": "javascript/canvas_workbench/demo/infinite-canvas-demo-workbench.canvas.json",

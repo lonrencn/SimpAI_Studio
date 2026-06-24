@@ -1,0 +1,45 @@
+import importlib
+import traceback
+
+
+NODE_MODULES = [
+    ("SimpAIPainterAV2V", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"),
+    ("SimpAIBerniniLongVideoConditioning", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"),
+    ("SimpAISelectVideoKeyframes", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"),
+    ("SimpAISelectTimedPrompt", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"),
+    ("SimpAIBerniniBestFrameWindow", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"),
+    ("SimpAIOptionalVideoPath", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"),
+    ("SimpAIOptionalTrimAudioDuration", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"),
+]
+
+NODE_CLASS_MAPPINGS = {}
+NODE_DISPLAY_NAME_MAPPINGS = {}
+failed_modules = []
+
+for module_name, class_map_name, display_name_map_name in NODE_MODULES:
+    try:
+        module = importlib.import_module(f"{__name__}.{module_name}")
+        NODE_CLASS_MAPPINGS.update(getattr(module, class_map_name, {}))
+        NODE_DISPLAY_NAME_MAPPINGS.update(getattr(module, display_name_map_name, {}))
+    except Exception as err:
+        failed_modules.append({
+            "name": module_name,
+            "error": str(err),
+            "traceback": traceback.format_exc(),
+        })
+
+if failed_modules:
+    print(f"[SimpAINodes] Found {len(failed_modules)} failed modules:")
+    for failed in failed_modules:
+        print(f"\n[SimpAINodes] Failed to import module {failed['name']}: {failed['error']}")
+        print(f"Detailed error information:\n{failed['traceback']}")
+
+print(f"[SimpAINodes] Loaded {len(NODE_CLASS_MAPPINGS)} nodes successfully.")
+
+__version__ = "1.0.0"
+
+__all__ = [
+    "NODE_CLASS_MAPPINGS",
+    "NODE_DISPLAY_NAME_MAPPINGS",
+    "__version__",
+]

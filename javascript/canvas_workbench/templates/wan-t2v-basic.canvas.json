@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "wan_t2v_basic_20260604122906_template_20260604123655_20260606071329_template_202",
+  "id": "wan_t2v_basic",
   "title": "Wan 文生视频基础",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-06T07:14:10Z",
@@ -17,8 +17,6 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__minimap_initialized": true,
-    "__template_source": "user",
     "canvasAgent": {
       "enabled": true,
       "executionRoute": "programmatic",
@@ -173,32 +171,32 @@
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 2.0
+              "weight": 2
             }
           ]
         },
@@ -211,32 +209,32 @@
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 2.0
+              "weight": 2
             },
             {
               "enabled": true,
@@ -501,32 +499,32 @@
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 2.0
+              "weight": 2
             }
           ]
         },
@@ -539,32 +537,32 @@
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "None",
-              "weight": 1.0
+              "weight": 1
             },
             {
               "enabled": true,
               "model": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-              "weight": 2.0
+              "weight": 2
             },
             {
               "enabled": true,
@@ -637,7 +635,7 @@
       "generation_config": {
         "mode": "external_override",
         "defaults": {
-          "guidance_scale": 1.0,
+          "guidance_scale": 1,
           "sharpness": 2,
           "overwrite_step": 6,
           "sampler_name": "euler",
@@ -647,7 +645,7 @@
           "image_number": 1
         },
         "overrides": {
-          "guidance_scale": 1.0,
+          "guidance_scale": 1,
           "sharpness": 2,
           "overwrite_step": 6,
           "sampler_name": "euler",
@@ -709,7 +707,7 @@
       "target_preset_id": "wan_t2v_preset",
       "config": {
         "defaults": {
-          "guidance_scale": 1.0,
+          "guidance_scale": 1,
           "sharpness": 2,
           "overwrite_step": 6,
           "sampler_name": "euler",
@@ -719,7 +717,7 @@
           "image_number": 1
         },
         "values": {
-          "guidance_scale": 1.0,
+          "guidance_scale": 1,
           "sharpness": 2,
           "overwrite_step": 6,
           "sampler_name": "euler",
@@ -810,29 +808,48 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "wan_t2v_basic_20260604122906_template_20260604123655_20260606071329_template_202",
-    "title": "Wan 文生视频基础",
-    "description": "从当前画布保存。",
-    "category": "image",
+    "id": "wan_t2v_basic",
+    "title": {
+      "en": "Wan T2V Basic",
+      "zh": "Wan 文生视频基础"
+    },
+    "description": {
+      "en": "A runnable Wan2.2 text-to-video template with motion prompt, video parameters, model checks, Run Queue, and video Result placeholder.",
+      "zh": "可运行的 Wan2.2 文生视频模板，包含动态提示词、视频参数、模型检查、运行队列和视频结果占位。"
+    },
+    "category": "video",
     "tags": [
-      "user",
-      "canvas"
+      "video",
+      "wan",
+      "wan2.2",
+      "t2v",
+      "text-to-video",
+      "motion",
+      "runnable"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Text to video",
+      "zh": "文生视频"
+    },
     "model_dependency": {
       "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点和 6 个模型依赖。运行前请检查模型。",
+      "label": {
+        "en": "Requires models",
+        "zh": "需要模型"
+      },
+      "note": {
+        "en": "Requires Wan T2V model files before Run.",
+        "zh": "运行前需要 Wan T2V 模型文件。"
+      },
       "models": [
-        "diffusion_models,Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors,14289633352,0,https://www.modelscope.cn/models/huyuefeitool/wan2.2-Remix/resolve/master/Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors ",
-        "diffusion_models,wan2.2_bernini_r_low_noise_fp8_scaled.safetensors,15574833216,0,https://www.modelscope.cn/models/Comfy-Org/Bernini-R/resolve/master/diffusion_models/wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
-        "loras,lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors,630697104,0,https://modelscope.cn/models/Kijai/WanVideo_comfy/resolve/master/Lightx2v/lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
-        "text_encoders,nsfw_wan_umt5-xxl_bf16_fixed.safetensors,11366399625,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/text_encoders/wan_umt5-xxl_bf16_fixed.safetensors",
-        "vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors",
-        "controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl"
+        "Wan2.2_Remix_SFW_t2v_14b_high_lighting_v1.0_dyno.safetensors",
+        "wan2.2_bernini_r_low_noise_fp8_scaled.safetensors",
+        "nsfw_wan_umt5-xxl_bf16_fixed.safetensors",
+        "wan_2.1_vae.safetensors",
+        "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank64_bf16.safetensors",
+        "flownet.pkl"
       ]
     },
-    "preview": "",
-    "saved_at": "2026-06-06T07:14:10Z"
+    "preview": ""
   }
 }

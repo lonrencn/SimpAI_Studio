@@ -3,8 +3,12 @@
   "id": "canvas_quick_start",
   "title": "Canvas Quick Start / 画布快速入门",
   "created_at": "2026-05-23T00:00:00Z",
-  "updated_at": "2026-05-23T00:00:00Z",
-  "viewport": { "x": 260, "y": 150, "zoom": 0.82 },
+  "updated_at": "2026-06-24T08:39:41Z",
+  "viewport": {
+    "x": 120,
+    "y": 120,
+    "zoom": 0.9
+  },
   "settings": {
     "grid": true,
     "snap": false,
@@ -12,132 +16,84 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__demo_initialized": true,
-    "__onboarding_template": true,
-    "__onboarding_checklist_title": {
-      "en": "Quick Start Checklist",
-      "zh": "快速入门清单"
-    },
-    "__onboarding_checklist_steps": [
-      {
-        "key": "quick_select",
-        "action": "select_node",
-        "icon": "fa-arrow-pointer",
-        "title": { "en": "Select any node", "zh": "选中任意节点" },
-        "detail": { "en": "Click a note or text node and drag it around.", "zh": "点击提示贴或文本节点，并试着拖动。" }
-      },
-      {
-        "key": "quick_inspector",
-        "action": "inspect_node",
-        "icon": "fa-sliders",
-        "title": { "en": "Inspect details", "zh": "查看 Inspector" },
-        "detail": { "en": "Keep a node selected and check the right inspector.", "zh": "保持选中节点，在右侧检查参数。" }
-      },
-      {
-        "key": "quick_text",
-        "action": "focus_node",
-        "target_node_id": "quick_text_prompt",
-        "icon": "fa-font",
-        "title": { "en": "Find the Text node", "zh": "找到 Text 节点" },
-        "detail": { "en": "Text nodes can feed prompt ports.", "zh": "Text 节点可以接入 prompt 接口。" }
-      },
-      {
-        "key": "quick_templates",
-        "action": "template_library",
-        "icon": "fa-graduation-cap",
-        "title": { "en": "Open Template Library", "zh": "打开模板库" },
-        "detail": { "en": "Starter canvases live in the template library.", "zh": "新手模板都在模板库中。" }
-      },
-      {
-        "key": "quick_queue",
-        "action": "run_queue",
-        "icon": "fa-list-check",
-        "title": { "en": "Open Run Queue", "zh": "打开运行队列" },
-        "detail": { "en": "Use it to inspect progress and recent outputs.", "zh": "用它查看进度和最近结果。" }
-      }
-    ]
+    "__demo_initialized": true
   },
-  "groups": [
-    { "id": "quick_group_start", "title": "1. First Look / 先看这里", "x": -120, "y": -120, "w": 520, "h": 360, "color": "#14b8a6", "alpha": 0.14, "shortcut": "1", "locked": false },
-    { "id": "quick_group_nodes", "title": "2. Nodes And Ports / 节点与接口", "x": 460, "y": -120, "w": 560, "h": 450, "color": "#2563eb", "alpha": 0.12, "shortcut": "2", "locked": false },
-    { "id": "quick_group_run", "title": "3. Run And Inspect / 运行与检查", "x": 1080, "y": -120, "w": 560, "h": 360, "color": "#22c55e", "alpha": 0.11, "shortcut": "3", "locked": false }
-  ],
+  "groups": [],
   "nodes": [
     {
-      "id": "quick_note_welcome",
-      "type": "note",
-      "x": -60,
-      "y": -50,
-      "w": 390,
-      "h": 150,
-      "title": "Welcome / 欢迎",
-      "text": "This starter canvas is safe to edit. Select any node, drag it around, then inspect its settings on the right. / 这个入门画布可以放心编辑。选中任意节点、拖动它，然后在右侧 Inspector 查看设置。",
-      "style": { "color": "#f8fafc", "background": "#164e63", "font_size": 14 },
-      "source": { "kind": "canvas_note" }
-    },
-    {
-      "id": "quick_note_library",
-      "type": "note",
-      "x": -60,
-      "y": 120,
-      "w": 390,
-      "h": 95,
-      "title": "Template Library / 模板库",
-      "text": "Use the top Template Library button to create guided starter projects. / 用顶部“模板库”按钮创建引导模板。",
-      "style": { "color": "#f8fafc", "background": "#0f766e", "font_size": 13 },
-      "source": { "kind": "canvas_note" }
-    },
-    {
-      "id": "quick_note_ports",
-      "type": "note",
-      "x": 520,
-      "y": -50,
-      "w": 430,
-      "h": 120,
-      "title": "Nodes And Ports / 节点与接口",
-      "text": "Nodes are tools or media. Drag from an output port to a matching input port to build a chain. Port colors show media, text, config, and generation links. / 节点代表工具或素材。从输出接口拖到匹配输入接口即可搭建链路。",
-      "style": { "color": "#f8fafc", "background": "#1d4ed8", "font_size": 13 },
-      "source": { "kind": "canvas_note" }
-    },
-    {
-      "id": "quick_text_prompt",
-      "type": "text",
-      "x": 535,
-      "y": 95,
-      "w": 380,
-      "h": 220,
-      "title": "Example Text Node / 示例文本节点",
-      "text": {
-        "value": "a cozy studio desk, warm light, organized creative tools / 温暖灯光下的创作书桌，整齐的工具与素材",
-        "updated_at": "2026-05-23T00:00:00Z"
+      "id": "quick_start_image_input",
+      "type": "image",
+      "x": -336,
+      "y": -360,
+      "w": 648,
+      "h": 432,
+      "title": "Image Input / 图像输入",
+      "display_mode": "frameless",
+      "asset": null,
+      "mask": null,
+      "status": {
+        "state": "waiting",
+        "message": "Click the empty node body to upload an image. / 点击空白节点主体上传图片。"
       },
-      "source": { "kind": "onboarding_text" }
+      "source": {
+        "kind": "quick_start_image_upload",
+        "slot": "scene_canvas_image"
+      }
     },
     {
-      "id": "quick_note_run",
+      "id": "note_mqrkagnr_b8b2de",
       "type": "note",
-      "x": 1140,
-      "y": -50,
-      "w": 430,
-      "h": 120,
-      "title": "Run Queue / 运行队列",
-      "text": "When you run a preset chain, the top Run Queue widget shows active tasks, progress, failed runs, and recent results. / 运行 preset 链路时，顶部运行队列控件会显示任务与进度。",
-      "style": { "color": "#052e16", "background": "#bbf7d0", "font_size": 13 },
-      "source": { "kind": "canvas_note" }
+      "x": -768,
+      "y": -120,
+      "w": 384,
+      "h": 192,
+      "title": "图像编辑",
+      "text": "1，点击上传图片\n2，右键选择工具\n3，按工具指引执行",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#164e63",
+        "font_size": 14
+      },
+      "source": {
+        "kind": "canvas_note"
+      },
+      "collapsed": false,
+      "tail": {
+        "enabled": false,
+        "target": {
+          "x": -360,
+          "y": -144
+        }
+      }
     },
     {
-      "id": "quick_note_inspector",
+      "id": "note_mqrm9eun_88a618",
       "type": "note",
-      "x": 1140,
-      "y": 95,
-      "w": 430,
-      "h": 115,
-      "title": "Inspector",
-      "text": "The right Inspector exposes full node details. Collapse it when you need space; hover the edge handle to bring it back. / 右侧 Inspector 展示节点完整参数。需要空间时可以折叠。",
-      "style": { "color": "#f8fafc", "background": "#166534", "font_size": 13 },
-      "source": { "kind": "canvas_note" }
+      "x": -768,
+      "y": -360,
+      "w": 384,
+      "h": 216,
+      "title": "文生图",
+      "text": "1，寻找界面上的画布Agent框（或悬浮球）\n2，输入提示词\n3，点击新建文生图\n4，可以选择使用原文\n5，可以选择 Agent优化（需要下载llm模型或api key）\n6，选择使用的目标Preset（默认为Z-image-Turbo）\n7，点击开始\n",
+      "style": {
+        "color": "#f8fafc",
+        "background": "#046e95",
+        "font_size": 14
+      },
+      "source": {
+        "kind": "canvas_note"
+      },
+      "collapsed": false,
+      "tail": {
+        "enabled": false,
+        "target": {
+          "x": 316,
+          "y": -196
+        }
+      },
+      "locked": false
     }
   ],
   "edges": [],
   "runs": []
-}
+  }

@@ -4810,6 +4810,7 @@ function reconcileSceneVisibilityForPreset(system_params) {
         scene_switch_option4: "scene_switch_option4",
         scene_image_number: "scene_image_number",
         scene_video: "scene_video",
+        scene_reference_video: "scene_reference_video",
         scene_audio: "scene_audio",
     };
 

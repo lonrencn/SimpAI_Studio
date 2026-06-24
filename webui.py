@@ -2607,6 +2607,7 @@ with shared.gradio_root:
     scene_audio_backup = gr.State(None)
     scene_original_video_path = gr.State(None)
     scene_original_video_backup = gr.State(None)
+    scene_reference_video_original_path = gr.State(None)
     active_video_source = gr.State(None)
     resolution_source_meta = gr.Textbox(value="{}", visible="hidden", elem_id="resolution_source_meta", elem_classes=["resolution-hidden-control"])
     resolution_quantize_step = gr.Number(value=flags.default_resolution_quantize_step, visible="hidden", elem_id="resolution_quantize_step", elem_classes=["resolution-hidden-control"])
@@ -3707,6 +3708,7 @@ with shared.gradio_root:
 
                         scene_video = gr.Video(label="Video (Upload)", visible=True, sources=["upload"], height=400, elem_id="scene_video", elem_classes=['simpai-mounted-hidden'])
                         scene_video_placeholder = gr.HTML('<div style="height: 400px; display: flex; align-items: center; justify-content: center; border: 2px dashed #ccc; border-radius: 8px; background: rgba(128,128,128,0.1); color: #888; font-size: 16px;"><span>Hide When Generating...</span></div>', visible=False, elem_id="scene_video_placeholder")
+                        scene_reference_video = gr.Video(label="Reference Video (Upload)", visible=True, sources=["upload"], height=300, elem_id="scene_reference_video", elem_classes=['simpai-mounted-hidden'])
                         scene_canvas_image = create_sketch_image(label='Upload and canvas(1)', show_label=True, type='numpy', height=420, width=630, brush_color="#70FF81", image_mode='RGBA', elem_id='scene_canvas')
                         with gr.Row(elem_id="scene_input_images") as scene_input_images:
                             scene_input_image1 = gr.Image(label='Upload prompt image(2)', value=None, sources=['upload'], type='numpy', image_mode='RGBA', show_label=True, height=300, buttons=["fullscreen"], elem_id="scene_input_image1")
@@ -3912,6 +3914,17 @@ with shared.gradio_root:
                                 gr.Warning(f"Compression failed: {e}")
                                 return video_path, video_path, "scene", meta
 
+                        def on_reference_video_upload(video_path):
+                            if video_path is None:
+                                return None, None
+                            try:
+                                preview_path = util.compress_video(video_path)
+                                gr.Info("Compression completed!")
+                                return preview_path, video_path
+                            except Exception as e:
+                                gr.Warning(f"Compression failed: {e}")
+                                return video_path, video_path
+
                         def on_sam3_video_upload(video_path):
                             preview_path, original_path, source = sam3_video_mask.on_video_upload_with_preview(video_path)
                             meta = build_resolution_video_meta(original_path or video_path, "sam3_input_video", "sam3") if video_path is not None else "{}"
@@ -3962,6 +3975,8 @@ with shared.gradio_root:
 
                         scene_video.upload(on_video_upload, inputs=[scene_video], outputs=[scene_video, scene_original_video_path, active_video_source, resolution_source_meta], show_progress=True, queue=False) \
                             .then(lambda: None, js='()=>{if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("scene_video", "upload");}')
+                        scene_reference_video.upload(on_reference_video_upload, inputs=[scene_reference_video], outputs=[scene_reference_video, scene_reference_video_original_path], show_progress=True, queue=False)
+                        scene_reference_video.clear(lambda: None, outputs=[scene_reference_video_original_path], queue=False, show_progress=False)
                         scene_resolution_control = create_scene_resolution_control()
                         scene_resolution_override_accordion = scene_resolution_control.container
                         scene_use_resolution_override_checkbox = scene_resolution_control.use_override_checkbox
@@ -7751,7 +7766,7 @@ with shared.gradio_root:
                 queue=False,
                 show_progress=True
             )
-            scene_params = [scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_video_duration, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_mask_color_state, scene_video, scene_audio]
+            scene_params = [scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_video_duration, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_mask_color_state, scene_video, scene_reference_video, scene_audio]
             scene_preset_save_names = ["scene_theme", "scene_additional_prompt", "scene_additional_prompt_2", "scene_video_duration", "scene_var_number", "scene_var_number2", "scene_var_number3", "scene_var_number4", "scene_var_number5", "scene_var_number6", "scene_var_number7", "scene_var_number8", "scene_var_number9", "scene_var_number10", "scene_steps", "scene_switch_option1", "scene_switch_option2", "scene_switch_option3", "scene_switch_option4", "scene_aspect_ratio", "scene_image_number"]
             scene_preset_save_ctrls = [scene_theme, scene_additional_prompt, scene_additional_prompt_2, scene_video_duration, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number]
             scene_director_inputs = [scene_director_enabled, scene_director_compose, scene_director_editor_state, scene_director_width, scene_director_height, scene_director_fps, scene_director_duration, scene_director_format, scene_director_media_state, state_topbar, scene_theme]
@@ -8135,7 +8150,62 @@ with shared.gradio_root:
                 console.warn("[UI-TRACE] scene_sketch_flush_failed", e);
             }
         }"""
-        generation_start_js = """() => {
+        generation_start_js = """(...args) => {
+            const rootById = (id) => {
+                try {
+                    return (typeof getGradioRootById === "function" ? getGradioRootById(id) : null)
+                        || document.getElementById(id)
+                        || (typeof gradioApp === "function" ? gradioApp().querySelector(`#${id}`) : null);
+                } catch (e) {
+                    return null;
+                }
+            };
+            const setVisible = (id, visible) => {
+                try {
+                    if (typeof setGradioComponentVisible === "function" && setGradioComponentVisible(id, visible)) return;
+                } catch (e) {}
+                const root = rootById(id);
+                if (!root) return;
+                if (visible) {
+                    root.hidden = false;
+                    root.removeAttribute("hidden");
+                    root.removeAttribute("aria-hidden");
+                    root.classList.remove("hidden", "hide");
+                    root.style.removeProperty("display");
+                    root.style.removeProperty("pointer-events");
+                    root.style.removeProperty("visibility");
+                } else {
+                    root.hidden = true;
+                    root.classList.add("hidden", "hide");
+                    root.setAttribute("aria-hidden", "true");
+                    root.style.setProperty("display", "none", "important");
+                    root.style.setProperty("pointer-events", "none", "important");
+                }
+            };
+            const setInteractive = (id, interactive) => {
+                try {
+                    if (typeof setGradioButtonInteractive === "function") {
+                        setGradioButtonInteractive(id, interactive);
+                        return;
+                    }
+                } catch (e) {}
+                const root = rootById(id);
+                const button = root?.matches?.("button") ? root : root?.querySelector?.("button");
+                if (!button) return;
+                button.disabled = !interactive;
+                button.setAttribute("aria-disabled", String(!interactive));
+                button.classList.toggle("disabled", !interactive);
+            };
+            try {
+                setVisible("generate_button", false);
+                setInteractive("generate_button", false);
+                setVisible("stop_button", true);
+                setInteractive("stop_button", false);
+                setVisible("skip_button", true);
+                setInteractive("skip_button", false);
+            } catch (e) {
+                console.warn("[UI-TRACE] generation_button_prepare_failed", e);
+            }
             try {
                 if (window.SimpAISketch?.flushAll) window.SimpAISketch.flushAll({ force: true, change: true });
             } catch (e) {
@@ -8148,6 +8218,7 @@ with shared.gradio_root:
             } catch (e) {
                 console.warn("[UI-TRACE] preset_gallery.generate_clear_failed", e);
             }
+            return args;
         }"""
         preview_start_js = """() => {
             try {
@@ -8272,7 +8343,8 @@ with shared.gradio_root:
                 logger.info(
                     "[UI-TRACE] scene_frontend_ctrls.index | "
                     f"camera=7, anglelight=8, style=9, sam3=10, pose_studio=11, gaussian_studio=12, scene_resolution_accordion=13, "
-                    f"scene_resolution_checkbox=14, scene_resolution_html=15, sam3_input=43, sam3_original=44, sam3_mask=45, sam3_trim=46, len={len(scene_frontend_ctrls)}"
+                    f"scene_resolution_checkbox=14, scene_resolution_html=15, scene_video=42, scene_reference_video=43, scene_audio=44, "
+                    f"sam3_input=45, sam3_original=46, sam3_mask=47, sam3_trim=48, len={len(scene_frontend_ctrls)}"
                 )
             except Exception:
                 pass
@@ -8924,7 +8996,7 @@ with shared.gradio_root:
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
                 overwrite_width, overwrite_height, resolution_multiplier, resolution_quantize_step,
                 resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload, overwrite_step,
-                scene_director_enabled, scene_director_state, scene_video_duration,
+                scene_director_enabled, scene_director_state, scene_video_duration, scene_reference_video, scene_reference_video_original_path,
             ],
             outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating, index_radio, image_toolbox, prompt_info_box, image_seed, params_backend] + protections + [preset_store, identity_dialog],
             show_progress=False,
@@ -8971,7 +9043,7 @@ with shared.gradio_root:
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
                 overwrite_width, overwrite_height, resolution_multiplier, resolution_quantize_step,
                 resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload, overwrite_step,
-                scene_director_enabled, scene_director_state, scene_video_duration,
+                scene_director_enabled, scene_director_state, scene_video_duration, scene_reference_video, scene_reference_video_original_path,
             ],
             outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating, index_radio, image_toolbox, prompt_info_box, image_seed, params_backend] + protections + [preset_store, identity_dialog],
             show_progress=False,
@@ -10292,6 +10364,7 @@ def _canvas_workbench_standalone_html(request: Request):
         webpath("javascript/canvas_workbench/nodes/pose_studio_node.js"),
         webpath("javascript/canvas_workbench/nodes/gaussian_studio_node.js"),
         webpath("javascript/canvas_workbench/nodes/qwen_tts_node.js"),
+        webpath("javascript/canvas_workbench/nodes/director_timeline_node.js"),
         webpath("javascript/canvas_workbench/nodes/style_selector_node.js"),
         webpath("javascript/canvas_workbench/sketch_adapter.js"),
         webpath("javascript/infinite_canvas_workbench.js"),

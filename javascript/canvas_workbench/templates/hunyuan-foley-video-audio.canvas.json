@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "hunyuan_foley_video_audio_20260605070749_template_20260605071057",
+  "id": "hunyuan_foley_video_audio",
   "title": "Hunyuan-Foley 视频音效",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-05T07:10:58Z",
@@ -17,8 +17,6 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__minimap_initialized": true,
-    "__template_source": "user",
     "canvasAgent": {
       "enabled": true,
       "executionRoute": "programmatic",
@@ -797,33 +795,49 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "hunyuan_foley_video_audio_20260605070749_template_20260605071057",
-    "title": "Hunyuan-Foley 视频音效",
-    "description": "从当前画布保存。",
-    "category": "image",
+    "id": "hunyuan_foley_video_audio",
+    "title": {
+      "en": "Hunyuan-Foley Video Audio",
+      "zh": "Hunyuan-Foley 视频音效"
+    },
+    "description": {
+      "en": "A runnable Foley template that adds generated sound effects to an imported or generated source video.",
+      "zh": "可运行的 Foley 模板，为导入或生成的源视频添加生成音效。"
+    },
+    "category": "video",
     "tags": [
-      "user",
-      "canvas"
+      "video",
+      "audio",
+      "foley",
+      "hunyuan",
+      "sound-effects",
+      "timeline",
+      "runnable",
+      "拟音",
+      "音效"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Video foley",
+      "zh": "视频拟音"
+    },
     "model_dependency": {
       "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点和 10 个模型依赖。运行前请检查模型。",
+      "label": {
+        "en": "Requires video + models",
+        "zh": "需要视频和模型"
+      },
+      "note": {
+        "en": "Requires Hunyuan-Foley CLAP, SigLIP2, Synchformer, Foley XL, audio VAE files, and a source video.",
+        "zh": "需要 Hunyuan-Foley 的 CLAP、SigLIP2、Synchformer、Foley XL、audio VAE 文件，以及源视频。"
+      },
       "models": [
-        "hunyuan_foley,clap/config.json,643,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/config.json",
-        "hunyuan_foley,clap/merges.txt,456318,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/merges.txt",
-        "hunyuan_foley,clap/pytorch_model.bin,776444665,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/pytorch_model.bin",
-        "hunyuan_foley,clap/vocab.json,798293,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/clap/vocab.json",
-        "hunyuan_foley,hunyuanvideo_foley_xl.pth,5854140970,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/hunyuanvideo_foley_xl.pth",
-        "hunyuan_foley,siglip2/config.json,276,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/siglip2/config.json",
-        "hunyuan_foley,siglip2/model.safetensors,1503344520,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/siglip2/model.safetensors",
-        "hunyuan_foley,siglip2/preprocessor_config.json,394,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/siglip2/preprocessor_config.json",
-        "hunyuan_foley,synchformer_state_dict.pth,950058171,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/synchformer_state_dict.pth",
-        "hunyuan_foley,vae_128d_48k.pth,1486465965,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/hunyuan_foley/vae_128d_48k.pth"
+        "hunyuanvideo_foley_xl.pth",
+        "synchformer_state_dict.pth",
+        "vae_128d_48k.pth",
+        "clap/pytorch_model.bin",
+        "siglip2/model.safetensors"
       ]
     },
-    "preview": "",
-    "saved_at": "2026-06-05T07:10:58Z"
+    "preview": ""
   }
 }

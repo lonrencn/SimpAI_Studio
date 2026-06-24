@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "model_readiness_basics_20260605061025_template_20260605061329",
+  "id": "model_readiness_basics",
   "title": "模型就绪入门",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-05T06:13:30Z",
@@ -16,111 +16,7 @@
     "minimap": true,
     "edgeLabels": true,
     "reducedMotion": false,
-    "inspectorCollapsed": false,
-    "__onboarding_template": true,
-    "__onboarding_checklist_title": {
-      "en": "Model Readiness Tour",
-      "zh": "模型就绪导览"
-    },
-    "__onboarding_checklist_steps": [
-      {
-        "key": "models_ready",
-        "action": "focus_node",
-        "target_node_id": "model_status_ready",
-        "inspect": true,
-        "icon": "fa-circle-check",
-        "title": {
-          "en": "Ready means runnable",
-          "zh": "Ready 表示可运行"
-        },
-        "detail": {
-          "en": "Ready presets have all required model files.",
-          "zh": "Ready 的 Preset 已具备所需模型文件。"
-        }
-      },
-      {
-        "key": "models_missing",
-        "action": "check_models",
-        "target_node_id": "model_status_missing",
-        "inspect": true,
-        "icon": "fa-triangle-exclamation",
-        "title": {
-          "en": "Try the missing state",
-          "zh": "查看 Missing 状态"
-        },
-        "detail": {
-          "en": "Missing means inspectable but not reliably runnable.",
-          "zh": "Missing 表示能查看编辑，但不能可靠运行。"
-        }
-      },
-      {
-        "key": "models_queued",
-        "action": "focus_node",
-        "target_node_id": "model_status_queued",
-        "icon": "fa-cloud-arrow-down",
-        "title": {
-          "en": "Queued means downloading",
-          "zh": "Queued 表示正在下载"
-        },
-        "detail": {
-          "en": "A download task was queued; wait before running.",
-          "zh": "下载任务已排队，运行前需要等待。"
-        }
-      },
-      {
-        "key": "models_error",
-        "action": "focus_node",
-        "target_node_id": "model_status_error",
-        "icon": "fa-circle-xmark",
-        "title": {
-          "en": "Check failed is recoverable",
-          "zh": "Check failed 可恢复"
-        },
-        "detail": {
-          "en": "Retry, inspect paths, or download manually.",
-          "zh": "可以重试、检查路径或手动下载。"
-        }
-      },
-      {
-        "key": "models_dependency_note",
-        "action": "focus_node",
-        "target_node_id": "model_note_template_dependency",
-        "icon": "fa-layer-group",
-        "title": {
-          "en": "Templates are not installs",
-          "zh": "模板不等于安装模型"
-        },
-        "detail": {
-          "en": "A template can load before its models are present.",
-          "zh": "模板可先加载，模型可稍后补齐。"
-        }
-      },
-      {
-        "key": "models_templates",
-        "action": "template_library",
-        "icon": "fa-graduation-cap",
-        "title": {
-          "en": "Return to templates",
-          "zh": "回到模板库"
-        },
-        "detail": {
-          "en": "Future runnable templates should show dependencies clearly.",
-          "zh": "未来可运行模板应清楚标注模型依赖。"
-        }
-      }
-    ],
-    "__minimap_initialized": true,
-    "__template_source": "user",
-    "__onboarding_checklist": {
-      "completed": {
-        "select_node": true,
-        "inspect_node": true,
-        "models_ready": true,
-        "models_missing": true,
-        "models_queued": true,
-        "models_error": true
-      }
-    }
+    "inspectorCollapsed": false
   },
   "groups": [
     {
@@ -694,22 +590,39 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "model_readiness_basics_20260605061025_template_20260605061329",
-    "title": "模型就绪入门",
-    "description": "从当前画布保存。",
+    "id": "model_readiness_basics",
+    "title": {
+      "en": "Model Readiness Basics",
+      "zh": "模型就绪入门"
+    },
+    "description": {
+      "en": "A model-free guide to Models ready, Missing, Checking, Queued, Check failed, and what to do before Run.",
+      "zh": "不依赖模型的指南，讲解 Models ready、Missing、Checking、Queued、Check failed，以及运行前该做什么。"
+    },
     "category": "starter",
     "tags": [
-      "user",
-      "canvas"
+      "starter",
+      "models",
+      "readiness",
+      "missing",
+      "download",
+      "preset"
     ],
-    "type_label": "用户模板",
-    "model_dependency": {
-      "mode": "model_free",
-      "label": "无模型依赖",
-      "note": "未检测到可运行的 Preset 或 Classic 节点。",
-      "models": []
+    "type_label": {
+      "en": "Model guide",
+      "zh": "模型引导"
     },
-    "preview": "",
-    "saved_at": "2026-06-05T06:13:30Z"
+    "model_dependency": {
+      "mode": "teaching_only",
+      "label": {
+        "en": "Teaching only",
+        "zh": "教学示例"
+      },
+      "note": {
+        "en": "Static model status examples; no backend check or download is required.",
+        "zh": "静态模型状态示例，不需要后端检查或下载。"
+      }
+    },
+    "preview": ""
   }
 }

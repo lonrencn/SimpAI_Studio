@@ -61,6 +61,10 @@
         const aspect = ASSETS.mediaAspectStyle ? ASSETS.mediaAspectStyle(node.asset) : '';
         const range = mediaRange(node.asset || {});
         const disabled = !!node.locked || !src || !range.duration;
+        const emptyUpload = `<button type="button" class="sai-node-empty sai-media-empty-upload" data-node-action="media-reload">${escapeHtml(t('No video', '无视频'))}</button>`;
+        const storyboard = src
+            ? renderStoryboard(node.asset || {}, range)
+            : `<button type="button" class="sai-media-storyboard sai-media-empty-upload sai-media-empty-upload-strip" data-node-action="media-reload"><i class="fa-solid fa-film"></i></button>`;
         return `
 <div class="sai-node-head">
   <span class="sai-node-kind">${escapeHtml(t('Video', '视频'))}</span>
@@ -71,8 +75,8 @@
   <button type="button" data-node-action="media-play-toggle" title="${escapeHtml(t('Play selection', '播放选区'))}"><i class="fa-solid fa-play"></i></button>
   <button type="button" data-node-action="delete" title="${escapeHtml(t('Delete', '删除'))}"><i class="fa-solid fa-xmark"></i></button>
 </div>
-<div class="sai-node-media sai-node-video-media"${aspect}>${src ? `<video src="${escapeHtml(src)}" muted preload="metadata" data-media-player></video><img class="sai-video-drag-preview" data-video-drag-preview alt="" hidden draggable="false">` : `<div class="sai-node-empty">${escapeHtml(t('No video', '无视频'))}</div>`}</div>
-${renderStoryboard(node.asset || {}, range)}
+<div class="sai-node-media sai-node-video-media${src ? '' : ' is-empty-upload'}"${aspect}>${src ? `<video src="${escapeHtml(src)}" muted preload="metadata" data-media-player></video><img class="sai-video-drag-preview" data-video-drag-preview alt="" hidden draggable="false">` : emptyUpload}</div>
+${storyboard}
 ${renderTrimControls(node, range, disabled)}
 ${renderDerivedInfo(node.asset || {}, range)}
 <div class="sai-node-info">${info.map(bit => `<span>${escapeHtml(bit)}</span>`).join('') || `<span>${escapeHtml(t('No metadata', '无元数据'))}</span>`}</div>

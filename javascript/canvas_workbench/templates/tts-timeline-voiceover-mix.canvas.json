@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "tts_timeline_voiceover_mix_20260606065922_template_20260606070026",
+  "id": "tts_timeline_voiceover_mix",
   "title": "TTS Timeline 配音混剪",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-06T07:00:27Z",
@@ -17,7 +17,6 @@
     "edgeLabels": true,
     "reducedMotion": false,
     "inspectorCollapsed": false,
-    "__minimap_initialized": true,
     "canvasAgent": {
       "enabled": true,
       "executionRoute": "programmatic",
@@ -61,8 +60,7 @@
       "panelPosition": null,
       "bubblePosition": null,
       "allowPresetInstructionOverride": true
-    },
-    "__template_source": "user"
+    }
   },
   "groups": [
     {
@@ -459,22 +457,48 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "tts_timeline_voiceover_mix_20260606065922_template_20260606070026",
-    "title": "TTS Timeline 配音混剪",
-    "description": "从当前画布保存。",
-    "category": "image",
-    "tags": [
-      "user",
-      "canvas"
-    ],
-    "type_label": "用户模板",
-    "model_dependency": {
-      "mode": "model_free",
-      "label": "无模型依赖",
-      "note": "未检测到可运行的 Preset 或 Classic 节点。",
-      "models": []
+    "id": "tts_timeline_voiceover_mix",
+    "title": {
+      "en": "TTS Timeline Voiceover Mix",
+      "zh": "TTS Timeline 配音混剪"
     },
-    "preview": "",
-    "saved_at": "2026-06-06T07:00:27Z"
+    "description": {
+      "en": "A runnable Qwen TTS to Timeline chain where narration audio Result is mixed with video and rendered as a final video Result.",
+      "zh": "可运行的 Qwen TTS 到 Timeline 链路：旁白音频 Result 与视频混剪后渲染为最终视频 Result。"
+    },
+    "category": "video",
+    "tags": [
+      "video",
+      "audio",
+      "tts",
+      "qwen",
+      "timeline",
+      "voiceover",
+      "mix",
+      "result",
+      "runnable",
+      "配音",
+      "混剪"
+    ],
+    "type_label": {
+      "en": "Voiceover timeline",
+      "zh": "配音 Timeline"
+    },
+    "model_dependency": {
+      "mode": "requires_models",
+      "label": {
+        "en": "Requires TTS models",
+        "zh": "需要 TTS 模型"
+      },
+      "note": {
+        "en": "Requires Qwen3-TTS VoiceDesign and tokenizer models before generating narration; Timeline rendering itself is model-free.",
+        "zh": "生成旁白前需要 Qwen3-TTS VoiceDesign 和 tokenizer 模型；Timeline 渲染本身不依赖生成模型。"
+      },
+      "models": [
+        "Qwen/Qwen3-TTS-Tokenizer-12Hz",
+        "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
+      ]
+    },
+    "preview": ""
   }
 }

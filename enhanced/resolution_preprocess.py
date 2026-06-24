@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 import tempfile
+import threading
 
 import numpy as np
 from PIL import Image
@@ -12,6 +13,12 @@ from PIL import Image
 import modules.flags as flags
 
 logger = logging.getLogger(__name__)
+
+_VIDEO_PREPROCESS_CACHE = {}
+_VIDEO_PREPROCESS_CACHE_ORDER = []
+_VIDEO_PREPROCESS_CACHE_LOCK = threading.Lock()
+_VIDEO_PREPROCESS_CACHE_MAX = 32
+_VIDEO_PREPROCESS_CACHE_VERSION = 1
 
 
 def bool_value(value, default=False):
@@ -501,7 +508,156 @@ def _probe_video_size(path, ffmpeg_exe=None):
     return None
 
 
-def preprocess_video_file(path, target_size, mode, preserve_audio=True, is_mask=False):
+def _probe_video_duration(path, ffmpeg_exe=None):
+    ffprobe_exe = _get_ffprobe_exe(ffmpeg_exe)
+    if not ffprobe_exe:
+        return None
+    cmd = [
+        ffprobe_exe,
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        os.path.abspath(path),
+    ]
+    try:
+        completed = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, text=True)
+        if completed.returncode != 0:
+            return None
+        value = float(str(completed.stdout or "").strip())
+        if math.isfinite(value) and value > 0:
+            return value
+    except Exception:
+        return None
+    return None
+
+
+def _duration_limit_with_padding(duration_limit, reserve_seconds=0.5):
+    try:
+        limit = float(duration_limit)
+    except Exception:
+        return None
+    if not math.isfinite(limit) or limit <= 0:
+        return None
+    try:
+        reserve = float(reserve_seconds)
+    except Exception:
+        reserve = 0.5
+    if not math.isfinite(reserve):
+        reserve = 0.5
+    return limit + max(0.0, reserve)
+
+
+def _video_preprocess_source_signature(path):
+    try:
+        abs_path = os.path.abspath(path)
+        stat = os.stat(abs_path)
+        return abs_path, int(stat.st_mtime_ns), int(stat.st_size)
+    except Exception:
+        return None
+
+
+def _round_optional_number(value):
+    if value is None:
+        return None
+    try:
+        number = float(value)
+        if math.isfinite(number):
+            return round(number, 3)
+    except Exception:
+        return None
+    return None
+
+
+def _video_preprocess_cache_key(
+    path,
+    ffmpeg_exe,
+    target_w,
+    target_h,
+    mode,
+    preserve_audio,
+    is_mask,
+    duration_limit,
+    duration_padding,
+    clip_duration,
+    should_clip_duration,
+):
+    source_signature = _video_preprocess_source_signature(path)
+    if not source_signature:
+        return None
+    try:
+        normalized_ffmpeg = os.path.abspath(ffmpeg_exe) if isinstance(ffmpeg_exe, str) else str(ffmpeg_exe)
+    except Exception:
+        normalized_ffmpeg = str(ffmpeg_exe)
+    return (
+        _VIDEO_PREPROCESS_CACHE_VERSION,
+        source_signature,
+        normalized_ffmpeg,
+        int(target_w),
+        int(target_h),
+        str(mode or ""),
+        bool(preserve_audio),
+        bool(is_mask),
+        _round_optional_number(duration_limit),
+        _round_optional_number(duration_padding),
+        _round_optional_number(clip_duration),
+        bool(should_clip_duration),
+    )
+
+
+def _video_preprocess_cache_get(cache_key):
+    if cache_key is None:
+        return None
+    with _VIDEO_PREPROCESS_CACHE_LOCK:
+        cached = _VIDEO_PREPROCESS_CACHE.get(cache_key)
+        if not cached:
+            return None
+        out_path = cached.get("path") if isinstance(cached, dict) else None
+        try:
+            cache_valid = isinstance(out_path, str) and os.path.exists(out_path) and os.path.getsize(out_path) > 0
+        except Exception:
+            cache_valid = False
+        if not cache_valid:
+            _VIDEO_PREPROCESS_CACHE.pop(cache_key, None)
+            try:
+                _VIDEO_PREPROCESS_CACHE_ORDER.remove(cache_key)
+            except ValueError:
+                pass
+            return None
+        if cache_key in _VIDEO_PREPROCESS_CACHE_ORDER:
+            try:
+                _VIDEO_PREPROCESS_CACHE_ORDER.remove(cache_key)
+            except ValueError:
+                pass
+        _VIDEO_PREPROCESS_CACHE_ORDER.append(cache_key)
+        return out_path
+
+
+def _video_preprocess_cache_put(cache_key, out_path):
+    if cache_key is None:
+        return
+    try:
+        cache_valid = isinstance(out_path, str) and os.path.exists(out_path) and os.path.getsize(out_path) > 0
+    except Exception:
+        cache_valid = False
+    if not cache_valid:
+        return
+    with _VIDEO_PREPROCESS_CACHE_LOCK:
+        _VIDEO_PREPROCESS_CACHE[cache_key] = {"path": os.path.abspath(out_path)}
+        if cache_key in _VIDEO_PREPROCESS_CACHE_ORDER:
+            try:
+                _VIDEO_PREPROCESS_CACHE_ORDER.remove(cache_key)
+            except ValueError:
+                pass
+        _VIDEO_PREPROCESS_CACHE_ORDER.append(cache_key)
+        while len(_VIDEO_PREPROCESS_CACHE_ORDER) > _VIDEO_PREPROCESS_CACHE_MAX:
+            old_key = _VIDEO_PREPROCESS_CACHE_ORDER.pop(0)
+            _VIDEO_PREPROCESS_CACHE.pop(old_key, None)
+
+
+def preprocess_video_file(path, target_size, mode, preserve_audio=True, is_mask=False, duration_limit=None, duration_padding=0.5):
     if not isinstance(path, str) or not path.strip() or not os.path.exists(path):
         return path, False
     ffmpeg_exe = _get_ffmpeg_exe()
@@ -511,10 +667,32 @@ def preprocess_video_file(path, target_size, mode, preserve_audio=True, is_mask=
 
     target_w, target_h = target_size
     source_size = _probe_video_size(path, ffmpeg_exe)
-    if source_size and source_size[0] == target_w and source_size[1] == target_h:
+    clip_duration = _duration_limit_with_padding(duration_limit, duration_padding)
+    source_duration = _probe_video_duration(path, ffmpeg_exe) if clip_duration else None
+    should_clip_duration = bool(clip_duration and (source_duration is None or source_duration > clip_duration + 0.01))
+    should_resize = not (source_size and source_size[0] == target_w and source_size[1] == target_h)
+    if not should_resize and not should_clip_duration:
         return path, False
 
     mode = normalize_edit_mode(mode)
+    cache_key = _video_preprocess_cache_key(
+        path,
+        ffmpeg_exe,
+        target_w,
+        target_h,
+        mode,
+        preserve_audio,
+        is_mask,
+        duration_limit,
+        duration_padding,
+        clip_duration,
+        should_clip_duration,
+    )
+    cached_out = _video_preprocess_cache_get(cache_key)
+    if cached_out:
+        logger.info("Resolution video preprocess cache hit: %s -> %s (%sx%s, %s)", path, cached_out, target_w, target_h, mode)
+        return cached_out, True
+
     scale_flags = ":flags=neighbor" if is_mask else ""
     if mode == "proportional":
         vf = f"scale={target_w}:{target_h}{scale_flags},setsar=1"
@@ -542,6 +720,10 @@ def preprocess_video_file(path, target_size, mode, preserve_audio=True, is_mask=
         "error",
         "-i",
         os.path.abspath(path),
+    ]
+    if should_clip_duration:
+        cmd += ["-t", f"{clip_duration:.3f}"]
+    cmd += [
         "-vf",
         vf,
         "-c:v",
@@ -562,7 +744,9 @@ def preprocess_video_file(path, target_size, mode, preserve_audio=True, is_mask=
     try:
         completed = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, text=True)
         if completed.returncode == 0 and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
-            logger.info("Resolution video preprocess: %s -> %s (%sx%s, %s)", path, out_path, target_w, target_h, mode)
+            duration_label = f"{clip_duration:.3f}s" if should_clip_duration else "full"
+            logger.info("Resolution video preprocess: %s -> %s (%sx%s, %s, duration=%s)", path, out_path, target_w, target_h, mode, duration_label)
+            _video_preprocess_cache_put(cache_key, out_path)
             return out_path, True
         logger.warning("Resolution video preprocess failed: %s", (completed.stderr or "").strip())
     except Exception as exc:
@@ -598,6 +782,7 @@ def apply_scene_resolution_preprocess(
     resolution_edit_mode,
     resolution_original_input=False,
     sam3_trim_payload=None,
+    scene_video_duration=None,
 ):
     profile = get_resolution_profile(state_params, scene_theme)
     if bool_value(resolution_original_input) or not should_preprocess(profile):
@@ -648,7 +833,13 @@ def apply_scene_resolution_preprocess(
     if target == "video" or profile_mode.startswith("video_") or source in ("video_first_frame", "scene_video_first_frame", "scene_video", "sam3_input_video"):
         if active_video_source == "scene":
             src = scene_original_video_path or scene_video
-            out, did = preprocess_video_file(src, target_size, mode, preserve_audio=bool(profile.get("preserve_audio", True)))
+            out, did = preprocess_video_file(
+                src,
+                target_size,
+                mode,
+                preserve_audio=bool(profile.get("preserve_audio", True)),
+                duration_limit=scene_video_duration,
+            )
             if did:
                 scene_original_video_path = out
                 scene_video = out
@@ -665,7 +856,13 @@ def apply_scene_resolution_preprocess(
             except Exception:
                 src = sam3_input_video or sam3_original_video_path
             src = src or scene_original_video_path or scene_video
-            out, did = preprocess_video_file(src, target_size, mode, preserve_audio=bool(profile.get("preserve_audio", True)))
+            out, did = preprocess_video_file(
+                src,
+                target_size,
+                mode,
+                preserve_audio=bool(profile.get("preserve_audio", True)),
+                duration_limit=scene_video_duration,
+            )
             if did:
                 sam3_original_video_path = out
                 sam3_input_video = out
@@ -679,6 +876,7 @@ def apply_scene_resolution_preprocess(
                 mode,
                 preserve_audio=False,
                 is_mask=True,
+                duration_limit=scene_video_duration,
             )
             if mask_did:
                 sam3_mask_video = mask_out

@@ -595,7 +595,10 @@
         0
       ],
       "batch_size": 1,
-      "ref_max_size": 1280,
+      "ref_max_size": [
+        "235",
+        0
+      ],
       "positive": [
         "203",
         0
@@ -1164,6 +1167,23 @@
       "a": [
         "2",
         11
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "🔧 Simple Math"
+    }
+  },
+  "235": {
+    "inputs": {
+      "value": "max(a, b)",
+      "a": [
+        "200",
+        1
+      ],
+      "b": [
+        "201",
+        1
       ]
     },
     "class_type": "SimpleMath+",

@@ -602,9 +602,13 @@
     height: 1px;
     overflow: visible;
     transform-origin: 0 0;
-    will-change: transform;
     touch-action: none;
     text-rendering: geometricPrecision;
+}
+
+.sai-canvas-viewport.is-panning .sai-canvas-stage,
+.sai-canvas-viewport.is-zooming .sai-canvas-stage {
+    will-change: transform;
 }
 
 #simpai-infinite-canvas-workbench.is-text-selecting,
@@ -1833,6 +1837,8 @@
     touch-action: none;
     isolation: isolate;
     contain: layout style;
+    overflow: clip;
+    overflow-clip-margin: 34px;
     -webkit-font-smoothing: antialiased;
     text-rendering: geometricPrecision;
     transition:
@@ -1874,6 +1880,14 @@
 .sai-compare-view {
     content-visibility: auto;
     contain-intrinsic-size: 220px 160px;
+}
+
+.sai-canvas-viewport.is-post-zoom-refresh .sai-node-media,
+.sai-canvas-viewport.is-post-zoom-refresh .sai-result-media,
+.sai-canvas-viewport.is-post-zoom-refresh .sai-vlm-chat-window,
+.sai-canvas-viewport.is-post-zoom-refresh .sai-timeline-node,
+.sai-canvas-viewport.is-post-zoom-refresh .sai-compare-view {
+    content-visibility: visible;
 }
 
 .sai-canvas-node.is-overview {
@@ -1988,7 +2002,8 @@
 }
 
 .sai-canvas-node.is-collapsed:not(.is-collapse-expanded) {
-    overflow: visible;
+    overflow: clip;
+    overflow-clip-margin: 34px;
     pointer-events: none;
 }
 
@@ -2066,7 +2081,7 @@
 }
 
 .sai-canvas-node:is(.sai-canvas-node-preset, .sai-canvas-node-classic).is-collapsed:not(.is-collapse-expanded) {
-    min-height: 150px;
+    min-height: 220px;
 }
 
 .sai-canvas-node-preset.is-collapsed:not(.is-collapse-expanded) > .sai-preset-param-list:has(> .sai-collapsed-prompt) {
@@ -2078,8 +2093,8 @@
 
 .sai-canvas-node:is(.sai-canvas-node-preset, .sai-canvas-node-classic).is-collapsed:not(.is-collapse-expanded) .sai-collapsed-prompt {
     flex: 1 1 auto;
-    grid-template-rows: auto minmax(72px, 1fr);
-    min-height: 98px;
+    grid-template-rows: auto minmax(96px, 1fr);
+    min-height: 126px;
     padding-bottom: 8px;
 }
 
@@ -2090,7 +2105,7 @@
 
 .sai-canvas-node:is(.sai-canvas-node-preset, .sai-canvas-node-classic).is-collapsed:not(.is-collapse-expanded) .sai-collapsed-prompt textarea {
     height: 100%;
-    min-height: 72px;
+    min-height: 96px;
     max-height: none;
     padding-right: 72px;
 }
@@ -2173,6 +2188,10 @@
     display: none;
 }
 
+.sai-canvas-node-image.is-collapsed:not(.is-collapse-expanded) .sai-node-head > button {
+    display: inline-flex !important;
+}
+
 .sai-canvas-node.is-collapsed:not(.is-collapse-expanded) .sai-node-state-badge.is-collapsed {
     display: none;
 }
@@ -2199,7 +2218,7 @@
 }
 
 .sai-canvas-node-image.is-collapsed:not(.is-collapse-expanded) {
-    pointer-events: none;
+    pointer-events: auto;
 }
 
 .sai-canvas-node-image.is-collapsed:not(.is-collapse-expanded) .sai-image-node-media.sai-collapsed-keep {
@@ -3144,6 +3163,36 @@
     user-select: none;
 }
 
+.sai-canvas-node-image:not(.is-collapsed) .sai-image-node-media.is-empty-upload {
+    min-height: max(120px, calc(var(--sai-node-expanded-min-height, 300px) - 92px));
+    max-height: none;
+}
+
+.sai-image-empty-upload,
+.sai-media-empty-upload {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+    color: var(--sai-canvas-muted);
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
+
+.sai-node-media > .sai-image-empty-upload,
+.sai-node-media > .sai-media-empty-upload {
+    height: 100%;
+    min-height: inherit;
+}
+
+.sai-image-empty-upload:hover,
+.sai-media-empty-upload:hover {
+    color: var(--sai-canvas-accent);
+    background: var(--sai-canvas-accent-soft);
+}
+
 .sai-node-media video {
     width: 100%;
     height: 100%;
@@ -3164,17 +3213,42 @@
 
 .sai-canvas-node-image.is-image-frameless:not(.is-collapsed) .sai-node-head {
     position: absolute;
-    left: 6px;
-    right: 6px;
-    top: 6px;
+    left: 0;
+    right: 0;
+    top: 0;
     z-index: 4;
     padding: 6px;
-    border: 1px solid rgba(15, 23, 42, 0.24);
-    border-radius: 7px;
-    background: rgba(15, 23, 42, 0.72);
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
     opacity: 0;
     transform: translateY(-3px);
     transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.sai-canvas-node-image.is-image-frameless:not(.is-collapsed) .sai-node-title {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.76), 0 0 8px rgba(0, 0, 0, 0.46);
+}
+
+.sai-canvas-node-image.is-image-frameless:not(.is-collapsed):has(.sai-image-node-media.is-empty-upload) {
+    border-color: var(--sai-canvas-border);
+    background: var(--sai-canvas-panel);
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+}
+
+.sai-canvas-node-image.is-image-frameless:not(.is-collapsed):has(.sai-image-node-media.is-empty-upload) .sai-node-head {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    z-index: 1;
+    padding: 6px 8px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    opacity: 1;
+    transform: none;
+    transition: none;
 }
 
 .sai-canvas-node-image.is-image-frameless:not(.is-collapsed):hover .sai-node-head,
@@ -3182,6 +3256,12 @@
 .sai-canvas-node-image.is-image-frameless:not(.is-collapsed).is-focused .sai-node-head {
     opacity: 1;
     transform: translateY(0);
+}
+
+.sai-canvas-node-image.is-image-frameless:not(.is-collapsed):has(.sai-image-node-media.is-empty-upload):hover .sai-node-head,
+.sai-canvas-node-image.is-image-frameless:not(.is-collapsed):has(.sai-image-node-media.is-empty-upload).is-selected .sai-node-head,
+.sai-canvas-node-image.is-image-frameless:not(.is-collapsed):has(.sai-image-node-media.is-empty-upload).is-focused .sai-node-head {
+    transform: none;
 }
 
 .sai-canvas-node-image.is-image-frameless:not(.is-collapsed) .sai-image-node-media {
@@ -3193,6 +3273,19 @@
     border: 0;
     border-radius: 8px;
     background: transparent;
+}
+
+.sai-canvas-node-image.is-image-frameless:not(.is-collapsed) .sai-image-node-media.is-empty-upload {
+    box-sizing: border-box;
+    margin: 0;
+    border: 1px solid var(--sai-canvas-border);
+    border-radius: 8px;
+    background: var(--sai-canvas-surface);
+}
+
+.sai-canvas-node-image.is-image-frameless:not(.is-collapsed):has(.sai-image-node-media.is-empty-upload) .sai-image-node-media.is-empty-upload {
+    min-height: max(120px, calc(var(--sai-node-expanded-min-height, 300px) - 44px));
+    border-radius: 0 0 8px 8px;
 }
 
 .sai-canvas-node-image.is-image-frameless:not(.is-collapsed) .sai-image-node-media img {
@@ -3357,6 +3450,28 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     border: 1px solid var(--sai-canvas-border);
     border-radius: 6px;
     background: var(--sai-canvas-surface);
+}
+
+.sai-media-storyboard.sai-media-empty-upload,
+.sai-audio-waveform.sai-media-empty-upload {
+    width: auto;
+    height: 46px;
+    min-height: 0;
+    padding: 0;
+    justify-content: center;
+    color: var(--sai-canvas-accent);
+    background: var(--sai-canvas-accent-soft);
+}
+
+.sai-media-storyboard.sai-media-empty-upload::before,
+.sai-media-storyboard.sai-media-empty-upload::after,
+.sai-audio-waveform.sai-media-empty-upload::before,
+.sai-audio-waveform.sai-media-empty-upload::after {
+    display: none;
+}
+
+.sai-media-empty-upload-strip > i {
+    align-self: center;
 }
 
 .sai-media-storyboard img {
@@ -3629,7 +3744,7 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     gap: 0;
     flex: 1 1 auto;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
     padding-bottom: 0;
 }
 
@@ -3742,6 +3857,32 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     background: color-mix(in srgb, var(--sai-canvas-surface) 78%, transparent);
     color: var(--sai-canvas-muted);
     box-sizing: border-box;
+}
+
+.sai-director-media-card[data-director-media-kind="image"] {
+    grid-template-rows: auto auto;
+    min-height: 122px;
+    align-content: start;
+}
+
+.sai-director-media-card[data-director-media-kind="video"] {
+    grid-template-rows: minmax(72px, 1fr) auto;
+    min-height: 112px;
+}
+
+.sai-director-media-card[data-director-media-kind="image"] .sai-director-media-thumb {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+}
+
+.sai-director-media-card[data-director-media-kind="image"] .sai-director-media-thumb img {
+    object-fit: contain;
+    object-position: center center;
+}
+
+.sai-director-media-card[data-director-media-kind="audio"] {
+    grid-template-rows: 34px auto;
+    min-height: 68px;
 }
 
 .sai-director-media-card.has-source {
@@ -4713,7 +4854,7 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
 .sai-timeline-ruler i {
     position: absolute;
     top: 0;
-    bottom: -176px;
+    bottom: 0;
     width: 2px;
     background: var(--sai-canvas-warn);
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22);
@@ -9546,151 +9687,6 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
 
 .sai-canvas-toast[hidden] {
     display: none;
-}
-
-.sai-onboarding-checklist {
-    position: absolute;
-    left: 62px;
-    top: 72px;
-    z-index: 6;
-    display: grid;
-    gap: 8px;
-    width: min(320px, calc(100vw - 92px));
-    max-height: calc(100vh - 96px);
-    overflow: auto;
-    padding: 10px;
-    border: 1px solid var(--sai-canvas-border);
-    border-radius: 8px;
-    color: var(--sai-canvas-text);
-    background: color-mix(in srgb, var(--sai-canvas-panel) 96%, transparent);
-    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.26);
-}
-
-.sai-onboarding-checklist[hidden] {
-    display: none;
-}
-
-.sai-onboarding-head,
-.sai-onboarding-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.sai-onboarding-head span {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    font-size: 13px;
-}
-
-.sai-onboarding-head i {
-    color: var(--sai-canvas-accent);
-}
-
-.sai-onboarding-head button,
-.sai-onboarding-actions button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    min-width: 28px;
-    height: 28px;
-    padding: 0 8px;
-    border: 1px solid var(--sai-canvas-border);
-    border-radius: 6px;
-    color: var(--sai-canvas-text);
-    background: var(--sai-canvas-panel);
-    font: inherit;
-    font-size: 12px;
-    font-weight: 800;
-    cursor: pointer;
-}
-
-.sai-onboarding-progress {
-    overflow: hidden;
-    height: 5px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--sai-canvas-border) 72%, transparent);
-}
-
-.sai-onboarding-progress i {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: var(--sai-canvas-accent);
-    transition: width 180ms ease;
-}
-
-.sai-onboarding-count {
-    color: var(--sai-canvas-muted);
-    font-size: 11px;
-    font-weight: 800;
-}
-
-.sai-onboarding-list {
-    display: grid;
-    gap: 6px;
-}
-
-.sai-onboarding-list button {
-    display: grid;
-    grid-template-columns: 24px minmax(0, 1fr);
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    min-width: 0;
-    padding: 7px;
-    border: 1px solid var(--sai-canvas-border);
-    border-radius: 7px;
-    color: var(--sai-canvas-text);
-    background: var(--sai-canvas-surface);
-    text-align: left;
-    cursor: pointer;
-}
-
-.sai-onboarding-list button.is-done {
-    border-color: color-mix(in srgb, var(--sai-canvas-accent) 64%, var(--sai-canvas-border));
-    background: var(--sai-canvas-accent-soft);
-}
-
-.sai-onboarding-list button > i {
-    display: inline-grid;
-    place-items: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 999px;
-    color: var(--sai-canvas-accent);
-    background: var(--sai-canvas-panel);
-    font-size: 12px;
-}
-
-.sai-onboarding-list span {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-}
-
-.sai-onboarding-list b,
-.sai-onboarding-list small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.sai-onboarding-list b {
-    font-size: 12px;
-}
-
-.sai-onboarding-list small {
-    color: var(--sai-canvas-muted);
-    font-size: 11px;
-}
-
-.sai-onboarding-actions {
-    justify-content: flex-start;
 }
 
 .sai-canvas-perf-hud {

@@ -21,11 +21,17 @@
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
+        input.hidden = true;
         input.addEventListener('change', async () => {
-            const file = input.files && input.files[0];
-            if (!file) return;
-            await call(context, 'applyImageFileToNode', null, node, file, { history: 'Replace image', sourceKind: 'manual_upload' });
-        });
+            try {
+                const file = input.files && input.files[0];
+                if (!file) return;
+                await call(context, 'applyImageFileToNode', null, node, file, { history: 'Replace image', sourceKind: 'manual_upload' });
+            } finally {
+                input.remove();
+            }
+        }, { once: true });
+        document.body.appendChild(input);
         input.click();
     }
 

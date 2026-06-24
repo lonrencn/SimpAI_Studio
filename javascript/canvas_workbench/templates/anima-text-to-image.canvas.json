@@ -1,6 +1,6 @@
 {
   "schema": "simpai.canvas.workbench.v1",
-  "id": "anima_text_to_image_20260605061802_template_20260605062002",
+  "id": "anima_text_to_image",
   "title": "Anima 文生图",
   "created_at": "2026-05-23T00:00:00Z",
   "updated_at": "2026-06-05T06:20:03Z",
@@ -16,9 +16,7 @@
     "minimap": true,
     "edgeLabels": true,
     "reducedMotion": false,
-    "inspectorCollapsed": false,
-    "__minimap_initialized": true,
-    "__template_source": "user"
+    "inspectorCollapsed": false
   },
   "groups": [
     {
@@ -583,27 +581,46 @@
   "runs": [],
   "batch_jobs": [],
   "template": {
-    "id": "anima_text_to_image_20260605061802_template_20260605062002",
-    "title": "Anima 文生图",
-    "description": "从当前画布保存。",
+    "id": "anima_text_to_image",
+    "title": {
+      "en": "Anima Text to Image",
+      "zh": "Anima 文生图"
+    },
+    "description": {
+      "en": "A runnable Image template for Anima classic text-to-image with prompt text nodes, Models, Resolution, Advanced Config, Run Queue, and Result placeholder.",
+      "zh": "可运行的 Anima classic 文生图模板，包含提示词 Text 节点、Models、Resolution、Advanced Config、运行队列和结果占位。"
+    },
     "category": "image",
     "tags": [
-      "user",
-      "canvas"
+      "image",
+      "anima",
+      "t2i",
+      "classic",
+      "preset",
+      "anime",
+      "runnable"
     ],
-    "type_label": "用户模板",
+    "type_label": {
+      "en": "Runnable preset",
+      "zh": "可运行 Preset"
+    },
     "model_dependency": {
       "mode": "requires_models",
-      "label": "需要模型",
-      "note": "包含 1 个 preset 节点和 4 个模型依赖。运行前请检查模型。",
+      "label": {
+        "en": "Requires models",
+        "zh": "需要模型"
+      },
+      "note": {
+        "en": "Requires the Anima model files from presets/Anima.json. Check/download models before Run.",
+        "zh": "需要 presets/Anima.json 中的 Anima 模型文件。运行前请先检查/下载模型。"
+      },
       "models": [
-        "diffusion_models,anima-base-v1.0.safetensors,4182218328,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/diffusion_models/anima-base-v1.0.safetensors",
-        "text_encoders,qwen_3_06b_base.safetensors,1192135096,0,https://www.modelscope.cn/models/circlestone-labs/Anima/resolve/master/split_files/text_encoders/qwen_3_06b_base.safetensors",
-        "vae,qwen_image_vae.safetensors,253806246,0,",
-        "upscale_models,4x-AnimeSharp.pth,67010245,0,https://modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/upscale_models/4x-AnimeSharp.pth"
+        "anima-base-v1.0.safetensors",
+        "qwen_3_06b_base.safetensors",
+        "qwen_image_vae.safetensors",
+        "4x-AnimeSharp.pth"
       ]
     },
-    "preview": "",
-    "saved_at": "2026-06-05T06:20:03Z"
+    "preview": ""
   }
 }
