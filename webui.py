@@ -1,4 +1,5 @@
 import io
+import sys
 import base64
 import html
 import numpy as np
@@ -91,6 +92,13 @@ if isinstance(getattr(api_params, "backend_args", None), list):
     for backend_arg_name in ("upscale_model", "keep_vlm_model_loaded"):
         if backend_arg_name not in api_params.backend_args:
             api_params.backend_args.append(backend_arg_name)
+
+
+def _launch_arg_was_set(flag, argv=None):
+    argv = sys.argv if argv is None else argv
+    prefix = f"{flag}="
+    return any(str(arg) == flag or str(arg).startswith(prefix) for arg in argv)
+
 
 START_TIMESTAMP = time.time()
 COMPARE_BUTTON_ICON = "🔍"
@@ -10170,8 +10178,10 @@ import socket
 import psutil
 
 current_listen = args_manager.args.listen
+listen_was_explicit = _launch_arg_was_set("--listen")
 if is_local_mode():
-    args_manager.args.listen = "127.0.0.1"
+    if not listen_was_explicit:
+        args_manager.args.listen = "127.0.0.1"
     if not args_manager.args.port:
         args_manager.args.port = 8186
 else:

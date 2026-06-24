@@ -376,6 +376,9 @@ def reset_simpleai_args():
     args_comfyd += [["--cuda-malloc"]] if not shared.args.disable_async_cuda_allocation and not shared.args.async_cuda_allocation else []
     _, comfyd_intput, comfyd_output = update_comfyd_io_paths(update_runtime=False, update_startup=False)
     args_comfyd += [["--output-directory", comfyd_output], ["--temp-directory", shared.temp_path], ["--input-directory", comfyd_intput]]
+    cors_origin = os.environ.get("SIMPAI_COMFYD_CORS", "").strip()
+    if cors_origin:
+        args_comfyd += [["--enable-cors-header", cors_origin]]
     comfyd.comfyd_args = args_comfyd
     return
 

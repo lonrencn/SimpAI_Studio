@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 
 logger.debug('[System ARGV] ' + str(sys.argv))
 
+def _launch_arg_was_set(flag, argv=None):
+    argv = sys.argv if argv is None else argv
+    prefix = f"{flag}="
+    return any(str(arg) == flag or str(arg).startswith(prefix) for arg in argv)
+
 root = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(root)
 os.chdir(root)
@@ -109,7 +114,7 @@ def _simpleai_base_wheel_filename(ver_required):
             return f"simpleai_base-{ver_required}-{current_tag}-{current_tag}-macosx_11_0_arm64.whl"
         return f"simpleai_base-{ver_required}-{current_tag}-{current_tag}-macosx_10_12_x86_64.whl"
 
-    return f"simpleai_base-{ver_required}-{current_tag}-{current_tag}-manylinux_2_27_x86_64.manylinux2014_x86_64.whl"
+    return f"simpleai_base-{ver_required}-{current_tag}-{current_tag}-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 def _simpleai_base_has_required_apis():
     required = [
@@ -484,16 +489,16 @@ def reset_env_args():
     shared.sysinfo = json.loads(shared.token.get_sysinfo().to_json())
     shared.sysinfo.update(dict(did=shared.token.get_sys_did()))
 
-    if '--location' in sys.argv:
+    if _launch_arg_was_set('--location'):
         shared.sysinfo["location"] = args.location
 
     if shared.sysinfo["location"] == 'CN':
         os.environ['HF_MIRROR'] = 'hf-mirror.com'
         os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-        if '--language' not in sys.argv:
+        if not _launch_arg_was_set('--language'):
             shared.args.language='cn'
 
-    if '--listen' not in sys.argv:
+    if not _launch_arg_was_set('--listen'):
         if is_ipynb():
             shared.args.listen = '127.0.0.1'
         else:
@@ -508,13 +513,13 @@ def reset_env_args():
                     shared.args.listen = local_ip
             else:
                 shared.args.listen = local_ip
-    if '--port' not in sys.argv:
+    if not _launch_arg_was_set('--port'):
         shared.args.port = shared.sysinfo["local_port"]
 
     if is_local_mode():
-        if '--listen' not in sys.argv:
+        if not _launch_arg_was_set('--listen'):
             shared.args.listen = '127.0.0.1'
-        if '--port' not in sys.argv:
+        if not _launch_arg_was_set('--port'):
             shared.args.port = 8186
 
     host = shared.args.listen
@@ -524,11 +529,11 @@ def reset_env_args():
             logger.info(f"端口 {shared.args.port} 被占用，自动切换到: {available_port}")
             shared.args.port = available_port
     else:
-        if '--port' in sys.argv:
+        if _launch_arg_was_set('--port'):
             logger.info(f"使用指定的前端端口: {shared.args.port}")
         else:
             logger.info(f"使用默认前端端口: {shared.args.port}")
-    if shared.args.node_type and shared.args.node_type != "online":
+    if shared.args.node_type and shared.args.node_type != "online" and not _launch_arg_was_set('--listen'):
         shared.sysinfo["local_ip"] = '127.0.0.1'
         shared.args.listen = '127.0.0.1'
 

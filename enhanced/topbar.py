@@ -598,6 +598,23 @@ def get_initial_nav_preset(state_params):
         return presets[0]
     return config.preset
 
+
+def _state_user_did(state):
+    try:
+        user = state.get("user", None) if isinstance(state, dict) else None
+        return user.get_did() if user is not None and hasattr(user, "get_did") else None
+    except Exception:
+        return None
+
+
+def _state_user_nickname(state, default=""):
+    try:
+        user = state.get("user", None) if isinstance(state, dict) else None
+        return user.get_nickname() if user is not None and hasattr(user, "get_nickname") else default
+    except Exception:
+        return default
+
+
 preset_samples = {}
 preset_samples_user_mtime = {}
 preset_samples_base_mtime = {}
@@ -909,8 +926,9 @@ def init_nav_bars(state_params, comfyd_active_checkbox, fast_comfyd_checkbox, ca
     state_params.update({"preset_store": False})
     state_params.update({"__preset_store_seq": state_params.get("__preset_store_seq", 0)})
     state_params.update({"__layout_initialized": False})
-    resolved_initial_preset = _resolve_preset_storage_name(state_params.get("__preset", initial_preset), state_params["user"].get_did())
-    initial_config_preset = config.try_get_preset_content(resolved_initial_preset, state_params["user"].get_did())
+    initial_user_did = _state_user_did(state_params)
+    resolved_initial_preset = _resolve_preset_storage_name(state_params.get("__preset", initial_preset), initial_user_did)
+    initial_config_preset = config.try_get_preset_content(resolved_initial_preset, initial_user_did)
     initial_preset_prepared = meta_parser.parse_meta_from_preset(initial_config_preset)
     initial_engine = initial_preset_prepared.get('engine', {}).get('backend_engine', 'Z-image')
     initial_engine_type = initial_preset_prepared.get('engine', {}).get('engine_type', 'image')
@@ -1001,8 +1019,8 @@ def has_preset_inc_url(preset_url):
 def _get_effective_nav_preset_list(state_params):
     user_session = state_params.get("__session", "")
     ua_hash = state_params.get("ua_hash", "")
-    user_did = state_params["user"].get_did()
-    is_guest = shared.token.is_guest(user_did)
+    user_did = _state_user_did(state_params)
+    is_guest = shared.token.is_guest(user_did) if user_did else True
     raw_nav_name_list = get_preset_name_list(user_session, ua_hash)
     preset_name_list = _coerce_nav_preset_list(
         str(raw_nav_name_list or "").split(','),
@@ -1021,8 +1039,8 @@ def _get_effective_nav_preset_list(state_params):
 
 def refresh_nav_bars(state_params):
     preset_name_list = _get_effective_nav_preset_list(state_params)
-    user_did = state_params["user"].get_did()
-    is_guest = shared.token.is_guest(user_did)
+    user_did = _state_user_did(state_params)
+    is_guest = shared.token.is_guest(user_did) if user_did else True
 
     for i in range(shared.BUTTON_NUM - len(preset_name_list)):
         preset_name_list.append('')
@@ -1859,9 +1877,10 @@ def _scene_director_audio_status_for_generation(scene_director_enabled=False, sc
 def process_before_generation(state_params, seed_random, image_seed, backend_params, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source, sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None, resolution_multiplier=1.0, resolution_quantize_step=None, resolution_edit_mode=None, resolution_original_input=False, sam3_trim_payload=None, overwrite_step=None, scene_director_enabled=False, scene_director_state=None, scene_video_duration=None, scene_reference_video=None, scene_reference_video_original_path=None):
     regen_scene_additional_prompt = scene_additional_prompt
     regen_scene_additional_prompt_2 = scene_additional_prompt_2
+    user_did = _state_user_did(state_params)
     backend_params.update(dict(
-        nickname=state_params["user"].get_nickname(),
-        user_did=state_params["user"].get_did(),
+        nickname=_state_user_nickname(state_params),
+        user_did=user_did,
         preset=state_params["__preset"],
         engine_type=state_params.get("engine_type", "image"),
         ))
@@ -1879,7 +1898,6 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
         except Exception:
             pass
 
-    user_did = state_params["user"].get_did()
     if user_did:
         try:
             io_paths = update_comfyd_io_paths(user_did)
@@ -2255,7 +2273,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             (regen_data.get("backend_params") or {}).get("task_method"),
         )
     state_params["absent_model"] = False
-    if not args_manager.args.disable_backend and is_models_file_absent(state_params["__preset"], state_params["user"].get_did()):
+    if not args_manager.args.disable_backend and is_models_file_absent(state_params["__preset"], user_did):
         if not ads.get_user_default("no_model_modal_checkbox", state_params, False):
             gr.Info(preset_absent_model_note_info)
         state_params["absent_model"] = True
@@ -2333,7 +2351,7 @@ def process_after_generation(state_params, generation_task=None, gallery_output=
     
     max_per_page = state_params["__max_per_page"]
     max_catalog = state_params["__max_catalog"]
-    user_did = state_params["user"].get_did()
+    user_did = _state_user_did(state_params)
     engine_type = state_params["engine_type"]
     state_params["__gallery_engine_type"] = engine_type
     state_params["gallery_preview_open"] = False
@@ -2494,7 +2512,8 @@ def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpain
             fill_count = 0
         return nav_updates + [skip_update() for _ in range(fill_count)] + [state_params] + comparison_default
     preset = state_params["bar_button"] if '\u2B07' not in state_params["bar_button"] else state_params["bar_button"].replace('\u2B07', '')
-    resolved_preset = _resolve_preset_storage_name(preset, state_params["user"].get_did())
+    current_user_did = _state_user_did(state_params)
+    resolved_preset = _resolve_preset_storage_name(preset, current_user_did)
     logger.info(f'Reset_context: preset={state_params.get("__preset", None)}-->{preset}, theme={state_params.get("__theme", None)}, lang={state_params.get("__lang", None)}')
     if not args_manager.args.disable_backend and '\u2B07' in state_params["bar_button"]:
         if not ads.get_user_default("no_model_modal_checkbox", state_params, False):
@@ -2509,7 +2528,7 @@ def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpain
     gallery_util.clear_main_gallery_browser_state(state_params)
     gallery_util.clear_post_generation_compare_state(state_params)
 
-    config_preset = config.try_get_preset_content(resolved_preset, state_params["user"].get_did())
+    config_preset = config.try_get_preset_content(resolved_preset, current_user_did)
     preset_prepared = meta_parser.parse_meta_from_preset(config_preset)
 
     engine = preset_prepared.get('engine', {}).get('backend_engine', 'Fooocus')
@@ -2952,8 +2971,8 @@ def toggle_preset_store(state):
 
 def update_navbar_from_mystore(selected_preset, state):
     global preset_samples
-    user_did = state["user"].get_did()
-    is_guest = shared.token.is_guest(user_did)
+    user_did = _state_user_did(state)
+    is_guest = shared.token.is_guest(user_did) if user_did else True
 
     def _to_index(v):
         if v is None:
@@ -3042,8 +3061,8 @@ def update_navbar_from_mystore(selected_preset, state):
         logger.error(f"UI Update Error: {str(e)}")
 
 def apply_navbar_from_store_editor(payload, state):
-    user_did = state["user"].get_did()
-    is_guest = shared.token.is_guest(user_did)
+    user_did = _state_user_did(state)
+    is_guest = shared.token.is_guest(user_did) if user_did else True
 
     try:
         parsed = json.loads(payload or "{}")
@@ -3221,8 +3240,8 @@ def delete_user_preset_from_store(payload, state):
     return [dataset_update(samples=get_preset_samples(user_did))] + refresh_nav_bars(state) + update_topbar_js_params(state)
 
 def admin_sync_to_guest(state, catalog='presets'):
-    user_did = state["user"].get_did()
-    if shared.token.is_admin(user_did):
+    user_did = _state_user_did(state)
+    if user_did and shared.token.is_admin(user_did):
         if catalog == 'presets':
             nav_name_list = get_preset_name_list(state["__session"], state["ua_hash"])
             shared.token.set_local_vars_for_guest("user_presets", nav_name_list, state["__session"], state["ua_hash"])
@@ -3464,7 +3483,7 @@ def _build_scene_control_props(scene_frontend, scene_theme):
 def update_topbar_js_params(state, include_canvas_catalogs=True):
     regen_preset_restore = bool(state.pop("__regen_preset_restore", False))
     filtered_preset_name_list = _get_effective_nav_preset_list(state)
-    nav_user_did = state["user"].get_did() if state.get("user") else None
+    nav_user_did = _state_user_did(state)
     filtered_preset_display_name_list = [_append_status_marker(name, nav_user_did) for name in filtered_preset_name_list]
     filtered_nav_name_list_str = ','.join(filtered_preset_display_name_list)
 
@@ -3485,7 +3504,7 @@ def update_topbar_js_params(state, include_canvas_catalogs=True):
     if "preset_store" not in state:
         state["preset_store"] = False
     current_preset_name = state.get("__preset", config.preset)
-    current_preset_marked = _append_status_marker(current_preset_name, state["user"].get_did()) if state.get("user") else current_preset_name
+    current_preset_marked = _append_status_marker(current_preset_name, nav_user_did) if nav_user_did else current_preset_name
     current_preset_missing = isinstance(current_preset_marked, str) and current_preset_marked.endswith(PRESET_MISSING_MARKER)
     preset_prepared = state.get("__preset_prepared", {}) if isinstance(state, dict) else {}
     if not isinstance(preset_prepared, dict):
@@ -3597,11 +3616,11 @@ def update_topbar_js_params(state, include_canvas_catalogs=True):
         except Exception:
             canvas_model_catalog = {}
 
-    current_user_did = state["user"].get_did()
-    current_access_status = get_identity_access_status(current_user_did)
+    current_user_did = _state_user_did(state)
+    current_access_status = get_identity_access_status(current_user_did) if current_user_did else None
     if is_local_mode():
         user_role = "local"
-    elif shared.token.is_guest(current_user_did):
+    elif not current_user_did or shared.token.is_guest(current_user_did):
         user_role = "guest"
     elif shared.token.is_admin(current_user_did):
         user_role = "admin"
@@ -3632,7 +3651,7 @@ def update_topbar_js_params(state, include_canvas_catalogs=True):
         __resolution_control_profile=_resolve_resolution_control_profile(scene_frontend, scene_theme),
         __nav_name_list=filtered_nav_name_list_str,  # 使用过滤后的预设列表
         sstoken=state["sstoken"],
-        user_name=state["user"].get_nickname(),
+        user_name=_state_user_nickname(state),
         user_did=current_user_did,
         user_role=user_role,
         access_mode=get_access_mode(),
@@ -3666,8 +3685,9 @@ def update_topbar_js_params(state, include_canvas_catalogs=True):
 
 
 def export_identity(state):
-    if not shared.token.is_guest(state["user"].get_did()):
-        state["user_qr"] = export_identity_qrcode_svg(state["user"].get_did())
+    user_did = _state_user_did(state)
+    if user_did and not shared.token.is_guest(user_did):
+        state["user_qr"] = export_identity_qrcode_svg(user_did)
         #logger.info(f'user_qrcode_svg: {state["user_qr"]}')
     elif is_local_mode():
         admin_qr = shared.token.export_isolated_admin_qrcode_svg()
@@ -3883,11 +3903,11 @@ def update_after_identity_sub(state, lightweight_nav=False, skip_output_refresh=
     #[gallery_index, index_radio, gallery_index_stat, preset_store, preset_store_list, history_link, identity_introduce, configure_panel, local_system_tab, user_access_tab, admin_panel, admin_link, system_params] + ip_types
     max_per_page = state["__max_per_page"]
     max_catalog = state["__max_catalog"]
-    nickname = state["user"].get_nickname()
-    user_did = state["user"].get_did()
+    nickname = _state_user_nickname(state, "Unknown")
+    user_did = _state_user_did(state)
     engine_type = state["engine_type"]
     state["__gallery_engine_type"] = engine_type
-    logger.info(f'Session identity/当前身份: {nickname}({user_did}{", admin" if shared.token.is_admin(user_did) else ""}), session({state["__session"]})')
+    logger.info(f'Session identity/当前身份: {nickname}({user_did}{", admin" if user_did and shared.token.is_admin(user_did) else ""}), session({state["__session"]})')
     if skip_output_refresh:
         output_list = state.get("__output_list", [])
         finished_nums_pages = state.get("__finished_nums_pages", "0,0")
@@ -3903,8 +3923,8 @@ def update_after_identity_sub(state, lightweight_nav=False, skip_output_refresh=
             except Exception as e:
                 logger.error(f'Error in identity gallery prewarm: {e}')
 
-    is_guest = shared.token.is_guest(user_did)
-    is_admin = shared.token.is_admin(user_did)
+    is_guest = shared.token.is_guest(user_did) if user_did else True
+    is_admin = shared.token.is_admin(user_did) if user_did else False
     is_privileged_guest = is_guest and is_local_mode()
 
     if (not lightweight_nav) and user_did:

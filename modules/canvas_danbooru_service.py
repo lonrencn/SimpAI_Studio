@@ -32,6 +32,10 @@ _CANVAS_DANBOORU_CATEGORY_LABELS = {
     "5": "meta",
 }
 
+
+def _canvas_danbooru_fast_exe_name():
+    return "danbooru-tags.exe" if os.name == "nt" else "danbooru-tags"
+
 # Legacy identity fallback only. Character/copyright knowledge should come from
 # the local Danbooru index and tags/character_glossary.csv first; visual
 # attributes and persona traits belong in the prompt pipeline or system prompt.
@@ -338,7 +342,7 @@ def _canvas_danbooru_fast_backend_from_candidate(candidate):
         root = os.path.dirname(os.path.dirname(path)) if os.path.basename(os.path.dirname(path)).lower() == "bin" else os.path.dirname(path)
     else:
         root = path
-        exe_path = os.path.join(root, "bin", "danbooru-tags.exe")
+        exe_path = os.path.join(root, "bin", _canvas_danbooru_fast_exe_name())
     sqlite_path = os.path.join(root, "tags_index.sqlite")
     csv_path = os.path.join(root, "anima-1.0.csv")
     cache_path = os.path.join(root, "tags_cache.bin")
@@ -559,7 +563,7 @@ def _canvas_danbooru_fast_row(raw, source_query="", confirmed=True):
         "top_group": str(raw.get("category") or "").strip(),
         "sub_group": "",
         "path_group": str(raw.get("source_category") or raw.get("category") or "").strip(),
-        "source": "danbooru-tags.exe",
+        "source": _canvas_danbooru_fast_exe_name(),
         "score": round(match_score, 3),
         "match": "fast_confirmed" if confirmed else "fast_candidate",
     }
@@ -633,7 +637,9 @@ def _canvas_lookup_danbooru_tags_fast(query, limit=24, source_mode="curated"):
             "--json",
             "--compact",
         ]
-        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        run_kwargs = {}
+        if os.name == "nt":
+            run_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         child_env = os.environ.copy()
         if backend.get("data_root"):
             child_env.setdefault("SIMPAI_TAGS_ROOT", backend.get("data_root"))
@@ -651,7 +657,7 @@ def _canvas_lookup_danbooru_tags_fast(query, limit=24, source_mode="curated"):
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
-            creationflags=creationflags,
+            **run_kwargs,
         )
         if completed.returncode != 0:
             logger.warning("Danbooru fast lookup failed: returncode=%s stderr=%s", completed.returncode, (completed.stderr or "").strip()[:500])
