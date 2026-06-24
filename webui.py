@@ -36,8 +36,10 @@ import modules.canvas_danbooru_service as canvas_danbooru_service
 import modules.canvas_vlm_agent as canvas_vlm_agent
 import modules.canvas_vlm_runtime as canvas_vlm_runtime
 import modules.describe_vlm_chat as describe_vlm_chat
+import modules.vlm_system_prompt_templates as vlm_system_prompt_templates
 import modules.canvas_workbench_media_gallery as canvas_workbench_media_gallery
 import modules.canvas_workbench_danbooru_gallery as canvas_workbench_danbooru_gallery
+import modules.scene_prompt_recommendations as scene_prompt_recommendations
 import copy
 import args_manager
 import ldm_patched.modules.model_management as model_management
@@ -6231,12 +6233,7 @@ with shared.gradio_root:
                                                     outputs=[metadata_json, metadata_import_button], queue=False, show_progress=True)
                         import enhanced.image_encrypt_tab as image_encrypt_tab
                         image_encrypt_tab.add_image_encrypt_tab(progress_window, progress_gallery, gallery, progress_video, comparison_box, compare_btn, comparison_state, state_topbar, state_is_generating, image_toolbox, gallery_index, output_format)
-                        # custom plugin "OneButtonPrompt"
-                        with gr.Tab(label="OneButtonPrompt"):
-                            import custom.OneButtonPrompt.ui_onebutton as ui_onebutton
-                            run_event = gr.Number(visible=False, value=0)
-                            ui_onebutton.ui_onebutton(prompt, run_event, random_button)
-                            super_prompter_prompt = gr.Textbox(label='Prompt prefix', value='Expand the following prompt to add more detail:', lines=1)
+                        super_prompter_prompt = gr.Textbox(label='Prompt prefix', value='Expand the following prompt to add more detail:', lines=1)
                     
                 with gr.Tab(label='Styles', elem_classes=['style_selections_tab']) as styles_tab:
                     style_sorter.try_load_sorted_styles(
@@ -10934,6 +10931,39 @@ async def canvas_workbench_danbooru_autocomplete(payload: dict = Body(...)):
         logger.exception("Danbooru autocomplete failed")
         return JSONResponse({"ok": False, "error": "Danbooru Autocomplete Error", "details": str(e)}, status_code=500)
 
+@app.post("/simpleai/prompt-recommendations")
+async def simpleai_prompt_recommendations(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: scene_prompt_recommendations.recommendation_payload(
+            payload.get("preset") or payload.get("__preset") or "",
+            scene_theme=payload.get("scene_theme") or payload.get("__scene_theme") or "",
+            lang=payload.get("__lang") or payload.get("lang") or payload.get("language") or "cn",
+            limit=payload.get("limit") or 12,
+        ))
+        return JSONResponse(result)
+    except Exception as e:
+        logger.exception("Prompt recommendations failed")
+        return JSONResponse({"ok": False, "error": "Prompt Recommendations Error", "details": str(e)}, status_code=500)
+
+@app.post("/simpleai/random-prompt")
+async def simpleai_random_prompt(payload: dict = Body(...)):
+    try:
+        if not isinstance(payload, dict):
+            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
+        result = await run_in_threadpool(lambda: scene_prompt_recommendations.compose_random_prompt(
+            preset_name=payload.get("preset") or payload.get("__preset") or "",
+            scene_theme=payload.get("scene_theme") or payload.get("__scene_theme") or "",
+            lang=payload.get("__lang") or payload.get("lang") or payload.get("language") or "cn",
+            seed=payload.get("seed"),
+            source_mode=payload.get("tag_source") or payload.get("tag_source_mode") or "all",
+        ))
+        return JSONResponse(result)
+    except Exception as e:
+        logger.exception("Random prompt failed")
+        return JSONResponse({"ok": False, "error": "Random Prompt Error", "details": str(e)}, status_code=500)
+
 @app.post("/canvas-agent/danbooru-gallery/import-preview")
 async def canvas_agent_danbooru_gallery_import_preview(payload: dict = Body(...)):
     try:
@@ -11977,6 +12007,25 @@ async def canvas_workbench_custom_llm_models_endpoint(payload: dict = Body(...))
             {
                 "ok": False,
                 "error": "Canvas Workbench Custom LLM Models Error",
+                "details": str(e),
+            },
+            status_code=500,
+        )
+
+@app.get("/vlm-system-prompt-templates")
+@app.post("/vlm-system-prompt-templates")
+async def vlm_system_prompt_templates_endpoint(payload: dict = Body(default={})):
+    try:
+        payload = payload if isinstance(payload, dict) else {}
+        result = await run_in_threadpool(lambda: vlm_system_prompt_templates.list_vlm_system_prompt_templates(payload))
+        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "VLM System Prompt Templates Error",
                 "details": str(e),
             },
             status_code=500,

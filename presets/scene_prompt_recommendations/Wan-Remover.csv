@@ -1,0 +1,2 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+wan_remover_default,Wan-Remover-SAM3 Video Removal,positive_prompt,replace,Default video removal,默认视频移除,"移除遮罩区域内的目标对象，用符合原视频背景、光照、纹理和运动趋势的内容自然填充，边缘干净，画面不闪烁。","视频移除|背景填充|边缘干净|不闪烁",120

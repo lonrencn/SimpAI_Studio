@@ -1,0 +1,41 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+edit_precise_text_replace,*,positive_prompt,replace,Precise text replacement,精准文字替换,"只修改图中指定文字为用户提供的新内容，保留原字体风格、排版位置、材质、透视、阴影和光照，其余人物、物体和背景保持不变。","文字替换|字体保持|排版保持|背景不变",140
+edit_packaging_logo_text,*,positive_prompt,replace,Packaging and logo text,包装标识文字,"修改包装、招牌、海报或屏幕上的指定文字和标识，让新内容清晰可读，匹配原图材质、印刷质感、透视和反光。","包装|标识|招牌|文字清晰",132
+edit_object_remove_repair,*,positive_prompt,replace,Object removal and repair,移除物体并修复,"移除用户指定的物体，用符合原图透视、纹理、光照和遮挡关系的背景自然填充空缺区域，保留周围阴影和画面风格。","物体移除|背景修复|光照一致|遮挡关系",130
+edit_object_replace_consistent,*,positive_prompt,replace,Consistent object replacement,一致物体替换,"将指定物体替换为用户描述的新物体，新物体需要匹配原图视角、比例、材质、接触阴影和环境光，不改变其他主体。","物体替换|比例一致|材质匹配|接触阴影",126
+edit_object_insert_ads,*,positive_prompt,replace,Object or ad insertion,物体广告插入,"将指定商品、道具、标识或广告物料自然插入画面，匹配场景透视、遮挡关系、接触阴影、反光和环境光，不破坏原有主体。","物体插入|广告插入|商品融合|环境光",122
+edit_background_replace_subject_lock,*,positive_prompt,replace,Background replacement with subject lock,换背景保持主体,"更换背景为用户描述的新环境，保持主体身份、姿态、服装、发型和轮廓不变，让新背景的光线方向、色温和景深与主体自然融合。","换背景|主体保持|光线融合|景深",120
+edit_reference_scene_composite,*,positive_prompt,replace,Reference scene composite,参考场景合成,"将图1中的主体自然放入图2的场景中，保持图1主体身份、服装和关键细节，匹配图2场景的透视、光照、色温、景深和接触阴影。","图1主体|图2场景|场景合成|光照匹配",119
+edit_reference_product_composite,*,positive_prompt,replace,Reference product composite,参考商品合成,"让图1中的人物自然展示或使用图2中的商品，保持人物身份和商品外观一致，匹配手部接触、比例、材质、反光、阴影和环境光。","人物商品|多图参考|商品一致|手部接触",118
+edit_reference_person_composite,*,positive_prompt,replace,Reference person composite,参考人物合成,"将图1和图2中的人物组合到同一画面，保持两个人物的身份、发型、服装和比例一致，统一场景光照、镜头视角和画面风格。","人物合成|身份保持|多图参考|画风统一",117
+edit_multi_person_group_photo,*,positive_prompt,replace,Multi-person group photo,多人合影一致性,"将多张参考人物图合成为一张自然合影，保持每个人的身份、脸部特征、发型、服装和身高比例一致，统一光照、镜头视角和场景氛围。","多人合影|身份一致|群像|光照统一",117
+edit_two_reference_character_interaction,*,positive_prompt,replace,Two-reference character interaction,双参考角色互动,"让图1中的角色和图2中的角色出现在同一场景中并产生自然互动，保持两个角色身份和服装一致，安排合理站位、视线方向、动作关系和场景光照。","双参考|角色互动|站位|视线",117
+edit_scene_season_time_change,*,positive_prompt,replace,Season or time change,季节时间变化,"把场景调整为用户指定的季节、天气或时间段，保持主体和构图不变，让光线、色温、地面反射、天空和环境细节自然一致。","季节|天气|时间|环境一致",116
+edit_controlnet_pose_reference,*,positive_prompt,replace,Pose reference from image 2,参考图姿态,"让图1的角色摆出图2的姿势，保持图1角色身份、脸部特征、发型、服装和画风一致，参考图2的人体姿态、肢体角度、手势和身体朝向。","图1角色|图2姿势|姿态迁移|身份一致",115
+edit_controlnet_keypoint_map,*,positive_prompt,replace,Keypoint map control,关键点图控制,"使用图2的关键点图或骨架图控制图1人物姿态，保持图1人物身份、服装和画面风格，肢体比例自然，手脚位置清晰。","关键点图|骨架图|姿态控制|肢体比例",115
+edit_pose_position_action,*,positive_prompt,replace,Pose position action,姿态位置动作,"根据用户要求调整主体动作、手势、站位或画面位置，让姿态自然可信，同时保持主体身份、服装、背景、镜头视角和图像质感一致。","动作调整|位置调整|姿态自然|身份保持",114
+edit_controlnet_depth_map,*,positive_prompt,replace,Depth map control,深度图结构控制,"以图2的深度图作为空间结构参考，重绘图1主体或场景，保持主要身份和风格，同时遵循深度层次、前后关系、体积感和镜头视角。","深度图|空间结构|前后关系|体积感",113
+edit_controlnet_edge_map,*,positive_prompt,replace,Edge map control,边缘图轮廓控制,"以图2的边缘图、线稿或轮廓图作为结构控制，生成或编辑图1画面，保持主体身份和风格一致，严格参考轮廓、边缘和主要形状。","边缘图|线稿|轮廓控制|形状保持",113
+edit_expression_gaze,*,positive_prompt,replace,Expression and gaze,表情视线调整,"调整人物表情、视线方向或头部朝向，保持五官身份、发型、服装、场景光线和背景不变，表情过渡自然。","表情|视线|头部朝向|身份保持",112
+edit_identity_preserving_imagination,*,positive_prompt,replace,Identity-preserving creative edit,身份保持创意编辑,"基于输入人物进行创意改造，可以改变服装、环境、职业或故事氛围，但必须保持人物身份、脸部特征、发型轮廓、年龄感和主要视觉特征一致。","创意编辑|身份保持|人物一致|故事氛围",112
+edit_clothing_color_material,*,positive_prompt,replace,Clothing color material,服装颜色材质,"修改服装款式、颜色或材质，保持人物身份、姿态、身体比例和背景不变，让布料褶皱、纹理、边缘和受光自然匹配。","服装|颜色|材质|褶皱",110
+edit_virtual_try_on_reference,*,positive_prompt,replace,Virtual try-on from reference,参考服装试穿,"让图1的人物穿上图2中的服装，保持图1人物身份、脸部、发型和身体比例，保留图2服装版型、颜色、材质、纹理、装饰和层次。","虚拟试衣|图2服装|人物保持|服装一致",110
+edit_clothing_extract_white_bg,*,positive_prompt,replace,Clothing extraction white background,服装白底提取,"从参考图中提取服装并生成白底单品图，不包含人体、模特、场景和杂乱背景，保留服装版型、颜色、材质、纹理、褶皱、装饰和边缘细节。","服装提取|白底图|单品图|材质纹理",109
+edit_product_cleanup,*,positive_prompt,replace,Product cleanup,产品清理,"清理商品表面的污渍、划痕、多余反光和杂乱背景，保持商品形状、标识、材质和真实比例，边缘干净。","商品修图|污渍清理|标识保持|材质保持",108
+edit_product_poster_reference,*,positive_prompt,replace,Product poster from references,参考商品海报,"以图1商品为主体，参考图2的场景、风格或配色生成商品海报，保持商品标识、形状、材质和比例一致，画面适合商业展示。","商品海报|参考场景|品牌保持|商业展示",107
+edit_portrait_retouch_natural,*,positive_prompt,replace,Natural portrait retouch,自然人像精修,"自然修饰皮肤、发丝、眼神和面部光影，保持人物身份、年龄特征、五官结构和真实质感，避免磨皮过度或改变脸型。","人像精修|皮肤|发丝|身份保持",106
+edit_lighting_enhancement_realistic,*,positive_prompt,replace,Realistic lighting enhancement,真实光照增强,"增强画面真实光照效果，调整主光、辅光、边缘光、阴影层次和高光反射，保持主体身份、材质、构图和场景内容不变。","光照增强|真实光线|阴影层次|高光反射",106
+edit_character_turnaround_sheet,*,positive_prompt,replace,Character turnaround sheet,人物三视图,"根据参考人物生成正面、侧面、背面三视图设定图，保持同一角色身份、发型、服装、体型比例、配饰和色彩一致，使用干净白色或浅色背景。","人物三视图|角色设定|正面侧面背面|身份一致",105
+edit_character_expression_sheet,*,positive_prompt,replace,Character expression sheet,人物表情设定,"根据参考人物生成同一角色的多表情设定图，保持身份、发型、服装、脸型和画风一致，展示微笑、生气、惊讶、悲伤等清晰表情。","表情设定|角色一致|多表情|设定图",105
+edit_style_light_color_texture,*,positive_prompt,replace,Style light color texture,风格光色材质,"根据用户要求调整整体风格、灯光、颜色和材质表现，保持主体轮廓、身份特征、空间结构和主要构图不变，画面自然统一。","风格|灯光|颜色|材质",104
+edit_new_viewpoint_generation,*,positive_prompt,replace,New viewpoint generation,生成新视角,"根据参考主体生成用户指定的新视角，例如俯视、仰视、背面、侧面或四分之三视角，保持主体身份、结构、材质、纹理和比例一致。","新视角|俯视|背面|结构一致",104
+edit_object_view_rotation,*,positive_prompt,replace,Object view rotation,物体视角旋转,"将参考物体旋转到用户指定视角，例如侧面、背面或四分之三视角，保持物体身份、结构、材质、纹理、标识和比例一致。","物体旋转|背面|侧面|结构保持",103
+edit_industrial_product_variants,*,positive_prompt,replace,Industrial product variants,工业产品设计变体,"基于参考工业产品生成一组设计变体，保持核心功能结构、比例和品牌识别，变化外壳形态、细节线条、材质、配色和工程感。","工业设计|产品变体|结构保持|材质配色",103
+edit_industrial_material_replace,*,positive_prompt,replace,Industrial material replacement,工业材质替换,"将工业零件或产品外壳替换为用户指定材质，例如金属、碳纤维、磨砂塑料、透明材质或陶瓷，保持结构尺寸、装配关系和真实反光。","工业材质|材质替换|零件|装配关系",103
+edit_photo_restore_colorize,*,positive_prompt,replace,Photo restore and colorize,老照片修复上色,"修复老照片的划痕、污渍、褪色和模糊区域，可按用户要求自然上色，保持人物身份、年代感、服装细节和原始构图。","老照片|修复|上色|年代感",102
+edit_marked_region_correction,*,positive_prompt,replace,Marked region correction,标注区域修正,"根据图中标注框、涂抹区域或用户指定位置精修局部错误，只修改被标注区域，保持周围文字、纹理、边缘、光照和整体构图不变。","标注区域|局部修正|文字修正|周围保持",101
+edit_geometric_construction_lines,*,positive_prompt,replace,Geometric construction lines,几何辅助线标注,"为产品、建筑、机械结构或设计草图生成清晰的几何辅助线、透视线、中心线、尺寸标注或结构分析线，保持原图主体和构图可读。","几何推理|辅助线|尺寸标注|结构分析",101
+edit_room_interior_refresh,*,positive_prompt,replace,Interior refresh,室内空间改造,"按用户要求调整室内家具、墙面、灯光或装饰风格，保持房间空间结构、透视、窗户位置和主要物体比例一致。","室内|家具|装饰|空间结构",100
+edit_food_commercial_polish,*,positive_prompt,replace,Food commercial polish,食品商业精修,"优化食物或饮品的质感、色泽、水汽、盘面和背景布置，保持真实比例和原有构图，让画面更适合商业展示。","食品|饮品|商业精修|质感",98
+edit_vehicle_surface_detail,*,positive_prompt,replace,Vehicle surface detail,车辆表面细节,"调整车辆颜色、漆面、车灯、轮毂或背景展示环境，保持车型结构、比例、透视和真实反光，不改变品牌识别特征。","车辆|漆面|车灯|反光",96
+edit_reframe_crop_extend,*,positive_prompt,replace,Reframe or extend canvas,构图重排扩展,"按用户要求扩展画面、改变构图或留出文字空间，延续原图背景纹理、光照、透视和景深，保持主体清晰稳定。","扩展画面|构图|留白|主体稳定",94

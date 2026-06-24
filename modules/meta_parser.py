@@ -1001,7 +1001,7 @@ def switch_layout_template(presetdata: dict | str, state_params, preset_url='', 
         scenes = enginedata_dict.get("scene_frontend",{})
         has_agent = 'agent_prompt' in scenes
         results.append(gr_update(visible=True))    #prompt_internal_panel
-        results.append(gr_update(visible=True, interactive=False))  #random_button
+        results.append(gr_update(visible=True, interactive=True, value="Prompt Picks"))  #random_button
         results.append(gr_update(visible=True, interactive=False, value="PromptAgent" if has_agent else "SuperPrompt"))  #super_prompter
         results.append(skip_update())  # disable_intermediate_results is a user setting
         results.append(skip_update())  # image_tools_checkbox is a user setting

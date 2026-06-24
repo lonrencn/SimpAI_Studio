@@ -1,0 +1,2 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+wan_scail_default,SCAIL,positive_prompt,replace,Default motion transfer,默认运动迁移,"根据参考运动信号驱动目标视频，保持目标主体身份、服装、场景和光照一致，动作节奏自然，画面稳定。","运动迁移|主体保持|节奏自然|画面稳定",120

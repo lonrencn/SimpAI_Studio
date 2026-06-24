@@ -1,0 +1,5 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+bernini_multi_reference_consistency,Basic,positive_prompt,replace,Multi-reference consistency,多参考一致性,"融合多张参考图的主体身份、服装、道具和场景信息生成视频，保持参考特征稳定，镜头运动自然，主体不变形、不漂移。","多参考|身份一致|服装保持|镜头运动",130
+bernini_subject_to_video,Basic,positive_prompt,replace,Subject to video,主体生成视频,"以参考主体为核心生成短视频，保持主体身份、比例、材质和关键细节一致，加入轻微自然动作和稳定镜头运动。","主体到视频|身份保持|自然动作|稳定镜头",120
+bernini_reference_style_video,Basic,positive_prompt,replace,Reference style video,参考风格视频,"参考输入图像的视觉风格、光线、色彩和材质生成视频，保持主体和场景结构清晰，时间连续，画面不闪烁。","参考风格|光线|色彩|时间连续",110
+bernini_ads_reference_video,Basic,positive_prompt,replace,Reference ads video,参考广告视频,"将参考商品或广告主体自然融入视频场景，保持品牌元素清晰可读，匹配环境光、透视、接触阴影和镜头运动。","广告视频|商品融合|品牌清晰|镜头运动",100

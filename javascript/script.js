@@ -3508,7 +3508,10 @@ function syncPositivePromptMetaState() {
     const hasPrompt = rawPrompt.length > 0;
     const sceneFrontendActive = isSceneFrontendActiveForPromptMetaSync();
 
-    setGradioButtonInteractive('random_prompt_button', !sceneFrontendActive);
+    setGradioButtonInteractive('random_prompt_button', true);
+    if (typeof refreshSimpleAIPromptRecommendationButton === 'function') {
+        try { refreshSimpleAIPromptRecommendationButton(); } catch (e) {}
+    }
     setGradioButtonInteractive('super_prompter_button', sceneFrontendActive ? hasPrompt && isVlmEnabledForPromptMetaSync() : hasPrompt);
 
     const sceneCanvasVisible = elementIsVisible(getGradioRootById('scene_canvas'));

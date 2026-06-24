@@ -2647,16 +2647,35 @@ def _canvas_clean_prompt_tag_name(tag):
     return canvas_danbooru_policy.clean_prompt_tag_name(tag)
 
 
-def _canvas_prompt_safe_danbooru_tag(tag):
-    clean = _canvas_clean_prompt_tag_name(tag)
+_CANVAS_PROMPT_WEIGHT_RE = re.compile(
+    r"^\((?P<tag>[^():][^()]*?):(?P<weight>[+-]?(?:\d+(?:\.\d*)?|\.\d+))\)$"
+)
+
+
+def _canvas_prompt_display_danbooru_tag(tag, *, escape_parentheses=True, preserve_wrapping_parentheses=None):
+    raw = str(tag or "").strip()
+    unescaped = raw.replace("\\(", "(").replace("\\)", ")")
+    if preserve_wrapping_parentheses is None:
+        preserve_wrapping_parentheses = bool(re.fullmatch(r"\([^:()]+\)", unescaped))
+
+    clean = _canvas_clean_prompt_tag_name(raw)
     if not clean:
         return ""
-    return clean.replace("(", r"\(").replace(")", r"\)")
+    display = clean.replace("_", " ")
+    if preserve_wrapping_parentheses and not (display.startswith("(") and display.endswith(")")):
+        display = f"({display})"
+    if escape_parentheses:
+        display = display.replace("(", r"\(").replace(")", r"\)")
+    return display
+
+
+def _canvas_prompt_safe_danbooru_tag(tag):
+    return _canvas_prompt_display_danbooru_tag(tag)
 
 
 def _canvas_prompt_safe_danbooru_text(text):
     source = str(text or "")
-    if not source or ("(" not in source and ")" not in source):
+    if not source:
         return source
     parts = re.split(r"([,;\n]+)", source)
     changed = False
@@ -2666,18 +2685,25 @@ def _canvas_prompt_safe_danbooru_text(text):
             output.append(part)
             continue
         stripped = part.strip()
-        if not stripped or "\\(" in stripped or "\\)" in stripped:
+        if not stripped:
             output.append(part)
             continue
-        clean = _canvas_clean_prompt_tag_name(stripped)
-        if not clean or "(" not in clean or ")" not in clean:
+        if "_" not in stripped and "(" not in stripped and ")" not in stripped:
             output.append(part)
             continue
-        if stripped.startswith("(") and ":" in stripped:
-            output.append(part)
-            continue
-        safe = _canvas_prompt_safe_danbooru_tag(clean)
-        if not safe or safe == clean:
+
+        weight_match = _CANVAS_PROMPT_WEIGHT_RE.match(stripped.replace("\\(", "(").replace("\\)", ")"))
+        if weight_match:
+            safe_tag = _canvas_prompt_display_danbooru_tag(
+                weight_match.group("tag"),
+                escape_parentheses=False,
+                preserve_wrapping_parentheses=False,
+            )
+            safe = f"({safe_tag}:{weight_match.group('weight')})" if safe_tag else ""
+        else:
+            safe = _canvas_prompt_safe_danbooru_tag(stripped)
+
+        if not safe or safe == stripped:
             output.append(part)
             continue
         prefix = part[:len(part) - len(part.lstrip())]

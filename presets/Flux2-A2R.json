@@ -21,7 +21,7 @@
             "var_number4_min": 0,
             "var_number4_max": 1.0,
             "var_number4": {
-                "Flux2_A2R": 0
+                "Flux2_A2R": 0.5
             },
             "switch_option2_title": "Convert Image 2 to pose",
             "switch_option2": {

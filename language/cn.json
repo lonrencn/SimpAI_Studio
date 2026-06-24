@@ -1181,6 +1181,8 @@
   "Prompt prefix": "扩展提示前缀",
   "OneButtonPrompt": "一键提示",
   "RandomPrompt": "一键提示",
+  "Prompt Picks": "推荐提示词",
+  "Random Prompt": "随机提示词",
   "+More": "<+追加提示",
   "One Button Preset": "预设的内容模版",
   "HYPERPROMPTING": "超级提示扩展",

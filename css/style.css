@@ -4839,6 +4839,10 @@ html.describe-vlm-chat-resizing * {
   font-weight: 700;
 }
 
+.describe-vlm-chat-system-field {
+  grid-column: 1 / -1;
+}
+
 .describe-vlm-chat-mode-hint {
   grid-column: 1 / -1;
   margin-top: -2px;
@@ -9793,6 +9797,165 @@ html.simpai-main-layout-stacked #advanced_column,
 #prompt_action_row :is(#generate_button, #generate_button button):hover:not(:disabled) {
   border-color: #fed7aa !important;
   background: linear-gradient(180deg, #fdba74 0%, #f97316 100%) !important;
+}
+
+.simpleai-prompt-recommendation-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.simpleai-prompt-recommendation-modal.is-open {
+  display: flex;
+}
+
+.simpleai-prompt-recommendation-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 13, 22, 0.56);
+}
+
+.simpleai-prompt-recommendation-panel {
+  position: relative;
+  width: min(780px, calc(100vw - 24px));
+  max-height: min(720px, calc(100vh - 32px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: var(--body-background-fill, #101318);
+  color: var(--body-text-color, #f8fafc);
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.36);
+}
+
+.simpleai-prompt-recommendation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.simpleai-prompt-recommendation-header h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.simpleai-prompt-recommendation-header p {
+  margin: 4px 0 0;
+  color: var(--body-text-color-subdued, #aeb6c2);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.simpleai-prompt-recommendation-icon-button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 7px;
+}
+
+.simpleai-prompt-recommendation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.simpleai-prompt-recommendation-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.simpleai-prompt-recommendation-item-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.simpleai-prompt-recommendation-item-prompt {
+  margin-top: 5px;
+  color: var(--body-text-color, #f8fafc);
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.simpleai-prompt-recommendation-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.simpleai-prompt-recommendation-item-meta span {
+  max-width: 180px;
+  overflow: hidden;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(96, 165, 250, 0.14);
+  color: var(--body-text-color-subdued, #aeb6c2);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simpleai-prompt-recommendation-apply {
+  min-width: 72px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+
+.simpleai-prompt-recommendation-empty {
+  padding: 28px 12px;
+  color: var(--body-text-color-subdued, #aeb6c2);
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .simpleai-prompt-recommendation-modal {
+    padding: 8px;
+    align-items: flex-end;
+  }
+
+  .simpleai-prompt-recommendation-panel {
+    width: 100%;
+    max-height: calc(100vh - 18px);
+  }
+
+  .simpleai-prompt-recommendation-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .simpleai-prompt-recommendation-apply {
+    width: 100%;
+  }
 }
 
 @media (max-width: 640px), (pointer: coarse) and (max-width: 900px) {

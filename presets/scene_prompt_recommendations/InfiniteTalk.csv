@@ -1,0 +1,2 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+infinitetalk_default,InfiniteTalk-AI2V,positive_prompt,replace,Default talking animation,默认说话动画,"保持参考人物身份、面部比例和画面风格一致，让口型与音频自然同步，头部和肩部有轻微真实运动，背景保持稳定。","口型同步|身份保持|轻微运动|背景稳定",120

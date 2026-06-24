@@ -1,0 +1,2 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+infinitetalk_av2v_default,InfiniteTalk-AV2V,positive_prompt,replace,Default talking video edit,默认说话视频编辑,"保持原视频人物身份、姿态和镜头运动，让口型与输入音频自然同步，表情变化轻微真实，背景和服装不被改动。","口型同步|视频保持|表情自然|背景稳定",120

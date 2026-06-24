@@ -98,6 +98,10 @@
         { command: '/upscale', label: t('Upscale', '放大') },
         { command: '/status', label: t('Tool status', '工具状态') }
     ];
+    let vlmSystemPromptTemplates = [];
+    let vlmSystemPromptTemplatesLoaded = false;
+    let vlmSystemPromptTemplatesLoading = false;
+    let vlmSystemPromptTemplateRequest = null;
     const CANVAS_AGENT_PRESET_QUEUE_STORAGE_KEY = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_PRESET_QUEUE_STORAGE_KEY || 'simpai.canvas.agentPresetQueues.v1';
     const CANVAS_AGENT_DEFAULT_T2I_PRESET_QUEUE = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_T2I_PRESET_QUEUE || ['Z-imageT'];
     const CANVAS_AGENT_DEFAULT_EDIT_PRESET_QUEUE = WORKBENCH_CANVAS_AGENT.CANVAS_AGENT_DEFAULT_EDIT_PRESET_QUEUE || ['Flux2-KleinEdit'];
@@ -1950,6 +1954,18 @@
             api_key: getVlmCustomApiKey(node),
             user_context: getWorkbenchUserContext()
         });
+    }
+
+    async function sendVlmSystemPromptTemplatesRequest() {
+        if (typeof WORKBENCH_API.vlmSystemPromptTemplates === 'function') {
+            return WORKBENCH_API.vlmSystemPromptTemplates({ user_context: getWorkbenchUserContext() });
+        }
+        const response = await fetch('/vlm-system-prompt-templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_context: getWorkbenchUserContext() })
+        });
+        return response.json();
     }
 
     async function sendCanvasListAssetsRequest(payload) {
@@ -17467,6 +17483,151 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         return `<label class="sai-node-field"><span>${escapeHtml(t('Identity', '身份'))}</span><select data-vlm-param="agent_mode">${VLM_AGENT_MODE_CHOICES.map(item => `<option value="${escapeHtml(item.key)}" ${item.key === mode ? 'selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select></label>`;
     }
 
+    function normalizeVlmSystemPromptTemplates(data) {
+        const rows = Array.isArray(data?.templates) ? data.templates : [];
+        return rows.map((item) => {
+            const id = String(item?.id || item?.filename || item?.name || '').trim();
+            const name = String(item?.name || item?.filename || id).trim();
+            const content = String(item?.content || '').trim();
+            if (!id || !name || !content) return null;
+            return { id, name, filename: String(item?.filename || id), content };
+        }).filter(Boolean);
+    }
+
+    function findVlmSystemPromptTemplate(templateId) {
+        const id = String(templateId || '').trim();
+        if (!id) return null;
+        return vlmSystemPromptTemplates.find(item => item.id === id || item.name === id || item.filename === id) || null;
+    }
+
+    function vlmSystemPromptTemplateIdForContent(content) {
+        const text = String(content || '').trim();
+        if (!text) return '';
+        const match = vlmSystemPromptTemplates.find(item => String(item.content || '').trim() === text);
+        return match?.id || '';
+    }
+
+    function currentVlmSystemPromptTemplateId(params) {
+        const data = params || {};
+        const saved = String(data.system_prompt_template_id || '').trim();
+        if (saved) {
+            const template = findVlmSystemPromptTemplate(saved);
+            if (!vlmSystemPromptTemplatesLoaded || (template && String(template.content || '').trim() === String(data.system_prompt || '').trim())) {
+                return saved;
+            }
+        }
+        return vlmSystemPromptTemplateIdForContent(data.system_prompt || '');
+    }
+
+    function renderVlmSystemPromptTemplateOptions(params) {
+        const activeId = currentVlmSystemPromptTemplateId(params);
+        const intro = vlmSystemPromptTemplatesLoading && !vlmSystemPromptTemplatesLoaded
+            ? t('Loading templates...', '正在读取模板...')
+            : t('Custom / no template', '自定义 / 不使用模板');
+        const options = [`<option value="">${escapeHtml(intro)}</option>`];
+        vlmSystemPromptTemplates.forEach((item) => {
+            options.push(`<option value="${escapeHtml(item.id)}" ${item.id === activeId ? 'selected' : ''}>${escapeHtml(item.name)}</option>`);
+        });
+        return options.join('');
+    }
+
+    function renderVlmSystemPromptTemplatePicker(params) {
+        if (!vlmSystemPromptTemplatesLoaded && !vlmSystemPromptTemplatesLoading) {
+            ensureVlmSystemPromptTemplates({ render: true }).catch((err) => console.warn('[SimpAI Canvas] VLM system prompt templates failed', err));
+        }
+        return `<label class="sai-node-field sai-vlm-template-field"><span>${escapeHtml(t('Template', '模板'))}</span><select data-vlm-system-template ${vlmSystemPromptTemplatesLoading && !vlmSystemPromptTemplatesLoaded ? 'disabled' : ''}>${renderVlmSystemPromptTemplateOptions(params)}</select></label>`;
+    }
+
+    async function ensureVlmSystemPromptTemplates(options) {
+        const opts = options || {};
+        if (vlmSystemPromptTemplatesLoaded) return vlmSystemPromptTemplates;
+        if (vlmSystemPromptTemplateRequest) return vlmSystemPromptTemplateRequest;
+        vlmSystemPromptTemplatesLoading = true;
+        vlmSystemPromptTemplateRequest = sendVlmSystemPromptTemplatesRequest()
+            .then((data) => {
+                vlmSystemPromptTemplates = normalizeVlmSystemPromptTemplates(data);
+                vlmSystemPromptTemplatesLoaded = true;
+                return vlmSystemPromptTemplates;
+            })
+            .catch((err) => {
+                vlmSystemPromptTemplates = [];
+                vlmSystemPromptTemplatesLoaded = true;
+                throw err;
+            })
+            .finally(() => {
+                vlmSystemPromptTemplatesLoading = false;
+                vlmSystemPromptTemplateRequest = null;
+                (project.nodes || []).forEach((node) => {
+                    if (node?.type === 'vlm') invalidateRenderedNode(node.id);
+                });
+                if (opts.render !== false) renderAll({ inspector: true });
+            });
+        return vlmSystemPromptTemplateRequest;
+    }
+
+    function syncVlmSystemPromptTemplateDom(node, scope) {
+        if (!node || node.type !== 'vlm') return;
+        const params = node.params || {};
+        const areas = [];
+        if (scope) areas.push(scope);
+        const nodeEl = nodesLayer?.querySelector?.(`[data-node-id="${cssEscape(node.id)}"]`);
+        if (nodeEl && !areas.includes(nodeEl)) areas.push(nodeEl);
+        if (selectedNodeId === node.id && inspector && !areas.includes(inspector)) areas.push(inspector);
+        areas.forEach((area) => {
+            area.querySelectorAll('[data-vlm-system-template]').forEach((select) => {
+                select.innerHTML = renderVlmSystemPromptTemplateOptions(params);
+                select.value = currentVlmSystemPromptTemplateId(params);
+                select.disabled = vlmSystemPromptTemplatesLoading && !vlmSystemPromptTemplatesLoaded;
+            });
+            area.querySelectorAll('[data-vlm-param="system_prompt"]').forEach((field) => {
+                if (field.value !== String(params.system_prompt || '')) field.value = String(params.system_prompt || '');
+            });
+        });
+    }
+
+    function applyVlmSystemPromptTemplate(node, templateId, scope) {
+        if (!node || node.type !== 'vlm' || isNodeLocked(node)) return;
+        const id = String(templateId || '').trim();
+        if (!id) {
+            const params = node.params || {};
+            const currentText = String(params.system_prompt || '');
+            const currentTextTrimmed = currentText.trim();
+            const matchedTemplate = findVlmSystemPromptTemplate(params.system_prompt_template_id)
+                || vlmSystemPromptTemplates.find(item => String(item.content || '').trim() === currentTextTrimmed);
+            const shouldClearPrompt = !!matchedTemplate && String(matchedTemplate.content || '').trim() === currentTextTrimmed;
+            pushHistoryBatch(`vlm:${node.id}:system_prompt_template`, 'Clear VLM system prompt template');
+            node.params = Object.assign({}, params, {
+                system_prompt: shouldClearPrompt ? '' : currentText,
+                system_prompt_template_id: '',
+                system_prompt_template_name: ''
+            });
+            syncVlmSystemPromptTemplateDom(node, scope);
+            if (shouldClearPrompt) {
+                refreshVlmChatReadabilityDom(scope?.closest?.('[data-node-id]') || nodesLayer?.querySelector?.(`[data-node-id="${cssEscape(node.id)}"]`), node);
+                showToast(t('System prompt template cleared.', '系统提示词模板已清除。'));
+            }
+            scheduleSave();
+            return;
+        }
+        const template = findVlmSystemPromptTemplate(id);
+        if (!template) {
+            ensureVlmSystemPromptTemplates({ render: false }).then(() => {
+                applyVlmSystemPromptTemplate(getNode(node.id) || node, id, scope);
+            }).catch(() => {});
+            return;
+        }
+        pushHistoryBatch(`vlm:${node.id}:system_prompt_template`, 'Select VLM system prompt template');
+        node.params = Object.assign({}, node.params || {}, {
+            system_prompt: template.content,
+            system_prompt_template_id: template.id,
+            system_prompt_template_name: template.name
+        });
+        syncVlmSystemPromptTemplateDom(node, scope);
+        refreshVlmChatReadabilityDom(scope?.closest?.('[data-node-id]') || nodesLayer?.querySelector?.(`[data-node-id="${cssEscape(node.id)}"]`), node);
+        scheduleSave();
+        showToast(t('System prompt template loaded: {name}', '已载入系统提示词模板：{name}').replace('{name}', template.name));
+    }
+
     function buildDefaultVlmParamsFromAgentSettings() {
         const settings = getCanvasAgentSettings();
         const rewriteModel = String(settings.rewriteModel || CANVAS_AGENT_DEFAULT_SETTINGS.rewriteModel || '').trim();
@@ -17823,6 +17984,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
   ${renderVlmModelStatusHtml(node)}
   ${version === 'Custom' ? renderVlmCustomApiConfig(node) : ''}
   <label class="sai-node-field"><span>${escapeHtml(t('Assistant Name', '助手名称'))}</span><input data-vlm-param="assistant_name" value="${escapeHtml(params.assistant_name || '')}" placeholder="${escapeHtml(t('Assistant', '助手'))}"></label>
+  ${renderVlmSystemPromptTemplatePicker(params)}
   <label class="sai-node-field sai-text-node-field sai-vlm-system-field"><span>${escapeHtml(t('System Prompt', '系统提示词'))}</span><textarea data-vlm-param="system_prompt" rows="1" placeholder="${escapeHtml(t('Optional persona or assistant behavior...', '可选：设置人格或助手行为...'))}">${escapeHtml(params.system_prompt || '')}</textarea></label>
   <div class="sai-vlm-collapsed-chat-keep sai-collapsed-keep">
   ${renderVlmChatLog(node)}
@@ -22385,11 +22547,17 @@ ${actions}
                     return;
                 }
             }
+            const vlmTemplate = evt.target.closest('[data-vlm-system-template]');
+            if (vlmTemplate && node.type === 'vlm') {
+                applyVlmSystemPromptTemplate(node, vlmTemplate.value, nodeEl);
+                return;
+            }
             const vlmParam = evt.target.closest('[data-vlm-param]');
             if (vlmParam) {
                 const key = vlmParam.getAttribute('data-vlm-param');
                 updateVlmParam(node.id, key, vlmParam.type === 'checkbox' ? vlmParam.checked : vlmParam.value, vlmParam.type);
                 if (key === 'agent_auto_confirm_generation') maybeRunVlmAgentActionFromAutoConfirmToggle(node, vlmParam);
+                if (key === 'system_prompt') syncVlmSystemPromptTemplateDom(getNode(node.id) || node, nodeEl);
                 if (['chat_font_size', 'max_history', 'context_chars', 'system_prompt', 'prompt'].includes(key)) refreshVlmChatReadabilityDom(nodeEl, getNode(node.id) || node);
                 return;
             }
@@ -22646,11 +22814,17 @@ ${actions}
                 updateQwenTtsParam(node.id, field.getAttribute('data-node-param'), field.type === 'checkbox' ? field.checked : field.value, field.type);
                 return;
             }
+            const vlmTemplate = evt.target.closest('[data-vlm-system-template]');
+            if (vlmTemplate && node.type === 'vlm') {
+                applyVlmSystemPromptTemplate(node, vlmTemplate.value, nodeEl);
+                return;
+            }
             const vlmParam = evt.target.closest('[data-vlm-param]');
             if (vlmParam) {
                 const key = vlmParam.getAttribute('data-vlm-param');
                 updateVlmParam(node.id, key, vlmParam.type === 'checkbox' ? vlmParam.checked : vlmParam.value, vlmParam.type);
                 if (key === 'agent_auto_confirm_generation') maybeRunVlmAgentActionFromAutoConfirmToggle(node, vlmParam);
+                if (key === 'system_prompt') syncVlmSystemPromptTemplateDom(getNode(node.id) || node, nodeEl);
                 if (['chat_font_size', 'max_history', 'context_chars', 'system_prompt', 'prompt'].includes(key)) refreshVlmChatReadabilityDom(nodeEl, getNode(node.id) || node);
                 return;
             }
@@ -24362,6 +24536,7 @@ function renderVlmInspector(node) {
   <label>${escapeHtml(t('Mode', '模式'))}<select data-vlm-param="mode"><option value="single" ${mode !== 'chat' ? 'selected' : ''}>${escapeHtml(t('Single Run', '单次运行'))}</option><option value="chat" ${mode === 'chat' ? 'selected' : ''}>${escapeHtml(t('Chat Context', '上下文聊天'))}</option></select></label>
   ${isChat ? renderVlmAgentModeSelect(params) : ''}
   ${version === 'Custom' ? renderVlmCustomApiConfig(node) : ''}
+  ${isChat ? renderVlmSystemPromptTemplatePicker(params) : ''}
   ${isChat ? `<label>${escapeHtml(t('System Prompt', '系统提示词'))}<textarea data-vlm-param="system_prompt" rows="3">${escapeHtml(params.system_prompt || '')}</textarea></label>` : ''}
   ${isChat ? `<label>${escapeHtml(t('Assistant Name', '助手名称'))}<input data-vlm-param="assistant_name" value="${escapeHtml(params.assistant_name || '')}" placeholder="${escapeHtml(t('Assistant', '助手'))}"></label>` : ''}
   <label>${escapeHtml(isChat ? t('Message', '消息') : t('Instruction', '指令'))}${renderTranslatableTextarea('data-vlm-param="prompt" rows="6"', prompt, { target: 'vlm-param', key: 'prompt', state: getTranslationFieldState(node, 'vlm-param', 'prompt', prompt) })}</label>
@@ -24791,9 +24966,20 @@ ${renderGenerationMetadataInspectorSection(node)}
             field.addEventListener('input', () => updateWd14Param(selectedNodeId, field.getAttribute('data-wd14-param'), field.value, field.type));
             field.addEventListener('change', () => updateWd14Param(selectedNodeId, field.getAttribute('data-wd14-param'), field.value, field.type));
         });
+        inspector.querySelectorAll('[data-vlm-system-template]').forEach((field) => {
+            field.addEventListener('change', () => {
+                const node = getNode(selectedNodeId);
+                if (node?.type === 'vlm') applyVlmSystemPromptTemplate(node, field.value, inspector);
+            });
+        });
         inspector.querySelectorAll('[data-vlm-param]').forEach((field) => {
-            field.addEventListener('input', () => updateVlmParam(selectedNodeId, field.getAttribute('data-vlm-param'), field.type === 'checkbox' ? field.checked : field.value, field.type));
-            field.addEventListener('change', () => updateVlmParam(selectedNodeId, field.getAttribute('data-vlm-param'), field.type === 'checkbox' ? field.checked : field.value, field.type));
+            const handler = () => {
+                const key = field.getAttribute('data-vlm-param');
+                updateVlmParam(selectedNodeId, key, field.type === 'checkbox' ? field.checked : field.value, field.type);
+                if (key === 'system_prompt') syncVlmSystemPromptTemplateDom(getNode(selectedNodeId), inspector);
+            };
+            field.addEventListener('input', handler);
+            field.addEventListener('change', handler);
         });
         inspector.querySelectorAll('[data-classic-ip-type]').forEach((field) => {
             const handler = () => updateNodeParam(selectedNodeId, `ip_type_${field.getAttribute('data-classic-ip-type')}`, field.value, 'text');
@@ -34678,6 +34864,8 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
                 prompt: 'Write a detailed caption and generation prompt for this image. Output only the result.',
                 assistant_name: '',
                 system_prompt: '',
+                system_prompt_template_id: '',
+                system_prompt_template_name: '',
                 agent_mode: defaultVlmParams.agent_mode || 'persona',
                 save_context: true,
                 max_history: VLM_CHAT_DEFAULT_MAX_HISTORY,
@@ -34745,6 +34933,12 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             else node.params[key] = Number.isFinite(parsed) ? parsed : value;
         } else {
             node.params[key] = value;
+        }
+        if (key === 'system_prompt') {
+            const matchedId = vlmSystemPromptTemplateIdForContent(node.params.system_prompt);
+            const matched = findVlmSystemPromptTemplate(matchedId);
+            node.params.system_prompt_template_id = matchedId;
+            node.params.system_prompt_template_name = matched?.name || '';
         }
         if (key === 'agent_mode') {
             node.params.agent_mode = normalizeVlmAgentMode(node.params);

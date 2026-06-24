@@ -242,6 +242,14 @@ function simpleaiResetManagedNativeImageDragSource(img, source) {
     }
 }
 
+function simpleaiClearManagedNativeImageDragSource(expectedImg = null) {
+    const state = simpleaiManagedNativeImageDragSource;
+    if (!state) return;
+    if (expectedImg && state.img && state.img !== expectedImg) return;
+    simpleaiResetManagedNativeImageDragSource(state.img, state.source);
+    simpleaiManagedNativeImageDragSource = null;
+}
+
 function simpleaiPrepareManagedNativeImageDragSource(img) {
     if (!img) return null;
     const source = simpleaiManagedNativeImageDragSourceFromImage(img);
@@ -339,6 +347,12 @@ function simpleaiSetLargeNativeImageDragData(transfer, originalSrc) {
     try { transfer.setData('DownloadURL', `${mimeType}:${fileName}:${url}`); } catch (e) {}
 }
 
+function simpleaiClearGalleryOriginalDragUrl(delay = 0) {
+    setTimeout(() => {
+        try { delete window.__simpleaiGalleryOriginalDragUrl; } catch (e) {}
+    }, delay);
+}
+
 function simpleaiClipboardItemSupports(type) {
     try {
         if (!window.ClipboardItem) return false;
@@ -425,7 +439,9 @@ function simpleaiScheduleLargeNativeImageDragRestore(state, delay, options = {})
     state.restoreTimer = setTimeout(() => {
         if (options.onlyIfNotStarted && state.started) return;
         simpleaiRestoreLargeNativeImageDragSource(state);
+        if (options.clearManagedDrag) simpleaiClearManagedNativeImageDragSource(state.img);
         simpleaiRemoveNativeImageDragPreview();
+        if (options.clearOriginalDragUrl) simpleaiClearGalleryOriginalDragUrl(200);
     }, delay);
 }
 
@@ -551,7 +567,11 @@ function simpleaiHandleNativeImageDragStart(event) {
             largeDragState.restoreTimer = null;
         }
         simpleaiSetLargeNativeImageDragData(transfer, largeDragState.originalSrc);
-        simpleaiScheduleLargeNativeImageDragRestore(largeDragState, SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_ACTIVE_RESTORE_MS);
+        simpleaiScheduleLargeNativeImageDragRestore(
+            largeDragState,
+            SIMPLEAI_LARGE_NATIVE_IMAGE_DRAG_ACTIVE_RESTORE_MS,
+            { clearManagedDrag: true, clearOriginalDragUrl: true }
+        );
     }
     if (!transfer) return;
     const preview = simpleaiCreateNativeImageDragPreview(img);
@@ -563,16 +583,31 @@ function simpleaiHandleNativeImageDragStart(event) {
 }
 
 function simpleaiHandleNativeImageDragEnd() {
+    const state = simpleaiLargeNativeImageDragState;
     simpleaiRemoveNativeImageDragPreview();
-    simpleaiRestoreLargeNativeImageDragSource();
-    simpleaiManagedNativeImageDragSource = null;
-    setTimeout(() => {
-        try { delete window.__simpleaiGalleryOriginalDragUrl; } catch (e) {}
-    }, 200);
+    simpleaiRestoreLargeNativeImageDragSource(state);
+    simpleaiClearManagedNativeImageDragSource(state?.img || null);
+    if (!state) simpleaiClearManagedNativeImageDragSource();
+    simpleaiClearGalleryOriginalDragUrl(200);
 }
 
 function simpleaiHandleLargeNativeImageDragPointerDone() {
-    if (simpleaiLargeNativeImageDragState) simpleaiHandleNativeImageDragEnd();
+    if (simpleaiLargeNativeImageDragState) {
+        simpleaiHandleNativeImageDragEnd();
+        return;
+    }
+    simpleaiClearManagedNativeImageDragSource();
+}
+
+function simpleaiHandleLargeNativeImageDragPointerCancel() {
+    const state = simpleaiLargeNativeImageDragState;
+    if (!state) return;
+    // Chrome emits pointercancel when native HTML drag takes over; dragend/drop is the real end.
+    if (state.started) {
+        simpleaiRemoveNativeImageDragPreview();
+        return;
+    }
+    simpleaiHandleNativeImageDragEnd();
 }
 
 function simpleaiHandleGalleryOriginalContextPointerDown() {
@@ -1429,7 +1464,7 @@ document.addEventListener('mousedown', simpleaiPrepareManagedNativeImageDrag, tr
 document.addEventListener('pointerdown', simpleaiTrackGalleryOriginalCopyImage, true);
 document.addEventListener('pointerdown', simpleaiPrepareLargeNativeImageDrag, true);
 document.addEventListener('pointerup', simpleaiHandleLargeNativeImageDragPointerDone, true);
-document.addEventListener('pointercancel', simpleaiHandleLargeNativeImageDragPointerDone, true);
+document.addEventListener('pointercancel', simpleaiHandleLargeNativeImageDragPointerCancel, true);
 document.addEventListener('mouseup', simpleaiHandleLargeNativeImageDragPointerDone, true);
 document.addEventListener('dragstart', simpleaiHandleNativeImageDragStart, true);
 document.addEventListener('dragend', simpleaiHandleNativeImageDragEnd, true);

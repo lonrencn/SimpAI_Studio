@@ -1,0 +1,5 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+bernini_video_content_propagation,Basic,positive_prompt,replace,Content propagation edit,内容传播编辑,"将用户指定的编辑效果稳定传播到整段视频，保持主体身份、场景结构、动作节奏和镜头运动连续，避免编辑区域闪烁或漂移。","视频编辑|内容传播|身份保持|连续性",130
+bernini_video_style_light_color_texture,Basic,positive_prompt,replace,Video style light color texture,视频风格光色材质,"调整视频的风格、光照、颜色、纹理和主体动作表现，让变化贯穿整段视频并保持时序稳定，不改变无关内容。","风格|光照|颜色|纹理|时序稳定",120
+bernini_video_action_position_adjust,Basic,positive_prompt,replace,Video action or position adjust,视频动作位置调整,"根据用户要求调整主体动作、姿态或画面位置，保持人物身份、服装、背景、镜头运动和视频节奏一致，动作过渡自然。","动作调整|位置调整|镜头运动|动作过渡",110
+bernini_video_reference_edit,Basic,positive_prompt,replace,Video edit with reference,参考视频编辑,"参考输入图像或参考视频的主体外观、风格或动作，对目标视频进行一致性编辑，保持时间连续、边缘干净和光照统一。","参考编辑|外观一致|时间连续|边缘干净",100

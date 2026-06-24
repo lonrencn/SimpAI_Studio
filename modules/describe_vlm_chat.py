@@ -4,6 +4,9 @@ import re
 import threading
 import time
 
+import modules.canvas_danbooru_service as canvas_danbooru_service
+import modules.vlm_system_prompt_templates as vlm_system_prompt_templates
+
 
 ALLOWED_PROMPT_ACTIONS = {"set_prompt", "append_prompt", "refine_prompt", "describe_image_to_prompt", "text_to_prompt"}
 _CANCEL_TTL_SECONDS = 1800
@@ -515,6 +518,22 @@ def _prompt_options_from_payload(payload, lang):
     normalized_options = dict(options)
     normalized_options.update({"output_tags": output_tags, "output_chinese": output_chinese, "output_artist": output_artist})
     mode = _prompt_mode_from_options(normalized_options)
+    system_prompt_template_id = _clean_text(
+        payload.get("system_prompt_template_id")
+        or payload.get("vlm_system_prompt_template_id")
+        or payload.get("template_id")
+        or ""
+    )
+    custom_system_prompt = _clean_multiline_text(
+        payload.get("custom_system_prompt")
+        or payload.get("user_system_prompt")
+        or payload.get("system_prompt")
+        or ""
+    )
+    if system_prompt_template_id and not custom_system_prompt:
+        custom_system_prompt = _clean_multiline_text(
+            vlm_system_prompt_templates.resolve_vlm_system_prompt_template(system_prompt_template_id)
+        )
     return {
         "chat_mode": chat_mode,
         "mode": mode,
@@ -526,12 +545,8 @@ def _prompt_options_from_payload(payload, lang):
         "target_task_method": _prompt_target_field(options, "task_method", "method"),
         "target_text_encoder": _prompt_target_field(options, "text_encoder", "clip_model", "clip"),
         "target_base_model": _prompt_target_field(options, "base_model", "model", "checkpoint"),
-        "custom_system_prompt": _clean_multiline_text(
-            payload.get("custom_system_prompt")
-            or payload.get("user_system_prompt")
-            or payload.get("system_prompt")
-            or ""
-        ),
+        "custom_system_prompt": custom_system_prompt,
+        "system_prompt_template_id": system_prompt_template_id,
         "prompt_intent": prompt_intent,
         "include_current_prompt": include_current_prompt,
         "enable_prompt_skills": chat_mode == "prompt" or (chat_mode == "chat" and prompt_intent),
@@ -714,6 +729,7 @@ def build_runtime_payload(payload):
         "describe_prompt_target_base_model": prompt_options["target_base_model"],
         "describe_current_prompt_included": bool(prompt_options["include_current_prompt"] and str(current_prompt or "").strip()),
         "describe_custom_system_prompt": bool(prompt_options["custom_system_prompt"]),
+        "describe_system_prompt_template_id": prompt_options["system_prompt_template_id"],
         "describe_output_tags": prompt_options["output_tags"],
         "describe_output_chinese": prompt_options["output_chinese"],
         "describe_output_artist": prompt_options["output_artist"],
@@ -848,6 +864,7 @@ def normalize_limited_actions(actions):
         if not prompt_text:
             continue
         prompt_text = sanitize_danbooru_character_outfit_tags(prompt_text)
+        prompt_text = canvas_danbooru_service._canvas_prompt_safe_danbooru_text(prompt_text)
         if action_type in {"refine_prompt", "describe_image_to_prompt", "text_to_prompt"}:
             action_type = "set_prompt"
         normalized.append(

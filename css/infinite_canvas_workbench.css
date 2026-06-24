@@ -8114,6 +8114,10 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     background: color-mix(in srgb, var(--sai-canvas-surface) 88%, #000000);
 }
 
+.sai-vlm-template-field select {
+    width: 100%;
+}
+
 .sai-vlm-system-field textarea {
     min-height: 30px;
     max-height: 140px;

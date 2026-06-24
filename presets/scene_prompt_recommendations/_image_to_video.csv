@@ -1,0 +1,41 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+i2v_portrait_subtle_turn,*,positive_prompt,replace,Portrait subtle turn,人像轻微转身,"保持输入图像中的人物身份、服装、发型和构图一致，人物缓慢转头看向镜头，眼神自然变化，头发和衣料有轻微真实运动，背景保持稳定。","人像|转头|身份保持|轻微运动",130
+i2v_portrait_emotion_shift,*,positive_prompt,replace,Portrait emotion shift,人像情绪变化,"保持输入人像的身份、五官比例和光线一致，人物表情从平静逐渐变成微笑或思考，肩部和呼吸有细小自然动作，镜头固定。","人像|表情变化|呼吸|镜头固定",128
+i2v_fashion_walk,*,positive_prompt,replace,Fashion walk,服装走秀,"保持参考人物和服装款式一致，人物向前走两步并轻微转身展示服装，布料随步伐自然摆动，镜头缓慢后退，背景和光线不跳变。","服装|走秀|布料运动|镜头后退",126
+i2v_product_turntable,*,positive_prompt,replace,Product turntable,商品旋转展示,"保持输入商品的品牌、形状、材质和文字清晰，商品在展示台上缓慢旋转，镜头轻微推进，金属、玻璃或塑料表面出现真实高光变化。","商品|旋转展示|材质高光|品牌清晰",126
+i2v_food_steam_pour,*,positive_prompt,replace,Food steam and pour,美食热气浇淋,"保持输入食物的摆盘和食材结构稳定，热气缓慢升起，酱汁或汤汁从画面上方自然浇下，食物表面出现湿润高光，镜头近景固定。","美食|热气|酱汁|近景",124
+i2v_first_last_transition,*,positive_prompt,replace,First-last transition,首尾帧过渡,"如果提供尾帧，让画面从首帧自然过渡到尾帧，主体身份、构图方向和风格保持一致，中间动作连贯，避免突然变形或无关内容出现。","首尾帧|自然过渡|身份保持|连贯动作",124
+i2v_pet_playful,*,positive_prompt,replace,Pet playful motion,宠物自然互动,"保持输入宠物的外形、毛色和场景一致，宠物抬头、眨眼或轻轻移动爪子，尾巴或耳朵有自然小动作，镜头稳定，背景不漂移。","宠物|眨眼|尾巴耳朵|背景稳定",122
+i2v_vehicle_rollout,*,positive_prompt,replace,Vehicle rollout,车辆启动展示,"保持输入车辆外观、车漆颜色和环境透视一致，车灯依次亮起，车辆缓慢向前滑动一小段，镜头低角度轻微跟随，车身反光自然流动。","车辆|车灯|低角度|反光",122
+i2v_landscape_clouds,*,positive_prompt,replace,Landscape parallax,风景云影视差,"保持输入风景的构图和色调一致，云层缓慢移动，树叶或草地被风轻轻吹动，镜头极慢推进，前景与远景形成柔和视差。","风景|云层|风吹草木|视差",121
+i2v_rain_window,*,positive_prompt,replace,Rain on window,雨窗氛围,"保持输入场景的室内外结构一致，窗玻璃上的雨滴缓慢滑落，远处灯光在水痕中轻微变形，镜头固定，室内主体保持清晰稳定。","雨滴|窗玻璃|灯光倒影|镜头固定",121
+i2v_dance_pose_loop,*,positive_prompt,replace,Dance pose motion,舞蹈姿态延展,"保持输入人物的身份、服装和画风一致，让人物从当前姿势自然延展成一小段舞蹈动作，手臂和身体节奏连贯，镜头轻微环绕。","舞蹈|姿势延展|节奏|镜头环绕",120
+i2v_anime_idle_motion,*,positive_prompt,replace,Anime idle motion,动漫角色待机,"保持输入动漫角色的身份、画风、服装和背景一致，角色轻轻眨眼、呼吸，发丝和衣摆微微飘动，画面像游戏待机动画一样干净稳定。","动漫角色|待机动画|眨眼|衣摆",120
+i2v_wuxia_sword_robes,*,positive_prompt,replace,Wuxia sword motion,武侠剑势衣袂,"保持输入人物身份和服装一致，人物缓慢起势或收剑，衣袂与发丝随风摆动，镜头低速侧移，背景竹影或尘埃有细微动态。","武侠|剑势|衣袂|侧移镜头",120
+i2v_product_macro_sparkle,*,positive_prompt,replace,Product macro sparkle,商品微距闪光,"保持输入商品结构和文字不变，镜头切近商品局部，边缘高光缓慢扫过，细小水珠、粉末或金属纹理清晰可见，整体运动克制。","商品微距|高光|纹理|文字保持",119
+i2v_room_light_change,*,positive_prompt,replace,Room light change,室内光线变化,"保持输入室内空间布局、家具位置和透视一致，窗外光线从柔和变亮或从白天过渡到黄昏，窗帘轻微摆动，镜头静止。","室内|光线变化|窗帘|透视保持",119
+i2v_sports_takeoff,*,positive_prompt,replace,Sports action start,运动起势,"保持输入人物的身份、服装和场地一致，人物从当前姿势启动动作，如起跑、跳跃或挥拍，动作符合物理惯性，镜头轻微跟随主体。","运动|起跑|跳跃|跟随镜头",119
+i2v_fantasy_magic_particles,*,positive_prompt,replace,Fantasy magic particles,奇幻粒子法术,"保持输入角色和场景风格一致，角色手部或道具周围聚集柔和发光粒子，粒子旋转后向外散开，镜头缓慢推进，主体轮廓稳定。","奇幻|粒子|法术|镜头推进",119
+i2v_city_street_parallax,*,positive_prompt,replace,City street parallax,城市街景视差,"保持输入街景构图和主体位置一致，行人或车辆在远处轻微移动，霓虹灯或路灯缓慢闪烁，镜头横向慢移形成街景视差。","城市街景|视差|行人车辆|灯光",118
+i2v_ocean_waves,*,positive_prompt,replace,Ocean waves,海浪日落,"保持输入海岸或海面构图一致，海浪有节奏地推进又退回，水面反射随波纹变化，镜头轻微下压或缓慢推进，天空颜色稳定。","海浪|水面反射|日落|镜头推进",118
+i2v_snow_falling,*,positive_prompt,replace,Snow falling,雪景飘落,"保持输入雪景的主体、构图和色调一致，雪花缓慢飘落，人物或建筑边缘保持清晰，风吹动少量衣料或树枝，镜头固定。","雪景|飘雪|树枝|镜头固定",118
+i2v_flower_bloom_timelapse,*,positive_prompt,replace,Flower bloom timelapse,花朵绽放延时,"保持输入植物和背景构图一致，花瓣在短时间内缓慢舒展绽放，叶片轻轻摆动，光线有轻微时间流逝变化，镜头近景固定。","花朵|绽放|延时|近景",118
+i2v_hand_closeup_action,*,positive_prompt,replace,Hand close-up action,手部近景动作,"保持输入手部、道具和桌面布局一致，手指完成一个清晰的小动作，如书写、按键、拿起物体或翻页，镜头近景稳定，物体边缘不变形。","手部|书写|翻页|近景稳定",118
+i2v_real_estate_walkthrough,*,positive_prompt,replace,Real estate walkthrough,空间缓慢浏览,"保持输入建筑或室内空间的结构、直线和透视稳定，镜头缓慢向前浏览空间，窗外光线和室内阴影自然变化，家具位置不漂移。","空间|建筑|镜头前推|透视稳定",117
+i2v_wildlife_breathing,*,positive_prompt,replace,Wildlife breathing,动物静态呼吸,"保持输入动物的外形、姿态和环境一致，动物缓慢呼吸、眨眼或轻微转头，毛发或羽毛随风轻动，镜头长焦固定。","动物|呼吸|眨眼|长焦",117
+i2v_anime_action_dash,*,positive_prompt,replace,Anime action dash,动漫动作冲刺,"保持输入动漫角色的身份、服装和画风一致，角色向画面一侧短距离冲刺或挥动武器，动作线和衣摆动态清晰，背景轻微速度感。","动漫动作|冲刺|动作线|速度感",117
+i2v_scifi_hologram,*,positive_prompt,replace,Sci-fi hologram,科幻全息界面,"保持输入人物、设备或场景结构一致，半透明全息界面在主体前方亮起并缓慢旋转，光线映在主体表面，镜头轻微推近。","科幻|全息界面|旋转|反光",117
+i2v_cyberpunk_neon,*,positive_prompt,replace,Cyberpunk neon,赛博霓虹氛围,"保持输入人物或街景构图一致，霓虹招牌和水面倒影轻微闪烁，薄雾缓慢流动，镜头低速横移，主体身份与服装稳定。","赛博朋克|霓虹|薄雾|横移镜头",116
+i2v_historical_market,*,positive_prompt,replace,Historical market,古风市集烟火,"保持输入古风场景的人物、服装和建筑风格一致，摊位热气升起，灯笼轻摆，行人有轻微往来，镜头缓慢穿过前景形成层次。","古风市集|灯笼|热气|前景层次",116
+i2v_craft_handwork,*,positive_prompt,replace,Craft handwork,手作工艺,"保持输入手作材料、工具和桌面布局一致，手部进行雕刻、缝制、绘制或打磨动作，碎屑、线头或颜料有细微真实运动，镜头近景固定。","手作|工具|材料|近景",116
+i2v_industrial_machine,*,positive_prompt,replace,Industrial machine,工业机械运转,"保持输入机器结构、车间透视和安全标识一致，机械臂或传送带缓慢启动，指示灯闪烁，金属表面反光变化，镜头轻微侧移。","工业|机械臂|传送带|指示灯",116
+i2v_architecture_drone_rise,*,positive_prompt,replace,Architecture rise,建筑上升镜头,"保持输入建筑外观、线条和周围环境一致，镜头从低处缓慢升高展示建筑立面，云影或树影轻微移动，直线结构不弯曲。","建筑|上升镜头|立面|直线稳定",115
+i2v_macro_insect,*,positive_prompt,replace,Macro insect,微距昆虫,"保持输入微距主体和背景景深一致，昆虫触角、翅膀或足部有细小运动，露珠轻微晃动，镜头极慢推进，主体细节清晰。","微距|昆虫|露珠|景深",115
+i2v_drink_ice_splash,*,positive_prompt,replace,Drink ice splash,饮品冰块气泡,"保持输入饮品杯型、标签和桌面环境一致，冰块轻轻碰撞，气泡上升，杯壁水珠滑落，镜头近景固定，液体透明感自然。","饮品|冰块|气泡|水珠",115
+i2v_event_group_pose,*,positive_prompt,replace,Event group pose,合影自然动感,"保持输入合影中每个人的身份、站位和服装一致，人物轻微调整姿势、眨眼或微笑，背景稳定，镜头固定，不增加陌生人物。","合影|站位保持|微笑|背景稳定",114
+i2v_music_performance,*,positive_prompt,replace,Music performance,音乐表演画面,"保持输入表演者、乐器和舞台灯光一致，手部或身体跟随节奏轻微演奏，灯光缓慢扫过舞台，镜头中景稳定，不改变乐器形状。","音乐表演|乐器|舞台灯光|节奏",114
+i2v_comic_panel_motion,*,positive_prompt,replace,Comic panel motion,漫画分镜动效,"保持输入漫画或插画的角色、线条和色彩风格一致，只让发丝、衣摆、光效或背景元素轻微动起来，镜头做缓慢推近，画风不变。","漫画|插画|轻动效|画风保持",113
+i2v_logo_reveal,*,positive_prompt,replace,Logo reveal,标识展示动效,"保持输入标识、文字和品牌颜色清晰不变，镜头缓慢推进，柔和光扫过标识边缘，背景有轻微粒子或光影变化，文字不扭曲。","标识|文字保持|光扫|品牌颜色",113
+i2v_education_diagram,*,positive_prompt,replace,Education diagram motion,教育图解动画,"保持输入图解的主要结构、文字和标注清晰，箭头、路径或关键部件按顺序亮起，镜头固定，动画帮助解释流程但不改变原图含义。","教育图解|箭头|流程|文字清晰",112
+i2v_season_transition,*,positive_prompt,replace,Season transition,季节时间变化,"保持输入场景的主体和构图一致，画面从当前季节或时间自然过渡到另一种氛围，如日落、夜色、春花或秋叶，变化平滑。","季节|时间变化|日落|平滑过渡",112
+i2v_reference_set_composite,*,positive_prompt,replace,Reference set video,多参考合成视频,"融合多张参考图中的主体、服装、道具或场景信息生成短视频，保持关键参考特征一致，动作轻微自然，镜头稳定，避免身份漂移。","多参考|主体一致|道具|稳定镜头",111

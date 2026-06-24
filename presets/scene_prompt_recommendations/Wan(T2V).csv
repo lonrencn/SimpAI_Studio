@@ -1,0 +1,4 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+city_camera_pullback,Basic,positive_prompt,replace,Cinematic city pullback,城市镜头后拉,"镜头从人物背后缓慢后拉，城市霓虹和雨后的地面反光逐渐进入画面，人物停下脚步回头看向镜头，画面保持电影感和稳定运镜。","镜头后拉|城市|霓虹|雨后",120
+workbench_closeup,Basic,positive_prompt,replace,Workbench close-up,桌面操作特写,"特写拍摄一双手在桌面整理纸张和工具，镜头轻微前推，手部动作清晰，背景保持柔和虚化，整体节奏平缓。","特写|手部动作|前推|桌面",100
+gallery_walkthrough,Basic,positive_prompt,replace,Gallery walkthrough,展厅漫步,"镜头缓慢横移，拍摄人物穿过安静展厅，墙面光影随移动变化，人物偶尔停下观察画作，氛围克制自然。","横移|展厅|光影|人物",90

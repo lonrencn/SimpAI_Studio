@@ -1,0 +1,2 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+wan_outpaint_default,Animate Outpaint,positive_prompt,replace,Default video outpaint,默认视频扩图,"扩展视频画面边界，延续原视频构图、背景纹理、光照方向和镜头运动，新增区域自然稳定，不改变原有主体。","视频扩图|构图延续|镜头运动|主体保持",120

@@ -1,0 +1,4 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+object_replace_clean,Wan-Animate-SAM3 Object Replacement,positive_prompt,replace,Clean object replacement,干净物体替换,"将被遮罩物体自然替换为目标物体，保持原视频光照、透视和接触阴影一致，替换区域边缘干净，背景运动保持不变。","物体替换|光照一致|接触阴影|边缘干净",120
+face_swap_stable,Wan-Animate-SAM3 Face Swap,positive_prompt,replace,Stable face swap,稳定换脸,"保持原视频动作、姿态和光照，只替换面部身份，脸部角度跟随原视频变化，表情自然，发型和背景不被改动。","换脸|表情自然|姿态保持|背景不变",120
+person_replace_motion,Wan-Animate-SAM3 Person Replacement,positive_prompt,replace,Person motion replacement,人物动作替换,"将遮罩人物替换为目标人物，保留原视频动作节奏、镜头运动和场景光照，人物边缘稳定，衣物运动自然。","人物替换|动作节奏|镜头运动|边缘稳定",120

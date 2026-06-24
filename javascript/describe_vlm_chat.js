@@ -24,6 +24,7 @@
     ];
     const ONE_PIXEL_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
     const SETTINGS_STORAGE_KEY = 'simpai.describeVlmChat.settings.v1';
+    const SYSTEM_PROMPT_TEMPLATE_ENDPOINT = '/vlm-system-prompt-templates';
 
     function normalizeChatMode(value) {
         const mode = String(value || '').trim().toLowerCase().replace(/-/g, '_');
@@ -60,11 +61,12 @@
             return {
                 chatMode: normalizeChatMode(data.chatMode),
                 customSystemPrompt: String(data.customSystemPrompt || ''),
+                systemPromptTemplateId: String(data.systemPromptTemplateId || ''),
                 unloadAfterChat: !!data.unloadAfterChat,
                 windowLayout: normalizeChatWindowLayout(data.windowLayout)
             };
         } catch (err) {
-            return { chatMode: 'chat', customSystemPrompt: '', unloadAfterChat: false, windowLayout: null };
+            return { chatMode: 'chat', customSystemPrompt: '', systemPromptTemplateId: '', unloadAfterChat: false, windowLayout: null };
         }
     }
 
@@ -84,6 +86,10 @@
         missingVlmModelRequest: null,
         chatMode: savedChatSettings.chatMode,
         customSystemPrompt: savedChatSettings.customSystemPrompt,
+        systemPromptTemplateId: savedChatSettings.systemPromptTemplateId,
+        systemPromptTemplates: [],
+        systemPromptTemplatesLoaded: false,
+        systemPromptTemplatesLoading: false,
         unloadAfterChat: !!savedChatSettings.unloadAfterChat,
         windowLayout: savedChatSettings.windowLayout
     };
@@ -115,6 +121,7 @@
             window.localStorage?.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({
                 chatMode: state.chatMode,
                 customSystemPrompt: state.customSystemPrompt,
+                systemPromptTemplateId: state.systemPromptTemplateId,
                 unloadAfterChat: !!state.unloadAfterChat,
                 windowLayout: state.windowLayout || null
             }));
@@ -156,11 +163,13 @@
         if (!modal) return;
         const mode = modal.querySelector('[data-describe-vlm-chat-mode]');
         const system = modal.querySelector('[data-describe-vlm-chat-system]');
+        const template = modal.querySelector('[data-describe-vlm-chat-template]');
         const input = modal.querySelector('[data-describe-vlm-chat-input]');
         const unload = modal.querySelector('[data-describe-vlm-chat-unload-after]');
         const modeHint = modal.querySelector('[data-describe-vlm-chat-mode-hint]');
         if (mode) mode.value = state.chatMode;
         if (system && system.value !== state.customSystemPrompt) system.value = state.customSystemPrompt;
+        if (template) syncSystemPromptTemplateControls(modal);
         if (unload) unload.checked = !!state.unloadAfterChat;
         if (modeHint) modeHint.hidden = state.chatMode !== 'chat';
         if (input) input.setAttribute('placeholder', chatInputPlaceholder(state.chatMode));
@@ -257,6 +266,107 @@
             }
             return { ok: false, error: err?.message || String(err || 'request failed') };
         }
+    }
+
+    function normalizeSystemPromptTemplates(data) {
+        const rows = Array.isArray(data?.templates) ? data.templates : [];
+        return rows.map((item) => {
+            const id = String(item?.id || item?.filename || item?.name || '').trim();
+            const name = String(item?.name || item?.filename || id).trim();
+            const content = String(item?.content || '').trim();
+            if (!id || !name || !content) return null;
+            return { id, name, filename: String(item?.filename || id), content };
+        }).filter(Boolean);
+    }
+
+    function selectedSystemPromptTemplateIdForContent(content) {
+        const text = String(content || '').trim();
+        if (!text) return '';
+        const match = state.systemPromptTemplates.find(item => String(item.content || '').trim() === text);
+        return match?.id || '';
+    }
+
+    function renderSystemPromptTemplateOptions() {
+        const selected = state.systemPromptTemplateId || selectedSystemPromptTemplateIdForContent(state.customSystemPrompt);
+        const intro = state.systemPromptTemplatesLoading && !state.systemPromptTemplatesLoaded
+            ? t('Loading templates...', '正在读取模板...')
+            : t('Custom / no template', '自定义 / 不使用模板');
+        const options = [`<option value="">${escapeHtml(intro)}</option>`];
+        state.systemPromptTemplates.forEach((item) => {
+            options.push(`<option value="${escapeHtml(item.id)}" ${item.id === selected ? 'selected' : ''}>${escapeHtml(item.name)}</option>`);
+        });
+        return options.join('');
+    }
+
+    function syncSystemPromptTemplateControls(modal) {
+        const target = modal || document.getElementById('describe_vlm_chat_modal');
+        if (!target) return;
+        target.querySelectorAll('[data-describe-vlm-chat-template]').forEach((select) => {
+            const activeId = state.systemPromptTemplateId || selectedSystemPromptTemplateIdForContent(state.customSystemPrompt);
+            select.innerHTML = renderSystemPromptTemplateOptions();
+            select.value = activeId;
+            select.disabled = state.systemPromptTemplatesLoading && !state.systemPromptTemplatesLoaded;
+        });
+    }
+
+    let systemPromptTemplateRequest = null;
+
+    async function ensureSystemPromptTemplates(modal) {
+        if (state.systemPromptTemplatesLoaded) {
+            syncSystemPromptTemplateControls(modal);
+            return state.systemPromptTemplates;
+        }
+        if (systemPromptTemplateRequest) return systemPromptTemplateRequest;
+        state.systemPromptTemplatesLoading = true;
+        syncSystemPromptTemplateControls(modal);
+        systemPromptTemplateRequest = postJson(SYSTEM_PROMPT_TEMPLATE_ENDPOINT, {})
+            .then((data) => {
+                state.systemPromptTemplates = normalizeSystemPromptTemplates(data);
+                state.systemPromptTemplatesLoaded = true;
+                state.systemPromptTemplatesLoading = false;
+                syncSystemPromptTemplateControls(modal);
+                return state.systemPromptTemplates;
+            })
+            .catch(() => {
+                state.systemPromptTemplates = [];
+                state.systemPromptTemplatesLoaded = true;
+                state.systemPromptTemplatesLoading = false;
+                syncSystemPromptTemplateControls(modal);
+                return [];
+            })
+            .finally(() => {
+                systemPromptTemplateRequest = null;
+            });
+        return systemPromptTemplateRequest;
+    }
+
+    function applySystemPromptTemplate(templateId, modal) {
+        const id = String(templateId || '').trim();
+        if (!id) {
+            const target = modal || document.getElementById('describe_vlm_chat_modal');
+            const textarea = target?.querySelector?.('[data-describe-vlm-chat-system]');
+            const currentText = String(textarea?.value ?? state.customSystemPrompt ?? '').trim();
+            const matchedTemplate = state.systemPromptTemplates.find(item => item.id === state.systemPromptTemplateId)
+                || state.systemPromptTemplates.find(item => String(item.content || '').trim() === currentText);
+            const shouldClearPrompt = !!matchedTemplate && String(matchedTemplate.content || '').trim() === currentText;
+            state.systemPromptTemplateId = '';
+            if (shouldClearPrompt) state.customSystemPrompt = '';
+            if (textarea && shouldClearPrompt) textarea.value = '';
+            saveChatSettings();
+            syncSystemPromptTemplateControls(target);
+            if (shouldClearPrompt) setStatus(t('System prompt template cleared.', '系统提示词模板已清除。'));
+            return;
+        }
+        const template = state.systemPromptTemplates.find(item => item.id === id);
+        if (!template) return;
+        state.systemPromptTemplateId = template.id;
+        state.customSystemPrompt = template.content;
+        const target = modal || document.getElementById('describe_vlm_chat_modal');
+        const textarea = target?.querySelector?.('[data-describe-vlm-chat-system]');
+        if (textarea) textarea.value = state.customSystemPrompt;
+        saveChatSettings();
+        syncSystemPromptTemplateControls(target);
+        setStatus(t('System prompt template loaded: {name}', '已载入系统提示词模板：{name}').replace('{name}', template.name));
     }
 
     function currentImageElement() {
@@ -972,6 +1082,7 @@
       <option value="prompt" ${state.chatMode === 'prompt' ? 'selected' : ''}>${escapeHtml(t('Prompt Assistant', '提示词助手'))}</option>
       <option value="raw" ${state.chatMode === 'raw' ? 'selected' : ''}>${escapeHtml(t('Raw Model', '原始模型'))}</option>
     </select></label>
+    <label class="describe-vlm-chat-template-field"><span>${escapeHtml(t('Template', '模板'))}</span><select data-describe-vlm-chat-template aria-label="${escapeHtml(t('System Prompt Template', '系统提示词模板'))}">${renderSystemPromptTemplateOptions()}</select></label>
     <label class="describe-vlm-chat-system-field"><span>${escapeHtml(t('System Prompt', '系统提示词'))}</span><textarea data-describe-vlm-chat-system rows="2" placeholder="${escapeHtml(t('Optional custom system prompt...', '可选自定义 system prompt...'))}">${escapeHtml(state.customSystemPrompt)}</textarea></label>
     <div class="describe-vlm-chat-mode-hint" data-describe-vlm-chat-mode-hint>${escapeHtml(t('Free Chat may not know SimpAI main UI workflows. For feature recommendations, switch to Guide Mode.', '自由对话可能不了解 SimpAI 主界面功能；需要功能推荐时可切换到向导模式。'))}</div>
   </div>
@@ -998,12 +1109,14 @@
         syncBusyControls(modal);
         renderMessages();
         renderPendingImages();
+        ensureSystemPromptTemplates(modal).catch(() => {});
         return modal;
     }
 
     function openModal() {
         const modal = ensureModal();
         syncChatSettingsControls(modal);
+        ensureSystemPromptTemplates(modal).catch(() => {});
         modal.hidden = false;
         installDescribeFloatingLayer(modal);
         document.documentElement.classList.add('describe-vlm-chat-open');
@@ -1630,8 +1743,10 @@
         const input = modal.querySelector('[data-describe-vlm-chat-input]');
         const selectedMode = normalizeChatMode(modal.querySelector('[data-describe-vlm-chat-mode]')?.value || state.chatMode);
         const customSystemPrompt = modal.querySelector('[data-describe-vlm-chat-system]')?.value ?? state.customSystemPrompt;
+        const selectedTemplateId = modal.querySelector('[data-describe-vlm-chat-template]')?.value || selectedSystemPromptTemplateIdForContent(customSystemPrompt);
         state.chatMode = selectedMode;
         state.customSystemPrompt = customSystemPrompt;
+        state.systemPromptTemplateId = selectedTemplateId && (!state.systemPromptTemplatesLoaded || selectedSystemPromptTemplateIdForContent(customSystemPrompt) === selectedTemplateId) ? selectedTemplateId : '';
         saveChatSettings();
         const typed = String(input?.value || '').trim();
         const pendingImages = state.pendingImages.slice();
@@ -1704,6 +1819,7 @@
             custom_api: readDescribeCustomApi(version),
             chat_mode: selectedMode,
             user_system_prompt: customSystemPrompt,
+            system_prompt_template_id: state.systemPromptTemplateId,
             unload_after_chat: !!state.unloadAfterChat,
             free_after: !!state.unloadAfterChat,
             prompt_options: readDescribePromptOptions(),
@@ -1867,6 +1983,9 @@
             saveChatSettings();
             syncChatSettingsControls(document.getElementById('describe_vlm_chat_modal'));
         }
+        if (evt.target?.matches?.('[data-describe-vlm-chat-template]')) {
+            applySystemPromptTemplate(evt.target.value, document.getElementById('describe_vlm_chat_modal'));
+        }
         if (evt.target?.matches?.('[data-describe-vlm-chat-use-image]')) {
             state.useImage = !!evt.target.checked;
         }
@@ -1886,6 +2005,8 @@
     document.addEventListener('input', (evt) => {
         if (evt.target?.matches?.('[data-describe-vlm-chat-system]')) {
             state.customSystemPrompt = evt.target.value || '';
+            state.systemPromptTemplateId = selectedSystemPromptTemplateIdForContent(state.customSystemPrompt);
+            syncSystemPromptTemplateControls(document.getElementById('describe_vlm_chat_modal'));
             saveChatSettings();
         }
         if (evt.target?.closest?.('#describe_vlm_model_dropdown, #describe_vlm_model, #describe_vlm_custom_panel')) {

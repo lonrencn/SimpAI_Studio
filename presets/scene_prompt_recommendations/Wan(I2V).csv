@@ -1,0 +1,4 @@
+id,scene_theme,target,mode,title_en,title_cn,prompt,seed_terms,weight
+portrait_turn,Basic,positive_prompt,replace,Portrait turn,肖像转身,"保持首帧人物身份和服装一致，人物缓慢转头看向镜头，发丝和衣料有轻微自然运动，背景只做细微景深变化。","转头|身份一致|轻微运动|景深",120
+street_forward,Basic,positive_prompt,replace,Street forward move,街景前推,"基于输入图像延展场景，镜头缓慢前推，人物向前走一步后停下，环境光线自然变化，主体轮廓保持稳定。","前推|走动|主体稳定|自然光",105
+quiet_expression,Basic,positive_prompt,replace,Expression change,表情变化,"保持输入图像构图，人物表情从平静逐渐变为轻微微笑，头部和肩部有细小自然动作，画面不改变主体身份。","表情变化|微笑|身份一致|构图保持",95

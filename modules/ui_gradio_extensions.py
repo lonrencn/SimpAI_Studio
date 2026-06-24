@@ -181,6 +181,7 @@ def javascript_html():
     canvas_workbench_api_path = webpath('javascript/canvas_workbench/api.js')
     describe_vlm_chat_path = webpath('javascript/describe_vlm_chat.js')
     webui_danbooru_autocomplete_path = webpath('javascript/webui_danbooru_autocomplete.js')
+    scene_prompt_recommendations_path = webpath('javascript/scene_prompt_recommendations.js')
     canvas_workbench_registry_path = webpath('javascript/canvas_workbench/registry.js')
     canvas_workbench_vlm_chat_path = webpath('javascript/canvas_workbench/vlm_chat.js')
     canvas_workbench_canvas_agent_path = webpath('javascript/canvas_workbench/canvas_agent.js')
@@ -350,6 +351,7 @@ def javascript_html():
     head += f'<script type="text/javascript">window.SimpAIInfiniteCanvasLazyAssets={infinite_canvas_lazy_assets_json};</script>\n'
     head += f'<script type="text/javascript" src="{status_monitor_path}"></script>\n'
     head += f'<script type="text/javascript" src="{webui_danbooru_autocomplete_path}"></script>\n'
+    head += f'<script type="text/javascript" src="{scene_prompt_recommendations_path}"></script>\n'
     head += f'<meta name="samples-path" content="{samples_path}">\n'
     head += f'<meta name="preset-samples-path" content="{preset_samples_path}">\n'
     head += f'<meta name="model-path" content="{model_path}">\n'

@@ -495,6 +495,13 @@
         });
     }
 
+    function vlmSystemPromptTemplates(payload) {
+        return postJson('/vlm-system-prompt-templates', payload || {}, {
+            emptyError: 'empty VLM system prompt template response',
+            requestError: 'VLM system prompt template request failed'
+        });
+    }
+
     function danbooruTagLookup(payload) {
         return postJson('/canvas-agent/danbooru-tags/lookup', payload || {}, {
             emptyError: 'empty Danbooru tag lookup response',
@@ -652,6 +659,7 @@
         vlmModelDownloads,
         customLlmModels,
         vlmSkills,
+        vlmSystemPromptTemplates,
         danbooruTagLookup,
         danbooruAutocomplete,
         danbooruGalleryImportPreview,
