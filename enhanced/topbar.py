@@ -906,8 +906,10 @@ def init_nav_bars(state_params, comfyd_active_checkbox, fast_comfyd_checkbox, ca
     state_params.update({"preset_store": False})
     state_params.update({"__preset_store_seq": state_params.get("__preset_store_seq", 0)})
     state_params.update({"__layout_initialized": False})
-    resolved_initial_preset = _resolve_preset_storage_name(state_params.get("__preset", initial_preset), state_params["user"].get_did())
-    initial_config_preset = config.try_get_preset_content(resolved_initial_preset, state_params["user"].get_did())
+    _init_user = state_params.get("user")
+    _init_user_did = _init_user.get_did() if _init_user else None
+    resolved_initial_preset = _resolve_preset_storage_name(state_params.get("__preset", initial_preset), _init_user_did)
+    initial_config_preset = config.try_get_preset_content(resolved_initial_preset, _init_user_did)
     initial_preset_prepared = meta_parser.parse_meta_from_preset(initial_config_preset)
     initial_engine = initial_preset_prepared.get('engine', {}).get('backend_engine', 'Z-image')
     initial_engine_type = initial_preset_prepared.get('engine', {}).get('engine_type', 'image')
@@ -998,7 +1000,8 @@ def has_preset_inc_url(preset_url):
 def _get_effective_nav_preset_list(state_params):
     user_session = state_params.get("__session", "")
     ua_hash = state_params.get("ua_hash", "")
-    user_did = state_params["user"].get_did()
+    _user = state_params.get("user")
+    user_did = _user.get_did() if _user else None
     is_guest = shared.token.is_guest(user_did)
     raw_nav_name_list = get_preset_name_list(user_session, ua_hash)
     preset_name_list = _coerce_nav_preset_list(
@@ -1018,7 +1021,8 @@ def _get_effective_nav_preset_list(state_params):
 
 def refresh_nav_bars(state_params):
     preset_name_list = _get_effective_nav_preset_list(state_params)
-    user_did = state_params["user"].get_did()
+    _user = state_params.get("user")
+    user_did = _user.get_did() if _user else None
     is_guest = shared.token.is_guest(user_did)
 
     for i in range(shared.BUTTON_NUM - len(preset_name_list)):
@@ -1037,7 +1041,7 @@ def refresh_nav_bars(state_params):
             total_count += 1
             if name.endswith(PRESET_MISSING_MARKER):
                 missing_count += 1
-        visible_flag = i < (7 if state_params["__is_mobile"] else shared.BUTTON_NUM)
+        visible_flag = i < shared.BUTTON_NUM
         if name:
             results += [gr.update(value=name, interactive=True, visible=visible_flag)]
         else: 
@@ -1086,6 +1090,64 @@ def _canvas_scene_value(scene_frontend, key, theme=None, default=None):
             return next(iter(value.values()))
         return default
     return value
+
+
+def _canvas_scene_generation_step(scene_frontend, theme=None, default=None):
+    for key in ("overwrite_step", "steps", "scene_steps"):
+        value = _canvas_scene_value(scene_frontend, key, theme, None)
+        if value is None:
+            continue
+        try:
+            return int(float(value))
+        except Exception:
+            continue
+    return default
+
+
+def _canvas_scene_generation_step_bound(scene_frontend, theme=None, suffix="min", default=None):
+    for key in (f"overwrite_step_{suffix}", f"steps_{suffix}", f"scene_steps_{suffix}"):
+        value = _canvas_scene_value(scene_frontend, key, theme, None)
+        if value is None:
+            continue
+        try:
+            return int(float(value))
+        except Exception:
+            continue
+    return default
+
+
+def _scene_list_value(value):
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return []
+
+
+def _scene_standard_steps_readonly(scene_frontend):
+    if not isinstance(scene_frontend, dict):
+        return False
+    disvisible = set(_scene_list_value(scene_frontend.get("disvisible", [])))
+    disinteractive = set(_scene_list_value(scene_frontend.get("disinteractive", [])))
+    return (
+        "scene_steps" in disvisible
+        or "scene_steps" in disinteractive
+        or "overwrite_step" in disinteractive
+    )
+
+
+def _canvas_scene_generation_step_props(scene_frontend, theme=None):
+    props = {
+        "min": _canvas_scene_generation_step_bound(scene_frontend, theme, "min", -1),
+        "max": _canvas_scene_generation_step_bound(scene_frontend, theme, "max", 200),
+        "step": _canvas_scene_generation_step_bound(scene_frontend, theme, "step", 1),
+    }
+    if _scene_standard_steps_readonly(scene_frontend):
+        props["interactive"] = False
+        step_value = _canvas_scene_generation_step(scene_frontend, theme, None)
+        if step_value is not None:
+            props["value"] = step_value
+    return props
 
 
 def _scene_bool_value(value):
@@ -1240,28 +1302,6 @@ def _build_canvas_scene_schema(scene_frontend):
         if item:
             params.append(item)
 
-    if "scene_steps" not in disvisible:
-        params.append({
-            "key": "scene_steps",
-            "label": "Steps",
-            "type": "number",
-            "default": _canvas_scene_value(scene_frontend, "scene_steps", default_theme, 8),
-            "min": _canvas_scene_value(scene_frontend, "scene_steps_min", default_theme, 1),
-            "max": _canvas_scene_value(scene_frontend, "scene_steps_max", default_theme, 200),
-            "visible": True,
-            "interactive": "scene_steps" not in disinteractive,
-        })
-    if "scene_image_number" not in disvisible:
-        params.append({
-            "key": "scene_image_number",
-            "label": "Images",
-            "type": "number",
-            "default": _canvas_scene_value(scene_frontend, "image_number", default_theme, 1),
-            "min": 1,
-            "max": 16,
-            "visible": True,
-            "interactive": "scene_image_number" not in disinteractive,
-        })
     if "scene_aspect_ratio" not in disvisible and isinstance(scene_frontend.get("aspect_ratio"), list):
         aspect_choices = scene_frontend.get("aspect_ratio", [])
         params.append({
@@ -1286,8 +1326,10 @@ def _build_canvas_scene_schema(scene_frontend):
             if item.get("type") == "choice" and isinstance(resolved, list):
                 resolved = item.get("default")
             defaults[key] = resolved
-        if "scene_steps" in scene_frontend:
-            defaults.setdefault("scene_steps", _canvas_scene_value(scene_frontend, "scene_steps", theme, 8))
+        scene_step_default = _canvas_scene_generation_step(scene_frontend, theme, None)
+        if scene_step_default is not None:
+            defaults.setdefault("overwrite_step", scene_step_default)
+            defaults.setdefault("scene_steps", scene_step_default)
         if "image_number" in scene_frontend:
             defaults.setdefault("scene_image_number", _canvas_scene_value(scene_frontend, "image_number", theme, 1))
         if "prompt" in scene_frontend:
@@ -1297,6 +1339,9 @@ def _build_canvas_scene_schema(scene_frontend):
         per_theme[theme] = {
             "task_method": _canvas_scene_value(scene_frontend, "task_method", theme, ""),
             "defaults": defaults,
+            "generation_config_props": {
+                "overwrite_step": _canvas_scene_generation_step_props(scene_frontend, theme),
+            },
         }
 
     return {
@@ -1464,7 +1509,6 @@ def _build_preset_store_meta(state):
                     "output_format": preset_content.get("default_output_format", ""),
                     "refiner_switch": preset_content.get("default_refiner_switch", None),
                     "adaptive_cfg": preset_content.get("default_cfg_tsnr", None),
-                    "clip_skip": preset_content.get("default_clip_skip", None),
                     "overwrite_step": preset_content.get("default_overwrite_step", None),
                     "overwrite_switch": preset_content.get("default_overwrite_switch", None),
                     "save_metadata_to_images": preset_content.get("default_save_metadata_to_images", None),
@@ -1472,9 +1516,15 @@ def _build_preset_store_meta(state):
                 scene_frontend = default_engine.get("scene_frontend", {})
                 if isinstance(scene_frontend, dict):
                     schema = _build_canvas_scene_schema(scene_frontend)
+                    scene_themes = schema.get("themes", []) if isinstance(schema, dict) else []
+                    scene_theme = scene_themes[0] if scene_themes else ""
+                    scene_default_steps = _canvas_scene_generation_step(scene_frontend, scene_theme, None)
+                    if scene_default_steps is not None:
+                        generation_config["overwrite_step"] = scene_default_steps
+                    scene_default_image_number = _canvas_scene_value(scene_frontend, "image_number", scene_theme, None)
+                    if scene_default_image_number is not None:
+                        generation_config["image_number"] = scene_default_image_number
                     if not default_prompt:
-                        scene_themes = schema.get("themes", []) if isinstance(schema, dict) else []
-                        scene_theme = scene_themes[0] if scene_themes else ""
                         default_prompt = str(_canvas_scene_value(scene_frontend, "prompt", scene_theme, "") or "")
                     raw_task = scene_frontend.get("task_method", "")
                     if isinstance(raw_task, dict) and raw_task:
@@ -1635,6 +1685,7 @@ def _build_regen_manifest_for_generation(
     sam3_input_video,
     sam3_original_video_path,
     sam3_mask_video,
+    overwrite_step=None,
 ):
     if not isinstance(state_params, dict):
         return None
@@ -1677,7 +1728,7 @@ def _build_regen_manifest_for_generation(
             "scene_var_number8": scene_var_number8,
             "scene_var_number9": scene_var_number9,
             "scene_var_number10": scene_var_number10,
-            "scene_steps": scene_steps,
+            "overwrite_step": overwrite_step,
             "scene_switch_option1": scene_switch_option1,
             "scene_switch_option2": scene_switch_option2,
             "scene_switch_option3": scene_switch_option3,
@@ -1733,15 +1784,22 @@ def _build_regen_manifest_for_generation(
     )
 
 
-def process_before_generation(state_params, seed_random, image_seed, backend_params, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source, sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None, resolution_multiplier=1.0, resolution_quantize_step=None, resolution_edit_mode=None, resolution_original_input=False, sam3_trim_payload=None):
+def process_before_generation(state_params, seed_random, image_seed, backend_params, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source, sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None, resolution_multiplier=1.0, resolution_quantize_step=None, resolution_edit_mode=None, resolution_original_input=False, sam3_trim_payload=None, overwrite_step=None):
     regen_scene_additional_prompt = scene_additional_prompt
     regen_scene_additional_prompt_2 = scene_additional_prompt_2
     backend_params.update(dict(
-        nickname=state_params["user"].get_nickname(),
-        user_did=state_params["user"].get_did(),
+        nickname=(state_params.get("user").get_nickname() if state_params.get("user") else ""),
+        user_did=(state_params.get("user").get_did() if state_params.get("user") else None),
         preset=state_params["__preset"],
         engine_type=state_params.get("engine_type", "image"),
         ))
+    state_upscale_model = str(state_params.get("upscale_model") or "").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+    if state_upscale_model:
+        if state_upscale_model.lower() not in ("auto", "default") or "upscale_model" not in backend_params:
+            backend_params["upscale_model"] = state_upscale_model
+    state_clip_model = str(state_params.get("clip_model") or "").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+    if state_clip_model and state_clip_model not in (modules.flags.default_clip, modules.flags.default_vae, "auto"):
+        backend_params["clip_model"] = state_clip_model
     if scene_audio is not None and not (isinstance(scene_audio, str) and os.path.exists(scene_audio)):
         try:
             from extras.media_normalize import normalize_gradio_audio_value
@@ -1749,7 +1807,8 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
         except Exception:
             pass
 
-    user_did = state_params["user"].get_did()
+    _user = state_params.get("user")
+    user_did = _user.get_did() if _user else None
     if user_did:
         try:
             io_paths = update_comfyd_io_paths(user_did)
@@ -1938,6 +1997,36 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             video_effective = sam3_video_effective if sam3_video_effective else scene_video_effective
         scene_task_methods = scene_frontend.get("task_method", {}) if isinstance(scene_frontend, dict) else {}
         scene_task_method_value = scene_task_methods.get(scene_theme) if isinstance(scene_task_methods, dict) else None
+
+        def _scene_image_trace_shape(value, *, sketch=False):
+            try:
+                image = value.get("image") if sketch and isinstance(value, dict) else value
+                shape = getattr(image, "shape", None)
+                if shape is None:
+                    return None
+                return tuple(int(part) for part in shape[:3])
+            except Exception:
+                return None
+
+        util.log_ui_trace(
+            logger,
+            "[UI-TRACE] scene_image_backend_input | preset=%r, theme=%r, task_method=%r, hidden=%s, canvas_present=%s, canvas_shape=%s, input1_present=%s, input1_shape=%s, input2_present=%s, input2_shape=%s, input3_present=%s, input3_shape=%s, input4_present=%s, input4_shape=%s",
+            state_params.get("__preset"),
+            scene_theme,
+            scene_task_method_value,
+            sorted(disvisible),
+            scene_canvas_image is not None,
+            _scene_image_trace_shape(scene_canvas_image, sketch=True),
+            scene_input_image1 is not None,
+            _scene_image_trace_shape(scene_input_image1),
+            scene_input_image2 is not None,
+            _scene_image_trace_shape(scene_input_image2),
+            scene_input_image3 is not None,
+            _scene_image_trace_shape(scene_input_image3),
+            scene_input_image4 is not None,
+            _scene_image_trace_shape(scene_input_image4),
+        )
+
         scene_audio_present = scene_audio is not None and not (isinstance(scene_audio, str) and not scene_audio.strip())
         scene_audio_exists = os.path.exists(scene_audio) if isinstance(scene_audio, str) and scene_audio.strip() else None
         scene_audio_ready = scene_audio_present and scene_audio_exists is not False
@@ -2018,7 +2107,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             video=video_effective,
             audio=scene_audio,
             mask_video=sam3_mask_video,
-            scene_steps=scene_steps if 'scene_steps' in scene_frontend else None,
+            scene_steps=None,
             ))
     regen_data = _build_regen_manifest_for_generation(
         state_params,
@@ -2055,6 +2144,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
         sam3_input_video,
         sam3_original_video_path,
         sam3_mask_video,
+        overwrite_step,
     )
     if regen_data:
         backend_params[regen_manifest.KEY] = regen_data
@@ -2065,7 +2155,8 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
             (regen_data.get("backend_params") or {}).get("task_method"),
         )
     state_params["absent_model"] = False
-    if not args_manager.args.disable_backend and is_models_file_absent(state_params["__preset"], state_params["user"].get_did()):
+    _preset_user = state_params.get("user")
+    if not args_manager.args.disable_backend and is_models_file_absent(state_params["__preset"], _preset_user.get_did() if _preset_user else None):
         if not ads.get_user_default("no_model_modal_checkbox", state_params, False):
             gr.Info(preset_absent_model_note_info)
         state_params["absent_model"] = True
@@ -2129,6 +2220,10 @@ def _has_generation_output(generation_task=None, gallery_output=None, video_outp
     return task_has_output or _has_component_output(gallery_output) or _has_component_output(video_output)
 
 
+def should_show_finished_catalog(engine_type, output_list):
+    return bool(output_list) or engine_type == "video"
+
+
 def process_after_generation(state_params, generation_task=None, gallery_output=None, video_output=None):
     if "__max_per_page" not in state_params.keys():
         state_params.update({"__max_per_page": 18})
@@ -2137,7 +2232,8 @@ def process_after_generation(state_params, generation_task=None, gallery_output=
     
     max_per_page = state_params["__max_per_page"]
     max_catalog = state_params["__max_catalog"]
-    user_did = state_params["user"].get_did()
+    _user = state_params.get("user")
+    user_did = _user.get_did() if _user else None
     engine_type = state_params["engine_type"]
     state_params["__gallery_engine_type"] = engine_type
     state_params["gallery_preview_open"] = False
@@ -2157,10 +2253,11 @@ def process_after_generation(state_params, generation_task=None, gallery_output=
     # generate_button, stop_button, skip_button, state_is_generating
     results = [gr.update(visible=True, interactive=True)] + [gr.update(visible=False, interactive=False), gr.update(visible=False, interactive=False), False]
     # gallery_index, index_radio
+    catalog_visible = should_show_finished_catalog(engine_type, state_params["__output_list"])
     if has_generation_context:
-        results += [gr.update(choices=state_params["__output_list"], value=None), gr.update(visible=len(state_params["__output_list"])>0, open=False)]
+        results += [gr.update(choices=state_params["__output_list"], value=None), gr.update(visible=catalog_visible, open=False)]
     else:
-        results += [gr.update(choices=state_params["__output_list"]), gr.update(visible=len(state_params["__output_list"])>0, open=len(state_params["__output_list"])>0)]
+        results += [gr.update(choices=state_params["__output_list"]), gr.update(visible=catalog_visible, open=len(state_params["__output_list"])>0)]
     # random_button, super_prompter, background_theme, image_tools_checkbox, bar_store_button, bar0_button, bar1_button, bar2_button, bar3_button, bar4_button, bar5_button, bar6_button, bar7_button, bar8_button
     preset_nums = len(get_preset_name_list(state_params["__session"], state_params["ua_hash"]).split(','))
     results += [gr.update(interactive=True)] * (preset_nums + 5)
@@ -2216,6 +2313,9 @@ SCENE_PRESET_SWITCH_CLEAR_OUTPUTS = {
     45: "sam3_mask_video",
     46: "sam3_trim_payload",
 }
+SCENE_PRESET_SWITCH_CLEAR_VALUES = {
+    46: "",
+}
 
 def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpaint_mode, comfyd_active_checkbox, bar_button = None, include_scene_outputs=True):
     global system_message, preset_down_note_info, reset_layout_num, reset_layout_ui_outputs_len
@@ -2228,7 +2328,7 @@ def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpain
     prev_user_did = None
     try:
         if isinstance(state_params, dict) and state_params.get("user"):
-            prev_user_did = state_params["user"].get_did()
+            prev_user_did = state_params.get("user").get_did()
     except Exception:
         prev_user_did = None
     state_params["__prev_engine_type"] = prev_engine_type
@@ -2256,7 +2356,7 @@ def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpain
             fill_count = 0
         return nav_updates + [skip_update() for _ in range(fill_count)] + [state_params] + comparison_default
     preset = state_params["bar_button"] if '\u2B07' not in state_params["bar_button"] else state_params["bar_button"].replace('\u2B07', '')
-    resolved_preset = _resolve_preset_storage_name(preset, state_params["user"].get_did())
+    resolved_preset = _resolve_preset_storage_name(preset, state_params.get("user").get_did() if state_params.get("user") else None)
     logger.info(f'Reset_context: preset={state_params.get("__preset", None)}-->{preset}, theme={state_params.get("__theme", None)}, lang={state_params.get("__lang", None)}')
     if not args_manager.args.disable_backend and '\u2B07' in state_params["bar_button"]:
         if not ads.get_user_default("no_model_modal_checkbox", state_params, False):
@@ -2267,9 +2367,10 @@ def reset_layout_ui(prompt, negative_prompt, state_params, is_generating, inpain
     state_params["gallery_state"] = "preview"
     state_params["gallery_preview_open"] = False
     state_params["__skip_gallery_browser_refresh_once"] = True
+    gallery_util.invalidate_main_gallery_browser_requests(state_params, "preset_switch")
     gallery_util.clear_post_generation_compare_state(state_params)
 
-    config_preset = config.try_get_preset_content(resolved_preset, state_params["user"].get_did())
+    config_preset = config.try_get_preset_content(resolved_preset, state_params.get("user").get_did() if state_params.get("user") else None)
     preset_prepared = meta_parser.parse_meta_from_preset(config_preset)
 
     engine = preset_prepared.get('engine', {}).get('backend_engine', 'Fooocus')
@@ -2388,7 +2489,7 @@ def reset_scene_frontend_ui(state_params):
         scene_updates += [skip_update() for _ in range(count - len(scene_updates))]
     for index in SCENE_PRESET_SWITCH_CLEAR_OUTPUTS:
         if index < len(scene_updates):
-            scene_updates[index] = gr_update(value=None)
+            scene_updates[index] = gr_update(value=SCENE_PRESET_SWITCH_CLEAR_VALUES.get(index, None))
     return scene_updates
 
 def reset_layout_values(state_params, is_generating, inpaint_mode, use_resolution_override, scene_batch_target, scene_theme=None, scene_aspect_ratio=None, fast_nav=False, after_identity_count=0):
@@ -2602,7 +2703,7 @@ def reset_layout_values(state_params, is_generating, inpaint_mode, use_resolutio
         current_user_did = None
         try:
             if isinstance(state_params, dict) and state_params.get("user"):
-                current_user_did = state_params["user"].get_did()
+                current_user_did = state_params.get("user").get_did()
         except Exception:
             current_user_did = None
         has_output_list_cache = "__output_list" in state_params and "__finished_nums_pages" in state_params
@@ -3046,7 +3147,13 @@ def _resolve_engine_disinteractive_for_state(state):
         disinteractive = engine_data.get("disinteractive", default_params.get("disinteractive", []))
         if not isinstance(disinteractive, list):
             return []
-        return list(disinteractive)
+        result = list(disinteractive)
+        scene_frontend = engine_data.get("scene_frontend", None)
+        if not isinstance(scene_frontend, dict):
+            scene_frontend = state.get("scene_frontend", None)
+        if _scene_standard_steps_readonly(scene_frontend) and "overwrite_step" not in result:
+            result.append("overwrite_step")
+        return result
     except Exception:
         return []
 
@@ -3123,7 +3230,28 @@ def _scene_number_default_specs():
     ]
 
 
-def _build_scene_default_payload(scene_frontend, scene_theme):
+def _scene_standard_overwrite_step_default_from_state(state):
+    if not isinstance(state, dict):
+        return None
+    preset_prepared = state.get("__preset_prepared", {})
+    candidates = [state]
+    if isinstance(preset_prepared, dict):
+        candidates.append(preset_prepared)
+    for source in candidates:
+        for key in ("overwrite_step", "steps", "default_overwrite_step"):
+            value = source.get(key)
+            if value is None:
+                continue
+            try:
+                step_value = int(float(value))
+            except Exception:
+                continue
+            if step_value > 0:
+                return step_value
+    return None
+
+
+def _build_scene_default_payload(scene_frontend, scene_theme, overwrite_step_default=None):
     if not isinstance(scene_frontend, dict):
         return {}
 
@@ -3132,10 +3260,17 @@ def _build_scene_default_payload(scene_frontend, scene_theme):
     payload["scene_additional_prompt_2"] = _scene_value_by_theme(scene_frontend, scene_theme, "additional_prompt_2", "")
 
     for control_name, key, default in _scene_number_default_specs():
-        minimum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_min", 1 if key == "scene_steps" else None)
-        maximum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_max", 100 if key == "scene_steps" else None)
-        step = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_step", 1 if key == "scene_steps" else None)
-        value = _scene_value_by_theme(scene_frontend, scene_theme, key, default)
+        if key == "scene_steps":
+            minimum = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "min", -1)
+            maximum = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "max", 200)
+            step = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "step", 1)
+            fallback = overwrite_step_default if overwrite_step_default is not None else default
+            value = _canvas_scene_generation_step(scene_frontend, scene_theme, fallback)
+        else:
+            minimum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_min", None)
+            maximum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_max", None)
+            step = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_step", None)
+            value = _scene_value_by_theme(scene_frontend, scene_theme, key, default)
         payload[control_name] = _coerce_scene_default_number(value, minimum, maximum, step)
 
     for index in range(1, 5):
@@ -3156,13 +3291,19 @@ def _build_scene_control_props(scene_frontend, scene_theme):
     if not isinstance(scene_frontend, dict):
         return {}
     props = {}
+    steps_readonly = _scene_standard_steps_readonly(scene_frontend)
     for control_name, key, _default in _scene_number_default_specs():
         control_props = {}
         label_default = "Scene Steps" if key == "scene_steps" else None
         label = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_title", label_default)
-        minimum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_min", 1 if key == "scene_steps" else None)
-        maximum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_max", 100 if key == "scene_steps" else None)
-        step = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_step", 1 if key == "scene_steps" else None)
+        if key == "scene_steps":
+            minimum = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "min", -1)
+            maximum = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "max", 200)
+            step = _canvas_scene_generation_step_bound(scene_frontend, scene_theme, "step", 1)
+        else:
+            minimum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_min", None)
+            maximum = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_max", None)
+            step = _scene_value_by_theme(scene_frontend, scene_theme, f"{key}_step", None)
         if label is not None:
             control_props["label"] = label
         if minimum is not None:
@@ -3171,8 +3312,12 @@ def _build_scene_control_props(scene_frontend, scene_theme):
             control_props["maximum"] = maximum
         if step is not None:
             control_props["step"] = step
+        if key == "scene_steps":
+            control_props["interactive"] = not steps_readonly
         if control_props:
             props[control_name] = control_props
+            if key == "scene_steps":
+                props["overwrite_step"] = dict(control_props)
     return props
 
 
@@ -3336,7 +3481,11 @@ def update_topbar_js_params(state, include_canvas_catalogs=True):
         __engine_disvisible=engine_disvisible,
         __scene_disvisible=scene_disvisible,
         __scene_theme=scene_theme,
-        __scene_defaults=_build_scene_default_payload(scene_frontend, scene_theme),
+        __scene_defaults=_build_scene_default_payload(
+            scene_frontend,
+            scene_theme,
+            _scene_standard_overwrite_step_default_from_state(state),
+        ),
         __scene_control_props=_build_scene_control_props(scene_frontend, scene_theme),
         __scene_task_method=str(scene_task_method or ""),
         __scene_canvas_mask_disabled=_resolve_scene_canvas_mask_disabled(scene_frontend, scene_theme),
@@ -3628,11 +3777,13 @@ def update_after_identity_sub(state, lightweight_nav=False, skip_output_refresh=
             logger.warning(f"Error updating comfyd IO directories: {e}")
 
     if skip_output_refresh:
+        catalog_visible = should_show_finished_catalog(engine_type, output_list)
         results = [gr.update(choices=output_list, value=None)]
-        results += [gr.update(visible=len(output_list) > 0)]
+        results += [gr.update(visible=catalog_visible)]
         results += [finished_nums_pages]
     else:
-        results = [gr.update(choices=output_list, value=None), gr.update(visible=len(output_list)>0)]
+        catalog_visible = should_show_finished_catalog(engine_type, output_list)
+        results = [gr.update(choices=output_list, value=None), gr.update(visible=catalog_visible)]
         results += [finished_nums_pages]
     results += [gr.update(visible=False if 'preset_store' not in state else state['preset_store'])]
     results += [skip_update() if lightweight_nav else dataset_update(samples=get_preset_samples(user_did))]

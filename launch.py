@@ -61,6 +61,7 @@ def _make_pip_env():
     env = os.environ.copy()
     env["PYTHONNOUSERSITE"] = "1"
     env["PIP_USER"] = "0"
+    env["PIP_PROGRESS_BAR"] = "raw"
     env.pop("PYTHONPATH", None)
     env.pop("PYTHONHOME", None)
     return env
@@ -108,7 +109,7 @@ def _simpleai_base_wheel_filename(ver_required):
             return f"simpleai_base-{ver_required}-{current_tag}-{current_tag}-macosx_11_0_arm64.whl"
         return f"simpleai_base-{ver_required}-{current_tag}-{current_tag}-macosx_10_12_x86_64.whl"
 
-    return f"simpleai_base-{ver_required}-{current_tag}-{current_tag}-manylinux_2_27_x86_64.manylinux2014_x86_64.whl"
+    return f"simpleai_base-{ver_required}-{current_tag}-{current_tag}-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 def _simpleai_base_has_required_apis():
     required = [
@@ -168,7 +169,7 @@ def check_base_environment():
     print(f'{now_string()} ✦ | 兴趣使然的版本 | ✦ by冰華 ✦')
 
     base_pkg = "simpleai_base"
-    ver_required = "0.3.43"
+    ver_required = "0.3.45"
     REINSTALL_BASE = False
     base_branch = "studio"
     base_url = f"https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/libs/{base_branch}"
@@ -203,10 +204,10 @@ def check_base_environment():
         logger.info(f'当前环境：PyTorch 2.9.1+CUDA 13.0. 50系以上显卡支持Nvfp4模型加速推理.')
         update_pkgs = [
             ('comfyui-frontend-package', '1.45.15'),
-            ('comfyui-workflow-templates', '0.9.98'),
-            ('comfyui-embedded-docs', '0.5.3'),
+            ('comfyui-workflow-templates', '0.10.0'),
+            ('comfyui-embedded-docs', '0.5.4'),
             ('comfy-kitchen', '0.2.10'),
-            ('comfy-aimdo', '0.4.9'),
+            ('comfy-aimdo', '0.4.10'),
             ('av', '17.0.0')
         ]
         for (update_pkg_name, update_pkg_version) in update_pkgs:
@@ -506,7 +507,7 @@ def reset_env_args():
             logger.info(f"使用指定的前端端口: {shared.args.port}")
         else:
             logger.info(f"使用默认前端端口: {shared.args.port}")
-    if shared.args.node_type and shared.args.node_type != "online":
+    if shared.args.node_type and shared.args.node_type != "online" and '--listen' not in sys.argv:
         shared.sysinfo["local_ip"] = '127.0.0.1'
         shared.args.listen = '127.0.0.1'
 

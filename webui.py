@@ -1,4 +1,5 @@
 import io
+import sys
 import base64
 import html
 import numpy as np
@@ -12,6 +13,7 @@ import tempfile
 import wave
 import functools
 import mimetypes
+from urllib.parse import unquote
 
 try:
     from extras.media_normalize import patch_gradio_processing_utils_for_missing_ffprobe as _patch_gradio_processing_utils_for_missing_ffprobe
@@ -42,6 +44,7 @@ import ldm_patched.modules.model_management as model_management
 from ui.components.sketch_image import create_sketch_image
 from ui.layout.floating import floating_card, floating_panel, floating_shell
 from ui.bootstrap import apply_webui_assets, create_root_blocks, launch_root_app
+from ui.frontend_http_guard import configure_frontend_http_guard
 from ui.update_helpers import dataset_update, dropdown_update, gr_update, skip_update as skip_component_update
 from ui.events.topbar import (
     bind_topbar_identity_events,
@@ -85,8 +88,10 @@ import enhanced.sam3_video_mask as sam3_video_mask
 import logging
 logger = logging.getLogger(__name__)
 regen_manifest.ensure_api_params_backend_arg(api_params)
-if isinstance(getattr(api_params, "backend_args", None), list) and "keep_vlm_model_loaded" not in api_params.backend_args:
-    api_params.backend_args.append("keep_vlm_model_loaded")
+if isinstance(getattr(api_params, "backend_args", None), list):
+    for backend_arg_name in ("upscale_model", "keep_vlm_model_loaded"):
+        if backend_arg_name not in api_params.backend_args:
+            api_params.backend_args.append(backend_arg_name)
 
 START_TIMESTAMP = time.time()
 COMPARE_BUTTON_ICON = "🔍"
@@ -347,20 +352,34 @@ def build_resolution_video_meta(video_path, source_id, active_source):
         return "{}"
 
 def get_cookie_value(cookie_string, key):
-    pattern = rf'{key}=([^;]+)'
+    pattern = rf'{re.escape(key)}=([^;]+)'
     match = re.search(pattern, cookie_string)
     if match:
-        return match.group(1)
+        return unquote(match.group(1))
     return None
+
+def _get_request_header(request, key, default=""):
+    headers = getattr(request, "headers", {}) or {}
+    try:
+        if hasattr(headers, "get"):
+            return headers.get(key) or headers.get(key.lower()) or headers.get(key.title()) or default
+    except Exception:
+        pass
+    return default
+
+def _get_request_aitoken(request):
+    try:
+        sid = get_cookie_value(_get_request_header(request, "cookie", ""), "aitoken")
+        return sid or ""
+    except Exception:
+        return ""
 
 def _get_request_identity_did(request):
     try:
-        headers = getattr(request, "headers", {}) or {}
-        if "cookie" not in headers:
-            return ""
-        sid = get_cookie_value(headers["cookie"], "aitoken")
+        sid = _get_request_aitoken(request)
         if not sid or not hasattr(shared.token, "check_sstoken_and_get_did"):
             return ""
+        headers = getattr(request, "headers", {}) or {}
         user_agent = headers.get("user-agent", "") if hasattr(headers, "get") else ""
         ua_hash = hashlib.sha256(user_agent.encode("utf-8")).hexdigest()
         did = shared.token.check_sstoken_and_get_did(sid, ua_hash)
@@ -369,10 +388,10 @@ def _get_request_identity_did(request):
         logger.debug(f"[IdentityAccess] status monitor did check failed: {e}")
         return ""
 
-def _pending_user_access_count_for_admin(user_did):
+def _pending_user_access_count():
     try:
         token = getattr(shared, "token", None)
-        if token is None or not user_did or not token.is_admin(user_did):
+        if token is None:
             return 0
         return sum(
             1 for record in identity_access.access_records(token)
@@ -386,11 +405,10 @@ def get_start_timestamp(request: gr.Request):
     global START_TIMESTAMP
 
     online_users, domain_online_nodes, domain_online_users, new_msg_number = 0, 0, 0, 0
-    if "cookie" in request.headers:
-        sid = get_cookie_value(request.headers["cookie"], "aitoken")
-        if sid:
-            online_users, domain_online_nodes, domain_online_users, new_msg_number = shared.token.log_access(sid)
-            #node_all, usesr_all, new_msg = shared.token.get_global_status(sid,0)
+    sid = _get_request_aitoken(request)
+    if sid:
+        online_users, domain_online_nodes, domain_online_users, new_msg_number = shared.token.log_access(sid)
+        #node_all, usesr_all, new_msg = shared.token.get_global_status(sid,0)
         
     qsize = worker.get_task_size()
     vram_ram_info = model_management.get_vram_ram_used()
@@ -398,7 +416,7 @@ def get_start_timestamp(request: gr.Request):
         logger.info(f'new messages: {shared.token.get_global_msg_all()}')
     user_did = _get_request_identity_did(request)
     is_admin = bool(user_did and getattr(shared, "token", None) is not None and shared.token.is_admin(user_did))
-    pending_access_count = _pending_user_access_count_for_admin(user_did) if is_admin else 0
+    pending_access_count = _pending_user_access_count()
     return f'{START_TIMESTAMP},{qsize},{vram_ram_info[0]},{vram_ram_info[1]},{vram_ram_info[2]},{vram_ram_info[3]},{online_users},{domain_online_users},{domain_online_nodes},{pending_access_count},{1 if is_admin else 0}'
 
 def get_wildcards_list(request: gr.Request):
@@ -420,6 +438,46 @@ def _raw_task_arg_index(api_arg_name):
     if normalized_index <= loras_index:
         return 1 + normalized_index
     return 1 + normalized_index + expanded_lora_count - 1
+
+def _normalize_model_bridge_value(value, default=""):
+    text = str(value or default or "").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+    return text or default
+
+def _is_default_upscale_model(value):
+    return str(value or "").strip().lower() in ("", "auto", "default")
+
+def _apply_live_model_bridge_to_task_args(args, clip_model=None, upscale_model=None, prefer_existing_models=False):
+    args = list(args)
+    params_index = _raw_task_arg_index("params_backend")
+    if not (0 <= params_index < len(args)):
+        return args
+
+    params = dict(args[params_index] or {})
+    if clip_model is not None:
+        existing_clip = _normalize_model_bridge_value(params.get("clip_model"))
+        live_clip = _normalize_model_bridge_value(clip_model)
+        existing_clip_is_custom = existing_clip and existing_clip not in (modules.flags.default_clip, modules.flags.default_vae, "auto")
+        live_clip_is_custom = live_clip and live_clip not in (modules.flags.default_clip, modules.flags.default_vae, "auto")
+        # model_params_state is updated on preset nav; hidden bridge controls can lag behind when Models tab is inactive.
+        if existing_clip_is_custom:
+            params["clip_model"] = existing_clip
+        elif live_clip_is_custom and not prefer_existing_models:
+            params["clip_model"] = live_clip
+        else:
+            params.pop("clip_model", None)
+
+    if upscale_model is not None:
+        existing_upscale_model = _normalize_model_bridge_value(params.get("upscale_model"), "default")
+        live_upscale_model = _normalize_model_bridge_value(upscale_model, "default")
+        if prefer_existing_models:
+            params["upscale_model"] = existing_upscale_model or "default"
+        elif _is_default_upscale_model(live_upscale_model) and not _is_default_upscale_model(existing_upscale_model):
+            params["upscale_model"] = existing_upscale_model
+        else:
+            params["upscale_model"] = live_upscale_model or "default"
+
+    args[params_index] = params
+    return args
 
 def _apply_model_params_state_to_task_args(args, model_state):
     args = list(args)
@@ -453,11 +511,15 @@ def _apply_model_params_state_to_task_args(args, model_state):
         params = dict(args[params_index] or {})
         clip_model = model_state.get("clip_model")
         if clip_model and clip_model not in (modules.flags.default_clip, modules.flags.default_vae, "auto"):
-            params["clip_model"] = str(clip_model).replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
+            params["clip_model"] = _normalize_model_bridge_value(clip_model)
         else:
             params.pop("clip_model", None)
-        upscale_model = str(model_state.get("upscale_model") or "default").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
-        params["upscale_model"] = upscale_model or "default"
+        existing_upscale_model = _normalize_model_bridge_value(params.get("upscale_model"), "default")
+        state_upscale_model = _normalize_model_bridge_value(model_state.get("upscale_model"), "default")
+        if _is_default_upscale_model(state_upscale_model) and not _is_default_upscale_model(existing_upscale_model):
+            params["upscale_model"] = existing_upscale_model
+        else:
+            params["upscale_model"] = state_upscale_model or "default"
         args[params_index] = params
     return args
 
@@ -534,8 +596,14 @@ def get_task_with_resolution_multiplier_and_model_state(*args):
         return get_task_with_resolution_multiplier(*args)
     resolution_quantize_step = args.pop()
     resolution_multiplier = args.pop()
+    live_clip_model = None
+    live_upscale_model = None
+    if len(args) >= 3 and isinstance(args[-3], dict) and args[-3].get("__model_params_state"):
+        live_upscale_model = args.pop()
+        live_clip_model = args.pop()
     model_state = args.pop()
     args = _apply_model_params_state_to_task_args(args, model_state)
+    args = _apply_live_model_bridge_to_task_args(args, live_clip_model, live_upscale_model, prefer_existing_models=True)
     return get_task_with_resolution_multiplier(*(args + [resolution_multiplier, resolution_quantize_step]))
 
 def _minimal_dropdown_choices(*values):
@@ -826,6 +894,9 @@ def generate_clicked(task: worker.AsyncTask, state):
     is_fooocus = state["engine"] == 'Fooocus'
     task_meta = f"task_id={getattr(task, 'task_id', None)}, user_did={user_did}, task_class={getattr(task, 'task_class', None)}, task_name={getattr(task, 'task_name', None)}, task_method={getattr(task, 'task_method', None)}"
     task.simpleai_generation_had_output = False
+    task.simpleai_comfy_prompt_accepted = False
+    task.simpleai_comfy_prompt_id = None
+    task.simpleai_comfy_prompt_accepted_at = None
 
     MAX_WAIT_TIME = 1800
     POLL_INTERVAL = 0.1
@@ -950,6 +1021,11 @@ def generate_clicked(task: worker.AsyncTask, state):
                 updates.append(gr_update(interactive=interactive))
         return tuple(updates)
 
+    def generation_controls_unlocked():
+        if getattr(task, "task_class", None) in flags.comfy_classes:
+            return bool(getattr(task, "simpleai_comfy_prompt_accepted", False))
+        return bool(getattr(task, "processing", False) or len(task.yields) > 0 or len(task.results) > 0)
+
     worker.add_task(task)
     qsize = worker.get_task_size()
     MAX_LOOP_NUM = qsize
@@ -1009,7 +1085,6 @@ def generate_clicked(task: worker.AsyncTask, state):
     local_start_time = time.time()
     last_heartbeat_time = local_start_time
     HEARTBEAT_INTERVAL = 1.0
-    UNLOCK_CONTROLS_AFTER = 5.0
     logged_controls_unlock = False
     logged_first_yield = False
     yields_processed = 0
@@ -1115,10 +1190,10 @@ def generate_clicked(task: worker.AsyncTask, state):
             if len(task.yields) == 0:
                 time.sleep(POLL_INTERVAL)
 
-            controls_unlocked = (current_time - local_start_time) >= UNLOCK_CONTROLS_AFTER
+            controls_unlocked = generation_controls_unlocked()
             if controls_unlocked and (not logged_controls_unlock):
                 logged_controls_unlock = True
-                logger.info(f"[Generate] controls_unlocked: unlock_after={UNLOCK_CONTROLS_AFTER}s, {task_meta}")
+                logger.info(f"[Generate] controls_unlocked: prompt_id={getattr(task, 'simpleai_comfy_prompt_id', None)}, {task_meta}")
                 force_unlock_update = True
 
             if task.content_type == 'video' and len(preview_cache) > 1 and current_time >= next_preview_ui_time:
@@ -2234,6 +2309,82 @@ apply_webui_assets()
 
 title = f'{version.branch}-让创作如此轻松! Make creation a breeze!'
 
+
+def _frontend_bind_host():
+    return args_manager.args.listen or "127.0.0.1"
+
+
+def _reserved_frontend_ports():
+    reserved = set()
+    try:
+        loopback_port = shared.sysinfo.get("loopback_port") if isinstance(shared.sysinfo, dict) else None
+        if loopback_port is not None:
+            reserved.add(int(loopback_port))
+    except (TypeError, ValueError):
+        pass
+    return reserved
+
+
+def _set_frontend_port(port):
+    port = int(port)
+    args_manager.args.port = port
+    if hasattr(shared, "args") and hasattr(shared.args, "port"):
+        shared.args.port = port
+    if isinstance(shared.sysinfo, dict):
+        shared.sysinfo["local_port"] = port
+
+
+def _find_available_frontend_port(start_port):
+    try:
+        start_port = int(start_port)
+    except (TypeError, ValueError):
+        start_port = 8186
+    return simpleai.find_available_port(
+        start_port,
+        host=_frontend_bind_host(),
+        suppress_logging=True,
+        reserved_ports=_reserved_frontend_ports(),
+    )
+
+
+def _ensure_frontend_port_available():
+    try:
+        current_port = int(args_manager.args.port)
+    except (TypeError, ValueError):
+        return
+
+    host = _frontend_bind_host()
+    if simpleai.is_port_available(current_port, host):
+        return
+
+    new_port = _find_available_frontend_port(current_port + 1)
+    if new_port != current_port:
+        logging.info(f"端口 {current_port} 被占用，自动切换到: {new_port}")
+        _set_frontend_port(new_port)
+
+
+def _launch_root_app_with_frontend_port_retry(**kwargs):
+    try:
+        return launch_root_app(shared.gradio_root, **kwargs)
+    except OSError as e:
+        if "Cannot find empty port" not in str(e):
+            raise
+        current_port = kwargs.get("server_port", args_manager.args.port)
+        try:
+            current_port_int = int(current_port)
+        except (TypeError, ValueError):
+            current_port_int = 8186
+        new_port = _find_available_frontend_port(current_port_int + 1)
+        if new_port == current_port_int:
+            raise
+        logging.info(f"端口 {current_port} 被占用，自动切换到: {new_port}")
+        _set_frontend_port(new_port)
+        kwargs["server_port"] = new_port
+        return launch_root_app(shared.gradio_root, **kwargs)
+
+
+_ensure_frontend_port_available()
+
 shared.gradio_root = create_root_blocks(title=title, concurrency_count=5)
 
 get_local_url = f'http://{args_manager.args.listen}:{args_manager.args.port}{args_manager.args.webroot}'
@@ -3260,8 +3411,11 @@ with shared.gradio_root:
                             gallery_index = gr.Dropdown(choices=None, value=None, show_label=False, allow_custom_value=True, elem_id="gallery_index_bridge", elem_classes=["sai-gradio-hidden-bridge"])
                     with gr.Column(scale=1, visible=True, elem_classes=['scene_panel', 'simpai-mounted-hidden'], elem_id='scene_panel') as scene_panel:
                         with gr.Row(elem_id="scene_primary_row"):
-                            scene_additional_prompt = gr.Textbox(label="Blessing words", show_label=True, max_lines=1, elem_id='scene_additional_prompt', elem_classes=['scene_input', 'simpai-mounted-hidden'])
-                            scene_theme = gr.Radio(choices=modules.flags.scene_themes, label="Themes", value=modules.flags.scene_themes[0])
+                            scene_additional_prompt = gr.Textbox(label="Additional Prompt", show_label=True, max_lines=1, elem_id='scene_additional_prompt', elem_classes=['scene_input', 'simpai-mounted-hidden'])
+                            scene_theme_initial_choices = [choice for choice in modules.flags.scene_themes if str(choice).strip()]
+                            if not scene_theme_initial_choices:
+                                scene_theme_initial_choices = ["Scene Theme / 场景主题"]
+                            scene_theme = gr.Radio(choices=scene_theme_initial_choices, label="Themes", value=scene_theme_initial_choices[0], visible=False, elem_id='scene_theme')
 
                         # Qwen Multiangle Camera Control
                         with gr.Accordion("📸 3D Camera Control", open=False, visible=True, elem_id="camera_control_accordion", elem_classes=['simpai-mounted-hidden']) as camera_control_accordion:
@@ -3630,7 +3784,7 @@ with shared.gradio_root:
                         scene_aspect_ratio = scene_resolution_control.selection
                         scene_audio = gr.Audio(label="Audio (Upload)", visible=True, sources=["upload"], type="filepath", elem_id="scene_audio", elem_classes=['simpai-mounted-hidden'])
                         scene_audio_placeholder = gr.HTML('<div style="padding: 20px; text-align: center; border: 2px dashed #ccc; border-radius: 8px; background: rgba(128,128,128,0.1); color: #888;">Hide When Generating...</div>', visible=False, elem_id="scene_audio_placeholder")
-                        scene_additional_prompt_2 = gr.Textbox(label="Blessing words", show_label=True, max_lines=1, visible=True, elem_classes=['scene_input_2', 'simpai-mounted-hidden'], elem_id='scene_additional_prompt_2')
+                        scene_additional_prompt_2 = gr.Textbox(label="Additional Prompt", show_label=True, max_lines=1, visible=True, elem_classes=['scene_input_2', 'simpai-mounted-hidden'], elem_id='scene_additional_prompt_2')
                         
                         sam3_input_video.upload(on_sam3_video_upload, inputs=[sam3_input_video], outputs=[sam3_input_video, sam3_original_video_path, active_video_source, resolution_source_meta, sam3_trim_payload], show_progress=True) \
                             .then(lambda: None, js='()=>{if (typeof refreshResolutionControlSource === "function") refreshResolutionControlSource("sam3_input_video", "upload");}')
@@ -3783,7 +3937,7 @@ with shared.gradio_root:
                     identity_bind_button.click(bind_identity_flow, inputs=[identity_nick_input, identity_areacode, identity_tele_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [input_id_info], show_progress=False)
                     identity_change_button.click(change_identity_flow,  outputs=[identity_stage_state] + identity_ctrls + identity_input, show_progress=False)
                     identity_verify_button.click(verify_identity_flow, inputs=identity_input_info + [identity_vcode_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls, show_progress=False)
-                    identity_phrases_set_button.click(lambda a, b, c: set_phrases_flow(a,b,c,'set'), inputs=identity_input_info + [identity_phrase_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [current_id_info], show_progress=False)
+                    identity_phrases_set_button.click(lambda a, b, c: set_phrases_flow(a,b,c,'set'), inputs=identity_input_info + [identity_phrase_input], outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [current_id_info, current_upstream_status, identity_export_btn], show_progress=False)
                     identity_qr.upload(trigger_input_identity_flow, inputs=identity_qr, outputs=[identity_stage_state] + identity_flow_rows + identity_ctrls + [input_id_info], show_progress=False, queue=False)
                 
                 nav_bars = topbar_layout.nav_bars
@@ -4565,6 +4719,13 @@ with shared.gradio_root:
                                 switch_scene_theme_safe,
                                 inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme],
                                 outputs=[camera_control_accordion, anglelight_control_accordion, style_transfer_accordion, sam3_video_mask_accordion, pose_studio, gaussian_studio, scene_resolution_override_accordion, scene_use_resolution_override_checkbox, scene_resolution_override] + scene_params[1:],
+                                queue=False,
+                                show_progress=False,
+                            )
+                            event = event.then(
+                                modules.meta_parser.switch_scene_theme_standard_generation_defaults,
+                                inputs=[state_topbar, scene_theme],
+                                outputs=[overwrite_step],
                                 queue=False,
                                 show_progress=False,
                             )
@@ -5528,7 +5689,7 @@ with shared.gradio_root:
 
                                     return [skip_component_update(), skip_component_update(), skip_component_update(), None]
                                 with gr.Row():
-                                    quick_enhance = gr.Checkbox(label='Quick Enhance', value=False)
+                                    quick_enhance = gr.Checkbox(label='Quick Enhance', value=False, elem_id="quick_enhance")
                                 quick_enhance_uov_strength = gr.Slider(label='Denoising Strength of enhance',
                                                  visible=False, minimum=0, maximum=1.0, step=0.01, value=0.2)
                                 output_format = gr.Radio(label='Output Format',
@@ -5570,8 +5731,8 @@ with shared.gradio_root:
                                                            value=modules.config.default_sampler)
                                     scheduler_name = gr.Dropdown(label='Scheduler', choices=flags.comfy_scheduler_list,
                                                              value=modules.config.default_scheduler)
-                                clip_skip = gr.Slider(label='CLIP Skip', minimum=1, maximum=flags.clip_skip_max, step=1,
-                                                     value=modules.config.default_clip_skip)
+                                clip_skip = gr.Number(value=1, minimum=1, maximum=flags.clip_skip_max, step=1,
+                                                      precision=0, visible=False, elem_id="clip_skip_placeholder")
                             sdxl_adv_checkbox = gr.Checkbox(label='SDXL advanced setting', value=False,  container=False)
                             with gr.Group(visible=False) as sdxl_adv_pannel: 
                                 with gr.Row():
@@ -5745,6 +5906,8 @@ with shared.gradio_root:
                                         describe_vlm_custom_message = gr.HTML(value='', elem_id='describe_vlm_custom_message')
                                     describe_vlm_chat_prompt_bridge = gr.Textbox(value='', visible='hidden', elem_id='describe_vlm_chat_prompt_bridge', elem_classes=['sai-gradio-hidden-bridge'])
                                     describe_vlm_chat_apply_prompt_btn = gr.Button('Apply Describe VLM chat prompt', visible='hidden', elem_id='describe_vlm_chat_apply_prompt_btn', elem_classes=['sai-gradio-hidden-bridge'])
+                                    describe_vlm_model_select_bridge = gr.Textbox(value='', visible='hidden', elem_id='describe_vlm_model_select_bridge', elem_classes=['sai-gradio-hidden-bridge'])
+                                    describe_vlm_model_select_btn = gr.Button('Apply Describe VLM model selection', visible='hidden', elem_id='describe_vlm_model_select_btn', elem_classes=['sai-gradio-hidden-bridge'])
 
                                     def trigger_show_image_properties(image):
                                         image_size = modules.util.get_image_size_info(image, modules.flags.available_aspect_ratios[0])
@@ -5761,19 +5924,20 @@ with shared.gradio_root:
                                             else:
                                                 recommended_part = button_text
 
-                                            if 'x' in recommended_part:
-                                                size_part = recommended_part.split('|')[0].strip()
-                                                width_str, height_str = size_part.split('x')[:2]
-                                                width = int(''.join(filter(str.isdigit, width_str)))
-                                                height = int(''.join(filter(str.isdigit, height_str)))
-                                                return [width, height]
+                                            size_part = str(recommended_part).split('|')[0].strip()
+                                            match = re.search(r'(\d+)\s*[xX×*]\s*(\d+)', size_part)
+                                            if match:
+                                                width = int(match.group(1))
+                                                height = int(match.group(2))
+                                                return [width, height, True]
                                             else:
-                                                return [skip_component_update(), skip_component_update()]
+                                                return [skip_component_update(), skip_component_update(), skip_component_update()]
                                         except Exception:
-                                            return [skip_component_update(), skip_component_update()]
+                                            return [skip_component_update(), skip_component_update(), skip_component_update()]
 
                                     describe_input_image.upload(trigger_show_image_properties, inputs=describe_input_image, outputs=describe_image_size, show_progress=False, queue=False)
-                                    describe_image_size.click(apply_recommended_size, inputs=describe_image_size, outputs=[overwrite_width, overwrite_height], show_progress=False, queue=False)
+                                    describe_image_size.click(apply_recommended_size, inputs=describe_image_size, outputs=[overwrite_width, overwrite_height, use_resolution_override_checkbox], show_progress=False, queue=False) \
+                                        .then(lambda: None, js='()=>{try{if(typeof syncResolutionControlWidgets==="function"){syncResolutionControlWidgets({force:true}); setTimeout(()=>syncResolutionControlWidgets({force:true}),80);}}catch(e){console.warn("[UI-TRACE] describe_resolution_sync_failed", e);}}', show_progress=False, queue=False)
 
                         with gr.Tab(label='Metadata', id='metadata_tab', visible=True) as metadata_tab:
                             with gr.Column():
@@ -6557,8 +6721,8 @@ with shared.gradio_root:
                     binding_id_button = gr.Button(value='IdentityCenter', visible=True, elem_id="identity_center")
                     identity_introduce = gr.HTML(visible=True, value=topbar.build_identity_introduce_html({}), elem_classes=["identityIntroduce"], elem_id='identity_introduce')
                     with gr.Column() as configure_panel:
-                        with gr.Tabs():
-                            with gr.Tab(label='Application') as user_panel:
+                        with gr.Tabs(selected="application", elem_id="identity_settings_tabs"):
+                            with gr.Tab(label='Application', id="application", elem_id="identity_application_tab") as user_panel:
                                 with gr.Row():
                                     language_ui = gr.Radio(label='Language of UI', choices=['En', '中文'], value=modules.flags.language_radio(args_manager.args.language), interactive=(args_manager.args.language in ['default', 'cn', 'en']), container=False)
                                     background_theme = gr.Radio(label='Theme of background', choices=['light', 'dark'], value=args_manager.args.theme, interactive=True, container=False)
@@ -6597,6 +6761,9 @@ with shared.gradio_root:
                                                                info='Image Prompt parameters are not included. Use png and a1111 for compatibility with Civitai.',
                                                                visible=modules.config.default_save_metadata_to_images)
                                     save_metadata_to_images.change(toggle_checked, inputs=[save_metadata_to_images], outputs=[metadata_scheme], queue=False, show_progress=False)
+                                    disabled_save_final_enhanced_image_only = gr.State(value=None)
+                                    disabled_save_metadata_to_images = gr.State(value=False)
+                                    disabled_metadata_scheme = gr.State(value=None)
                             style_search_bar.change(fn=None,
                                                 inputs=None,
                                                 outputs=None,
@@ -6629,7 +6796,7 @@ with shared.gradio_root:
                                 queue=False
                             )
 
-                            with gr.Tab(label='Local System', visible=False) as local_system_tab:
+                            with gr.Tab(label='Local System', id="local_system", elem_id="identity_local_system_tab", visible=False) as local_system_tab:
                                 with gr.Column() as admin_panel:
                                     with gr.Group():
                                         with gr.Row(visible=True if not args_manager.args.disable_backend else False):
@@ -6676,7 +6843,7 @@ with shared.gradio_root:
                                             web_in_did_switch_btn = gr.Button(value="Switch", size="sm", min_width=30)
                                             web_in_did_list = gr.Markdown(elem_classes=["htmlcontent"])
 
-                            with gr.Tab(label='Users', visible=False) as user_access_tab:
+                            with gr.Tab(label='Users', id="users", elem_id="identity_users_tab", visible=False) as user_access_tab:
                                 with gr.Column(elem_classes=["admin-access-panel"]):
                                     admin_access_initial = _admin_access_initial_snapshot()
                                     admin_access_initial_did = admin_access_initial["selected"]
@@ -7044,6 +7211,13 @@ with shared.gradio_root:
                     queue=False,
                     show_progress=False,
                 )
+                describe_vlm_model_select_btn.click(
+                    set_describe_vlm_version,
+                    inputs=[describe_vlm_model_select_bridge, state_topbar] + main_vlm_custom_inputs,
+                    outputs=[describe_vlm_model, vlm_status_info, describe_vlm_custom_panel, describe_vlm_custom_message, vlm_version],
+                    queue=False,
+                    show_progress=False,
+                )
                 vlm_version.change(
                     set_admin_vlm_version,
                     inputs=[vlm_version, state_topbar],
@@ -7123,13 +7297,6 @@ with shared.gradio_root:
                 cache_ram.change(lambda x,y: ads.set_admin_default_value('cache_ram',x,y), inputs=[cache_ram, state_topbar])
                 wavespeed_strength.change(lambda x,y: ads.set_admin_default_value('wavespeed_strength',x,y), inputs=[wavespeed_strength, state_topbar])
                 admin_sync_button.click(topbar.admin_sync_to_guest, inputs=[state_topbar], outputs=admin_sync_button, queue=False, show_progress=False)
-                shared.gradio_root.load(
-                    _admin_access_refresh,
-                    inputs=[admin_access_user_select, state_topbar],
-                    outputs=admin_access_outputs,
-                    queue=False,
-                    show_progress=False,
-                )
                 admin_access_refresh_btn.click(
                     _admin_access_refresh_clicked,
                     inputs=[admin_access_user_select, state_topbar],
@@ -7355,18 +7522,18 @@ with shared.gradio_root:
             gallery_videos_btn.click(lambda request, tools, state: gallery_util.switch_gallery_engine_type("video", request, tools, state), inputs=[gallery_media_switch_request, image_tools_checkbox, state_topbar], outputs=[gallery_index, index_radio, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='(request,tools,state)=>{let marker=request||""; try{clearSimpleAICompareReadyState("gallery_media_switch.video"); marker=(typeof beginGalleryMediaSwitchRequest==="function")?beginGalleryMediaSwitchRequest("video",1500):`${Date.now()}:0:video`; if(typeof beginGalleryMediaSwitchRequest!=="function") syncGalleryMediaSwitch("video",1500);}catch(e){} return [marker,tools,state];}') \
                 .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{if(typeof isGalleryMediaSwitchModeCurrent==="function"&&!isGalleryMediaSwitchModeCurrent("video")) return; syncGalleryMediaSwitch("video", 1200); try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} if(typeof syncPostGenerationResultControls==="function"){syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80); setTimeout(()=>syncPostGenerationResultControls(state),220);}}catch(e){} refresh_finished_images_catalog_label(x, "video", {refresh:false}); try{const nums=String((state&&state.__finished_nums_pages)||x||""); if(/^0(?:,|$)/.test(nums)&&typeof restoreWelcomePreviewForEmptyGalleryBrowser==="function") restoreWelcomePreviewForEmptyGalleryBrowser("gallery_media_switch.video.empty"); if(typeof scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery==="function") scheduleFinishedGalleryBrowserStatusSyncFromRenderedGallery("video", "gallery_media_switch.video");}catch(e){}}')
             gallery_browser_load_evt = gallery_browser_load_btn.click(gallery_util.load_main_gallery_browser_page, inputs=[gallery_browser_payload, image_tools_checkbox, state_topbar], outputs=[gallery_browser_state, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat], queue=False, show_progress=False, js='()=>{try{clearSimpleAICompareReadyState("gallery_browser.load"); markFinishedGalleryBrowserLoading();}catch(e){}}')
-            gallery_browser_load_evt.then(lambda x: None, inputs=[gallery_browser_state], queue=False, show_progress=False, js='(x)=>{try{syncFinishedGalleryBrowserAfterLoad(x); traceResultPanelStateSoon("gallery_browser.load.after");}catch(e){console.warn("[UI-TRACE] gallery_browser_load.dom_trace_failed", e);}}')
+            gallery_browser_load_evt.then(lambda x, stat, state: None, inputs=[gallery_browser_state, gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,stat,state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} syncFinishedGalleryBrowserAfterLoad(x); const mode=(state && (state.__gallery_engine_type || state.engine_type)) || (typeof getFinishedGalleryBrowserMode==="function"?getFinishedGalleryBrowserMode():null); refresh_finished_images_catalog_label(stat, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.load.after");}catch(e){console.warn("[UI-TRACE] gallery_browser_load.dom_trace_failed", e);}}')
             gallery_browser_outputs = [gallery_browser_folder, gallery_browser_prev_folder_btn, gallery_browser_next_folder_btn, gallery_browser_status, gallery_browser_more_btn, progress_gallery, progress_window, gallery, progress_video, image_toolbox, prompt_info_box, prompt_info_close_btn, prompt_info_container, state_topbar, gallery_index_stat]
             gallery_browser_folder.change(gallery_util.load_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.change"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.folder.change");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder.dom_trace_failed", e);}}')
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.change"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.folder.change");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder.dom_trace_failed", e);}}')
             gallery_browser_prev_folder_btn.click(gallery_util.previous_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.prev"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.folder.prev");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_prev.dom_trace_failed", e);}}')
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.prev"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.folder.prev");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_prev.dom_trace_failed", e);}}')
             gallery_browser_next_folder_btn.click(gallery_util.next_main_gallery_browser_folder, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.next"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.folder.next");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_next.dom_trace_failed", e);}}')
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.folder.next"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.folder.next");}catch(e){console.warn("[UI-TRACE] gallery_browser_folder_next.dom_trace_failed", e);}}')
             gallery_browser_refresh_btn.click(gallery_util.refresh_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.refresh"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.refresh");}catch(e){console.warn("[UI-TRACE] gallery_browser_refresh.dom_trace_failed", e);}}')
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.refresh"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.refresh");}catch(e){console.warn("[UI-TRACE] gallery_browser_refresh.dom_trace_failed", e);}}')
             gallery_browser_more_btn.click(gallery_util.load_more_main_gallery_browser, inputs=[gallery_browser_folder, image_tools_checkbox, state_topbar], outputs=gallery_browser_outputs, queue=False, show_progress=False) \
-                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.more"); syncGalleryMediaSwitch(state && (state.__gallery_engine_type || state.engine_type)); traceResultPanelStateSoon("gallery_browser.more");}catch(e){console.warn("[UI-TRACE] gallery_browser_more.dom_trace_failed", e);}}')
+                .then(lambda x, state: None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{clearSimpleAICompareReadyState("gallery_browser.more"); const mode=state && (state.__gallery_engine_type || state.engine_type); syncGalleryMediaSwitch(mode); refresh_finished_images_catalog_label(x, mode, {refresh:false}); traceResultPanelStateSoon("gallery_browser.more");}catch(e){console.warn("[UI-TRACE] gallery_browser_more.dom_trace_failed", e);}}')
             gallery.select(gallery_util.select_gallery, inputs=[gallery_index, image_tools_checkbox, state_topbar, backfill_prompt], outputs=[prompt_info_box, prompt_info_close_btn, prompt_info_container, prompt, negative_prompt, params_note_info, params_note_close_button, params_note_input_name, params_note_delete_button, params_note_regen_button, params_note_preset_button, params_note_box, image_toolbox, state_topbar], show_progress=False) \
                 .then(fn=None, inputs=[state_topbar], queue=False, show_progress=False, js='(state)=>{try{if(state&&typeof state==="object"){window.simpleaiTopbarSystemParams=state;if(typeof topbarLastSystemParams!=="undefined")topbarLastSystemParams=state;} syncPostGenerationResultControls(state); setTimeout(()=>syncPostGenerationResultControls(state),80);}catch(e){console.warn("[UI-TRACE] gallery_select_compare_sync_failed", e);}}')
             gallery.preview_open(gallery_util.gallery_preview_open, inputs=[image_tools_checkbox, state_topbar], outputs=[image_toolbox, state_topbar], queue=False, show_progress=False)
@@ -7592,9 +7759,9 @@ with shared.gradio_root:
         ctrls += freeu_ctrls
         ctrls += inpaint_ctrls
         ctrls += [params_backend]
-        ctrls += [save_final_enhanced_image_only if not args_manager.args.disable_image_log else None]
-        ctrls += [save_metadata_to_images if not args_manager.args.disable_metadata else None]
-        ctrls += [metadata_scheme if not args_manager.args.disable_metadata else None]
+        ctrls += [save_final_enhanced_image_only if not args_manager.args.disable_image_log else disabled_save_final_enhanced_image_only]
+        ctrls += [save_metadata_to_images if not args_manager.args.disable_metadata else disabled_save_metadata_to_images]
+        ctrls += [metadata_scheme if not args_manager.args.disable_metadata else disabled_metadata_scheme]
         ctrls += ip_ctrls
         ctrls += [debugging_dino, dino_erode_or_dilate, debugging_enhance_masks_checkbox,
                   enhance_input_image, enhance_checkbox, enhance_uov_method, enhance_uov_strength, enhance_uov_processing_order,
@@ -7673,12 +7840,49 @@ with shared.gradio_root:
             show_progress=False
         )
 
+        scene_sketch_flush_js = """() => {
+            try {
+                if (window.SimpAISketch?.flushAll) window.SimpAISketch.flushAll({ force: true, change: true });
+            } catch (e) {
+                console.warn("[UI-TRACE] scene_sketch_flush_failed", e);
+            }
+        }"""
+        generation_start_js = """() => {
+            try {
+                if (window.SimpAISketch?.flushAll) window.SimpAISketch.flushAll({ force: true, change: true });
+            } catch (e) {
+                console.warn("[UI-TRACE] scene_sketch_flush_failed", e);
+            }
+            try {
+                if (typeof window.simpleaiSyncModelsJsPanelBridge === "function") window.simpleaiSyncModelsJsPanelBridge();
+                if (typeof scheduleSimpleAIPresetGalleryClear === "function") scheduleSimpleAIPresetGalleryClear("generate_start");
+                else if (typeof clearSimpleAIPresetSwitchGalleryHidden === "function") clearSimpleAIPresetSwitchGalleryHidden("generate_start");
+            } catch (e) {
+                console.warn("[UI-TRACE] preset_gallery.generate_clear_failed", e);
+            }
+        }"""
+        preview_start_js = """() => {
+            try {
+                if (window.SimpAISketch?.flushAll) window.SimpAISketch.flushAll({ force: true, change: true });
+            } catch (e) {
+                console.warn("[UI-TRACE] scene_sketch_flush_failed", e);
+            }
+            try {
+                if (typeof window.simpleaiSyncModelsJsPanelBridge === "function") window.simpleaiSyncModelsJsPanelBridge();
+                if (typeof scheduleSimpleAIPresetGalleryClear === "function") scheduleSimpleAIPresetGalleryClear("preview_start");
+                else if (typeof clearSimpleAIPresetSwitchGalleryHidden === "function") clearSimpleAIPresetSwitchGalleryHidden("preview_start");
+            } catch (e) {
+                console.warn("[UI-TRACE] preset_gallery.preview_clear_failed", e);
+            }
+        }"""
+
         scene_batch_stop.click(fn=batch_stop_fn, inputs=[scene_batch_id], outputs=[scene_batch_status], queue=False, show_progress=False)
         scene_batch_evt = scene_batch_start.click(
             fn=lambda: [gr_update(interactive=False)] * len(batch_lock_controls),
             outputs=batch_lock_controls,
             queue=False,
-            show_progress=False
+            show_progress=False,
+            js=scene_sketch_flush_js,
         ).then(
             fn=sync_inpaint_engine_dropdowns_before_generation,
             inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls],
@@ -7692,9 +7896,9 @@ with shared.gradio_root:
                 scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6,
                 scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps,
                 scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio,
-                scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source,
+                image_number, scene_video, scene_audio, scene_original_video_path, active_video_source,
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
-                overwrite_width, overwrite_height, resolution_edit_mode, resolution_original_input_checkbox
+                overwrite_step, overwrite_width, overwrite_height, resolution_edit_mode, resolution_original_input_checkbox
             ] + scene_generation_model_ctrls + ctrls + [model_params_state, resolution_multiplier, resolution_quantize_step, state_topbar],
             outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button, generate_button, state_is_generating, scene_batch_status, scene_batch_id],
             show_progress=False
@@ -8378,7 +8582,7 @@ with shared.gradio_root:
         scene_batch_evt.then(topbar.process_after_generation, inputs=state_topbar, outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False) \
             .then(fn=None, inputs=[gallery_index_stat, state_topbar], queue=False, show_progress=False, js='(x,state)=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generation_done_batch"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generation_done_batch");}catch(e){} refresh_finished_images_catalog_label(x, state && (state.__gallery_engine_type || state.engine_type), {refresh: !(state && state.__skip_gallery_browser_refresh_once)});}')
 
-        generate_event = bind_generation_failure_cleanup(generate_button.click(_stash_scene_media_before_generation, inputs=[scene_video, scene_audio, scene_original_video_path, state_topbar, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder, generate_button, skip_button, stop_button, random_aspect_ratio_state], show_progress=False, js='()=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("generate_start"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("generate_start");}catch(e){console.warn("[UI-TRACE] preset_gallery.generate_clear_failed", e);}}'))
+        generate_event = bind_generation_failure_cleanup(generate_button.click(_stash_scene_media_before_generation, inputs=[scene_video, scene_audio, scene_original_video_path, state_topbar, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder, generate_button, skip_button, stop_button, random_aspect_ratio_state], show_progress=False, js=generation_start_js))
         generate_event = bind_generation_failure_cleanup(generate_event.success(cache_input_image_func, inputs=[state_topbar, enhance_checkbox, current_tab, uov_input_image, inpaint_input_image, enhance_input_image, scene_input_image1, scene_canvas_image], outputs=[cached_input_image], show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(show_generation_preview_surface, inputs=state_topbar, outputs=[progress_window, progress_gallery, progress_video, gallery, comparison_box, compare_btn], show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(
@@ -8391,11 +8595,11 @@ with shared.gradio_root:
                 scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8,
                 scene_var_number9, scene_var_number10, scene_steps,
                 scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4,
-                scene_aspect_ratio, scene_image_number,
+                scene_aspect_ratio, image_number,
                 scene_video_backup, scene_audio_backup, scene_original_video_backup, active_video_source,
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
                 overwrite_width, overwrite_height, resolution_multiplier, resolution_quantize_step,
-                resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload,
+                resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload, overwrite_step,
             ],
             outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating, index_radio, image_toolbox, prompt_info_box, image_seed, params_backend] + protections + [preset_store, identity_dialog],
             show_progress=False,
@@ -8405,7 +8609,7 @@ with shared.gradio_root:
         generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.avoid_empty_prompt_for_scene, inputs=[prompt, state_topbar, scene_canvas_image, scene_input_image1, scene_theme, scene_additional_prompt, scene_additional_prompt_2], outputs=prompt, show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(select_random_aspect_ratio, inputs=[random_aspect_ratio_checkbox, random_aspect_ratio_state, aspect_ratios_selection], outputs=[overwrite_width, overwrite_height, aspect_ratios_selection, random_aspect_ratio_state], show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(sync_inpaint_engine_dropdowns_before_generation, inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls], outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls], show_progress=False))
-        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls + [model_params_state, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls + [model_params_state, clip_model, upscale_model, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(fn=generate_clicked, inputs=[currentTask, state_topbar], outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button], show_progress=False))
         generate_event.success(fn=update_prompt_history, inputs=[currentTask, state_prompt_history, prompt], outputs=[state_prompt_history, history_prompts], show_progress=False)
         generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.process_after_generation, inputs=[state_topbar, currentTask, progress_gallery, progress_video], outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False))
@@ -8421,7 +8625,7 @@ with shared.gradio_root:
         debug_true_state = gr.State(value=True)
         ctrls_preview = [debug_true_state if c == debugging_cn_preprocessor else c for c in ctrls]
 
-        preview_event = bind_generation_failure_cleanup(preview_preprocessing.click(_stash_scene_media_preview, inputs=[scene_video, scene_audio, scene_original_video_path, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder], show_progress=False, js='()=>{try{if(typeof scheduleSimpleAIPresetGalleryClear==="function") scheduleSimpleAIPresetGalleryClear("preview_start"); else if(typeof clearSimpleAIPresetSwitchGalleryHidden==="function") clearSimpleAIPresetSwitchGalleryHidden("preview_start");}catch(e){console.warn("[UI-TRACE] preset_gallery.preview_clear_failed", e);}}'))
+        preview_event = bind_generation_failure_cleanup(preview_preprocessing.click(_stash_scene_media_preview, inputs=[scene_video, scene_audio, scene_original_video_path, scene_audio_backup], outputs=[scene_video_backup, scene_audio_backup, scene_original_video_backup, scene_video, scene_audio, scene_original_video_path, scene_video_placeholder, scene_audio_placeholder], show_progress=False, js=preview_start_js))
         preview_event = bind_generation_failure_cleanup(preview_event.success(lambda: (False, gr_update(visible=False), gr_update(visible=False), gr_update(visible=False), gr_update(value=None, visible=True), compare_button_gr_update(ready=False)), outputs=[comparison_state, comparison_box, progress_window, gallery, progress_gallery, compare_btn], show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(
             topbar.process_before_generation,
@@ -8433,18 +8637,18 @@ with shared.gradio_root:
                 scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8,
                 scene_var_number9, scene_var_number10, scene_steps,
                 scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4,
-                scene_aspect_ratio, scene_image_number,
+                scene_aspect_ratio, image_number,
                 scene_video_backup, scene_audio_backup, scene_original_video_backup, active_video_source,
                 sam3_input_video, sam3_original_video_path, sam3_mask_video,
                 overwrite_width, overwrite_height, resolution_multiplier, resolution_quantize_step,
-                resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload,
+                resolution_edit_mode, resolution_original_input_checkbox, sam3_trim_payload, overwrite_step,
             ],
             outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating, index_radio, image_toolbox, prompt_info_box, image_seed, params_backend] + protections + [preset_store, identity_dialog],
             show_progress=False,
         ))
         preview_event = bind_generation_failure_cleanup(preview_event.success(_sync_model_params_state_from_ui, inputs=model_state_ui_inputs, outputs=model_params_state, show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(sync_inpaint_engine_dropdowns_before_generation, inputs=[state_topbar, inpaint_engine_state, inpaint_mode, outpaint_selections, *enhance_inpaint_mode_ctrls], outputs=[inpaint_engine, *enhance_inpaint_engine_ctrls], show_progress=False))
-        preview_event = bind_generation_failure_cleanup(preview_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls_preview + [model_params_state, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
+        preview_event = bind_generation_failure_cleanup(preview_event.success(fn=get_task_with_resolution_multiplier_and_model_state, inputs=ctrls_preview + [model_params_state, clip_model, upscale_model, resolution_multiplier, resolution_quantize_step], outputs=currentTask, show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(fn=generate_clicked, inputs=[currentTask, state_topbar], outputs=[progress_html, progress_window, progress_gallery, progress_video, gallery, comparison_state, comparison_box, compare_btn, stop_button, skip_button], show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(topbar.process_after_generation, inputs=[state_topbar, currentTask, progress_gallery, progress_video], outputs=[generate_button, stop_button, skip_button, state_is_generating, gallery_index, index_radio] + protections + [gallery_index_stat, history_link], show_progress=False))
         preview_event = bind_generation_failure_cleanup(preview_event.success(check_comparison_visibility, inputs=[cached_input_image, currentTask, progress_gallery, progress_video, state_topbar, image_tools_checkbox, scene_input_image1, scene_canvas_image], outputs=[compare_btn, image_toolbox, state_topbar], show_progress=False))
@@ -8697,6 +8901,7 @@ with shared.gradio_root:
 
         scene_theme.select(switch_scene_theme_select, inputs=state_topbar, outputs=state_topbar, queue=False, show_progress=False) \
                    .then(switch_scene_theme_safe, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme], outputs=[camera_control_accordion, anglelight_control_accordion, style_transfer_accordion, sam3_video_mask_accordion, pose_studio, gaussian_studio, scene_resolution_override_accordion, scene_use_resolution_override_checkbox, scene_resolution_override] + scene_params[1:], queue=False, show_progress=False) \
+                   .then(modules.meta_parser.switch_scene_theme_standard_generation_defaults, inputs=[state_topbar, scene_theme], outputs=[overwrite_step], queue=False, show_progress=False) \
                    .then(fn=lambda state, theme: None, inputs=[state_topbar, scene_theme], js="(state, theme)=>{try{if(window.SimpAIPoseStudioEditor?.closeScenePreset) window.SimpAIPoseStudioEditor.closeScenePreset(); if(window.SimpAIGaussianStudioEditor?.closeScenePreset) window.SimpAIGaussianStudioEditor.closeScenePreset(); if(typeof reconcileSceneAuxControls==='function') reconcileSceneAuxControls(state, theme); if(typeof syncResolutionControlWidgets==='function') syncResolutionControlWidgets();}catch(e){console.warn('[UI-TRACE] scene_aux_reconcile_failed', e);}}", queue=False, show_progress=False) \
                    .then(lambda: None, js='()=>{try{if(window.syncGradio6MountedDynamicVisibility) window.syncGradio6MountedDynamicVisibility("scene_theme");}catch(e){console.warn("[UI-TRACE] scene_theme_mounted_visibility_sync_failed", e);}}', show_progress=False, queue=False) \
                    .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=True) \
@@ -8740,6 +8945,7 @@ with shared.gradio_root:
         scene_audio.upload(_remember_scene_audio_for_generation, inputs=[scene_audio], outputs=[scene_audio_backup], queue=False, show_progress=False) \
             .then(modules.meta_parser.switch_ltx23_audio_theme_when_audio_present, inputs=[state_topbar, scene_theme, scene_audio_backup], outputs=[state_topbar, scene_theme], queue=False, show_progress=False) \
             .then(switch_scene_theme_safe, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme], outputs=[camera_control_accordion, anglelight_control_accordion, style_transfer_accordion, sam3_video_mask_accordion, pose_studio, gaussian_studio, scene_resolution_override_accordion, scene_use_resolution_override_checkbox, scene_resolution_override] + scene_params[1:], queue=False, show_progress=False) \
+            .then(modules.meta_parser.switch_scene_theme_standard_generation_defaults, inputs=[state_topbar, scene_theme], outputs=[overwrite_step], queue=False, show_progress=False) \
             .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)
         scene_audio.clear(_clear_scene_audio_for_generation, outputs=[scene_audio_backup], queue=False, show_progress=False) \
             .then(switch_scene_theme_ready_to_gen, inputs=[state_topbar, image_number, scene_canvas_image, scene_input_image1, scene_additional_prompt, scene_additional_prompt_2, scene_theme, scene_video, scene_audio], outputs=[prompt, generate_button], queue=False, show_progress=False)
@@ -8854,6 +9060,31 @@ with shared.gradio_root:
             sanitized.append(dropdown_update(choices=allowed, value=next_value))
         return sanitized
 
+    def _refresh_identity_admin_surface(state_params):
+        try:
+            user = state_params.get("user", None) if isinstance(state_params, dict) else None
+            user_did = user.get_did() if user is not None and hasattr(user, "get_did") else ""
+            is_guest = shared.token.is_guest(user_did)
+            is_admin = shared.token.is_admin(user_did)
+            is_privileged_guest = is_guest and is_local_mode()
+            admin_visible = is_admin or is_privileged_guest
+            return [
+                gr_update(visible=admin_visible),
+                gr_update(visible=is_admin),
+                gr_update(visible=admin_visible),
+                gr_update(visible=admin_visible, value=topbar.update_comfyd_url(state_params)),
+                topbar.update_topbar_js_params(state_params)[0],
+            ]
+        except Exception as e:
+            logger.warning(f"[IdentityAccess] failed to refresh admin surface: {e}")
+            return [
+                skip_component_update(),
+                skip_component_update(),
+                skip_component_update(),
+                skip_component_update(),
+                skip_component_update(),
+            ]
+
     
     after_identity = [gallery_index, index_radio, gallery_index_stat, preset_store, preset_store_list, history_link, identity_introduce, configure_panel, local_system_tab, user_access_tab, admin_panel, admin_link, system_params] + ip_types
     bind_topbar_identity_events(
@@ -8888,6 +9119,8 @@ with shared.gradio_root:
         admin_access_refresh_fn=_admin_access_refresh,
         admin_access_user_select=admin_access_user_select,
         admin_access_outputs=admin_access_outputs,
+        identity_admin_surface_refresh_fn=_refresh_identity_admin_surface,
+        identity_admin_surface_outputs=[local_system_tab, user_access_tab, admin_panel, admin_link, system_params],
     )
 
     reset_layout_ui_outputs = nav_bars + reset_preset_layout + reset_preset_func + scene_frontend_ctrls
@@ -9508,6 +9741,9 @@ with shared.gradio_root:
         aspect_ratios_selections=aspect_ratios_selections,
         aspect_ratios_selection=aspect_ratios_selection,
         reset_layout_ui_fn=reset_layout_ui_model_bridge_safe,
+        admin_access_refresh_fn=_admin_access_refresh,
+        admin_access_user_select=admin_access_user_select,
+        admin_access_outputs=admin_access_outputs,
     )
 
 def dump_default_english_config():
@@ -9527,17 +9763,12 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 if ads.get_admin_default('comfyd_active_checkbox') and not args_manager.args.disable_comfyd and not args_manager.args.disable_backend:
     comfyd.active(True)
-# Fix for global proxy issues causing "Expecting value: line 1 column 1"
-for key in ['NO_PROXY', 'no_proxy']:
-    current_val = os.environ.get(key, '')
-    if 'localhost' not in current_val:
-        os.environ[key] = f"localhost,127.0.0.1,0.0.0.0,{current_val}".strip(',')
-
 import socket
 import psutil
 
 current_listen = args_manager.args.listen
-if is_local_mode():
+_explicit_listen = '--listen' in sys.argv
+if is_local_mode() and not _explicit_listen:
     args_manager.args.listen = "127.0.0.1"
     if not args_manager.args.port:
         args_manager.args.port = 8186
@@ -9587,8 +9818,9 @@ else:
                          args_manager.args.port = new_port
             pass
 
-app, local_url, share_url = launch_root_app(
-    shared.gradio_root,
+configure_frontend_http_guard(args_manager.args.listen, args_manager.args.port)
+
+app, local_url, share_url = _launch_root_app_with_frontend_port_retry(
     inbrowser=args_manager.args.in_browser,
     server_name=args_manager.args.listen,
     server_port=args_manager.args.port,
