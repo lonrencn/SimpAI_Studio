@@ -1881,7 +1881,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
     backend_params.update(dict(
         nickname=_state_user_nickname(state_params),
         user_did=user_did,
-        preset=state_params["__preset"],
+        preset=state_params.get("__preset", ""),
         engine_type=state_params.get("engine_type", "image"),
         ))
     state_upscale_model = str(state_params.get("upscale_model") or "").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
