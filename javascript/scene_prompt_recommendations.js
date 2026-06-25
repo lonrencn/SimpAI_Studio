@@ -233,6 +233,7 @@
                 preset: currentPreset(),
                 scene_theme: selectedSceneTheme(),
                 __lang: currentLang(),
+                prompt_head: currentTextboxValue("positive_prompt").slice(0, 64),
             });
             if (payload.item) applyPromptItem(payload.item);
         } catch (error) {

@@ -2688,8 +2688,24 @@ function initializeTagAssistantLogic() {
         }
     }
     function applyThemeFromUrl() {
-        const theme = new URLSearchParams(window.location.search).get('__theme');
-        document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
+        const params = new URLSearchParams(window.location.search);
+        const systemParams = window.simpleaiTopbarSystemParams && typeof window.simpleaiTopbarSystemParams === 'object'
+            ? window.simpleaiTopbarSystemParams
+            : {};
+        const rawTheme = params.get('__theme')
+            || systemParams.__theme
+            || document.documentElement.getAttribute('data-theme')
+            || document.body?.getAttribute?.('data-theme')
+            || 'light';
+        const theme = String(rawTheme).toLowerCase().includes('dark') ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        document.documentElement.classList.toggle('light', theme !== 'dark');
+        if (document.body) {
+            document.body.setAttribute('data-theme', theme);
+            document.body.classList.toggle('dark', theme === 'dark');
+            document.body.classList.toggle('light', theme !== 'dark');
+        }
     }
 
     // --- 启动应用 ---

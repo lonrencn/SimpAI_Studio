@@ -9,6 +9,9 @@
     --sai-canvas-muted: #71717a;
     --sai-canvas-accent: #0f766e;
     --sai-canvas-accent-soft: #e7f6f2;
+    --sai-node-head-bg: #fcfcfd;
+    --sai-node-head-border: #e0e0e4;
+    --sai-node-title-color: #18181b;
     --sai-canvas-grid: rgba(113, 113, 122, 0.18);
     --sai-canvas-warn: #f97316;
     position: fixed;
@@ -35,6 +38,9 @@
     --sai-canvas-muted: #a1a1a1;
     --sai-canvas-accent: #1f8f7a;
     --sai-canvas-accent-soft: #1f3f39;
+    --sai-node-head-bg: #303030;
+    --sai-node-head-border: #424242;
+    --sai-node-title-color: #f3f4f6;
     --sai-canvas-grid: rgba(161, 161, 161, 0.14);
     --sai-canvas-warn: #d97706;
 }
@@ -2914,7 +2920,10 @@
     align-items: center;
     gap: 6px;
     min-height: 36px;
-    padding: 6px 8px 0;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--sai-node-head-border);
+    border-radius: 7px 7px 0 0;
+    background: var(--sai-node-head-bg);
 }
 
 .sai-canvas-node-image .sai-node-head,
@@ -3055,12 +3064,50 @@
     background: rgba(20, 184, 166, 0.16);
 }
 
+.sai-canvas-node.has-custom-color:not(.is-selected):not(.is-focused):not(.is-scheduler-blocked):not(.is-scheduler-waiting):not(.is-result-stale) {
+    border-color: color-mix(in srgb, var(--sai-canvas-accent) 56%, var(--sai-canvas-border));
+}
+
+.sai-canvas-node.has-custom-color > .sai-node-head {
+    border-bottom-color: color-mix(in srgb, var(--sai-canvas-accent) 82%, #000000);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--sai-canvas-accent) 86%, #ffffff 6%),
+        color-mix(in srgb, var(--sai-canvas-accent) 78%, #000000 12%)
+    );
+}
+
+.sai-canvas-node.has-custom-color > .sai-node-head .sai-node-title {
+    color: var(--sai-node-accent-contrast, #f8fafc);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.22);
+}
+
+.sai-canvas-node.has-custom-color .sai-node-kind {
+    color: var(--sai-canvas-accent);
+    border: 1px solid color-mix(in srgb, var(--sai-node-accent-contrast, #ffffff) 48%, transparent);
+    background: color-mix(in srgb, var(--sai-node-accent-contrast, #ffffff) 92%, transparent);
+}
+
+.sai-canvas-node.has-custom-color > .sai-node-head button {
+    color: var(--sai-node-accent-contrast, #f8fafc);
+    border-color: color-mix(in srgb, var(--sai-node-accent-contrast, #ffffff) 28%, transparent);
+    background: color-mix(in srgb, var(--sai-canvas-accent) 72%, #000000 16%);
+}
+
+.sai-canvas-node.has-custom-color > .sai-node-head button:hover,
+.sai-canvas-node.has-custom-color > .sai-node-head button.is-active {
+    color: var(--sai-node-accent-contrast, #f8fafc);
+    border-color: color-mix(in srgb, var(--sai-node-accent-contrast, #ffffff) 54%, transparent);
+    background: color-mix(in srgb, var(--sai-canvas-accent) 62%, #000000 28%);
+}
+
 .sai-node-title {
     min-width: 0;
     flex: 1 1 auto;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: var(--sai-node-title-color);
     font-size: 13px;
     line-height: 1.2;
     font-weight: 700;
@@ -6990,6 +7037,33 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     padding-bottom: 10px;
 }
 
+.sai-canvas-node-config.is-collapsed:not(.is-collapse-expanded) .sai-config-node-body {
+    gap: 6px;
+    padding-bottom: 8px;
+}
+
+.sai-canvas-node-config.is-collapsed:not(.is-collapse-expanded) .sai-config-node-body > :not(.sai-collapsed-keep),
+.sai-canvas-node-config.is-collapsed:not(.is-collapse-expanded) .sai-resolution-size-grid.sai-collapsed-keep > :not(.sai-collapsed-keep) {
+    display: none !important;
+}
+
+.sai-canvas-node-config.is-collapsed:not(.is-collapse-expanded) .sai-node-field.sai-collapsed-keep,
+.sai-canvas-node-config.is-collapsed:not(.is-collapse-expanded) .sai-node-check.sai-collapsed-keep {
+    padding: 0 8px;
+}
+
+.sai-canvas-node-config.is-collapsed:not(.is-collapse-expanded) .sai-resolution-size-grid.sai-collapsed-keep {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sai-canvas-node-config.is-collapsed:not(.is-collapse-expanded) .sai-styles-config-list.sai-collapsed-keep {
+    max-height: 132px;
+}
+
+.sai-canvas-node-config.is-collapsed:not(.is-collapse-expanded) .sai-styles-config-list.sai-collapsed-keep .sai-style-config-item:not(:has(input:checked)) {
+    display: none !important;
+}
+
 .sai-canvas-node-config .sai-node-kind {
     color: var(--sai-canvas-accent);
     background: var(--sai-canvas-accent-soft);
@@ -7333,9 +7407,44 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     border-color: var(--sai-canvas-accent);
 }
 
+.sai-resolution-config-panel {
+    gap: 8px;
+}
+
+.sai-resolution-config-panel .sai-node-field,
+.sai-resolution-config-panel .sai-node-check {
+    padding: 0;
+}
+
+.sai-resolution-top-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 8px;
+    padding: 0 8px;
+}
+
+.sai-resolution-size-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0 8px;
+}
+
+.sai-resolution-size-grid .sai-node-field > span,
+.sai-resolution-top-grid .sai-node-field > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sai-resolution-size-grid input[type="range"] {
+    min-width: 0;
+}
+
 .sai-resolution-mode-row {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
     padding: 0 8px;
 }
@@ -7358,6 +7467,27 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
 .sai-resolution-mode-row button:disabled {
     cursor: not-allowed;
     opacity: 0.45;
+}
+
+.sai-resolution-option-row,
+.sai-resolution-ratio-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    align-items: end;
+    padding: 0 8px;
+}
+
+.sai-resolution-ratio-grid {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.sai-resolution-config-panel .sai-node-check {
+    min-height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--sai-canvas-border);
+    border-radius: 6px;
+    background: var(--sai-canvas-panel);
 }
 
 .sai-resolution-summary {
@@ -9070,6 +9200,53 @@ html.simpai-gallery-frost-enabled .sai-media-browser-node .sai-media-browser-mai
     gap: 5px;
     color: var(--sai-canvas-muted);
     font-size: 12px;
+}
+
+.sai-node-appearance-section {
+    background: color-mix(in srgb, var(--sai-canvas-panel) 92%, var(--sai-canvas-surface));
+}
+
+.sai-node-color-enable {
+    min-height: 24px;
+    padding: 0;
+}
+
+.sai-node-color-row {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+}
+
+.sai-node-color-row input[type="color"] {
+    width: 46px;
+    height: 34px;
+    padding: 2px;
+}
+
+.sai-node-color-row input[type="color"]:disabled {
+    opacity: 0.45;
+}
+
+.sai-node-color-row button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 34px;
+    border: 1px solid var(--sai-canvas-border);
+    border-radius: 6px;
+    color: var(--sai-canvas-text);
+    background: var(--sai-canvas-surface);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.sai-node-color-row button:hover {
+    color: var(--sai-canvas-accent);
+    border-color: var(--sai-canvas-accent);
+    background: var(--sai-canvas-accent-soft);
 }
 
 .sai-inspector-section input {

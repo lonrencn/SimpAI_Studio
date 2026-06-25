@@ -487,6 +487,8 @@
     let systemInfoEl = null;
     let backendAlertEl = null;
     let perfHudEl = null;
+    let standaloneStatusTimer = 0;
+    let standaloneStatusInFlight = false;
     let templateLibraryItemsCache = null;
     let canvasAgentPresetStatusCache = new Map();
     const mediaBrowserNodeRuntime = new Map();
@@ -4143,6 +4145,7 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
         renderAll();
         refreshCanvasProjectFromBackendOnOpen().catch(() => {});
         startPerformanceHud();
+        startStandaloneStatusMonitor();
         scheduleAutoPresetModelChecks();
         setTimeout(() => {
             try { viewport.focus(); } catch (err) {}
@@ -4162,6 +4165,7 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
         endDragEdgeLodVisual();
         cancelEdgeIncidentIndexWarmup();
         root.hidden = true;
+        stopStandaloneStatusMonitor();
         stopPerformanceHud();
     }
 
@@ -11022,6 +11026,98 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
 <span class="sai-run-queue-widget-bar" aria-hidden="true"><i style="width:${escapeHtml(percentText)}"></i></span>`;
     }
 
+    function parseStandaloneStatusPayload(result) {
+        const parts = String(Array.isArray(result?.data) ? (result.data[0] || '') : '').split(',');
+        const [
+            timestampStr,
+            queueSizeStr,
+            vramTotalStr,
+            ramTotalStr,
+            vramUsedStr,
+            ramUsedStr,
+            onlineUsersStr,
+            onlineDomainUsersStr,
+            onlineNodesStr,
+            pendingAccessCountStr,
+            isAdminStr
+        ] = parts;
+        const numberOrNull = (value) => {
+            const number = Number(value);
+            return Number.isFinite(number) ? number : null;
+        };
+        if (!parts.length || numberOrNull(timestampStr) === null) return null;
+        return {
+            statusType: 'connected',
+            timestamp: numberOrNull(timestampStr),
+            queueSize: numberOrNull(queueSizeStr),
+            ramUsed: numberOrNull(ramUsedStr),
+            ramTotal: numberOrNull(ramTotalStr),
+            vramUsed: numberOrNull(vramUsedStr),
+            vramTotal: numberOrNull(vramTotalStr),
+            onlineUsers: numberOrNull(onlineUsersStr),
+            onlineDomainUsers: numberOrNull(onlineDomainUsersStr),
+            onlineNodes: numberOrNull(onlineNodesStr),
+            pendingAccessCount: numberOrNull(pendingAccessCountStr) || 0,
+            isAdmin: String(isAdminStr || '0') === '1',
+            updatedAt: Date.now()
+        };
+    }
+
+    async function fetchStandaloneStatusPayload() {
+        const headers = { 'Content-Type': 'application/json' };
+        let response = await fetch('/gradio_api/run/get_start_timestamp', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers,
+            body: JSON.stringify({ data: [] })
+        });
+        if (!response.ok) {
+            response = await fetch('/gradio_api/run/predict', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers,
+                body: JSON.stringify({ fn_index: 0, data: [] })
+            });
+        }
+        if (!response.ok) throw new Error(`status request failed: ${response.status}`);
+        return parseStandaloneStatusPayload(await response.json());
+    }
+
+    function publishStandaloneStatus(data) {
+        const next = data || {
+            statusType: 'disconnected',
+            queueSize: 0,
+            updatedAt: Date.now()
+        };
+        window.SimpAIStatusMonitorData = Object.assign({}, window.SimpAIStatusMonitorData || {}, next);
+        window.dispatchEvent(new CustomEvent('simpai:status-monitor-updated', { detail: window.SimpAIStatusMonitorData }));
+    }
+
+    async function refreshStandaloneStatus() {
+        if (!isStandaloneCanvasWorkbench() || standaloneStatusInFlight) return;
+        standaloneStatusInFlight = true;
+        try {
+            const data = await fetchStandaloneStatusPayload();
+            publishStandaloneStatus(data || null);
+        } catch (err) {
+            publishStandaloneStatus(null);
+        } finally {
+            standaloneStatusInFlight = false;
+        }
+    }
+
+    function startStandaloneStatusMonitor() {
+        if (!isStandaloneCanvasWorkbench() || standaloneStatusTimer) return;
+        refreshStandaloneStatus();
+        standaloneStatusTimer = window.setInterval(refreshStandaloneStatus, 2000);
+    }
+
+    function stopStandaloneStatusMonitor() {
+        if (!standaloneStatusTimer) return;
+        window.clearInterval(standaloneStatusTimer);
+        standaloneStatusTimer = 0;
+    }
+
     function renderSystemInfo() {
         if (!systemInfoEl) return;
         const data = window.SimpAIStatusMonitorData || {};
@@ -11994,6 +12090,46 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         return fallback;
     }
 
+    function expandCanvasHexColor(value, fallback) {
+        const color = normalizeCanvasColor(value, fallback || '#14b8a6');
+        const text = String(color || fallback || '#14b8a6').trim();
+        const short = text.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+        if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`;
+        return /^#[0-9a-f]{6}$/i.test(text) ? text : (fallback || '#14b8a6');
+    }
+
+    function nodeCustomColor(node) {
+        return normalizeCanvasColor(node?.style?.node_color || node?.style?.accent_color || '', '');
+    }
+
+    function nodeAccentContrastColor(color) {
+        const hex = expandCanvasHexColor(color, '#14b8a6').replace('#', '');
+        const r = Number.parseInt(hex.slice(0, 2), 16) / 255;
+        const g = Number.parseInt(hex.slice(2, 4), 16) / 255;
+        const b = Number.parseInt(hex.slice(4, 6), 16) / 255;
+        const channel = (value) => value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+        const luminance = 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+        return luminance > 0.48 ? '#111827' : '#f8fafc';
+    }
+
+    function applyNodeCustomColorVars(node, nodeEl) {
+        if (!nodeEl) return;
+        const color = nodeCustomColor(node);
+        nodeEl.classList.toggle('has-custom-color', !!color);
+        if (!color) {
+            nodeEl.style.removeProperty('--sai-canvas-accent');
+            nodeEl.style.removeProperty('--sai-canvas-accent-soft');
+            nodeEl.style.removeProperty('--sai-node-accent-contrast');
+            nodeEl.style.removeProperty('--sai-node-custom-color');
+            return;
+        }
+        const hex = expandCanvasHexColor(color, '#14b8a6');
+        nodeEl.style.setProperty('--sai-canvas-accent', hex);
+        nodeEl.style.setProperty('--sai-canvas-accent-soft', `color-mix(in srgb, ${hex} 24%, var(--sai-canvas-panel))`);
+        nodeEl.style.setProperty('--sai-node-accent-contrast', nodeAccentContrastColor(hex));
+        nodeEl.style.setProperty('--sai-node-custom-color', hex);
+    }
+
     function groupShortcutLabel(group) {
         const key = String(group?.shortcut || '').trim();
         return key ? `Alt+${key}` : '';
@@ -12281,7 +12417,9 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         return (records || []).map((record) => {
             const node = record.node || {};
             const rect = record.rect || { x: 0, y: 0, w: 2, h: 2 };
-            return `<rect class="sai-minimap-node ${record.selected ? 'is-selected' : ''}" x="${rect.x.toFixed(2)}" y="${rect.y.toFixed(2)}" width="${rect.w.toFixed(2)}" height="${rect.h.toFixed(2)}" rx="2" data-type="${escapeHtml(node.type || '')}"></rect>`;
+            const color = nodeCustomColor(node);
+            const style = color && !record.selected ? ` style="fill:${escapeHtml(expandCanvasHexColor(color, '#14b8a6'))}"` : '';
+            return `<rect class="sai-minimap-node ${record.selected ? 'is-selected' : ''}" x="${rect.x.toFixed(2)}" y="${rect.y.toFixed(2)}" width="${rect.w.toFixed(2)}" height="${rect.h.toFixed(2)}" rx="2" data-type="${escapeHtml(node.type || '')}"${style}></rect>`;
         }).join('');
     }
 
@@ -12561,6 +12699,7 @@ ${renderMinimapNodeRects(nextCache.records)}
             nodeEl.classList.toggle('is-scheduler-blocked', isNodeSchedulerBlocked(node));
             nodeEl.classList.toggle('is-scheduler-waiting', isNodeSchedulerWaiting(node));
             nodeEl.classList.toggle('is-result-stale', isResultStale(node));
+            applyNodeCustomColorVars(node, nodeEl);
             nodeEl.style.left = `${node.x || 0}px`;
             nodeEl.style.top = `${node.y || 0}px`;
             nodeEl.style.width = `${node.w || defaultNodeSize(node.type).w}px`;
@@ -13346,6 +13485,7 @@ ${renderMinimapNodeRects(nextCache.records)}
             const nodeLayoutHeight = useCollapsedPromptHeight
                 ? collapsedPromptNodeHeight(node)
                 : (preserveOverviewLayout ? Math.max(storedNodeHeight, measuredNodeHeight) : storedNodeHeight);
+            applyNodeCustomColorVars(node, nodeEl);
             nodeEl.classList.toggle('is-lod-placeholder', preserveOverviewLayout);
             nodeEl.style.setProperty('--sai-node-expanded-min-height', `${storedNodeHeight}px`);
             nodeEl.style.minHeight = isNodeCollapsed(node) ? '' : `${nodeLayoutHeight}px`;
@@ -15689,6 +15829,10 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
         textareaEditorState = null;
     }
 
+    function canvasOverlayHost() {
+        return root || document.getElementById('simpai-infinite-canvas-workbench') || document.body;
+    }
+
     function handleTextareaEditorTool(kind, toolButton) {
         if (!textareaEditorState) return;
         const source = resolveTextareaEditorSource();
@@ -15741,7 +15885,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
     </div>
   </div>
 </div>`;
-        document.body.appendChild(modal);
+        canvasOverlayHost().appendChild(modal);
         const input = modal.querySelector('[data-textarea-editor-input]');
         textareaEditorState = {
             modal,
@@ -18851,9 +18995,10 @@ ${renderRunnableNodeStatusFoot(node)}
         return `<button type="button" class="sai-model-config-browser-btn" ${attr}="${escapeHtml(value)}" title="${escapeHtml(title || t('Browse models', '浏览模型'))}" aria-label="${escapeHtml(title || t('Browse models', '浏览模型'))}"><i class="fa-solid fa-magnifying-glass"></i></button>`;
     }
 
-    function renderModelConfigField(label, key, choices, value, preview = true) {
+    function renderModelConfigField(label, key, choices, value, preview = true, extraClass = '') {
         const attrs = preview ? ` data-hover-preview-kind="model" data-model-preview-param="${escapeHtml(key)}"` : '';
-        return `<label class="sai-node-field"><span>${escapeHtml(label)}</span><div class="sai-model-config-select-row"><select data-config-param="${escapeHtml(key)}"${attrs}>${optionHtml(choices, value)}</select>${renderModelBrowserButton('data-model-browser-param', key)}</div></label>`;
+        const className = `sai-node-field${extraClass ? ` ${extraClass}` : ''}`;
+        return `<label class="${className}"><span>${escapeHtml(label)}</span><div class="sai-model-config-select-row"><select data-config-param="${escapeHtml(key)}"${attrs}>${optionHtml(choices, value)}</select>${renderModelBrowserButton('data-model-browser-param', key)}</div></label>`;
     }
 
     function renderModelsConfigNodeHtml(node) {
@@ -18870,7 +19015,7 @@ ${renderRunnableNodeStatusFoot(node)}
 </div>
 <div class="sai-config-node-body">
   <label class="sai-node-check sai-model-config-filter"><input data-config-model-filter type="checkbox" ${useModelFilter ? 'checked' : ''}><span>${escapeHtml(t('Use model filter', '使用模型过滤'))}</span></label>
-  ${renderModelConfigField(t('Base Model', '基础模型'), 'base_model', choices.base_model, values.base_model)}
+  ${renderModelConfigField(t('Base Model', '基础模型'), 'base_model', choices.base_model, values.base_model, true, 'sai-collapsed-keep')}
   ${renderModelConfigField(t('Refiner', '精修模型'), 'refiner_model', choices.refiner_model, values.refiner_model)}
   ${renderModelConfigField('CLIP', 'clip_model', choices.clip_model, values.clip_model, false)}
   ${renderModelConfigField('VAE', 'vae', choices.vae, values.vae, false)}
@@ -18958,6 +19103,7 @@ ${renderRunnableNodeStatusFoot(node)}
         const chips = selected.length
             ? selected.slice(0, 8).map(style => `<span>${escapeHtml(displayStyleName(style) || style)}</span>`).join('') + (selected.length > 8 ? `<small>+${selected.length - 8}</small>` : '')
             : `<em>${escapeHtml(t('No styles selected', '未选择风格'))}</em>`;
+        const styleListKeepClass = selected.length ? ' sai-collapsed-keep' : '';
         return `
 <div class="sai-node-head">
   <span class="sai-node-kind">${escapeHtml(t('Styles', '风格'))}</span>
@@ -18967,13 +19113,13 @@ ${renderRunnableNodeStatusFoot(node)}
 </div>
 <div class="sai-config-node-body sai-styles-config-body">
   <label class="sai-node-field"><span>${escapeHtml(t('Search Styles', '搜索风格'))}</span><input data-style-config-search type="search" placeholder="${escapeHtml(t('Filter style names', '筛选风格名称'))}" autocomplete="off"></label>
-  <div class="sai-styles-config-summary">
+  <div class="sai-styles-config-summary sai-collapsed-keep">
     <b>${escapeHtml(String(selected.length))}</b><span>${escapeHtml(t('selected', '已选'))}</span>
     <button type="button" data-style-config-action="reset"><i class="fa-solid fa-rotate-left"></i><span>${escapeHtml(t('Reset', '重置'))}</span></button>
     <button type="button" data-style-config-action="clear"><i class="fa-solid fa-xmark"></i><span>${escapeHtml(t('Clear', '清空'))}</span></button>
   </div>
-  <div class="sai-styles-config-chips">${chips}</div>
-  <div class="sai-styles-config-list">
+  <div class="sai-styles-config-chips sai-collapsed-keep">${chips}</div>
+  <div class="sai-styles-config-list${styleListKeepClass}">
     ${choices.length ? choices.map((style) => {
         const data = previewCatalog.get(style) || { name: style };
         const display = displayStyleName(style) || style;
@@ -19022,7 +19168,7 @@ ${renderRunnableNodeStatusFoot(node)}
 </div>
 <div class="sai-config-node-body sai-advanced-config-body">
   <label class="sai-node-field sai-node-range"><span>${escapeHtml(t('Guidance Scale', '引导强度'))}</span><div class="sai-range-pair"><input data-config-param="guidance_scale" type="range" min="0.01" max="100" step="0.01" value="${escapeHtml(guidance)}"><input data-config-param="guidance_scale" type="number" min="0.01" max="100" step="0.01" value="${escapeHtml(guidance)}"></div></label>
-  <label class="sai-node-field sai-node-range"><span>${escapeHtml(t('Forced Sampling Steps', '强制采样步数'))}</span><div class="sai-range-pair"><input data-config-param="overwrite_step" type="range" min="${escapeHtml(overwriteStepBounds.min)}" max="${escapeHtml(overwriteStepBounds.max)}" step="${escapeHtml(overwriteStepBounds.step)}" value="${escapeHtml(overwriteStep)}"${overwriteStepDisabled}><input data-config-param="overwrite_step" type="number" min="${escapeHtml(overwriteStepBounds.min)}" max="${escapeHtml(overwriteStepBounds.max)}" step="${escapeHtml(overwriteStepBounds.step)}" value="${escapeHtml(overwriteStep)}"${overwriteStepDisabled}></div></label>
+  <label class="sai-node-field sai-node-range sai-collapsed-keep"><span>${escapeHtml(t('Forced Sampling Steps', '强制采样步数'))}</span><div class="sai-range-pair"><input data-config-param="overwrite_step" type="range" min="${escapeHtml(overwriteStepBounds.min)}" max="${escapeHtml(overwriteStepBounds.max)}" step="${escapeHtml(overwriteStepBounds.step)}" value="${escapeHtml(overwriteStep)}"${overwriteStepDisabled}><input data-config-param="overwrite_step" type="number" min="${escapeHtml(overwriteStepBounds.min)}" max="${escapeHtml(overwriteStepBounds.max)}" step="${escapeHtml(overwriteStepBounds.step)}" value="${escapeHtml(overwriteStep)}"${overwriteStepDisabled}></div></label>
   <div class="sai-inspector-grid2">
     <label class="sai-node-field"><span>${escapeHtml(t('Sampler', '采样器'))}</span><select data-config-param="sampler_name">${optionHtml(samplerChoices, sampler)}</select></label>
     <label class="sai-node-field"><span>${escapeHtml(t('Scheduler', '调度器'))}</span><select data-config-param="scheduler_name">${optionHtml(schedulerChoices, scheduler)}</select></label>
@@ -19043,8 +19189,8 @@ ${renderRunnableNodeStatusFoot(node)}
   <button type="button" data-node-action="delete" title="${escapeHtml(t('Delete', '删除'))}"><i class="fa-solid fa-xmark"></i></button>
 </div>
 <div class="sai-config-node-body sai-detection-config-body">
-  <label class="sai-node-field"><span>${escapeHtml(t('Detection Prompt', '检测提示词'))}</span><input data-config-param="dino_prompt"${danbooruAutocompleteAttrs('dino_prompt')} value="${escapeHtml(values.dino_prompt || '')}"></label>
-  <label class="sai-node-field"><span>${escapeHtml(t('Mask Model', '遮罩模型'))}</span><select data-config-param="mask_model">${optionHtml(choices.maskModels, maskModel)}</select></label>
+  <label class="sai-node-field sai-collapsed-keep"><span>${escapeHtml(t('Detection Prompt', '检测提示词'))}</span><input data-config-param="dino_prompt"${danbooruAutocompleteAttrs('dino_prompt')} value="${escapeHtml(values.dino_prompt || '')}"></label>
+  <label class="sai-node-field sai-collapsed-keep"><span>${escapeHtml(t('Mask Model', '遮罩模型'))}</span><select data-config-param="mask_model">${optionHtml(choices.maskModels, maskModel)}</select></label>
   ${maskModel === 'u2net_cloth_seg' ? `<label class="sai-node-field"><span>${escapeHtml(t('Cloth Category', '服装类别'))}</span><select data-config-param="mask_cloth_category">${optionHtml(choices.clothCategories, values.mask_cloth_category || 'full')}</select></label>` : ''}
   ${maskModel === 'sam' ? `<div class="sai-inspector-grid2">
     <label class="sai-node-field"><span>${escapeHtml(t('SAM Model', 'SAM 模型'))}</span><select data-config-param="mask_sam_model">${optionHtml(choices.samModels, values.mask_sam_model || 'vit_b')}</select></label>
@@ -19083,8 +19229,54 @@ ${renderRunnableNodeStatusFoot(node)}
             firstTemplate,
             flatRatios: flatRatios.length ? flatRatios : ['1024*1024', '832*1216', '1216*832'],
             quantizeSteps: Array.isArray(payload.quantizeSteps) ? payload.quantizeSteps : [1, 8, 16, 32, 64],
-            editModes: Array.isArray(payload.editModes) ? payload.editModes : ['proportional', 'crop', 'scale']
+            editModes: mergeChoices(['proportional', 'crop', 'scale', 'pad', ...(Array.isArray(payload.editModes) ? payload.editModes : [])])
         };
+    }
+
+    function resolutionGcd(a, b) {
+        let x = Math.abs(Math.round(Number(a) || 0));
+        let y = Math.abs(Math.round(Number(b) || 0));
+        while (y) {
+            const next = x % y;
+            x = y;
+            y = next;
+        }
+        return x || 1;
+    }
+
+    function resolutionRatioLabel(width, height) {
+        const w = Math.max(1, Math.round(Number(width) || 1));
+        const h = Math.max(1, Math.round(Number(height) || 1));
+        const divisor = resolutionGcd(w, h);
+        return `${Math.round(w / divisor)}:${Math.round(h / divisor)}`;
+    }
+
+    function resolutionUsesManualSize(values) {
+        return values && values.manual !== false && Number(values.width) > 0 && Number(values.height) > 0;
+    }
+
+    function resolutionManualSizeLabel(values, preview) {
+        if (!resolutionUsesManualSize(values)) return '';
+        const width = Math.round(Number(preview?.width || values.width) || 0);
+        const height = Math.round(Number(preview?.height || values.height) || 0);
+        if (width <= 0 || height <= 0) return '';
+        return `Custom ${width}×${height} | ${resolutionRatioLabel(width, height)}`;
+    }
+
+    function resolutionAspectOptionsHtml(ratios, selected, values, preview) {
+        const choices = Array.isArray(ratios) && ratios.length ? ratios : ['1024*1024'];
+        const current = String(selected || choices[0] || '');
+        const customLabel = resolutionManualSizeLabel(values, preview);
+        const options = [];
+        if (customLabel) {
+            options.push(`<option data-resolution-custom-size="true" value="${escapeHtml(current)}" selected>${escapeHtml(customLabel)}</option>`);
+            choices.forEach((choice) => {
+                const value = String(choice || '');
+                options.push(`<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`);
+            });
+            return options.join('');
+        }
+        return optionHtml(choices, current);
     }
 
     function normalizeResolutionTemplateName(value, choices) {
@@ -19158,6 +19350,8 @@ ${renderRunnableNodeStatusFoot(node)}
         const randomAspect = !!(values.random_aspect_ratio || values.random_aspect_ratio_checkbox);
         const sizeControlsDisabled = disabled || randomAspect;
         const randomSummary = randomAspect ? ` / ${escapeHtml(t('random size from template', '从模板随机尺寸'))}` : '';
+        const aspectValue = values.aspect_ratio || ratios[0] || '';
+        const editModeLabels = { proportional: t('Proportional', '等比'), crop: t('Crop', '裁剪'), scale: t('Scale', '缩放'), pad: t('Pad', '填充') };
         return `
 <div class="sai-node-head">
   <span class="sai-node-kind">${escapeHtml(t('Resolution', '分辨率'))}</span>
@@ -19165,25 +19359,25 @@ ${renderRunnableNodeStatusFoot(node)}
   ${renderNodeStateBadges(node)}
   <button type="button" data-node-action="delete" title="${escapeHtml(t('Delete', '删除'))}"><i class="fa-solid fa-xmark"></i></button>
 </div>
-<div class="sai-config-node-body">
-  <div class="sai-inspector-grid2">
+<div class="sai-config-node-body sai-resolution-config-panel">
+  <div class="sai-resolution-top-grid">
     <label class="sai-node-field"><span>${escapeHtml(t('Template', '模板'))}</span><select data-config-param="template" ${disabled ? 'disabled' : ''}>${optionHtml(templates, template)}</select></label>
-    <label class="sai-node-field"><span>${escapeHtml(t('Aspect', '比例'))}</span><select data-config-param="aspect_ratio" ${sizeControlsDisabled ? 'disabled' : ''}>${optionHtml(ratios, values.aspect_ratio || ratios[0])}</select></label>
+    <label class="sai-node-field"><span>${escapeHtml(t('Image Size', '图片尺寸'))}</span><select data-config-param="aspect_ratio" data-resolution-aspect-select ${sizeControlsDisabled ? 'disabled' : ''}>${resolutionAspectOptionsHtml(ratios, aspectValue, values, preview)}</select></label>
   </div>
-  <label class="sai-node-check"><input data-config-param="random_aspect_ratio" type="checkbox" ${randomAspect ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span>${escapeHtml(t('Random Size', '随机尺寸'))}</span></label>
-  <div class="sai-inspector-grid2">
-    <label class="sai-node-field"><span>${escapeHtml(t('Width', '宽度'))}</span><input data-config-param="width" type="number" min="-1" max="4096" step="1" value="${escapeHtml(values.width ?? -1)}" ${sizeControlsDisabled ? 'disabled' : ''}></label>
-    <label class="sai-node-field"><span>${escapeHtml(t('Height', '高度'))}</span><input data-config-param="height" type="number" min="-1" max="4096" step="1" value="${escapeHtml(values.height ?? -1)}" ${sizeControlsDisabled ? 'disabled' : ''}></label>
-  </div>
-  <div class="sai-inspector-grid2">
+  <div class="sai-resolution-size-grid sai-collapsed-keep">
+    <label class="sai-node-field sai-collapsed-keep"><span>${escapeHtml(t('Width', '宽度'))}</span><input data-config-param="width" data-resolution-live-param="width" type="number" min="-1" max="4096" step="1" value="${escapeHtml(values.width ?? -1)}" ${sizeControlsDisabled ? 'disabled' : ''}></label>
+    <label class="sai-node-field sai-collapsed-keep"><span>${escapeHtml(t('Height', '高度'))}</span><input data-config-param="height" data-resolution-live-param="height" type="number" min="-1" max="4096" step="1" value="${escapeHtml(values.height ?? -1)}" ${sizeControlsDisabled ? 'disabled' : ''}></label>
     <label class="sai-node-field"><span>${escapeHtml(t('Normalize', '规整'))}</span><select data-config-param="quantize" ${disabled ? 'disabled' : ''}>${optionHtml(choices.quantizeSteps, values.quantize || 8)}</select></label>
     <label class="sai-node-field"><span>${escapeHtml(t('Scale', '缩放'))} <b data-resolution-multiplier-label>${escapeHtml(Number(values.multiplier ?? 1).toFixed(1))}x</b></span><input data-config-param="multiplier" type="range" min="1" max="2" step="0.1" value="${escapeHtml(values.multiplier ?? 1)}" ${disabled ? 'disabled' : ''}></label>
   </div>
   <div class="sai-resolution-mode-row">
-    ${choices.editModes.map(mode => `<button type="button" data-config-mode="${escapeHtml(mode)}" class="${String(values.edit_mode || 'proportional') === String(mode) ? 'is-active' : ''}" ${disabled ? 'disabled' : ''}>${escapeHtml(tOption(mode, { proportional: '等比', crop: '裁切', scale: '拉伸' }))}</button>`).join('')}
+    ${choices.editModes.map(mode => `<button type="button" data-config-mode="${escapeHtml(mode)}" class="${String(values.edit_mode || 'proportional') === String(mode) ? 'is-active' : ''}" ${disabled ? 'disabled' : ''}>${escapeHtml(editModeLabels[mode] || tOption(mode, { proportional: '等比', crop: '裁剪', scale: '缩放', pad: '填充' }))}</button>`).join('')}
   </div>
-  <label class="sai-node-check"><input data-config-param="ratio_lock" type="checkbox" ${values.ratio_lock ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span>${escapeHtml(t('Ratio Lock', '锁定比例'))}</span></label>
-  <div class="sai-inspector-grid2">
+  <div class="sai-resolution-option-row">
+    <label class="sai-node-check"><input data-config-param="random_aspect_ratio" type="checkbox" ${randomAspect ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span>${escapeHtml(t('Random Size', '随机尺寸'))}</span></label>
+  </div>
+  <div class="sai-resolution-ratio-grid">
+    <label class="sai-node-check"><input data-config-param="ratio_lock" type="checkbox" ${values.ratio_lock ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span>${escapeHtml(t('Ratio Lock', '比例锁定'))}</span></label>
     <label class="sai-node-field"><span>${escapeHtml(t('Locked Ratio', '锁定比例值'))}</span><select data-config-param="ratio_lock_value" ${disabled ? 'disabled' : ''}>${optionHtml(['current', '1:1', '9:16', '3:4', '4:3', '16:9', 'custom'], values.ratio_lock_value || 'current')}</select></label>
     <label class="sai-node-field"><span>${escapeHtml(t('Custom Ratio', '自定义比例'))}</span><input data-config-param="ratio_lock_custom" value="${escapeHtml(values.ratio_lock_custom || '1:1')}" ${disabled ? 'disabled' : ''}></label>
   </div>
@@ -19332,8 +19526,8 @@ ${renderRunnableNodeStatusFoot(node)}
         return {
             boxW: clamp((effectiveW * scale / 140) * 88, 12, 88),
             boxH: clamp((effectiveH * scale / 140) * 88, 12, 88),
-            label: `${Math.round(effectiveW)} x ${Math.round(effectiveH)}`,
-            baseLabel: `${Math.round(width)} x ${Math.round(height)}`,
+            label: `${Math.round(effectiveW)}×${Math.round(effectiveH)}`,
+            baseLabel: `${Math.round(width)}×${Math.round(height)}`,
             effectiveW,
             effectiveH,
             width,
@@ -22465,9 +22659,9 @@ ${actions}
                 if (configParam.disabled) return;
                 syncTwinParamInputs(configParam, '[data-config-param]');
                 const key = configParam.getAttribute('data-config-param');
-                const liveResolutionScale = node.type === 'config' && node.config_kind === 'resolution' && key === 'multiplier';
-                updateConfigParam(node.id, key, configParam.type === 'checkbox' ? configParam.checked : configParam.value, configParam.type, liveResolutionScale ? { render: false } : undefined);
-                if (liveResolutionScale) refreshResolutionConfigNodeDom(nodeEl, getNode(node.id) || node);
+                const liveResolutionParam = node.type === 'config' && node.config_kind === 'resolution' && ['width', 'height', 'multiplier'].includes(key);
+                updateConfigParam(node.id, key, configParam.type === 'checkbox' ? configParam.checked : configParam.value, configParam.type, liveResolutionParam ? { render: false } : undefined);
+                if (liveResolutionParam) refreshResolutionConfigNodeDom(nodeEl, getNode(node.id) || node);
                 return;
             }
             const loraModel = evt.target.closest('[data-config-lora-model]');
@@ -22709,9 +22903,9 @@ ${actions}
                 if (configParam.disabled) return;
                 syncTwinParamInputs(configParam, '[data-config-param]');
                 const key = configParam.getAttribute('data-config-param');
-                const liveResolutionScale = node.type === 'config' && node.config_kind === 'resolution' && key === 'multiplier';
-                updateConfigParam(node.id, key, configParam.type === 'checkbox' ? configParam.checked : configParam.value, configParam.type, liveResolutionScale ? { render: false } : undefined);
-                if (liveResolutionScale) refreshResolutionConfigNodeDom(nodeEl, getNode(node.id) || node);
+                const liveResolutionParam = node.type === 'config' && node.config_kind === 'resolution' && ['width', 'height', 'multiplier'].includes(key);
+                updateConfigParam(node.id, key, configParam.type === 'checkbox' ? configParam.checked : configParam.value, configParam.type, liveResolutionParam ? { render: false } : undefined);
+                if (liveResolutionParam) refreshResolutionConfigNodeDom(nodeEl, getNode(node.id) || node);
                 return;
             }
             const loraModel = evt.target.closest('[data-config-lora-model]');
@@ -24137,32 +24331,49 @@ ${actions}
             ensureWorkbenchFormFieldNames(inspector, 'inspector_missing');
             return;
         }
-        if (node.type === 'classic') inspector.innerHTML = renderClassicInspector(node);
-        else if (node.type === 'config') inspector.innerHTML = renderConfigInspector(node);
-        else if (node.type === 'preset') inspector.innerHTML = renderPresetInspector(node);
-        else if (node.type === 'result') inspector.innerHTML = renderResultInspector(node);
-        else if (node.type === 'compare') inspector.innerHTML = renderCompareInspector(node);
-        else if (node.type === 'batch_any') inspector.innerHTML = renderBatchAnyInspector(node);
-        else if (node.type === 'xy_matrix' || node.type === 'xyz_matrix') inspector.innerHTML = renderXyzMatrixInspector(node);
-        else if (node.type === 'timeline') inspector.innerHTML = renderTimelineInspector(node);
-        else if (isDirectorTimelineNode(node)) inspector.innerHTML = WORKBENCH_DIRECTOR_TIMELINE_NODE.renderInspector(node, directorTimelineContext());
-        else if (node.type === 'style_selector') inspector.innerHTML = WORKBENCH_STYLE_SELECTOR_NODE.renderInspector(node, styleSelectorNodeContext());
-        else if (node.type === 'video') inspector.innerHTML = renderVideoInspector(node);
-        else if (node.type === 'audio') inspector.innerHTML = renderAudioInspector(node);
-        else if (node.type === 'note') inspector.innerHTML = renderNoteInspector(node);
-        else if (node.type === 'text') inspector.innerHTML = renderTextInspector(node);
-        else if (node.type === 'translation') inspector.innerHTML = renderTranslationInspector(node);
-        else if (node.type === 'tag_cart') inspector.innerHTML = renderTagCartInspector(node);
-        else if (node.type === 'wd14') inspector.innerHTML = renderWd14Inspector(node);
-        else if (node.type === 'vlm') inspector.innerHTML = renderVlmInspector(node);
-        else if (node.type === 'mask') inspector.innerHTML = renderMaskInspector(node);
-        else if (node.type === 'sam3_video_mask') inspector.innerHTML = renderSam3VideoMaskInspector(node);
-        else if (node.type === 'pose_studio') inspector.innerHTML = WORKBENCH_POSE_STUDIO_NODE.renderInspector(node, poseStudioNodeContext());
-        else if (node.type === 'gaussian_studio') inspector.innerHTML = WORKBENCH_GAUSSIAN_STUDIO_NODE.renderInspector(node, gaussianStudioNodeContext());
-        else if (isQwenTtsNode(node)) inspector.innerHTML = WORKBENCH_QWEN_TTS_NODE.renderInspector(node, qwenTtsNodeContext());
-        else inspector.innerHTML = renderImageInspector(node);
+        let html = '';
+        if (node.type === 'classic') html = renderClassicInspector(node);
+        else if (node.type === 'config') html = renderConfigInspector(node);
+        else if (node.type === 'preset') html = renderPresetInspector(node);
+        else if (node.type === 'result') html = renderResultInspector(node);
+        else if (node.type === 'compare') html = renderCompareInspector(node);
+        else if (node.type === 'batch_any') html = renderBatchAnyInspector(node);
+        else if (node.type === 'xy_matrix' || node.type === 'xyz_matrix') html = renderXyzMatrixInspector(node);
+        else if (node.type === 'timeline') html = renderTimelineInspector(node);
+        else if (isDirectorTimelineNode(node)) html = WORKBENCH_DIRECTOR_TIMELINE_NODE.renderInspector(node, directorTimelineContext());
+        else if (node.type === 'style_selector') html = WORKBENCH_STYLE_SELECTOR_NODE.renderInspector(node, styleSelectorNodeContext());
+        else if (node.type === 'video') html = renderVideoInspector(node);
+        else if (node.type === 'audio') html = renderAudioInspector(node);
+        else if (node.type === 'note') html = renderNoteInspector(node);
+        else if (node.type === 'text') html = renderTextInspector(node);
+        else if (node.type === 'translation') html = renderTranslationInspector(node);
+        else if (node.type === 'tag_cart') html = renderTagCartInspector(node);
+        else if (node.type === 'wd14') html = renderWd14Inspector(node);
+        else if (node.type === 'vlm') html = renderVlmInspector(node);
+        else if (node.type === 'mask') html = renderMaskInspector(node);
+        else if (node.type === 'sam3_video_mask') html = renderSam3VideoMaskInspector(node);
+        else if (node.type === 'pose_studio') html = WORKBENCH_POSE_STUDIO_NODE.renderInspector(node, poseStudioNodeContext());
+        else if (node.type === 'gaussian_studio') html = WORKBENCH_GAUSSIAN_STUDIO_NODE.renderInspector(node, gaussianStudioNodeContext());
+        else if (isQwenTtsNode(node)) html = WORKBENCH_QWEN_TTS_NODE.renderInspector(node, qwenTtsNodeContext());
+        else html = renderImageInspector(node);
+        inspector.innerHTML = renderNodeAppearanceInspector(node) + html;
         ensureWorkbenchFormFieldNames(inspector, `inspector_${selectedNodeId || selectedEdgeId || 'empty'}`);
         bindInspectorEvents();
+    }
+
+    function renderNodeAppearanceInspector(node) {
+        const color = nodeCustomColor(node);
+        const enabled = !!color;
+        const inputValue = expandCanvasHexColor(color || '#14b8a6', '#14b8a6');
+        return `
+<div class="sai-inspector-section sai-node-appearance-section">
+  <h3>${escapeHtml(t('Node Appearance', '节点外观'))}</h3>
+  <label class="sai-node-check sai-node-color-enable"><input data-inspector-node-color-enabled type="checkbox" ${enabled ? 'checked' : ''}><span>${escapeHtml(t('Custom node color', '自定义节点颜色'))}</span></label>
+  <div class="sai-node-color-row">
+    <input data-inspector-node-color type="color" value="${escapeHtml(inputValue)}" ${enabled ? '' : 'disabled'}>
+    <button type="button" data-inspector-node-color-reset><i class="fa-solid fa-rotate-left"></i><span>${escapeHtml(t('Default', '默认'))}</span></button>
+  </div>
+</div>`;
     }
 
     function renderInspectorEmpty() {
@@ -24820,6 +25031,28 @@ ${renderGenerationMetadataInspectorSection(node)}
                 scheduleSave();
                 renderNodes();
                 renderEdges();
+            });
+        });
+        inspector.querySelectorAll('[data-inspector-node-color-enabled]').forEach((field) => {
+            field.addEventListener('change', () => {
+                const input = inspector.querySelector('[data-inspector-node-color]');
+                const enabled = !!field.checked;
+                if (input) input.disabled = !enabled;
+                updateNodeCustomColor(selectedNodeId, enabled ? (input?.value || '#14b8a6') : '');
+            });
+        });
+        inspector.querySelectorAll('[data-inspector-node-color]').forEach((field) => {
+            const handler = () => {
+                if (field.disabled) return;
+                updateNodeCustomColor(selectedNodeId, field.value);
+            };
+            field.addEventListener('input', handler);
+            field.addEventListener('change', handler);
+        });
+        inspector.querySelectorAll('[data-inspector-node-color-reset]').forEach((button) => {
+            button.addEventListener('click', (evt) => {
+                evt.preventDefault();
+                updateNodeCustomColor(selectedNodeId, '', { renderInspector: true });
             });
         });
         inspector.querySelectorAll('[data-note-text]').forEach((field) => {
@@ -25582,11 +25815,17 @@ ${renderGenerationMetadataInspectorSection(node)}
         if (!nodeEl || !node || node.type !== 'config' || node.config_kind !== 'resolution') return;
         const values = getResolutionRenderValues(node);
         const choices = getResolutionChoices();
-        const template = normalizeResolutionTemplateName(values.template || choices.firstTemplate, choices);
+        const template = normalizeResolutionTemplateName(values.template || values.default_template || values.available_aspect_ratios_selection || choices.firstTemplate, choices);
         const profileRatios = Array.isArray(values.profile?.aspect_ratios) ? values.profile.aspect_ratios : [];
         const ratios = template === 'Preset' && profileRatios.length ? profileRatios : (choices.ratios[template] || choices.flatRatios);
         const preview = getResolutionPreview(values, ratios);
         const scale = Number(values.multiplier || 1).toFixed(1);
+        ['width', 'height'].forEach((key) => {
+            nodeEl.querySelectorAll(`[data-config-param="${key}"]`).forEach((input) => {
+                if (input === document.activeElement) return;
+                input.value = String(values[key] ?? -1);
+            });
+        });
         nodeEl.querySelectorAll('[data-resolution-multiplier-label]').forEach(label => {
             label.textContent = `${scale}x`;
         });
@@ -25599,6 +25838,25 @@ ${renderGenerationMetadataInspectorSection(node)}
             const locked = values.profile && values.profile.interactive === false;
             const random = values.random_aspect_ratio || values.random_aspect_ratio_checkbox;
             summary.textContent = `${preview.baseLabel} ${t('base', '基础')} -> ${preview.label} ${t('effective', '生效')}${random ? ` / ${t('random size from template', '从模板随机尺寸')}` : ''}${locked ? ` / ${t('preset locked', '预设锁定')}` : ''}`;
+        }
+        const aspectSelect = nodeEl.querySelector('[data-resolution-aspect-select]');
+        if (aspectSelect && aspectSelect !== document.activeElement) {
+            const selected = String(values.aspect_ratio || ratios[0] || '');
+            const customLabel = resolutionManualSizeLabel(values, preview);
+            let customOption = aspectSelect.querySelector('option[data-resolution-custom-size]');
+            if (customLabel) {
+                if (!customOption) {
+                    customOption = document.createElement('option');
+                    customOption.setAttribute('data-resolution-custom-size', 'true');
+                    aspectSelect.insertBefore(customOption, aspectSelect.firstChild);
+                }
+                customOption.value = selected;
+                customOption.textContent = customLabel;
+                customOption.selected = true;
+            } else {
+                if (customOption) customOption.remove();
+                aspectSelect.value = selected;
+            }
         }
         const box = nodeEl.querySelector('.sai-resolution-preview-box');
         if (box) {
@@ -33860,15 +34118,17 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
         const isDetection = detectionIndex >= 0;
         const nodeKind = isDetection ? 'detection' : kind;
         const configOffsets = { models: 0, styles: 170, resolution: 340, advanced: 510 };
-        const configHeights = { models: 560, styles: 520, resolution: 430, advanced: 285 };
+        const configHeights = { models: 560, styles: 520, resolution: 560, advanced: 285 };
+        const configWidths = { resolution: 380 };
+        const nodeWidth = isDetection ? 320 : (configWidths[kind] || 320);
         const baseY = (presetNode.y || 0) + (isDetection ? 240 + detectionIndex * 52 : (configOffsets[kind] || 0));
         const node = {
             id: uid('config'),
             type: 'config',
             config_kind: nodeKind,
-            x: (presetNode.x || 0) - 360,
+            x: (presetNode.x || 0) - nodeWidth - 40,
             y: baseY,
-            w: 320,
+            w: nodeWidth,
             h: isDetection ? 520 : (configHeights[kind] || 360),
             title: isDetection ? getDetectionConfigLabel(detectionIndex) : configTitleForKind(kind),
             target_preset_id: presetNode.id,
@@ -34609,6 +34869,28 @@ ${metadataParams ? `<code>${escapeHtml(metadataParams)}</code>` : ''}`;
             : normalizeCanvasColor(value, key === 'color' ? '#f8fafc' : '#164e63');
         refreshNoteDom(nodeId);
         scheduleSave();
+    }
+
+    function updateNodeCustomColor(nodeId, value, options) {
+        const node = getNode(nodeId);
+        if (!node || isNodeLocked(node)) return;
+        const color = normalizeCanvasColor(value, '');
+        pushHistoryBatch(`node:${nodeId}:custom-color`, 'Edit node color');
+        node.style = Object.assign({}, node.style || {});
+        if (color) {
+            node.style.node_color = expandCanvasHexColor(color, '#14b8a6');
+            delete node.style.accent_color;
+        } else {
+            delete node.style.node_color;
+            delete node.style.accent_color;
+            if (!Object.keys(node.style).length) delete node.style;
+        }
+        const nodeEl = nodesLayer?.querySelector?.(`[data-node-id="${CSS.escape(nodeId || '')}"]`);
+        if (nodeEl) applyNodeCustomColorVars(node, nodeEl);
+        invalidateMinimapStaticCache();
+        renderMinimap();
+        scheduleSave();
+        if (options?.renderInspector) renderInspector();
     }
 
     function updateNoteSize(nodeId, key, value) {

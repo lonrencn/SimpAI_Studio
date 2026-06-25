@@ -6233,7 +6233,9 @@ with shared.gradio_root:
                                                     outputs=[metadata_json, metadata_import_button], queue=False, show_progress=True)
                         import enhanced.image_encrypt_tab as image_encrypt_tab
                         image_encrypt_tab.add_image_encrypt_tab(progress_window, progress_gallery, gallery, progress_video, comparison_box, compare_btn, comparison_state, state_topbar, state_is_generating, image_toolbox, gallery_index, output_format)
-                        super_prompter_prompt = gr.Textbox(label='Prompt prefix', value='Expand the following prompt to add more detail:', lines=1)
+                        import custom.OneButtonPrompt.ui_onebutton as ui_onebutton
+                        ui_onebutton.ui_onebutton(prompt)
+                        super_prompter_prompt = gr.Textbox(label='Prompt prefix', value='Expand the following prompt to add more detail:', lines=1, visible='hidden', elem_id='super_prompter_prompt', elem_classes=['sai-gradio-hidden-bridge'])
                     
                 with gr.Tab(label='Styles', elem_classes=['style_selections_tab']) as styles_tab:
                     style_sorter.try_load_sorted_styles(
@@ -10414,6 +10416,20 @@ body.simpai-canvas-standalone-loading::before {{ content: "Loading Infinite Canv
         stored = {{}};
     }}
     window.simpleaiTopbarSystemParams = Object.assign({{}}, fallback, stored, {{ __canvas_standalone: true }});
+    var standaloneTheme = String((window.simpleaiTopbarSystemParams && window.simpleaiTopbarSystemParams.__theme) || fallback.__theme || document.documentElement.getAttribute('data-theme') || 'light').toLowerCase();
+    standaloneTheme = standaloneTheme.indexOf('dark') >= 0 ? 'dark' : 'light';
+    window.simpleaiTopbarSystemParams.__theme = standaloneTheme;
+    document.documentElement.setAttribute('data-theme', standaloneTheme);
+    document.documentElement.classList.toggle('dark', standaloneTheme === 'dark');
+    document.documentElement.classList.toggle('light', standaloneTheme !== 'dark');
+    function applyStandaloneBodyTheme() {{
+        if (!document.body) return;
+        document.body.setAttribute('data-theme', standaloneTheme);
+        document.body.classList.toggle('dark', standaloneTheme === 'dark');
+        document.body.classList.toggle('light', standaloneTheme !== 'dark');
+    }}
+    applyStandaloneBodyTheme();
+    document.addEventListener('DOMContentLoaded', applyStandaloneBodyTheme, {{ once: true }});
     var standaloneActiveKey = 'simpai.canvasWorkbench.standaloneActive';
     var standaloneTabId = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : String(Date.now()) + '-' + String(Math.random()).slice(2);
     function writeStandaloneActive(active) {{
@@ -10958,6 +10974,7 @@ async def simpleai_random_prompt(payload: dict = Body(...)):
             lang=payload.get("__lang") or payload.get("lang") or payload.get("language") or "cn",
             seed=payload.get("seed"),
             source_mode=payload.get("tag_source") or payload.get("tag_source_mode") or "all",
+            prompt_text=payload.get("prompt_head") or payload.get("prompt") or payload.get("positive_prompt") or payload.get("source_prompt") or "",
         ))
         return JSONResponse(result)
     except Exception as e:

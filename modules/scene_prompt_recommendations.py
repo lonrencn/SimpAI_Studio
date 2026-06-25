@@ -12,10 +12,15 @@ RECOMMENDATIONS_DIR = os.path.join(ROOT_DIR, "presets", "scene_prompt_recommenda
 RANDOM_PROMPT_ASSOCIATIONS_FILE = os.path.join(RECOMMENDATIONS_DIR, "random_prompt_associations.csv")
 RANDOM_PROMPT_NOISE_FILE = os.path.join(RECOMMENDATIONS_DIR, "random_prompt_noise.csv")
 RANDOM_PROMPT_CHARACTERS_FILE = os.path.join(RECOMMENDATIONS_DIR, "random_prompt_characters.csv")
+RANDOM_PROMPT_ADULT_SLOTS_FILE = os.path.join(ROOT_DIR, "docs", "adult_trigger_slots.csv")
+RANDOM_PROMPT_ADULT_NEGATIVE_FILE = os.path.join(ROOT_DIR, "docs", "adult_negative_conflicts.csv")
+RANDOM_PROMPT_NSFW_ENV = "SIMPAI_DEV_RANDOM_PROMPT_NSFW"
 
 _random_prompt_association_cache = None
 _random_prompt_noise_cache = None
 _random_prompt_character_cache = None
+_random_prompt_adult_slot_cache = None
+_random_prompt_adult_negative_cache = None
 RANDOM_CHARACTER_SAMPLE_POOL = 600
 
 PROMPT_TARGETS = {
@@ -333,6 +338,122 @@ RANDOM_FALLBACK_CHARACTERS = [
     {"character_tag": "kaito_(vocaloid)", "copyright_tag": "vocaloid", "subject_hint": "1boy", "score": "62"},
 ]
 
+RANDOM_PROMPT_NSFW_PROFILES = [
+    {
+        "id": "dev_nsfw_lingerie_room",
+        "subject_id": "solo_girl",
+        "trigger_tags": ["lingerie"],
+        "tags": ["1girl", "solo", "mature_female", "lingerie"],
+        "setting": [["bedroom", "bed", "curtains"], ["indoors", "window", "bed_sheet"]],
+        "pose": [["sitting", "looking_at_viewer"], ["lying", "looking_at_viewer"]],
+        "lighting": [["soft_lighting", "depth_of_field"], ["warm_lighting", "rim_lighting"]],
+    },
+    {
+        "id": "dev_nsfw_bikini_beach",
+        "subject_id": "solo_girl",
+        "trigger_tags": ["bikini"],
+        "tags": ["1girl", "solo", "mature_female", "bikini"],
+        "setting": [["beach", "ocean", "sunset"], ["poolside", "water", "blue_sky"]],
+        "pose": [["standing", "looking_at_viewer"], ["walking", "looking_back"]],
+        "lighting": [["sunlight", "sparkling_water"], ["golden_hour", "backlighting"]],
+    },
+    {
+        "id": "dev_nsfw_onsen",
+        "subject_id": "solo_girl",
+        "trigger_tags": ["nude"],
+        "tags": ["1girl", "solo", "mature_female", "nude"],
+        "setting": [["onsen", "steam", "water"], ["bath", "wet", "towel"]],
+        "pose": [["sitting", "covered_chest"], ["standing", "from_side"]],
+        "lighting": [["steam", "soft_lighting"], ["mist", "diffused_light"]],
+    },
+    {
+        "id": "dev_nsfw_lounge",
+        "subject_id": "solo_girl",
+        "trigger_tags": ["topless"],
+        "tags": ["1girl", "solo", "mature_female", "topless"],
+        "setting": [["couch", "fireplace", "curtains"], ["indoors", "lamp", "night"]],
+        "pose": [["sitting", "crossed_legs"], ["reclining", "looking_at_viewer"]],
+        "lighting": [["warm_light", "soft_shadow"], ["low_light", "depth_of_field"]],
+    },
+    {
+        "id": "dev_nsfw_stage",
+        "subject_id": "solo_girl",
+        "trigger_tags": ["no_bra"],
+        "tags": ["1girl", "solo", "mature_female", "no_bra"],
+        "setting": [["stage", "spotlight", "curtains"], ["dressing_room", "mirror", "spotlight"]],
+        "pose": [["standing", "dynamic_pose"], ["hand_on_hip", "looking_at_viewer"]],
+        "lighting": [["spotlight", "dramatic_lighting"], ["rim_lighting", "dark_background"]],
+    },
+]
+
+RANDOM_PROMPT_ADULT_SLOT_MAP = {
+    "scene": "setting",
+    "camera": "camera",
+    "pose_action": "pose",
+    "expression": "expression",
+    "clothing": "clothing",
+    "body_detail": "body_detail",
+    "prop": "prop",
+    "style_light": "lighting",
+}
+
+RANDOM_PROMPT_ADULT_SLOT_ORDER = (
+    "setting",
+    "camera",
+    "pose",
+    "expression",
+    "clothing",
+    "body_detail",
+    "prop",
+    "lighting",
+)
+
+RANDOM_PROMPT_ADULT_SAFE_STYLE_TAGS = [
+    "anime_style",
+    "illustration",
+    "detailed_background",
+    "highly_detailed",
+]
+
+RANDOM_PROMPT_ADULT_BLOCKED_EXACT_TAGS = {
+    "school_uniform",
+    "serafuku",
+    "student_uniform",
+    "pov",
+    "pov_hands",
+    "pov_crotch",
+    "water_gun",
+    "water_bottle",
+    "holding_water_gun",
+}
+
+RANDOM_PROMPT_ADULT_BLOCKED_FRAGMENTS = (
+    "child", "children", "loli", "shota", "minor", "kid", "young",
+    "kindergarten", "elementary", "schoolgirl", "schoolboy", "school_uniform",
+    "serafuku", "student", "blue_archive", "pokemon", "madoka", "homura",
+    "school_idol", "idol", "love_live", "project_sekai", "bang_dream",
+    "precure", "illya", "illyasviel", "magical_girl", "klee", "nahida", "qiqi",
+    "yaoyao", "paimon", "edogawa_conan", "detective_conan",
+    "rape", "gore", "torture", "bestial", "animal_penis", "vore",
+    "feces", "urine", "amputation", "mosaic", "censored", "watermark",
+    "signature", "artist", "commentary", "request", "text", "english_text",
+    "sex", "vaginal", "anal", "fellatio", "deepthroat", "handjob",
+    "paizuri", "masturbat", "penetrat", "orgasm", "irrumatio",
+    "cunnilingus", "footjob", "dildo", "vibrator", "sex_toy", "tentacle",
+)
+
+RANDOM_PROMPT_ADULT_CHARACTER_BLOCK_FRAGMENTS = (
+    "child", "children", "loli", "shota", "minor", "kindergarten",
+    "elementary", "school", "student", "idol", "schoolgirl", "schoolboy",
+    "blue_archive", "pokemon", "love_live", "project_sekai", "bang_dream",
+    "precure",
+    "madoka", "homura", "illya", "illyasviel", "magical_girl", "klee",
+    "nahida", "qiqi", "yaoyao", "paimon", "edogawa_conan", "detective_conan",
+)
+
+RANDOM_PROMPT_ADULT_NEGATIVE_MIN_SCORE = 2500.0
+RANDOM_PROMPT_ADULT_NEGATIVE_MAX_LIFT = 0.45
+
 
 def _clean_text(value):
     return str(value or "").strip()
@@ -611,6 +732,174 @@ def _read_csv_dict_rows(path):
     return rows
 
 
+def _env_flag_enabled(name):
+    return _clean_text(os.environ.get(name)).lower() in {"1", "true", "yes", "on"}
+
+
+def _developer_random_prompt_nsfw_enabled():
+    return _env_flag_enabled(RANDOM_PROMPT_NSFW_ENV)
+
+
+def _random_prompt_nsfw_requested(prompt_text):
+    prompt = _clean_text(prompt_text)
+    return bool(re.match(r"^nsfw(?:$|[\s,.;:!?，。；：！？、|/\\()\[\]{}_-])", prompt, re.I))
+
+
+def _random_prompt_adult_tag_blocked(tag, character=False):
+    clean = _prompt_lookup_norm(tag)
+    if not clean:
+        return True
+    if len(clean) > 56 or clean.count("_") > 6:
+        return True
+    if clean in RANDOM_PROMPT_ADULT_BLOCKED_EXACT_TAGS:
+        return True
+    fragments = RANDOM_PROMPT_ADULT_CHARACTER_BLOCK_FRAGMENTS if character else RANDOM_PROMPT_ADULT_BLOCKED_FRAGMENTS
+    return any(fragment in clean for fragment in fragments)
+
+
+def _random_prompt_adult_tag_allowed(tag):
+    clean = _prompt_lookup_norm(tag)
+    if _random_prompt_adult_tag_blocked(clean):
+        return False
+    if clean in RANDOM_BAD_LOOKUP_TAGS:
+        return False
+    if clean in {"male_focus", "female_focus", "solo_focus"}:
+        return False
+    return True
+
+
+def _random_prompt_adult_slot_rows():
+    global _random_prompt_adult_slot_cache
+    if _random_prompt_adult_slot_cache is not None:
+        return _random_prompt_adult_slot_cache
+    by_trigger = {}
+    for row in _read_csv_dict_rows(RANDOM_PROMPT_ADULT_SLOTS_FILE):
+        trigger = _prompt_lookup_norm(row.get("trigger_tag"))
+        related = _prompt_lookup_norm(row.get("related_tag"))
+        source_slot = _clean_text(row.get("slot")).lower()
+        slot = RANDOM_PROMPT_ADULT_SLOT_MAP.get(source_slot)
+        if not trigger or not related or not slot:
+            continue
+        if not _random_prompt_adult_tag_allowed(related):
+            continue
+        item = {
+            "trigger": trigger,
+            "related": related,
+            "slot": slot,
+            "source_slot": source_slot,
+            "support": _safe_int(row.get("support"), 0),
+            "lift": _safe_float(row.get("lift"), 0.0),
+            "score": _safe_float(row.get("score"), 0.0),
+        }
+        by_trigger.setdefault(trigger, []).append(item)
+    for rows in by_trigger.values():
+        rows.sort(key=lambda item: (-item["score"], -item["support"], item["related"]))
+    _random_prompt_adult_slot_cache = by_trigger
+    return by_trigger
+
+
+def _random_prompt_adult_negative_pairs():
+    global _random_prompt_adult_negative_cache
+    if _random_prompt_adult_negative_cache is not None:
+        return _random_prompt_adult_negative_cache
+    pairs = set()
+    for row in _read_csv_dict_rows(RANDOM_PROMPT_ADULT_NEGATIVE_FILE):
+        left = _prompt_lookup_norm(row.get("trigger_tag"))
+        right = _prompt_lookup_norm(row.get("related_tag"))
+        if not left or not right or left == right:
+            continue
+        score = _safe_float(row.get("negative_score"), 0.0)
+        lift = _safe_float(row.get("lift"), 1.0)
+        if score >= RANDOM_PROMPT_ADULT_NEGATIVE_MIN_SCORE and lift <= RANDOM_PROMPT_ADULT_NEGATIVE_MAX_LIFT:
+            pairs.add(tuple(sorted((left, right))))
+    _random_prompt_adult_negative_cache = pairs
+    return pairs
+
+
+def _random_prompt_adult_negative_conflicts(tag, anchors):
+    clean = _prompt_lookup_norm(tag)
+    if not clean:
+        return True
+    pairs = _random_prompt_adult_negative_pairs()
+    for anchor in anchors or ():
+        anchor_norm = _prompt_lookup_norm(anchor)
+        if anchor_norm and anchor_norm != clean and tuple(sorted((anchor_norm, clean))) in pairs:
+            return True
+    return False
+
+
+def _random_prompt_adult_stats_tags(trigger_tags, current_tags, rng, max_count=6):
+    by_trigger = _random_prompt_adult_slot_rows()
+    if not by_trigger:
+        return []
+    triggers = []
+    for tag in list(trigger_tags or []) + list(current_tags or []):
+        clean = _prompt_lookup_norm(tag)
+        if clean and clean in by_trigger and clean not in triggers:
+            triggers.append(clean)
+    if not triggers:
+        return []
+
+    current_norms = {_prompt_lookup_norm(tag) for tag in current_tags if _prompt_lookup_norm(tag)}
+    candidates_by_slot = {}
+    for trigger in triggers:
+        for row in by_trigger.get(trigger, [])[:80]:
+            related = row.get("related")
+            if not related or related in current_norms:
+                continue
+            candidates_by_slot.setdefault(row.get("slot"), []).append(row)
+
+    picked = []
+    picked_norms = set()
+    anchors = set(current_norms)
+    for slot in RANDOM_PROMPT_ADULT_SLOT_ORDER:
+        if len(picked) >= max_count:
+            break
+        candidates = []
+        seen = set()
+        for row in candidates_by_slot.get(slot, []):
+            related = row.get("related")
+            if not related or related in seen or related in picked_norms:
+                continue
+            if _random_prompt_adult_negative_conflicts(related, anchors.union(picked_norms)):
+                continue
+            seen.add(related)
+            candidates.append(row)
+        if not candidates:
+            continue
+        pool = candidates[: min(len(candidates), 10)]
+        row = rng.choice(pool)
+        related = row.get("related")
+        if related:
+            picked.append(_safe_danbooru_tag(related))
+            picked_norms.add(related)
+    return picked[:max(1, max_count)]
+
+
+def _adult_character_row_allowed(row):
+    return not (
+        _random_prompt_adult_tag_blocked(row.get("character_tag"), character=True)
+        or _random_prompt_adult_tag_blocked(row.get("copyright_tag"), character=True)
+    )
+
+
+def _pick_adult_random_character_tags(rng, subject_id):
+    rows = [
+        row for row in _random_prompt_character_rows()
+        if _character_subject_matches(row, subject_id) and _adult_character_row_allowed(row)
+    ]
+    if not rows:
+        rows = [row for row in _random_prompt_character_rows() if _adult_character_row_allowed(row)]
+    if not rows:
+        return []
+    top = rows[: min(len(rows), RANDOM_CHARACTER_SAMPLE_POOL)]
+    picked = rng.choice(top)
+    tags = [picked.get("character_tag")]
+    if picked.get("copyright_tag"):
+        tags.append(picked.get("copyright_tag"))
+    return [tag for tag in tags if tag]
+
+
 def _random_prompt_noise_tags():
     global _random_prompt_noise_cache
     if _random_prompt_noise_cache is not None:
@@ -886,7 +1175,64 @@ def _random_prompt_lookup_terms(rng, subject, scene):
     return terms[:3]
 
 
-def compose_random_prompt(preset_name="", scene_theme="", lang="cn", seed=None, source_mode="all"):
+def _compose_developer_nsfw_random_prompt(preset_name="", scene_theme="", lang="cn", seed=None):
+    rng = random.Random(seed) if seed is not None else random.Random()
+    profile = rng.choice(RANDOM_PROMPT_NSFW_PROFILES)
+    picked_slots = []
+    prompt_tags = []
+
+    _extend_tag_group(prompt_tags, picked_slots, "rating", ["nsfw", "rating_explicit", "adult"])
+    _extend_tag_group(prompt_tags, picked_slots, "subject", profile.get("tags"))
+    character_tags = _pick_adult_random_character_tags(rng, profile.get("subject_id"))
+    _extend_tag_group(prompt_tags, picked_slots, "character", character_tags)
+    _extend_tag_group(prompt_tags, picked_slots, "setting", _pick_group(rng, profile.get("setting")))
+    _extend_tag_group(prompt_tags, picked_slots, "pose", _pick_group(rng, profile.get("pose")))
+    _extend_tag_group(prompt_tags, picked_slots, "lighting", _pick_group(rng, profile.get("lighting")))
+
+    association_tags = _random_prompt_adult_stats_tags(
+        profile.get("trigger_tags"),
+        prompt_tags,
+        rng,
+        max_count=6,
+    )
+    _extend_tag_group(prompt_tags, picked_slots, "adult_association_stats", association_tags)
+
+    _extend_tag_group(prompt_tags, picked_slots, "style", RANDOM_PROMPT_ADULT_SAFE_STYLE_TAGS)
+    prompt_tags.extend(RANDOM_QUALITY_TAGS)
+    prompt = ", ".join(_dedupe_tags(prompt_tags))
+    title = "Random Prompt (NSFW Dev)" if _clean_lang(lang) == "en" else "随机提示词（NSFW Dev）"
+    return {
+        "ok": True,
+        "preset": _clean_text(preset_name),
+        "scene_theme": _clean_text(scene_theme),
+        "item": {
+            "id": "developer_random_nsfw",
+            "target": "positive_prompt",
+            "mode": "replace",
+            "title": title,
+            "prompt": prompt,
+            "seed_terms": [_safe_danbooru_tag(tag) for tag in profile.get("trigger_tags") or []],
+            "slots": picked_slots,
+            "recipe": {
+                "mode": "developer_nsfw",
+                "profile": profile.get("id"),
+                "character": character_tags[:1],
+                "stat_triggers": [_safe_danbooru_tag(tag) for tag in profile.get("trigger_tags") or []],
+            },
+            "source": "developer_nsfw_random_prompt",
+        },
+    }
+
+
+def compose_random_prompt(preset_name="", scene_theme="", lang="cn", seed=None, source_mode="all", prompt_text=""):
+    if _developer_random_prompt_nsfw_enabled() or _random_prompt_nsfw_requested(prompt_text):
+        return _compose_developer_nsfw_random_prompt(
+            preset_name=preset_name,
+            scene_theme=scene_theme,
+            lang=lang,
+            seed=seed,
+        )
+
     rng = random.Random(seed) if seed is not None else random.Random()
     subject = rng.choice(RANDOM_SUBJECT_PROFILES)
     scene = rng.choice(RANDOM_SCENE_PROFILES)
