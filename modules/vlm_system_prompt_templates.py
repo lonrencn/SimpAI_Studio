@@ -1,16 +1,37 @@
+import csv
 import os
 import re
+from io import StringIO
 from pathlib import Path
 
 
-DEFAULT_TEMPLATE_DIR = r"I:\dev2\多角色AI推理提示词"
+DEFAULT_TEMPLATE_CSV = Path(__file__).resolve().parent.parent / "docs" / "vlm_system_prompt_templates.csv"
+TEMPLATE_CSV_ENV = "SIMPAI_VLM_SYSTEM_PROMPT_TEMPLATE_CSV"
 TEMPLATE_DIR_ENV = "SIMPAI_VLM_SYSTEM_PROMPT_TEMPLATE_DIR"
 MAX_TEMPLATE_CHARS = 12000
 
 
-def _template_dir(root=None):
-    value = str(root or os.environ.get(TEMPLATE_DIR_ENV) or DEFAULT_TEMPLATE_DIR).strip()
-    return Path(value)
+def _clean_text(value):
+    return str(value or "").strip()
+
+
+def _template_source(payload=None, root=None):
+    payload = payload if isinstance(payload, dict) else {}
+    candidates = [
+        root,
+        payload.get("template_csv"),
+        payload.get("template_file"),
+        payload.get("template_path"),
+        payload.get("template_dir"),
+        os.environ.get(TEMPLATE_CSV_ENV),
+        os.environ.get(TEMPLATE_DIR_ENV),
+        DEFAULT_TEMPLATE_CSV,
+    ]
+    for value in candidates:
+        text = _clean_text(value)
+        if text:
+            return Path(text)
+    return DEFAULT_TEMPLATE_CSV
 
 
 def _read_text(path):
@@ -56,21 +77,48 @@ def _template_entry(path, root, max_chars=MAX_TEMPLATE_CHARS):
         "mtime": int(stat.st_mtime),
         "source": str(path),
         "template_dir": str(root),
+        "template_source": str(root),
     }
 
 
-def list_vlm_system_prompt_templates(payload=None, root=None, max_chars=MAX_TEMPLATE_CHARS):
-    payload = payload if isinstance(payload, dict) else {}
-    root = _template_dir(root or payload.get("template_dir"))
-    if not root.exists() or not root.is_dir():
-        return {
-            "ok": True,
-            "templates": [],
-            "count": 0,
-            "template_dir": str(root),
-            "message": "VLM system prompt template directory is not available.",
-        }
+def _template_entry_from_csv_row(row, source_path, mtime=0, max_chars=MAX_TEMPLATE_CHARS):
+    row = row if isinstance(row, dict) else {}
+    template_id = _clean_text(row.get("id") or row.get("filename") or row.get("name"))
+    name = _clean_text(row.get("name") or Path(template_id).stem or template_id)
+    filename = _clean_text(row.get("filename") or template_id)
+    content = extract_system_prompt_template(
+        row.get("content") or row.get("system_prompt") or row.get("prompt"),
+        max_chars=max_chars,
+    )
+    if not template_id or not name or not content:
+        return None
+    return {
+        "id": template_id,
+        "name": name,
+        "filename": filename,
+        "content": content,
+        "chars": len(content),
+        "size": len(content.encode("utf-8")),
+        "mtime": int(mtime or 0),
+        "source": _clean_text(row.get("source")) or f"{source_path.name}:{template_id}",
+        "template_dir": str(source_path.parent),
+        "template_source": str(source_path),
+    }
 
+
+def _list_templates_from_csv(path, max_chars=MAX_TEMPLATE_CHARS):
+    stat = path.stat()
+    templates = []
+    content = _read_text(path)
+    reader = csv.DictReader(StringIO(content))
+    for row in reader:
+        entry = _template_entry_from_csv_row(row, path, mtime=stat.st_mtime, max_chars=max_chars)
+        if entry:
+            templates.append(entry)
+    return templates
+
+
+def _list_templates_from_dir(root, max_chars=MAX_TEMPLATE_CHARS):
     templates = []
     for path in sorted(root.glob("*.txt"), key=lambda item: item.name.lower()):
         if not path.is_file():
@@ -85,17 +133,44 @@ def list_vlm_system_prompt_templates(payload=None, root=None, max_chars=MAX_TEMP
                 "content": "",
                 "chars": 0,
                 "source": str(path),
+                "template_dir": str(root),
+                "template_source": str(root),
                 "error": str(exc),
             })
             continue
         if entry["content"]:
             templates.append(entry)
+    return templates
+
+
+def list_vlm_system_prompt_templates(payload=None, root=None, max_chars=MAX_TEMPLATE_CHARS):
+    source = _template_source(payload=payload, root=root)
+    if not source.exists():
+        return {
+            "ok": True,
+            "templates": [],
+            "count": 0,
+            "template_dir": str(source.parent),
+            "template_source": str(source),
+            "message": "VLM system prompt template source is not available.",
+        }
+
+    if source.is_dir():
+        templates = _list_templates_from_dir(source, max_chars=max_chars)
+        template_dir = str(source)
+    elif source.is_file():
+        templates = _list_templates_from_csv(source, max_chars=max_chars)
+        template_dir = str(source.parent)
+    else:
+        templates = []
+        template_dir = str(source.parent)
 
     return {
         "ok": True,
         "templates": templates,
         "count": len(templates),
-        "template_dir": str(root),
+        "template_dir": template_dir,
+        "template_source": str(source),
     }
 
 

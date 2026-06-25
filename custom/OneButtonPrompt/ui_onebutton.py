@@ -1,7 +1,7 @@
 import gradio as gr
 import custom.OneButtonPrompt.shared
 from custom.OneButtonPrompt.shared import add_ctrl
-from ui.update_helpers import dropdown_update, sanitize_dropdown_value
+from ui.update_helpers import dropdown_update, gr_update, sanitize_dropdown_value
 
 from random_prompt.build_dynamic_prompt import build_dynamic_prompt, OBPresets
 
@@ -408,13 +408,23 @@ def _sanitize_obp_preset_values(values):
         "imagetype": imagetypes,
     }.items():
         result[key] = sanitize_dropdown_value(result.get(key), choices)
+    result["insanitylevel"] = _sanitize_obp_int(result.get("insanitylevel"), default=5, minimum=1, maximum=10)
+    result["imagemodechance"] = _sanitize_obp_int(result.get("imagemodechance"), default=20, minimum=1, maximum=100)
     return result
+
+
+def _sanitize_obp_int(value, *, default, minimum, maximum):
+    try:
+        clean = int(float(value))
+    except (TypeError, ValueError):
+        clean = int(default)
+    return max(int(minimum), min(int(maximum), clean))
 
 
 custom_obp_values = _sanitize_obp_preset_values(custom_obp_values)
 
 
-def ui_onebutton(prompt, run_event, random_button):
+def ui_onebutton(prompt, run_event=None, random_button=None):
     def gen_prompt(
         insanitylevel,
         subject,
@@ -578,9 +588,13 @@ def ui_onebutton(prompt, run_event, random_button):
         return prompt
 
     with gr.Tab(label="OneButtonPrompt"):
+        if run_event is None:
+            run_event = gr.Number(visible=False, value=0)
         with gr.Row():
             #instant_obp = gr.Button(value="Instant OBP", size="sm", min_width = 1)
             #random_button = gr.Button(value="Random Prompt", size="sm", min_width = 1)
+            if random_button is None:
+                random_button = gr.Button(value="OneButtonPrompt", size="sm", min_width=1)
             add_random_button = gr.Button(value="+More", size="sm", min_width=1)
 
         #with gr.Row():
@@ -823,14 +837,14 @@ def ui_onebutton(prompt, run_event, random_button):
         def obppreset_changed(selection):
                 if selection == OBPresets.CUSTOM_OBP:
                     return (
-                        [obp_preset_name.update(value="", visible=True)]
-                        + [maingroup.update(visible=True)]
+                        [gr_update(value="", visible=True)]
+                        + [gr_update(visible=True)]
                     )
     
                 else:
                     return (
-                        [obp_preset_name.update(visible=False)]
-                        + [maingroup.update(visible=False)]
+                        [gr_update(visible=False)]
+                        + [gr_update(visible=False)]
                     )
         OBP_preset.change(obppreset_changed,
                 inputs=[OBP_preset],
@@ -852,7 +866,7 @@ def ui_onebutton(prompt, run_event, random_button):
                     selected_opb_preset = OBPresets.get_obp_preset(selection)
                 selected_opb_preset = _sanitize_obp_preset_values(selected_opb_preset)
                 return [
-                    insanitylevel.update(value=selected_opb_preset["insanitylevel"]),
+                    gr_update(value=selected_opb_preset["insanitylevel"]),
                     dropdown_update(choices=subjects, value=selected_opb_preset["subject"]),
                     dropdown_update(choices=artists, value=selected_opb_preset["artist"]),
                     dropdown_update(choices=subjectsubtypesobject, value=selected_opb_preset["chosensubjectsubtypeobject"]),
@@ -860,14 +874,14 @@ def ui_onebutton(prompt, run_event, random_button):
                     dropdown_update(choices=subjectsubtypesconcept, value=selected_opb_preset["chosensubjectsubtypeconcept"]),
                     dropdown_update(choices=genders, value=selected_opb_preset["chosengender"]),
                     dropdown_update(choices=imagetypes, value=selected_opb_preset["imagetype"]),
-                    imagemodechance.update(value=selected_opb_preset["imagemodechance"]),
-                    givensubject.update(value=selected_opb_preset["givensubject"]),
-                    smartsubject.update(value=selected_opb_preset["smartsubject"]),
-                    givenoutfit.update(value=selected_opb_preset["givenoutfit"]),
-                    prefixprompt.update(value=selected_opb_preset["prefixprompt"]),
-                    suffixprompt.update(value=selected_opb_preset["suffixprompt"]),
-                    giventypeofimage.update(value=selected_opb_preset["giventypeofimage"]),
-                    antistring.update(value=selected_opb_preset["antistring"]),
+                    gr_update(value=selected_opb_preset["imagemodechance"]),
+                    gr_update(value=selected_opb_preset["givensubject"]),
+                    gr_update(value=selected_opb_preset["smartsubject"]),
+                    gr_update(value=selected_opb_preset["givenoutfit"]),
+                    gr_update(value=selected_opb_preset["prefixprompt"]),
+                    gr_update(value=selected_opb_preset["suffixprompt"]),
+                    gr_update(value=selected_opb_preset["giventypeofimage"]),
+                    gr_update(value=selected_opb_preset["antistring"]),
                 ]
         OBP_preset.change(OBPPreset_changed_update_custom,
                 inputs=[OBP_preset],

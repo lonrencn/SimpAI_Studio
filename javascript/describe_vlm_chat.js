@@ -499,9 +499,38 @@
         return text;
     }
 
+    function currentCustomVlmModelName() {
+        return String(readComponentValue('describe_vlm_custom_model') || '').trim();
+    }
+
+    function customVlmModelOptionLabel() {
+        return currentCustomVlmModelName() || 'Custom';
+    }
+
+    function customVlmModelLabelIsBetter(nextLabel, currentLabel) {
+        const next = String(nextLabel || '').replace(/[✓✔⚠⬇↓]/g, '').trim();
+        const current = String(currentLabel || '').replace(/[✓✔⚠⬇↓]/g, '').trim();
+        return !!next && !/(^|\s)Custom($|\s)/i.test(next) && ((/^Custom$/i).test(current) || !current);
+    }
+
+    function customVlmOptionValue(rawValue, label) {
+        const value = cleanVlmVersion(rawValue || label);
+        if (value === 'Custom') return value;
+        const customModel = currentCustomVlmModelName();
+        const cleanLabel = String(label || rawValue || '').replace(/[✓✔⚠⬇↓]/g, '').trim();
+        if (customModel && (cleanLabel === customModel || cleanLabel.endsWith(`· ${customModel}`))) return 'Custom';
+        return value;
+    }
+
     function addUniqueVlmModelOption(options, option) {
-        const value = cleanVlmVersion(option?.value || option?.label);
-        if (!value || options.some((item) => item.value === value)) return;
+        const value = customVlmOptionValue(option?.value, option?.label);
+        if (!value) return;
+        const existing = options.find((item) => item.value === value);
+        if (existing) {
+            const label = String(option?.label || option?.value || value).trim() || value;
+            if (value === 'Custom' && customVlmModelLabelIsBetter(label, existing.label)) existing.label = label;
+            return;
+        }
         options.push({
             value,
             label: String(option?.label || option?.value || value).trim() || value
@@ -515,7 +544,7 @@
         return Array.from(select.options || [])
             .map((option) => {
                 const label = String(option.textContent || option.value || '').trim();
-                const value = cleanVlmVersion(option.value || label);
+                const value = customVlmOptionValue(option.value, label);
                 return value ? { value, label: label || value } : null;
             })
             .filter(Boolean);
@@ -537,7 +566,7 @@
         registryVlmDropdownOptions().forEach((option) => addUniqueVlmModelOption(options, option));
         const current = cleanVlmVersion(readSelectedVlmVersion());
         if (current) addUniqueVlmModelOption(options, { value: current, label: current });
-        addUniqueVlmModelOption(options, { value: 'Custom', label: 'Custom' });
+        addUniqueVlmModelOption(options, { value: 'Custom', label: customVlmModelOptionLabel() });
         return options;
     }
 

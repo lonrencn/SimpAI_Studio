@@ -1356,6 +1356,34 @@
             color: var(--neutral-300);
         }
 
+        .light .vram-usage.usage-warning,
+        .light .ram-usage.usage-warning {
+            background: #fff7ed;
+            color: #c2410c;
+            font-weight: 700;
+        }
+
+        .dark .vram-usage.usage-warning,
+        .dark .ram-usage.usage-warning {
+            background: rgba(251, 146, 60, 0.14);
+            color: #fdba74;
+            font-weight: 700;
+        }
+
+        .light .vram-usage.usage-critical,
+        .light .ram-usage.usage-critical {
+            background: #fef2f2;
+            color: #b91c1c;
+            font-weight: 700;
+        }
+
+        .dark .vram-usage.usage-critical,
+        .dark .ram-usage.usage-critical {
+            background: rgba(248, 113, 113, 0.16);
+            color: #fca5a5;
+            font-weight: 700;
+        }
+
         .admin-access-pending-badge {
             font-weight: 700;
             cursor: default;
@@ -1884,18 +1912,32 @@
         refreshLocalizedStaticText();
         pendingAccessCount = Number.isFinite(Number(pendingAccessCount)) ? Number(pendingAccessCount) : 0;
         isAdmin = !!isAdmin;
-        const formatPercent = (used, total) => {
+        const usagePercent = (used, total) => {
             const usedNumber = Number(used);
             const totalNumber = Number(total);
-            if (!Number.isFinite(usedNumber) || !Number.isFinite(totalNumber) || totalNumber <= 0) return '--';
-            return `${((usedNumber / totalNumber) * 100).toFixed(1)}%`;
+            if (!Number.isFinite(usedNumber) || !Number.isFinite(totalNumber) || totalNumber <= 0) return null;
+            return (usedNumber / totalNumber) * 100;
+        };
+        const formatPercent = (percent) => {
+            return Number.isFinite(percent) ? `${percent.toFixed(1)}%` : '--';
+        };
+        const applyUsageLevel = (element, percent) => {
+            element.classList.remove('usage-warning', 'usage-critical');
+            if (!Number.isFinite(percent)) return;
+            if (percent > 97) {
+                element.classList.add('usage-critical');
+            } else if (percent > 90) {
+                element.classList.add('usage-warning');
+            }
         };
         const queueNumber = Number.isFinite(Number(queueSize)) ? Number(queueSize) : 0;
         const onlineUsersNumber = Number.isFinite(Number(onlineUsers)) ? Number(onlineUsers) : 0;
         const onlineDomainUsersNumber = Number.isFinite(Number(onlineDomainUsers)) ? Number(onlineDomainUsers) : 0;
         const onlineNodesNumber = Number.isFinite(Number(onlineNodes)) ? Number(onlineNodes) : 0;
-        const vramPercentText = formatPercent(vramUsed, vramTotal);
-        const ramPercentText = formatPercent(ramUsed, ramTotal);
+        const vramPercent = usagePercent(vramUsed, vramTotal);
+        const ramPercent = usagePercent(ramUsed, ramTotal);
+        const vramPercentText = formatPercent(vramPercent);
+        const ramPercentText = formatPercent(ramPercent);
         const shortPercent = (value) => value === '--' ? '--' : String(Math.round(parseFloat(value)));
         const vramPercentShort = shortPercent(vramPercentText);
         const ramPercentShort = shortPercent(ramPercentText);
@@ -1972,11 +2014,13 @@
 	    // 显示 VRAM 使用情况
             vramUsage.textContent = `V:${vramPercentShort}%`;
             vramUsage.title = `${t('VRAM', '显存')}: ${vramPercentText}`;
+            applyUsageLevel(vramUsage, vramPercent);
             statusContent.appendChild(vramUsage);
 
             // 显示 RAM 使用情况
             ramUsage.textContent = `R:${ramPercentShort}%`;
             ramUsage.title = `${t('RAM', '内存')}: ${ramPercentText}`;
+            applyUsageLevel(ramUsage, ramPercent);
             statusContent.appendChild(ramUsage);
 
             // 显示在线用户数
