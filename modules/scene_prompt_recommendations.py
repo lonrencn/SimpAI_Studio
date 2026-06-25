@@ -1200,7 +1200,7 @@ def _compose_developer_nsfw_random_prompt(preset_name="", scene_theme="", lang="
     _extend_tag_group(prompt_tags, picked_slots, "style", RANDOM_PROMPT_ADULT_SAFE_STYLE_TAGS)
     prompt_tags.extend(RANDOM_QUALITY_TAGS)
     prompt = ", ".join(_dedupe_tags(prompt_tags))
-    title = "Random Prompt (NSFW Dev)" if _clean_lang(lang) == "en" else "随机提示词（NSFW Dev）"
+    title = "Random Prompt (NSFW)" if _clean_lang(lang) == "en" else "随机提示词(NSFW)"
     return {
         "ok": True,
         "preset": _clean_text(preset_name),

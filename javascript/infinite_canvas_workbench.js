@@ -605,6 +605,7 @@
         attachPaused: false,
         pickReference: false,
         references: [],
+        modelPickerOpen: false,
         resolutionOpen: false,
         resolution: {
             aspect: 'auto',
@@ -3716,6 +3717,11 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
                 setCanvasAgentResolutionPatch({ multiplier: agentScale.value });
                 return;
             }
+            const agentModelMode = evt.target.closest?.('[data-canvas-agent-model-mode]');
+            if (agentModelMode) {
+                handleCanvasAgentModelModeInput(agentModelMode);
+                return;
+            }
             const agentSetting = evt.target.closest?.('[data-canvas-agent-setting]');
             if (agentSetting) handleCanvasAgentSettingInput(agentSetting);
         });
@@ -5276,6 +5282,105 @@ ${meta ? `<div class="sai-hover-preview-meta">${escapeHtml(meta)}</div>` : ''}
 </div>`;
     }
 
+    function canvasAgentDefaultLocalRewriteModel() {
+        return VLM_VERSION_CHOICES.find(model => model && model !== 'Custom')
+            || (CANVAS_AGENT_DEFAULT_SETTINGS.rewriteModel !== 'Custom' ? CANVAS_AGENT_DEFAULT_SETTINGS.rewriteModel : '')
+            || 'Qwen3.5-9B-abliterated-Q4_K_M';
+    }
+
+    function canvasAgentLocalRewriteModels(currentModel) {
+        const seen = new Set();
+        const list = [];
+        [...VLM_VERSION_CHOICES, currentModel].forEach((model) => {
+            const value = String(model || '').trim();
+            if (!value || value === 'Custom' || seen.has(value)) return;
+            seen.add(value);
+            list.push(value);
+        });
+        if (!list.length) list.push(canvasAgentDefaultLocalRewriteModel());
+        return list;
+    }
+
+    function canvasAgentModelSummary(settings) {
+        if (settings.rewriteModel === 'Custom') {
+            const provider = getVlmCustomProvider(settings.customProvider || 'openai');
+            const apiName = settings.customApiName || provider.label || 'Custom API';
+            const model = settings.customModel || t('Select model', '选择模型');
+            return {
+                icon: 'fa-cloud',
+                label: model,
+                title: `${apiName} · ${model}`
+            };
+        }
+        const model = settings.rewriteModel || canvasAgentDefaultLocalRewriteModel();
+        return {
+            icon: 'fa-microchip',
+            label: model,
+            title: `${t('Local VLM', '本地 VLM')} · ${model}`
+        };
+    }
+
+    function renderCanvasAgentModelChip(settings, disabled) {
+        const summary = canvasAgentModelSummary(settings);
+        return `<button type="button" class="sai-canvas-agent-model-chip ${canvasAgentState.modelPickerOpen ? 'is-active' : ''}" data-canvas-agent-action="toggle-model-picker" ${disabled ? 'disabled' : ''} title="${escapeHtml(summary.title)}" aria-label="${escapeHtml(t('Choose Agent model', '选择 Agent 模型'))}">
+  <i class="fa-solid ${escapeHtml(summary.icon)}"></i>
+  <span>${escapeHtml(summary.label)}</span>
+</button>`;
+    }
+
+    function renderCanvasAgentModelPicker(settings, disabled) {
+        const custom = settings.rewriteModel === 'Custom';
+        const localModels = canvasAgentLocalRewriteModels(settings.rewriteModel);
+        const selectedLocalModel = custom ? canvasAgentDefaultLocalRewriteModel() : (settings.rewriteModel || canvasAgentDefaultLocalRewriteModel());
+        const provider = getVlmCustomProvider(settings.customProvider || 'openai');
+        const modelChoices = Array.isArray(canvasAgentCustomModelChoices) ? canvasAgentCustomModelChoices : [];
+        const localModelOptions = localModels.map(model => `<option value="${escapeHtml(model)}" ${model === selectedLocalModel ? 'selected' : ''}>${escapeHtml(model)}</option>`).join('');
+        const providerOptions = VLM_CUSTOM_API_PROVIDERS.map(item => `<option value="${escapeHtml(item.key)}" ${item.key === (settings.customProvider || 'openai') ? 'selected' : ''}>${escapeHtml(item.label)}</option>`).join('');
+        const customModelControl = modelChoices.length
+            ? `<select data-canvas-agent-setting="customModel" ${disabled ? 'disabled' : ''}><option value="">${escapeHtml(t('Select model...', '选择模型...'))}</option>${modelChoices.map(item => `<option value="${escapeHtml(item)}" ${item === settings.customModel ? 'selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select>`
+            : `<input data-canvas-agent-setting="customModel" value="${escapeHtml(settings.customModel || '')}" placeholder="gpt-4o-mini / Qwen-VL" ${disabled ? 'disabled' : ''}>`;
+        return `<div class="sai-canvas-agent-model-popover" data-canvas-agent-model-popover>
+  <label>
+    <span>${escapeHtml(t('Source', '来源'))}</span>
+    <select data-canvas-agent-model-mode ${disabled ? 'disabled' : ''}>
+      <option value="local" ${custom ? '' : 'selected'}>${escapeHtml(t('Local VLM', '本地 VLM'))}</option>
+      <option value="custom" ${custom ? 'selected' : ''}>Custom API</option>
+    </select>
+  </label>
+  ${custom ? `
+  <label>
+    <span>${escapeHtml(t('Provider', '服务商'))}</span>
+    <select data-canvas-agent-setting="customProvider" ${disabled ? 'disabled' : ''}>${providerOptions}</select>
+  </label>
+  <label>
+    <span>${escapeHtml(t('API model', 'API 模型'))}</span>
+    ${customModelControl}
+  </label>
+  <div class="sai-canvas-agent-model-actions">
+    <button type="button" data-canvas-agent-action="fetch-agent-custom-models-inline" ${disabled ? 'disabled' : ''}><i class="fa-solid fa-arrows-rotate"></i><span>${escapeHtml(t('Fetch Models', '拉取模型'))}</span></button>
+    <button type="button" data-canvas-agent-action="open-settings"><i class="fa-solid fa-gear"></i><span>${escapeHtml(t('API settings', 'API 设置'))}</span></button>
+  </div>
+  <div class="sai-canvas-agent-model-note">${escapeHtml(provider.baseUrl || settings.customBaseUrl || t('Base URL is configured in Agent settings.', 'Base URL 在 Agent 设置里配置。'))}</div>` : `
+  <label>
+    <span>${escapeHtml(t('Model', '模型'))}</span>
+    <select data-canvas-agent-setting="rewriteModel" ${disabled ? 'disabled' : ''}>${localModelOptions}</select>
+  </label>`}
+</div>`;
+    }
+
+    function handleCanvasAgentModelModeInput(field) {
+        const mode = String(field?.value || '').trim();
+        if (mode === 'custom') {
+            setCanvasAgentSettingsPatch({ rewriteModel: 'Custom', customApiCollapsed: false });
+            return;
+        }
+        const settings = getCanvasAgentSettings();
+        const model = settings.rewriteModel && settings.rewriteModel !== 'Custom'
+            ? settings.rewriteModel
+            : canvasAgentDefaultLocalRewriteModel();
+        setCanvasAgentSettingsPatch({ rewriteModel: model });
+    }
+
     function renderOutpaintControlPanel() {
         const s = outpaintOverlayState;
         if (!s.active) return '';
@@ -5378,11 +5483,13 @@ ${canvasAgentState.resolutionOpen ? renderCanvasAgentResolutionControls(decision
         canvasAgentPanel.innerHTML = `
 <div class="sai-canvas-agent-head" data-canvas-agent-drag-handle>
   <div class="sai-canvas-agent-title"><i class="fa-solid fa-wand-magic-sparkles"></i><span>${escapeHtml(canvasAgentTargetLabel(target))}</span></div>
+  ${renderCanvasAgentModelChip(settings, decisionActive || runActive)}
   <button type="button" class="sai-canvas-agent-head-btn ${attachPaused ? 'is-active' : ''}" data-canvas-agent-action="toggle-attach" title="${escapeHtml(attachPaused ? t('Enable attach to selection', '启用吸附到选中节点') : t('Pause attach to selection', '暂停吸附到选中节点'))}"><i class="fa-solid ${attachPaused ? 'fa-link' : 'fa-link-slash'}"></i></button>
   <button type="button" class="sai-canvas-agent-head-btn" data-canvas-agent-action="toggle-expanded" title="${escapeHtml(expanded ? t('Collapse composer', '收起输入器') : t('Expand composer', '展开输入器'))}"><i class="fa-solid ${expanded ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center'}"></i></button>
   <button type="button" class="sai-canvas-agent-head-btn" data-canvas-agent-action="toggle-minimized" title="${escapeHtml(t('Minimize Agent', '最小化 Agent'))}"><i class="fa-solid fa-minus"></i></button>
   <button type="button" class="sai-canvas-agent-head-btn" data-canvas-agent-action="open-settings" title="${escapeHtml(t('Agent settings', 'Agent 设置'))}"><i class="fa-solid fa-gear"></i></button>
 </div>
+${canvasAgentState.modelPickerOpen ? renderCanvasAgentModelPicker(settings, decisionActive || runActive) : ''}
 ${renderCanvasAgentRunInfo(canvasAgentState.currentRun)}
 ${outpaintOverlayState.active ? renderOutpaintControlPanel() : (decisionActive ? renderCanvasAgentDecision(decision) : composerBody)}
 ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtml(canvasAgentState.lastMessage)}</div>` : ''}`;
@@ -5415,7 +5522,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         const target = getCanvasAgentTargetNode();
         if (!target || canvasAgentState.attachPaused || settings.attachPaused) {
             delete canvasAgentPanel.dataset.placement;
-            const desiredWidth = 360;
+            const desiredWidth = 386;
             const panelWidth = Math.min(desiredWidth, Math.max(280, vpRect.width - gap * 2));
             const useManualFloatingPosition = (canvasAgentState.attachPaused || settings.attachPaused) && !!settings.panelPosition;
             if (useManualFloatingPosition) {
@@ -5436,7 +5543,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         }
         const rect = getNodeRect(target);
         const zoom = project.viewport.zoom || 1;
-        const desiredWidth = 360;
+        const desiredWidth = 386;
         const panelWidth = Math.min(desiredWidth, Math.max(280, vpRect.width - gap * 2));
         const panelHeight = Math.min(Math.max(canvasAgentPanel.offsetHeight || 188, 188), Math.max(188, vpRect.height - 24));
         const nodeLeft = rect.x * zoom + project.viewport.x;
@@ -10752,6 +10859,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
 
     async function handleCanvasAgentAction(action) {
         if (action === 'open-settings') {
+            canvasAgentState.modelPickerOpen = false;
             openCanvasSettingsPanel('agent');
             return;
         }
@@ -10772,6 +10880,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         if (action === 'toggle-minimized') {
             canvasAgentState.pickReference = false;
             canvasAgentState.resolutionOpen = false;
+            canvasAgentState.modelPickerOpen = false;
             setCanvasAgentLayoutPatch({ minimized: true });
             return;
         }
@@ -10779,8 +10888,20 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
             setCanvasAgentLayoutPatch({ minimized: false });
             return;
         }
+        if (action === 'toggle-model-picker') {
+            canvasAgentState.modelPickerOpen = !canvasAgentState.modelPickerOpen;
+            if (canvasAgentState.modelPickerOpen) canvasAgentState.resolutionOpen = false;
+            renderCanvasAgentPanel();
+            return;
+        }
+        if (action === 'fetch-agent-custom-models-inline') {
+            canvasAgentState.modelPickerOpen = true;
+            await fetchCanvasAgentCustomModels();
+            return;
+        }
         if (action === 'toggle-resolution-picker') {
             canvasAgentState.resolutionOpen = !canvasAgentState.resolutionOpen;
+            if (canvasAgentState.resolutionOpen) canvasAgentState.modelPickerOpen = false;
             renderCanvasAgentPanel();
             return;
         }

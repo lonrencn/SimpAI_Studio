@@ -251,14 +251,21 @@ def _vlm_resolve_version(value):
     return VLM.DEFAULT_VERSION
 
 
+def _vlm_custom_model_choice_name(settings=None):
+    settings = settings if isinstance(settings, dict) else VLM.get_custom_settings()
+    model = str(settings.get("model") or "").strip()
+    return model or VLM.CUSTOM_VERSION
+
+
 def _vlm_model_choice_label(version):
     version = _vlm_resolve_version(version)
     status = VLM.get_version_status(version)
-    return f'{status["icon"]} {version}'
+    label = _vlm_custom_model_choice_name() if version == VLM.CUSTOM_VERSION else version
+    return f'{status["icon"]} {label}'
 
 
 def _vlm_model_choices():
-    return [_vlm_model_choice_label(version) for version in VLM.VERSIONS.keys()] + [_vlm_model_choice_label(VLM.CUSTOM_VERSION)]
+    return [(_vlm_model_choice_label(version), version) for version in VLM.VERSIONS.keys()] + [(_vlm_model_choice_label(VLM.CUSTOM_VERSION), VLM.CUSTOM_VERSION)]
 
 
 def _vlm_model_status_html(version):
@@ -6102,7 +6109,7 @@ with shared.gradio_root:
                                     with gr.Row(visible=True, elem_id='describe_vlm_model_bar') as vlm_describe_col:
                                         describe_vlm_model = gr.Dropdown(
                                             choices=_vlm_model_choices(),
-                                            value=_vlm_model_choice_label(VLM.current_version),
+                                            value=_vlm_resolve_version(VLM.current_version),
                                             show_label=False,
                                             container=False,
                                             interactive=True,
@@ -7274,7 +7281,7 @@ with shared.gradio_root:
                     )
 
                 def _describe_vlm_dropdown_update(version):
-                    return dropdown_update(choices=_vlm_model_choices(), value=_vlm_model_choice_label(version))
+                    return dropdown_update(choices=_vlm_model_choices(), value=_vlm_resolve_version(version))
 
                 def load_main_vlm_user_settings(state, request: gr.Request):
                     state = _main_vlm_state_from_request(state, request)
