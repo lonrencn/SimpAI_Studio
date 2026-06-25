@@ -396,7 +396,7 @@
   },
   "499": {
     "inputs": {
-      "lora_name": "ltx\\gemma-3-12b-it-abliterated_heretic_lora_rank64_bf16.safetensors",
+      "lora_name": "ltx/gemma-3-12b-it-abliterated_heretic_lora_rank64_bf16.safetensors",
       "strength_model": 1,
       "strength_clip": 1,
       "model": [

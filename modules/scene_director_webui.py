@@ -30,7 +30,7 @@ SCENE_DIRECTOR_DEFAULT_ROWS = [
 ]
 SCENE_DIRECTOR_MEDIA_RULES = "0 image = Text-to-Video | 1 image = Image-to-Video / first frame | 2 images = First/last frame | 3-5 images = Reference set | audio_1-5 / video_1-5 = media refs | previous_segment = previous shot result"
 SCENE_DIRECTOR_README_LABEL = "Director README"
-SCENE_DIRECTOR_README_PATH = os.path.join("docs", "director-workspace", "README.md")
+SCENE_DIRECTOR_README_PATH = os.path.join("docs", "director-workspace", "README.html")
 SCENE_DIRECTOR_IMAGE_SLOTS = [
     ("image_1", "Director image 1"),
     ("image_2", "Director image 2"),
@@ -370,7 +370,7 @@ def _scene_director_media_state_json(groups):
 
 
 def _scene_director_static_file_url(path):
-    web_path = os.path.abspath(path).replace(os.sep, "/")
+    web_path = path.replace(os.sep, "/").lstrip("/")
     return f"/file={quote(web_path, safe=':/')}"
 
 

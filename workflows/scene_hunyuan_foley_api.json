@@ -15,7 +15,7 @@
   },
   "12": {
     "inputs": {
-      "vae_name": "hunyuan_foley\\vae_128d_48k.pth"
+      "vae_name": "hunyuan_foley/vae_128d_48k.pth"
     },
     "class_type": "LoadDACHunyuanVAE",
     "_meta": {

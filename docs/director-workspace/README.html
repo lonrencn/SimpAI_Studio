@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>导演工作台说明</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --card: #0f3460;
+    --accent: #e94560;
+    --text: #eee;
+    --text-dim: #aab;
+    --border: #233;
+    --green: #4ecca3;
+    --orange: #f0a500;
+    --blue: #4fc3f7;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #0f3460 0%, #16213e 50%, #1a1a2e 100%);
+    padding: 48px 24px 36px;
+    text-align: center;
+    border-bottom: 3px solid var(--accent);
+  }
+  .hero h1 {
+    font-size: 2em;
+    margin-bottom: 8px;
+    background: linear-gradient(90deg, var(--accent), var(--orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero p {
+    color: var(--text-dim);
+    font-size: 1em;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  /* ── Layout ── */
+  .container {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+  }
+
+  /* ── Section ── */
+  section {
+    margin-bottom: 36px;
+    scroll-margin-top: 20px;
+  }
+  h2 {
+    font-size: 1.35em;
+    color: var(--blue);
+    margin-bottom: 14px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h2 .icon { font-size: 1.1em; }
+  h3 {
+    font-size: 1.1em;
+    color: var(--orange);
+    margin: 20px 0 10px;
+  }
+  p { margin-bottom: 10px; color: var(--text); }
+  ul, ol { margin: 8px 0 12px 20px; }
+  li { margin-bottom: 4px; }
+
+  /* ── Table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 18px;
+    font-size: 0.9em;
+    background: var(--surface);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  thead {
+    background: var(--card);
+  }
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    color: var(--accent);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  td {
+    padding: 9px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+  }
+  tbody tr:hover { background: rgba(233,69,96,0.06); }
+
+  /* ── Code ── */
+  code {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    background: var(--code-bg);
+    color: var(--green);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    overflow-x: auto;
+    margin: 10px 0 16px;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: var(--text-dim);
+    font-size: 0.85em;
+  }
+
+  /* ── Callout ── */
+  .callout {
+    background: var(--surface);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 14px 0;
+  }
+  .callout.green  { border-left-color: var(--green); }
+  .callout.orange { border-left-color: var(--orange); }
+  .callout.blue   { border-left-color: var(--blue); }
+  .callout-title {
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .callout.green  .callout-title { color: var(--green); }
+  .callout.orange .callout-title { color: var(--orange); }
+  .callout.blue   .callout-title { color: var(--blue); }
+  .callout p, .callout li { color: var(--text-dim); }
+  .callout ul { margin-top: 4px; }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+    vertical-align: middle;
+  }
+  .badge.req    { background: rgba(233,69,96,0.18);  color: var(--accent); }
+  .badge.opt    { background: rgba(78,204,163,0.18); color: var(--green); }
+  .badge.forbid { background: rgba(170,170,187,0.18);color: var(--text-dim); }
+
+  /* ── Tag list ── */
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .tag {
+    background: var(--card);
+    color: var(--blue);
+    padding: 3px 12px;
+    border-radius: 4px;
+    font-size: 0.82em;
+    font-family: monospace;
+  }
+
+  /* ── Nav ── */
+  .nav {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    z-index: 10;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .nav a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.85em;
+    margin-right: 18px;
+    transition: color .2s;
+  }
+  .nav a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>🎬 导演工作台</h1>
+  <p>视频 Preset 分镜编排面板 —— 编辑分镜、管理素材、合成时间线。本文档面向维护者，说明当前实现与验证要点。</p>
+</div>
+
+<nav class="nav">
+  <a href="#positioning">定位</a>
+  <a href="#ui-structure">界面结构</a>
+  <a href="#i18n">上传区语言</a>
+  <a href="#media-pool">素材池</a>
+  <a href="#shot-rules">分镜规则</a>
+  <a href="#capabilities">Preset 能力字段</a>
+  <a href="#presets">代表性 Preset</a>
+  <a href="#generation">生成行为</a>
+  <a href="#canvas">无限画布</a>
+  <a href="#validation">上线验证</a>
+</nav>
+
+<div class="container">
+
+<!-- ════════ 定位 ════════ -->
+<section id="positioning">
+<h2><span class="icon">📌</span> 当前定位</h2>
+
+<p><code>导演工作台</code> 是视频 Preset 的分镜编排面板，与 <code>高级参数</code> 同级显示，不属于右侧窄参数区或某个 Preset 的普通参数组。</p>
+
+<div class="callout green">
+  <span class="callout-title">✅ 负责</span>
+  <ul>
+    <li>编辑多个分镜的开始、结束、提示词、图片/音频/视频引用</li>
+    <li>把分镜转换成 <code>prompt_override</code> 和 <code>director_timeline</code></li>
+    <li>按 <code>director_capability</code> 限制素材类型、时长和串联方式</li>
+    <li>逐分镜调用当前视频 Preset</li>
+    <li>开启 <code>Compose timeline</code> 时合成最终视频</li>
+  </ul>
+</div>
+
+<div class="callout">
+  <span class="callout-title">🚫 不负责</span>
+  <ul>
+    <li>替代 Preset 自己的模型参数</li>
+    <li>替代 SAM3 蒙版、局部重绘、视频擦除等额外交互</li>
+    <li>强制所有视频 Preset 支持导演模式</li>
+  </ul>
+</div>
+</section>
+
+<!-- ════════ 界面结构 ════════ -->
+<section id="ui-structure">
+<h2><span class="icon">🖥️</span> WebUI 可见结构</h2>
+
+<p>展开 <code>导演工作台</code> 后，界面分为四块：</p>
+
+<table>
+  <thead><tr><th>区域</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><strong>顶部控制</strong></td><td><code>Director mode</code>、<code>Compose timeline</code></td></tr>
+    <tr><td><strong>素材区</strong></td><td>图片 1–5、音频 1–5、视频 1–5</td></tr>
+    <tr><td><strong>右侧栏</strong></td><td>合成宽度/高度/FPS、时间轴范围、素材规则说明、README 链接</td></tr>
+    <tr><td><strong>分镜区</strong></td><td>分镜编辑器、图片引用按钮、音频/视频下拉、prompt 预览</td></tr>
+  </tbody>
+</table>
+
+<h3>宽屏布局</h3>
+<ul>
+  <li>左侧素材区，右侧整体侧栏（合成参数 + 规则说明紧密排列）</li>
+  <li>分镜编辑器在素材区下方横向展开</li>
+</ul>
+
+<h3>窄屏布局</h3>
+<ul>
+  <li>顺序：顶部控制 → 素材区 → 右侧栏 → 分镜区 → prompt 预览</li>
+  <li>不依赖浏览器 viewport 宽度，按导演台内容容器宽度响应</li>
+</ul>
+</section>
+
+<!-- ════════ 上传区语言 ════════ -->
+<section id="i18n">
+<h2><span class="icon">🌐</span> 上传区语言</h2>
+
+<p>上传区固定文案由 <code>javascript/scene_director.js</code> 按当前语言刷新：</p>
+
+<div class="tags">
+  <span class="tag">Images / 图片</span>
+  <span class="tag">Audio / 音频</span>
+  <span class="tag">Video / 视频</span>
+  <span class="tag">Click or drop / 点击或拖入</span>
+  <span class="tag">Clear / 清除</span>
+  <span class="tag">Director README / 导演台说明</span>
+</div>
+
+<h3>语言来源优先级</h3>
+<ol>
+  <li><code>window.SimpAII18n.isEnglishUi(...)</code></li>
+  <li><code>window.simpleaiTopbarSystemParams.__lang</code></li>
+  <li><code>locale_lang</code></li>
+</ol>
+
+<div class="callout orange">
+  <span class="callout-title">⚠️ 注意</span>
+  <p>Gradio 上传音频/视频后会重新替换素材区 HTML，固定文案不能只在初始化时翻译。<br>
+  <code>sceneDirectorRenderMediaPreview()</code> 和 <code>sceneDirectorRenderRules()</code> 必须在<strong>每次刷新</strong>时重新写入当前语言。</p>
+</div>
+
+<div class="callout blue">
+  <span class="callout-title">💡 标记约定</span>
+  <p>Python 生成的固定 HTML 文案要保留 <code>data-original-text</code> 或 <code>data-scene-director-*</code> 标记，方便前端识别原始英文 key。</p>
+</div>
+</section>
+
+<!-- ════════ 素材池 ════════ -->
+<section id="media-pool">
+<h2><span class="icon">🎞️</span> 素材池</h2>
+
+<p>导演台共有 <strong>15 个素材位</strong>，与页面上方的 <code>scene_canvas_image</code>、<code>scene_input_image*</code>、<code>scene_audio</code>、<code>scene_video</code> 输入是分开的。导演模式生成时，当前分镜选中的素材会被映射到后端实际输入。</p>
+
+<table>
+  <thead><tr><th>类型</th><th>引用名</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><strong>图片</strong></td><td><code>image_1</code> ~ <code>image_5</code></td><td>自绘拖入区，写入导演台自己的素材状态</td></tr>
+    <tr><td><strong>音频</strong></td><td><code>audio_1</code> ~ <code>audio_5</code></td><td>通过隐藏 Gradio File 组件上传，再显示为卡片</td></tr>
+    <tr><td><strong>视频</strong></td><td><code>video_1</code> ~ <code>video_5</code></td><td>通过隐藏 Gradio File 组件上传，显示缩略图</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <span class="callout-title">📋 当前策略</span>
+  <ul>
+    <li>Preset 不支持的素材类型，区域仍显示但上传/拖拽/引用选择<strong>禁用</strong></li>
+    <li>导演台草稿按 Preset 分开保存；切换 Preset 加载对应草稿，不保证复用素材池</li>
+    <li>已存在但当前 Preset 不允许的分镜引用会在前端和后端参数构建时<strong>自动清理</strong></li>
+  </ul>
+</div>
+</section>
+
+<!-- ════════ 分镜规则 ════════ -->
+<section id="shot-rules">
+<h2><span class="icon">🎬</span> 分镜规则</h2>
+
+<h3>图片数量 → 分镜形态</h3>
+<table>
+  <thead><tr><th>图片数量</th><th>形态</th><th>输出</th></tr></thead>
+  <tbody>
+    <tr><td><strong>0</strong></td><td>Text-to-Video</td><td>不写 <code>@image</code></td></tr>
+    <tr><td><strong>1</strong></td><td>Image-to-Video / first frame</td><td>写入 1 个图片引用</td></tr>
+    <tr><td><strong>2</strong></td><td>First / last frame</td><td>写入首帧 + 尾帧</td></tr>
+    <tr><td><strong>3–5</strong></td><td>Reference set</td><td>写入参考图组</td></tr>
+  </tbody>
+</table>
+
+<h3>音频和视频规则</h3>
+<ul>
+  <li>每个分镜最多选择 <strong>1 个音频引用</strong> + <strong>1 个视频引用</strong></li>
+  <li>支持串联的 Preset 可选 <code>previous_segment</code>（上一段结果）</li>
+  <li>是否允许由 <code>director_capability</code> 决定</li>
+</ul>
+
+<h3>分镜时长</h3>
+<ul>
+  <li>生成时长 = <code>结束 - 开始</code></li>
+  <li>默认写入 <code>scene_video_duration</code></li>
+  <li>Preset 可通过 <code>segment_duration_param</code> 改写目标参数名</li>
+  <li><code>video_duration_min/max</code> 优先于旧 <code>var_number_min/max</code></li>
+</ul>
+</section>
+
+<!-- ════════ 能力字段 ════════ -->
+<section id="capabilities">
+<h2><span class="icon">⚙️</span> Preset 能力字段</h2>
+
+<table>
+  <thead><tr><th>字段</th><th>常见值</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><code>director_supported</code></td><td><span class="badge opt">true</span> / <span class="badge forbid">false</span></td><td>是否允许导演台生成</td></tr>
+    <tr><td><code>image_policy</code></td><td><span class="badge opt">optional</span> <span class="badge req">required</span> <span class="badge forbid">forbidden</span></td><td>图片引用策略</td></tr>
+    <tr><td><code>audio_policy</code></td><td><span class="badge opt">optional</span> <span class="badge req">required</span> <span class="badge forbid">forbidden</span></td><td>音频引用策略</td></tr>
+    <tr><td><code>video_policy</code></td><td><span class="badge opt">optional</span> <span class="badge req">required</span> <span class="badge forbid">forbidden</span></td><td>视频引用策略</td></tr>
+    <tr><td><code>min_images / max_images</code></td><td>0 ~ 5</td><td>单分镜可选图片数量</td></tr>
+    <tr><td><code>image_modes</code></td><td>none / first_frame / first_last / reference_set</td><td>图片形态</td></tr>
+    <tr><td><code>video_modes</code></td><td>none / explicit / previous_segment</td><td>视频引用形态</td></tr>
+    <tr><td><code>timeline_format</code></td><td>Wan / LTXV …</td><td>prompt/timeline 格式</td></tr>
+    <tr><td><code>chain_output</code></td><td>timeline / last_result</td><td>最终输出策略</td></tr>
+    <tr><td><code>requires_sequential</code></td><td><span class="badge opt">true</span> / <span class="badge forbid">false</span></td><td>是否必须按顺序生成</td></tr>
+    <tr><td><code>duration_strategy</code></td><td>shot / audio_min / video_min</td><td>单分镜时长策略</td></tr>
+    <tr><td><code>audio_output</code></td><td>silent / generated / input_audio / source_audio</td><td>最终音频来源</td></tr>
+    <tr><td><code>segment_duration_param</code></td><td>scene_video_duration …</td><td>分镜时长写入参数</td></tr>
+    <tr><td><code>min/max_segment_duration</code></td><td>秒</td><td>单分镜时长范围</td></tr>
+  </tbody>
+</table>
+
+<div class="callout orange">
+  <span class="callout-title">⚠️ 已废弃</span>
+  <p>旧字段 <code>segment_duration_mode</code> / <code>duration_mode</code> 不再维护。</p>
+</div>
+</section>
+
+<!-- ════════ 代表性 Preset ════════ -->
+<section id="presets">
+<h2><span class="icon">🏆</span> 代表性 Preset</h2>
+
+<table>
+  <thead><tr><th>Preset</th><th>能力概述</th></tr></thead>
+  <tbody>
+    <tr><td><code>Wan(T2V)</code></td><td>纯文本分镜，不使用任何素材引用</td></tr>
+    <tr><td><code>Wan(I2V)</code></td><td><span class="badge req">图片必需</span> 最多 2 张，1 张首帧 / 2 张首尾帧</td></tr>
+    <tr><td><code>Wan-Extent</code></td><td><span class="badge req">视频必需</span> 允许 <code>previous_segment</code></td></tr>
+    <tr><td><code>LTX2.3(T2V)</code></td><td>纯文本到视频，不接受素材引用</td></tr>
+    <tr><td><code>LTX2.3(TA2V)</code></td><td><span class="badge req">音频必需</span> 文本+音频到视频</td></tr>
+    <tr><td><code>LTX2.3(I2V)</code></td><td><span class="badge req">图片必需</span> 支持首帧/首尾帧</td></tr>
+    <tr><td><code>LTX2.3(IA2V)</code></td><td><span class="badge req">图片+音频必需</span></td></tr>
+    <tr><td><code>InfiniteTalk</code></td><td><span class="badge req">音频必需</span> 导演台校验音频素材</td></tr>
+    <tr><td><code>Wan-Animate / Wan-Remover</code></td><td><span class="badge forbid">当前不开放导演台</span></td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ════════ 生成行为 ════════ -->
+<section id="generation">
+<h2><span class="icon">⚡</span> 生成行为</h2>
+
+<h3><span class="badge forbid">Director mode OFF</span></h3>
+<div class="callout">
+  <ul>
+    <li>不写 <code>director_timeline</code>，不写 <code>prompt_override</code></li>
+    <li>当前 Preset 按普通模式生成</li>
+  </ul>
+</div>
+
+<h3><span class="badge opt">Director mode ON</span></h3>
+<div class="callout green">
+  <ul>
+    <li>前端把分镜写入隐藏 <code>scene_director_editor_state</code></li>
+    <li>Python 侧构建 runtime，校验素材、图片数量、音频/视频必需项、时长范围</li>
+    <li>逐分镜构建后端参数，映射媒体引用到后端输入</li>
+    <li>分镜文本写入 <code>prompt_override</code> 和 <code>director_prompt_override</code></li>
+  </ul>
+</div>
+
+<h3><span class="badge req">Compose timeline ON</span></h3>
+<div class="callout orange">
+  <ul>
+    <li>分镜生成完成后，使用生成结果 + 音频策略 + 合成宽高/FPS 渲染最终时间线视频</li>
+    <li><code>Compose width/height/FPS</code> 只影响最终合成，不改变单分镜模型参数</li>
+    <li><code>Timeline range</code> 只影响预览轴和编排范围</li>
+  </ul>
+</div>
+</section>
+
+<!-- ════════ 无限画布 ════════ -->
+<section id="canvas">
+<h2><span class="icon">🎨</span> Infinite Canvas</h2>
+
+<p>无限画布的 <code>Director Timeline</code> 节点和 WebUI 导演台共用同一套能力声明，但交互方式不同：</p>
+
+<table>
+  <thead><tr><th>场景</th><th>适合</th></tr></thead>
+  <tbody>
+    <tr><td>主界面快速分镜生成</td><td><strong>WebUI 导演台</strong></td></tr>
+    <tr><td>模板化、多节点编排、Result 节点串联、最终合成测试</td><td><strong>Infinite Canvas</strong></td></tr>
+  </tbody>
+</table>
+
+<h3>导演节点布局演进</h3>
+
+<div class="callout blue">
+  <span class="callout-title">2026-06-22 布局重构</span>
+  <ul>
+    <li>节点默认尺寸 <code>880×620</code>，内容放入内部滚动区</li>
+    <li>15 条竖排入口 → 三组素材池（图片/音频/视频），每组一个分组连接点</li>
+    <li>分镜编辑区改为两列网格，提示词单独占整行</li>
+    <li>概览态/缩小态只显示 3 个素材池入口</li>
+  </ul>
+</div>
+
+<div class="callout blue">
+  <span class="callout-title">2026-06-23 秒制时间线</span>
+  <ul>
+    <li>节点默认尺寸 <code>1180×980</code>，滚动范围仅限多分镜列表</li>
+    <li>分镜时间统一按秒传输，<code>prompt_override</code> 范围写成 <code>[start-ends]</code></li>
+    <li>时间线预览支持分镜条拖动：拖整条移动，拖边缘调整起止秒数</li>
+    <li>单视频轨设计，音频引用和提示词在分镜卡片中展示</li>
+  </ul>
+</div>
+
+<div class="callout green">
+  <span class="callout-title">2026-06-23 交互约束</span>
+  <ul>
+    <li>时间线拖动受前后分镜边界限制，不允许覆盖相邻分镜</li>
+    <li>手动修改秒数时同样按边界重新限制</li>
+    <li>画布全局滚轮事件放行节点内可滚动区域，多分镜列表可滚轮浏览</li>
+  </ul>
+</div>
+</section>
+
+<!-- ════════ 上线验证 ════════ -->
+<section id="validation">
+<h2><span class="icon">✅</span> 上线前验证</h2>
+
+<h3>常用命令</h3>
+<pre><code>node --check javascript\scene_director.js
+node --check javascript\topbar.js
+..\python_embeded\python.exe -m py_compile webui.py modules\scene_director_webui.py
+..\python_embeded\python.exe -m pytest tests\test_scene_director_webui_contract.py -q
+
+node tools\director_release_matrix_webui.mjs
+node tools\director_generation_canary.mjs
+node tools\director_canvas_layout_smoke.mjs</code></pre>
+
+<h3>手动检查清单</h3>
+<div class="callout green">
+  <span class="callout-title">✓ 语言</span>
+  <ul>
+    <li>中文界面下上传区不出现 <code>Images</code>、<code>Audio</code>、<code>Video</code>、<code>Click or drop</code></li>
+    <li>英文界面下显示英文</li>
+    <li>上传音频/视频后，标题和提示不会回到另一种语言</li>
+    <li>右侧规则说明跟随语言切换</li>
+  </ul>
+</div>
+
+<div class="callout green">
+  <span class="callout-title">✓ Preset 能力</span>
+  <ul>
+    <li><code>Wan(T2V)</code> 不允许选择图片、音频、视频引用</li>
+    <li><code>Wan(I2V)</code> 最多选择 2 张图片</li>
+    <li><code>LTX2.3</code> 单分镜时长范围来自 Preset 声明</li>
+    <li><code>previous_segment</code> 只在支持的 Preset 中可选</li>
+    <li>不支持音频/视频时，素材区仍显示但入口禁用</li>
+  </ul>
+</div>
+
+<h3>生成失败排查</h3>
+<table>
+  <thead><tr><th>类别</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>模型缺失</td><td>检查 <code>models</code> 目录</td></tr>
+    <tr><td>Comfy workflow 节点报错</td><td>查看 ComfyUI 日志</td></tr>
+    <tr><td>Preset 能力声明不准确</td><td>检查 <code>director_capability</code> 字段</td></tr>
+    <tr><td>WebUI 分镜参数构建错误</td><td>检查 <code>scene_director_webui.py</code></td></tr>
+    <tr><td>时间线合成阶段错误</td><td>检查合成逻辑和 <code>chain_output</code></td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ════════ 维护注意 ════════ -->
+<section>
+<h2><span class="icon">🔧</span> 维护注意</h2>
+<div class="callout orange">
+  <ul>
+    <li>固定文案统一放在 <code>javascript/scene_director.js</code> 的 <code>SCENE_DIRECTOR_TEXT</code></li>
+    <li>Python 输出的 HTML 固定文案要加 <code>data-original-text</code> 或 <code>data-scene-director-*</code> 标记</li>
+    <li>右侧栏由 <code>#scene_director_side_panel</code> 承载，不要把规则说明放回独立 grid 行</li>
+    <li>媒体区域禁止交互时保持<strong>可见</strong>，避免用户误以为上传区消失</li>
+    <li>capability 字段变更后，同步检查 Preset JSON、WebUI、Infinite Canvas、release matrix 和 contract 测试</li>
+  </ul>
+</div>
+
+<h3>相关文件</h3>
+<table>
+  <thead><tr><th>用途</th><th>文件</th></tr></thead>
+  <tbody>
+    <tr><td>WebUI 入口</td><td><code>webui.py</code></td></tr>
+    <tr><td>WebUI 后端逻辑</td><td><code>modules/scene_director_webui.py</code></td></tr>
+    <tr><td>前端交互</td><td><code>javascript/scene_director.js</code></td></tr>
+    <tr><td>样式</td><td><code>css/style.css</code></td></tr>
+    <tr><td>Canvas 导演节点</td><td><code>javascript/canvas_workbench/nodes/director_timeline_node.js</code></td></tr>
+    <tr><td>Contract 测试</td><td><code>tests/test_scene_director_webui_contract.py</code></td></tr>
+  </tbody>
+</table>
+</section>
+
+</div>
+</body>
+</html>
