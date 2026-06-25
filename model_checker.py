@@ -27,11 +27,12 @@ CURRENT_DOWNLOAD_SOURCE = DOWNLOAD_SOURCE
 CURRENT_DOWNLOAD_PREFIX = DEFAULT_DOWNLOAD_PREFIX if CURRENT_DOWNLOAD_SOURCE == "modelscope" else HF_DOWNLOAD_PREFIX
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(script_dir)
 if current_process().name != "MainProcess":
-    root_dir = os.path.dirname(os.path.dirname(root_dir))
+    root_dir = os.path.dirname(os.path.dirname(script_dir))
 elif platform.system() == 'Windows':
-    root_dir = os.path.dirname(root_dir)
+    root_dir = os.path.dirname(os.path.dirname(script_dir))
+else:
+    root_dir = script_dir
 
 def ensure_directory_exists(directory):
     """确保目录存在，如果不存在则创建"""

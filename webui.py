@@ -10182,10 +10182,13 @@ if is_local_mode():
     if not args_manager.args.port:
         args_manager.args.port = 8186
 else:
+    import sys as _sys
     is_listen_invalid = (
-        current_listen is None or
-        current_listen == "0.0.0.0" or
-        simpleai.is_fake_or_suspicious_ip(current_listen)
+        '--listen' not in _sys.argv and (
+            current_listen is None or
+            current_listen == "0.0.0.0" or
+            simpleai.is_fake_or_suspicious_ip(current_listen)
+        )
     )
 
     if is_listen_invalid:
