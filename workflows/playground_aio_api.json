@@ -1,0 +1,192 @@
+{
+  "4": {
+    "inputs": {
+      "ckpt_name": "playground-v2.5-1024px-aesthetic.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "10": {
+    "inputs": {
+      "sampling": "edm_playground_v2.5",
+      "sigma_max": 120.0,
+      "sigma_min": 0.002,
+      "model": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingContinuousEDM",
+    "_meta": {
+      "title": "ModelSamplingContinuousEDM (Playground)"
+    }
+  },
+  "417": {
+    "inputs": {
+      "seed": 0
+    },
+    "class_type": "SeedInput",
+    "_meta": {
+      "title": "SeedInput"
+    }
+  },
+  "728": {
+    "inputs": {
+      "prompt": "",
+      "negative_prompt": "",
+      "width": 1024,
+      "height": 1024,
+      "cfg": 4.0,
+      "steps": 20,
+      "refiner_step": 999,
+      "sampler": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "clip_skip": -1,
+      "inpaint_disable_initial_latent": false,
+      "wavespeed_strength": 0,
+      "save_final_enhanced_image_only": false
+    },
+    "class_type": "GeneralInput",
+    "_meta": {
+      "title": "GeneralInput"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": [
+        "728",
+        0
+      ],
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": [
+        "728",
+        1
+      ],
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "5": {
+    "inputs": {
+      "width": [
+        "728",
+        2
+      ],
+      "height": [
+        "728",
+        3
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "EmptyLatentImage"
+    }
+  },
+  "3": {
+    "inputs": {
+      "seed": [
+        "417",
+        0
+      ],
+      "steps": [
+        "728",
+        5
+      ],
+      "cfg": [
+        "728",
+        4
+      ],
+      "sampler_name": [
+        "728",
+        7
+      ],
+      "scheduler": [
+        "728",
+        8
+      ],
+      "denoise": 1.0,
+      "model": [
+        "10",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAEDecode"
+    }
+  },
+  "381": {
+    "inputs": {
+      "images": [
+        "8",
+        0
+      ],
+      "format": "JPEG"
+    },
+    "class_type": "SaveImageWebsocketLazy",
+    "_meta": {
+      "title": "SaveImageWebsocketLazy"
+    }
+  },
+  "348": {
+    "inputs": {
+      "images": [
+        "381",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "PreviewImage"
+    }
+  }
+}
