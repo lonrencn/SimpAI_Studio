@@ -93,7 +93,7 @@
         "controlnet,depth-anything/Depth-Anything-V2-Large/depth_anything_v2_vitl.pth,1341395338,0,",
         "controlnet,lllyasviel/Annotators/sk_model.pth,17173511,0,",
         "controlnet,lllyasviel/Annotators/sk_model2.pth,17173511,0,",
-        "clip_vision,clip_vision_h.safetensors,1264219396,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/clip_vision/clip_vision_h.safetensors",
+        "clip_vision,clip_vision_h.safetensors,1264219396,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/clip_vision/clip_vision_h",
         "ipadapter,ip-adapter-plus_sdxl_vit-h.bin,1013454427,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/controlnet/ip-adapter-plus_sdxl_vit-h.bin"
     ]
 }

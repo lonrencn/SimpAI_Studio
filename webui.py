@@ -10192,12 +10192,9 @@ if is_local_mode():
         args_manager.args.port = 8186
 else:
     is_listen_invalid = (
-        not listen_was_explicit
-        and (
-            current_listen is None
-            or current_listen == "0.0.0.0"
-            or simpleai.is_fake_or_suspicious_ip(current_listen)
-        )
+        current_listen is None or
+        current_listen == "0.0.0.0" or
+        simpleai.is_fake_or_suspicious_ip(current_listen)
     )
 
     if is_listen_invalid:
@@ -10576,30 +10573,6 @@ async def model_browser_update_trigger_words_endpoint(payload: dict = Body(...))
         traceback.print_exc()
         return JSONResponse({"ok": False, "error": "Model Browser Trigger Words Error", "details": str(e)}, status_code=500)
 
-@app.post("/model-browser/inspect-arch")
-async def model_browser_inspect_arch_endpoint(payload: dict = Body(...)):
-    try:
-        if not isinstance(payload, dict):
-            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
-        result = await run_in_threadpool(lambda: model_browser_service.inspect_arch_family(payload))
-        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse({"ok": False, "error": "Model Browser Architecture Inspect Error", "details": str(e)}, status_code=500)
-
-@app.post("/model-browser/update-arch-family")
-async def model_browser_update_arch_family_endpoint(payload: dict = Body(...)):
-    try:
-        if not isinstance(payload, dict):
-            return JSONResponse({"ok": False, "error": "Bad Request", "details": "Payload must be an object."}, status_code=400)
-        result = await run_in_threadpool(lambda: model_browser_service.update_arch_family(payload))
-        return JSONResponse(result, status_code=200 if result.get("ok") else 400)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse({"ok": False, "error": "Model Browser Architecture Save Error", "details": str(e)}, status_code=500)
-
 @app.post("/model-browser/compute-hash")
 async def model_browser_compute_hash_endpoint(payload: dict = Body(...)):
     try:
@@ -10962,8 +10935,7 @@ async def canvas_agent_danbooru_tags_lookup(payload: dict = Body(...)):
         matches = canvas_danbooru_service._canvas_lookup_danbooru_tags(query, limit=limit, source_mode=tag_source_mode)
         matches = canvas_danbooru_service._canvas_merge_character_candidates_into_matches(matches, character_resolution, limit=limit)
         text = canvas_danbooru_service._canvas_danbooru_lookup_text(query, model_hint=model_hint, preset_defaults=preset_defaults, limit=limit, source_mode=tag_source_mode)
-        runtime_status = canvas_danbooru_service._canvas_danbooru_fast_runtime_status()
-        return JSONResponse({"ok": True, "matches": matches, "text": text, "tag_source": tag_source_mode, "character_resolution": character_resolution, "runtime_status": runtime_status})
+        return JSONResponse({"ok": True, "matches": matches, "text": text, "tag_source": tag_source_mode, "character_resolution": character_resolution})
     except Exception as e:
         logger.exception("Danbooru tag lookup failed")
         return JSONResponse({"ok": False, "error": "Danbooru Tag Lookup Error", "details": str(e)}, status_code=500)
@@ -10977,8 +10949,7 @@ async def canvas_workbench_danbooru_autocomplete(payload: dict = Body(...)):
         tag_source_mode = canvas_danbooru_service._canvas_danbooru_tag_source_mode(payload.get("tag_source") or payload.get("tag_source_mode") or "all")
         limit = max(1, min(int(payload.get("limit") or 32), 80))
         items = canvas_danbooru_service._canvas_autocomplete_danbooru_tags(query, limit=limit, source_mode=tag_source_mode)
-        runtime_status = canvas_danbooru_service._canvas_danbooru_fast_runtime_status()
-        return JSONResponse({"ok": True, "items": items, "query": query, "tag_source": tag_source_mode, "runtime_status": runtime_status})
+        return JSONResponse({"ok": True, "items": items, "query": query, "tag_source": tag_source_mode})
     except Exception as e:
         logger.exception("Danbooru autocomplete failed")
         return JSONResponse({"ok": False, "error": "Danbooru Autocomplete Error", "details": str(e)}, status_code=500)

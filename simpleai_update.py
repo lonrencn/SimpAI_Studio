@@ -325,7 +325,7 @@ def ensure_git_ready() -> bool:
 def can_use_git(*, verbose: bool) -> bool:
     if not git_available():
         if verbose:
-            print("没有找到 git。")
+            print("没有找到 git.exe。")
         return False
     if not has_git_repo():
         if verbose:
