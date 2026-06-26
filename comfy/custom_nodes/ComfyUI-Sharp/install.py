@@ -1,2 +1,5 @@
-from comfy_env import install
-install()
+try:
+    from comfy_env import install
+    install()
+except ImportError:
+    pass

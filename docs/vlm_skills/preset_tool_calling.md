@@ -34,8 +34,8 @@ be found, explain that the user should select or create the preset first.
 After resolving a preset, write the final prompt for that preset's actual text
 encoder. See `image_prompting.md` for the full rules.
 
-- `Z-imageT`, `Z-image`, and `qwen*` text encoders: natural language; Chinese is
-  preferred for Chinese requests.
+- `Z-imageT`, `Z-image`, `Krea2-Turbo`, `krea2`, and `qwen*` text encoders:
+  natural language; Chinese is preferred for Chinese requests.
 - `Wan`, `wan*_cn`, and `umt5-xxl`: natural language with motion and camera
   continuity for video tasks.
 - `FLUX.1`, `flux_aio`, and `t5xxl`: English natural language only. Translate

@@ -1937,6 +1937,8 @@ def _canvas_natural_action_protocol_language_rule(target_key):
     key = str(target_key or "").strip().lower()
     if key == "flux_t5_en" or "flux" in key or "t5" in key or key.endswith("_en"):
         return "For FLUX/T5 targets, prompt and draft_prompt must be fluent English only; translate Chinese user intent into English."
+    if "krea" in key:
+        return "For Krea2 targets, use coherent natural-language prompts and preserve the user's language."
     if key == "wan_video_cn" or "wan" in key or "umt5" in key or "video" in key:
         return "For Wan/video targets, use Chinese for Chinese requests and include visible motion, camera movement, continuity, and stable subject details."
     return "For Qwen/natural targets, preserve the user's language; Chinese requests should become coherent Chinese natural-language prompts."
@@ -4703,6 +4705,8 @@ def _canvas_natural_prompt_language(target_key, *texts):
     combined = "\n".join(str(text or "") for text in texts if str(text or "").strip())
     if re.search(r"[\u3400-\u9fff]", combined):
         return "zh"
+    if "krea" in key:
+        return "en"
     if key == "wan_video_cn" or key.endswith("_cn") or "qwen" in key or "wan" in key or "umt5" in key:
         return "zh"
     return "en"
@@ -5505,6 +5509,8 @@ CANVAS_ANIMA_RATING_TAGS = {"safe", "sensitive", "nsfw", "explicit"}
 CANVAS_ANIMA_PERIOD_TAGS = {"newest", "recent", "mid", "early", "old"}
 CANVAS_ANIMA_ARTIST_BLOCKLIST = {"@anima", "@anima_(togashi)", "@anima_\\(togashi\\)"}
 CANVAS_NATURAL_PROMPT_TARGET_KEYS = {
+    "krea2",
+    "krea2_turbo",
     "qwen_natural",
     "flux_t5_en",
     "wan_video_cn",
@@ -5897,7 +5903,7 @@ def _canvas_is_natural_prompt_target_key(target_key):
     return (
         key in CANVAS_NATURAL_PROMPT_TARGET_KEYS
         or "natural" in key
-        or key.startswith(("qwen", "wan", "flux"))
+        or key.startswith(("qwen", "wan", "flux", "krea"))
         or "t5" in key
         or "umt5" in key
     )

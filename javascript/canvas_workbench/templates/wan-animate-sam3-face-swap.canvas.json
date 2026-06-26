@@ -478,16 +478,6 @@
             "max": 30
           },
           {
-            "key": "scene_var_number4",
-            "label": "Skip first N seconds of reference video",
-            "type": "number",
-            "default": 0,
-            "visible": true,
-            "interactive": true,
-            "min": 0,
-            "max": 60
-          },
-          {
             "key": "scene_var_number5",
             "label": "Motion reference strength",
             "type": "number",
@@ -584,7 +574,6 @@
               "scene_var_number": 0,
               "scene_var_number2": 30,
               "scene_var_number3": 16,
-              "scene_var_number4": 0,
               "scene_var_number5": 1,
               "scene_var_number6": 1,
               "scene_var_number7": 1,
@@ -610,7 +599,6 @@
               "scene_var_number": 0,
               "scene_var_number2": 30,
               "scene_var_number3": 16,
-              "scene_var_number4": 0,
               "scene_var_number5": 0.25,
               "scene_var_number6": 0.6,
               "scene_var_number7": 5,
@@ -636,7 +624,6 @@
               "scene_var_number": 0,
               "scene_var_number2": 30,
               "scene_var_number3": 16,
-              "scene_var_number4": 0,
               "scene_var_number5": 1,
               "scene_var_number6": 0.6,
               "scene_var_number7": 5,
@@ -821,7 +808,6 @@
         "image_seed": 0,
         "scene_var_number2": 30,
         "scene_var_number3": 16,
-        "scene_var_number4": 0,
         "scene_var_number5": 0.25,
         "scene_var_number6": 0.6,
         "scene_var_number7": 5,

@@ -51,6 +51,7 @@
                 "scene_var_number10",
                 "scene_var_number9",
                 "scene_var_number10",
+                "scene_var_number4",
                 "sam3_input_video",
                 "sam3_mask_video",
                 "scene_var_number"
@@ -83,13 +84,6 @@
             "var_number3": {
                 "Wan-Animate Face Swap": 16,
                 "Wan-Animate Motion Transfer": 16
-            },
-            "var_number4_title": "Skip first N seconds of reference video",
-            "var_number4_min": 0.0,
-            "var_number4_max": 60,
-            "var_number4": {
-                "Wan-Animate Face Swap": 0,
-                "Wan-Animate Motion Transfer": 0
             },
             "var_number5_min": 0,
             "var_number5_max": 2.0,

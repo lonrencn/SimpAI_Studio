@@ -7,6 +7,7 @@
   "files": [
     {
       "path": "bin/danbooru-tags.exe",
+      "platform": "windows",
       "bytes": 1268736,
       "sha256": "8a60db92c44b1ee1c081f3fc600ae4770bc7501b7c4440d24af231eb5a9e2364"
     },
@@ -26,5 +27,6 @@
       "sha256": "b7e47a1ac1f00869b3d4861cb49e536da09565f014c9f93674fd091b706a39b1"
     }
   ],
+  "linux_auto_build": "When bin/danbooru-tags is missing, source checkouts can build it from rust/danbooru-tags if Cargo is available.",
   "license": "Apache-2.0 first-party code"
 }

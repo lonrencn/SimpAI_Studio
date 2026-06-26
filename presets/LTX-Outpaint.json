@@ -46,6 +46,7 @@
                 "scene_refiner_model",
                 "scene_var_number5",
                 "scene_var_number6",
+                "scene_var_number4",
                 "sam3_input_video",
                 "sam3_mask_video",
                 "scene_var_number"
@@ -73,12 +74,6 @@
             "var_number3_max": 30.0,
             "var_number3": {
                 "LTX-Outpaint": 24.0
-            },
-            "var_number4_title": "Skip first N seconds of reference video",
-            "var_number4_min": 0.0,
-            "var_number4_max": 60,
-            "var_number4": {
-                "LTX-Outpaint": 0.0
             },
             "var_number7_min": 0,
             "var_number7_max": 50,

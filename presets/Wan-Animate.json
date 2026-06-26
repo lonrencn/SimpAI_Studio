@@ -35,6 +35,7 @@
                 "scene_refiner_model",
                 "scene_var_number9",
                 "scene_var_number10",
+                "scene_var_number4",
                 "scene_var_number"
             ],
             "task_method": {
@@ -75,14 +76,6 @@
                 "Wan-Animate-SAM3 Object Replacement": 16.0,
                 "Wan-Animate-SAM3 Face Swap": 16.0,
                 "Wan-Animate-SAM3 Person Replacement": 16.0
-            },
-            "var_number4_title": "Skip first N seconds of reference video",
-            "var_number4_min": 0.0,
-            "var_number4_max": 60,
-            "var_number4": {
-                "Wan-Animate-SAM3 Object Replacement": 0.0,
-                "Wan-Animate-SAM3 Face Swap": 0.0,
-                "Wan-Animate-SAM3 Person Replacement": 0.0
             },
             "var_number5_min": 0,
             "var_number5_max": 2.0,

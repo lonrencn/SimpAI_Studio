@@ -1427,6 +1427,31 @@ html.simpai-scene-director-mode-enabled #positive_prompt.scene-director-prompt-r
   display: none;
 }
 
+.sai-webui-danbooru-runtime-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 2147483647;
+  transform: translateX(-50%);
+  max-width: min(560px, calc(100vw - 24px));
+  padding: 9px 12px;
+  border-radius: 6px;
+  color: #ffffff;
+  background: #242424;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.24);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.sai-webui-danbooru-runtime-toast[data-level="warning"] {
+  background: #78350f;
+}
+
+.sai-webui-danbooru-runtime-toast[hidden] {
+  display: none;
+}
+
 .sai-webui-danbooru-autocomplete-item {
   display: grid;
   grid-template-columns: minmax(110px, 0.48fr) minmax(120px, 0.52fr);

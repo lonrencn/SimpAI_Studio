@@ -36,6 +36,7 @@
                 "scene_var_number8",
                 "scene_var_number9",
                 "scene_var_number10",
+                "scene_var_number4",
                 "scene_switch_option3",
                 "scene_switch_option4",
                 "scene_var_number"
@@ -66,12 +67,6 @@
             "var_number3_max": 60.0,
             "var_number3": {
                 "Wan-Remover-SAM3 Video Removal": 30.0
-            },
-            "var_number4_title": "Skip first N seconds of reference video",
-            "var_number4_min": 0.0,
-            "var_number4_max": 60,
-            "var_number4": {
-                "Wan-Remover-SAM3 Video Removal": 0.0
             },
             "var_number7_min": -255,
             "var_number7_max": 255,

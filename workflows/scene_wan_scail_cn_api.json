@@ -32,10 +32,7 @@
         "681",
         0
       ],
-      "skip_first_frames": [
-        "695",
-        0
-      ],
+      "skip_first_frames": 0,
       "select_every_nth": 1,
       "format": "Wan"
     },

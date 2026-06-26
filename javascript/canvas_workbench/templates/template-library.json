@@ -999,15 +999,26 @@
     {
       "id": "wan_scail_motion_transfer",
       "title": {
-        "en": "Wan-SCAIL Motion Transfer",
-        "zh": "Wan-SCAIL 动作迁移"
+        "en": "Wan-SCAIL2 Motion Transfer",
+        "zh": "Wan-SCAIL2迁移"
       },
       "description": {
-        "en": "A runnable Wan-SCAIL template that transfers motion from a reserved video placeholder to a reserved subject image placeholder.",
-        "zh": "可运行的 Wan-SCAIL 模板，将预占位视频动作迁移到预占位主体图。"
+        "en": "Animates a reference character image using motion from a driving video with SCAIL-2.",
+        "zh": "使用 SCAIL-2，把参考图角色按驱动视频动作生成动画。"
       },
       "category": "video",
-      "tags": ["video", "wan", "wan-scail", "motion-transfer", "reference-image", "reserved-input", "runnable", "动作迁移", "视频编辑"],
+      "tags": [
+        "video",
+        "wan",
+        "wan-scail2",
+        "motion-transfer",
+        "sam3",
+        "reference-image",
+        "reserved-input",
+        "runnable",
+        "动作迁移",
+        "视频编辑"
+      ],
       "type_label": {
         "en": "Motion transfer",
         "zh": "动作迁移"
@@ -1019,17 +1030,18 @@
           "zh": "需要视频、图片和模型"
         },
         "note": {
-          "en": "Requires the Wan-SCAIL model, UMT5, CLIP vision, Wan VAE, lightx2v LoRA, RIFE, detection, and NLF models.",
-          "zh": "需要 Wan-SCAIL 模型、UMT5、CLIP vision、Wan VAE、lightx2v LoRA、RIFE、检测模型和 NLF。"
+          "en": "Requires SCAIL-2, SAM3.1, UMT5, CLIP vision, Wan VAE, lightx2v/DPO LoRAs, and RIFE.",
+          "zh": "需要 SCAIL-2、SAM3.1、UMT5、CLIP vision、Wan VAE、lightx2v/DPO LoRA 和 RIFE。"
         },
         "models": [
-          "Wan21-14B-SCAIL-preview_fp8_scaled_mixed.safetensors",
+          "wan2.1_14B_SCAIL_2_fp8_scaled.safetensors",
           "umt5-xxl-encoder-Q8_0.gguf",
           "clip_vision_h.safetensors",
           "wan_2.1_vae.safetensors",
           "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
-          "flownet.pkl",
-          "nlf_l_multi_0.3.2.torchscript"
+          "wan2.1_SCAIL_2_DPO_lora_bf16.safetensors",
+          "sam3.1_multiplex_fp16.safetensors",
+          "flownet.pkl"
         ]
       },
       "path": "javascript/canvas_workbench/templates/wan-scail-motion-transfer.canvas.json",

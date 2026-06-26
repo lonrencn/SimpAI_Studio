@@ -22,7 +22,8 @@
         timer: 0,
         cache: new Map(),
         warmStarted: false,
-        boundRoots: new WeakSet()
+        boundRoots: new WeakSet(),
+        runtimeNoticeKey: ''
     };
 
     function appRoot() {
@@ -124,6 +125,57 @@
         document.body.appendChild(el);
         state.dropdown = el;
         return el;
+    }
+
+    function runtimeUiLang() {
+        try {
+            const lang = window.SimpAII18n?.getUiLang?.(window.simpleaiTopbarSystemParams || {}) || document.documentElement.lang || navigator.language || '';
+            return String(lang || '').toLowerCase();
+        } catch (err) {
+            return '';
+        }
+    }
+
+    function runtimeStatusMessage(status) {
+        if (!status || typeof status !== 'object') return '';
+        const message = String(status.message || '').trim();
+        const messageCn = String(status.message_cn || status.messageCn || '').trim();
+        const lang = runtimeUiLang();
+        return lang === 'en' || lang.startsWith('en-') ? (message || messageCn) : (messageCn || message);
+    }
+
+    function showRuntimeNotice(message, level) {
+        if (!message) return;
+        let toast = document.querySelector('.sai-webui-danbooru-runtime-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.className = 'sai-webui-danbooru-runtime-toast';
+            toast.setAttribute('role', 'status');
+            toast.setAttribute('aria-live', 'polite');
+            document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        toast.dataset.level = level || 'info';
+        toast.hidden = false;
+        window.clearTimeout(showRuntimeNotice._timer);
+        showRuntimeNotice._timer = window.setTimeout(() => {
+            if (toast) toast.hidden = true;
+        }, level === 'warning' ? 5200 : 3600);
+    }
+
+    function maybeShowRuntimeNotice(response) {
+        const status = response?.runtime_status || response?.runtimeStatus;
+        if (!status || typeof status !== 'object') return;
+        const runtimeState = String(status.state || '').toLowerCase();
+        const level = String(status.level || '').toLowerCase();
+        const shouldShow = level === 'warning' || (runtimeState === 'ready' && status.auto_build === true);
+        if (!shouldShow) return;
+        const message = runtimeStatusMessage(status);
+        if (!message) return;
+        const key = `${runtimeState}|${level}|${message}`;
+        if (state.runtimeNoticeKey === key) return;
+        state.runtimeNoticeKey = key;
+        showRuntimeNotice(message, level);
     }
 
     function hideDropdown() {
@@ -300,6 +352,7 @@
             hideDropdown();
             return;
         }
+        maybeShowRuntimeNotice(response);
         const items = response?.ok && Array.isArray(response.items) ? response.items : [];
         if (state.cache.size > 140) {
             const first = state.cache.keys().next().value;

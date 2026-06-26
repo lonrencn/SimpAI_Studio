@@ -174,7 +174,7 @@ def check_base_environment():
     print(f'{now_string()} ✦ | 兴趣使然的版本 | ✦ by冰華 ✦')
 
     base_pkg = "simpleai_base"
-    ver_required = "0.3.47"
+    ver_required = "0.3.48"
     REINSTALL_BASE = False
     base_branch = "studio"
     base_url = f"https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/libs/{base_branch}"
@@ -208,10 +208,10 @@ def check_base_environment():
     if torch.__version__ == '2.9.1+cu130':
         logger.info(f'当前环境：PyTorch 2.9.1+CUDA 13.0. 50系以上显卡支持Nvfp4模型加速推理.')
         update_pkgs = [
-            ('comfyui-frontend-package', '1.45.15'),
-            ('comfyui-workflow-templates', '0.10.0'),
-            ('comfyui-embedded-docs', '0.5.4'),
-            ('comfy-kitchen', '0.2.10'),
+            ('comfyui-frontend-package', '1.45.19'),
+            ('comfyui-workflow-templates', '0.10.7'),
+            ('comfyui-embedded-docs', '0.5.5'),
+            ('comfy-kitchen', '0.2.12'),
             ('comfy-aimdo', '0.4.10'),
             ('onnxruntime-gpu', '1.25.1'),
             ('av', '17.0.0')

@@ -8,6 +8,7 @@ import shared
 import cv2
 import args_manager
 import modules.util as util
+import modules.comfy_prompt_compat as comfy_prompt_compat
 import enhanced.all_parameters as ads
 import simpleai_base.p2p_task as p2p_task
 from build_launcher import is_win32_standalone_build
@@ -23,6 +24,8 @@ from enhanced.logger import format_name
 from ui.update_helpers import gr_update
 from modules.access_mode import is_local_mode
 logger = logging.getLogger(format_name(__name__))
+
+comfy_prompt_compat.install_queue_prompt_normalizer(comfyclient_pipeline)
 
 def is_advanced_logs_enabled():
     return ads.get_admin_default('advanced_logs')

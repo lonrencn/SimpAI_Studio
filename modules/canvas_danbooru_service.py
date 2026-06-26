@@ -3,10 +3,13 @@ import json
 import logging
 import os
 import re
+import shutil
 import sqlite3
+import stat
 import subprocess
 import sys
 import tempfile
+import threading
 from collections import defaultdict
 
 import modules.canvas_danbooru_policy as canvas_danbooru_policy
@@ -23,6 +26,8 @@ _canvas_danbooru_character_fast_resolution_cache = {}
 _canvas_gallery_tag_cache = {}
 _canvas_danbooru_fast_backend_cache = {}
 _canvas_danbooru_fast_lookup_cache = {}
+_canvas_danbooru_fast_runtime_status_cache = {}
+_canvas_danbooru_fast_build_lock = threading.Lock()
 
 _CANVAS_DANBOORU_CATEGORY_LABELS = {
     "0": "general",
@@ -35,6 +40,163 @@ _CANVAS_DANBOORU_CATEGORY_LABELS = {
 
 def _canvas_danbooru_fast_exe_name():
     return "danbooru-tags.exe" if os.name == "nt" else "danbooru-tags"
+
+
+def _canvas_danbooru_fast_runtime_status():
+    status = _canvas_danbooru_fast_runtime_status_cache if isinstance(_canvas_danbooru_fast_runtime_status_cache, dict) else {}
+    return {
+        "state": str(status.get("state") or "unknown"),
+        "level": str(status.get("level") or "info"),
+        "message": str(status.get("message") or ""),
+        "message_cn": str(status.get("message_cn") or ""),
+        "backend": str(status.get("backend") or ""),
+        "auto_build": bool(status.get("auto_build")),
+    }
+
+
+def _canvas_danbooru_fast_set_runtime_status(state, message="", message_cn="", level="info", backend="", auto_build=False):
+    _canvas_danbooru_fast_runtime_status_cache.clear()
+    _canvas_danbooru_fast_runtime_status_cache.update({
+        "state": str(state or "unknown"),
+        "level": str(level or "info"),
+        "message": str(message or ""),
+        "message_cn": str(message_cn or ""),
+        "backend": str(backend or ""),
+        "auto_build": bool(auto_build),
+    })
+
+
+def _canvas_danbooru_fast_vendor_root():
+    return os.path.abspath(os.path.join(_CANVAS_DANBOORU_ROOT, "vendor", "danbooru-tags"))
+
+
+def _canvas_danbooru_fast_is_repo_vendor_root(root):
+    try:
+        return os.path.normcase(os.path.abspath(root)) == os.path.normcase(_canvas_danbooru_fast_vendor_root())
+    except Exception:
+        return False
+
+
+def _canvas_danbooru_fast_chmod_executable(path):
+    if os.name == "nt" or not os.path.isfile(path):
+        return
+    try:
+        current_mode = os.stat(path).st_mode
+        os.chmod(path, current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    except OSError as exc:
+        logger.warning("Danbooru Rust backend exists but could not be marked executable: %s", exc)
+
+
+def _canvas_danbooru_fast_prepare_linux_runtime(root, exe_path):
+    if os.name == "nt" or not _canvas_danbooru_fast_is_repo_vendor_root(root):
+        return False
+    if os.path.isfile(exe_path):
+        if not os.access(exe_path, os.X_OK):
+            _canvas_danbooru_fast_chmod_executable(exe_path)
+        return False
+
+    source_root = _CANVAS_DANBOORU_ROOT
+    manifest = os.path.join(source_root, "rust", "danbooru-tags", "Cargo.toml")
+    cargo = shutil.which("cargo")
+    if not cargo:
+        _canvas_danbooru_fast_set_runtime_status(
+            "fallback",
+            "Linux Danbooru Rust backend is not built. Install Rust/Cargo or provide vendor/danbooru-tags/bin/danbooru-tags; falling back to Python/CSV lookup.",
+            "Linux Danbooru Rust 后端尚未构建。请安装 Rust/Cargo，或提供 vendor/danbooru-tags/bin/danbooru-tags；当前回退到 Python/CSV 查询。",
+            level="warning",
+            backend=exe_path,
+        )
+        logger.warning(_canvas_danbooru_fast_runtime_status_cache["message"])
+        return False
+    if not os.path.isfile(manifest):
+        _canvas_danbooru_fast_set_runtime_status(
+            "fallback",
+            "Linux Danbooru Rust backend source is missing; falling back to Python/CSV lookup.",
+            "Linux Danbooru Rust 后端源码不存在；当前回退到 Python/CSV 查询。",
+            level="warning",
+            backend=exe_path,
+        )
+        logger.warning(_canvas_danbooru_fast_runtime_status_cache["message"])
+        return False
+
+    with _canvas_danbooru_fast_build_lock:
+        if os.path.isfile(exe_path):
+            _canvas_danbooru_fast_chmod_executable(exe_path)
+            return True
+
+        _canvas_danbooru_fast_set_runtime_status(
+            "building",
+            "Linux Danbooru Rust backend is missing; building it now. The first lookup may take a while.",
+            "Linux Danbooru Rust 后端不存在，正在现场构建。首次查询可能需要等待一段时间。",
+            level="info",
+            backend=exe_path,
+            auto_build=True,
+        )
+        logger.info(_canvas_danbooru_fast_runtime_status_cache["message"])
+        timeout = _canvas_danbooru_fast_int_env("SIMPAI_DANBOORU_BUILD_TIMEOUT", 600, 60, 1800)
+        try:
+            completed = subprocess.run(
+                [cargo, "build", "--release", "--manifest-path", manifest],
+                cwd=source_root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                check=False,
+            )
+        except Exception as exc:
+            _canvas_danbooru_fast_set_runtime_status(
+                "fallback",
+                f"Linux Danbooru Rust backend build could not start: {exc}; falling back to Python/CSV lookup.",
+                f"Linux Danbooru Rust 后端构建无法启动：{exc}；当前回退到 Python/CSV 查询。",
+                level="warning",
+                backend=exe_path,
+                auto_build=True,
+            )
+            logger.warning(_canvas_danbooru_fast_runtime_status_cache["message"])
+            return False
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout or "").strip().replace("\r", "\n")
+            detail = "\n".join(line for line in detail.splitlines()[-8:])[:1200]
+            _canvas_danbooru_fast_set_runtime_status(
+                "fallback",
+                "Linux Danbooru Rust backend build failed; falling back to Python/CSV lookup.",
+                "Linux Danbooru Rust 后端构建失败；当前回退到 Python/CSV 查询。",
+                level="warning",
+                backend=exe_path,
+                auto_build=True,
+            )
+            logger.warning("%s\n%s", _canvas_danbooru_fast_runtime_status_cache["message"], detail)
+            return False
+
+        built_exe = os.path.join(source_root, "rust", "danbooru-tags", "target", "release", "danbooru-tags")
+        if not os.path.isfile(built_exe):
+            _canvas_danbooru_fast_set_runtime_status(
+                "fallback",
+                "Linux Danbooru Rust backend build completed but the output binary was not found; falling back to Python/CSV lookup.",
+                "Linux Danbooru Rust 后端构建完成，但没有找到输出文件；当前回退到 Python/CSV 查询。",
+                level="warning",
+                backend=exe_path,
+                auto_build=True,
+            )
+            logger.warning(_canvas_danbooru_fast_runtime_status_cache["message"])
+            return False
+
+        os.makedirs(os.path.dirname(exe_path), exist_ok=True)
+        shutil.copy2(built_exe, exe_path)
+        _canvas_danbooru_fast_chmod_executable(exe_path)
+        _canvas_danbooru_fast_set_runtime_status(
+            "ready",
+            "Linux Danbooru Rust backend was built and enabled.",
+            "Linux Danbooru Rust 后端已构建并启用。",
+            level="info",
+            backend=exe_path,
+            auto_build=True,
+        )
+        logger.info(_canvas_danbooru_fast_runtime_status_cache["message"])
+        return True
 
 # Legacy identity fallback only. Character/copyright knowledge should come from
 # the local Danbooru index and tags/character_glossary.csv first; visual
@@ -332,6 +494,19 @@ def _canvas_danbooru_fast_signature_item(path):
     return (os.path.normcase(path), int(stat.st_mtime), int(stat.st_size))
 
 
+def _canvas_danbooru_fast_runtime_cache_signature():
+    vendor_root = _canvas_danbooru_fast_vendor_root()
+    exe_path = os.path.join(vendor_root, "bin", _canvas_danbooru_fast_exe_name())
+    manifest = os.path.join(_CANVAS_DANBOORU_ROOT, "rust", "danbooru-tags", "Cargo.toml")
+    cargo_path = shutil.which("cargo") if os.name != "nt" else ""
+    return (
+        os.name,
+        _canvas_danbooru_fast_signature_item(exe_path),
+        _canvas_danbooru_fast_signature_item(manifest),
+        cargo_path or "",
+    )
+
+
 def _canvas_danbooru_fast_backend_from_candidate(candidate):
     raw = str(candidate or "").strip()
     if not raw:
@@ -343,6 +518,7 @@ def _canvas_danbooru_fast_backend_from_candidate(candidate):
     else:
         root = path
         exe_path = os.path.join(root, "bin", _canvas_danbooru_fast_exe_name())
+    _canvas_danbooru_fast_prepare_linux_runtime(root, exe_path)
     sqlite_path = os.path.join(root, "tags_index.sqlite")
     csv_path = os.path.join(root, "anima-1.0.csv")
     cache_path = os.path.join(root, "tags_cache.bin")
@@ -443,6 +619,7 @@ def _canvas_danbooru_fast_backend():
         os.environ.get("SIMPAI_DANBOORU_TAGS_EXE") or "",
         os.environ.get("DANBOORU_TAGS_EXE") or "",
         os.environ.get("SIMPAI_DANBOORU_FAST_LOOKUP") or "",
+        _canvas_danbooru_fast_runtime_cache_signature(),
     )
     cached = _canvas_danbooru_fast_backend_cache.get("backend") if isinstance(_canvas_danbooru_fast_backend_cache, dict) else None
     if isinstance(cached, dict) and cached.get("env_signature") == env_signature:
@@ -457,7 +634,26 @@ def _canvas_danbooru_fast_backend():
         "backend": backend,
     }
     if backend:
+        status = _canvas_danbooru_fast_runtime_status()
+        if status.get("state") in ("unknown", "fallback", ""):
+            _canvas_danbooru_fast_set_runtime_status(
+                "ready",
+                "Danbooru Rust backend is enabled.",
+                "Danbooru Rust 后端已启用。",
+                level="info",
+                backend=backend.get("exe") or backend.get("root") or "",
+                auto_build=bool(status.get("auto_build")),
+            )
         logger.info("Danbooru fast tag backend enabled: %s", backend.get("root"))
+    else:
+        status = _canvas_danbooru_fast_runtime_status()
+        if status.get("state") in ("unknown", ""):
+            _canvas_danbooru_fast_set_runtime_status(
+                "fallback",
+                "Danbooru Rust backend is unavailable; falling back to Python/CSV lookup.",
+                "Danbooru Rust 后端不可用；当前回退到 Python/CSV 查询。",
+                level="warning",
+            )
     return backend
 
 
@@ -3317,6 +3513,10 @@ def _canvas_danbooru_model_notes(model_hint="", preset_defaults=None, source_mod
         notes.insert(1, "The full tags/danbooru_all.csv database is intentionally excluded from Agent lookup to avoid noisy low-value candidates.")
     if _canvas_danbooru_fast_backend_available():
         notes.insert(2, "Fast local Rust/SQLite Danbooru lookup is enabled; use returned candidates as local indexed evidence, while preserving the existing character/glossary and safety rules.")
+    else:
+        status = _canvas_danbooru_fast_runtime_status()
+        if status.get("message"):
+            notes.insert(2, "Fast local Rust Danbooru lookup notice: " + status.get("message"))
     notes.append("Offline-first policy: do not fetch Hugging Face or other network sources during prompt preparation; only local CSV/cache data is trusted.")
     if "illustrious" in hint or any(str(style).lower() == "illustrious" for style in styles):
         notes.append("Illustrious: prefer focused comma-separated Danbooru tags; useful local style suffix includes masterpiece, best quality, absurdres, newest, very aesthetic, amazing quality, highres.")

@@ -1,0 +1,184 @@
+import copy
+import logging
+import time
+
+import httpx
+
+from enhanced.logger import format_name
+
+
+logger = logging.getLogger(format_name(__name__))
+
+_OBJECT_INFO_CACHE = {
+    "endpoint": "",
+    "expires_at": 0.0,
+    "data": None,
+}
+
+
+def _normal_model_key(value):
+    return str(value or "").strip().replace("\\", "/")
+
+
+def _enum_choices_from_input_spec(spec):
+    if not isinstance(spec, (list, tuple)) or not spec:
+        return []
+    choices = spec[0]
+    if not isinstance(choices, (list, tuple)):
+        return []
+    return [str(item) for item in choices if isinstance(item, str)]
+
+
+def _enum_inputs_for_class(class_info):
+    if not isinstance(class_info, dict):
+        return {}
+    input_info = class_info.get("input")
+    if not isinstance(input_info, dict):
+        return {}
+    result = {}
+    for group_name in ("required", "optional"):
+        group = input_info.get(group_name)
+        if not isinstance(group, dict):
+            continue
+        for input_name, spec in group.items():
+            choices = _enum_choices_from_input_spec(spec)
+            if choices:
+                result[str(input_name)] = choices
+    return result
+
+
+def _match_enum_choice(value, choices):
+    if not isinstance(value, str) or not choices:
+        return value
+    if value in choices:
+        return value
+    if "/" not in value and "\\" not in value:
+        return value
+
+    normalized_value = _normal_model_key(value)
+    exact = {}
+    lower = {}
+    lower_counts = {}
+    for choice in choices:
+        normalized_choice = _normal_model_key(choice)
+        exact.setdefault(normalized_choice, choice)
+        lower_key = normalized_choice.lower()
+        lower.setdefault(lower_key, choice)
+        lower_counts[lower_key] = lower_counts.get(lower_key, 0) + 1
+
+    if normalized_value in exact:
+        return exact[normalized_value]
+    lower_value = normalized_value.lower()
+    if lower_counts.get(lower_value) == 1:
+        return lower[lower_value]
+    return value
+
+
+def normalize_comfy_prompt_enum_paths(prompt, object_info):
+    if not isinstance(prompt, dict) or not isinstance(object_info, dict):
+        return prompt, []
+
+    normalized_prompt = prompt
+    changes = []
+    enum_cache = {}
+
+    for node_id, node in prompt.items():
+        if not isinstance(node, dict):
+            continue
+        class_type = str(node.get("class_type") or "")
+        inputs = node.get("inputs")
+        if not class_type or not isinstance(inputs, dict):
+            continue
+
+        enum_inputs = enum_cache.get(class_type)
+        if enum_inputs is None:
+            enum_inputs = _enum_inputs_for_class(object_info.get(class_type))
+            enum_cache[class_type] = enum_inputs
+        if not enum_inputs:
+            continue
+
+        for input_name, value in list(inputs.items()):
+            choices = enum_inputs.get(str(input_name))
+            if not choices:
+                continue
+            matched = _match_enum_choice(value, choices)
+            if matched == value:
+                continue
+
+            if normalized_prompt is prompt:
+                normalized_prompt = copy.deepcopy(prompt)
+            normalized_prompt[node_id]["inputs"][input_name] = matched
+            changes.append({
+                "node_id": str(node_id),
+                "class_type": class_type,
+                "input": str(input_name),
+                "from": value,
+                "to": matched,
+            })
+
+    return normalized_prompt, changes
+
+
+def get_comfy_object_info(comfyclient_pipeline, ttl_seconds=30.0):
+    try:
+        endpoint = str(comfyclient_pipeline.server_address())
+    except Exception:
+        endpoint = ""
+    if not endpoint:
+        return None
+
+    now = time.monotonic()
+    cached = _OBJECT_INFO_CACHE
+    if cached.get("endpoint") == endpoint and now < float(cached.get("expires_at") or 0.0):
+        return cached.get("data")
+
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            response = client.get(f"http://{endpoint}/object_info")
+            response.raise_for_status()
+            data = response.json()
+    except Exception as exc:
+        _OBJECT_INFO_CACHE.update({
+            "endpoint": endpoint,
+            "expires_at": now + 5.0,
+            "data": None,
+        })
+        logger.warning("Comfy object_info unavailable; model enum path normalization skipped: %s", exc)
+        return None
+
+    if not isinstance(data, dict):
+        return None
+    _OBJECT_INFO_CACHE.update({
+        "endpoint": endpoint,
+        "expires_at": now + float(ttl_seconds),
+        "data": data,
+    })
+    return data
+
+
+def normalize_comfy_prompt_for_pipeline(prompt, comfyclient_pipeline):
+    object_info = get_comfy_object_info(comfyclient_pipeline)
+    if not object_info:
+        return prompt, []
+    return normalize_comfy_prompt_enum_paths(prompt, object_info)
+
+
+def install_queue_prompt_normalizer(comfyclient_pipeline):
+    queue_prompt = getattr(comfyclient_pipeline, "queue_prompt", None)
+    if not callable(queue_prompt) or getattr(queue_prompt, "_simpai_enum_path_normalizer", False):
+        return False
+
+    def queue_prompt_with_enum_path_normalization(user_did, prompt, user_cert, extra_data=None):
+        normalized_prompt, changes = normalize_comfy_prompt_for_pipeline(prompt, comfyclient_pipeline)
+        if changes:
+            preview = ", ".join(
+                f"{item['node_id']}.{item['input']}={item['to']}"
+                for item in changes[:8]
+            )
+            logger.info("Adjusted Comfy model enum paths for current backend: %s", preview)
+        return queue_prompt(user_did, normalized_prompt, user_cert, extra_data)
+
+    queue_prompt_with_enum_path_normalization._simpai_enum_path_normalizer = True
+    queue_prompt_with_enum_path_normalization._simpai_original_queue_prompt = queue_prompt
+    comfyclient_pipeline.queue_prompt = queue_prompt_with_enum_path_normalization
+    return True

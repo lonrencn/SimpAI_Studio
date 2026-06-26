@@ -14,8 +14,9 @@ Choose the prompt format in this order:
 3. Current Agent queues when no target is known: text-to-image defaults to
    `Z-imageT`, image editing defaults to `Flux2-KleinEdit`, video defaults to Wan.
 
-If the selected workflow `task_method` ends with `_cn`, the target supports
-Chinese natural-language prompts. Prefer Chinese for Chinese user requests.
+If the selected workflow `task_method` ends with `_cn`, or the selected target
+is `Krea2-Turbo` / `krea2`, the target supports natural-language prompts.
+Prefer Chinese for Chinese user requests.
 
 The actual text encoder wins over the marketing family name. If a Flux-family
 workflow uses a `qwen*` text encoder, write a Qwen-style natural-language

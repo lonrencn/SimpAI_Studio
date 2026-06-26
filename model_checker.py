@@ -27,11 +27,12 @@ CURRENT_DOWNLOAD_SOURCE = DOWNLOAD_SOURCE
 CURRENT_DOWNLOAD_PREFIX = DEFAULT_DOWNLOAD_PREFIX if CURRENT_DOWNLOAD_SOURCE == "modelscope" else HF_DOWNLOAD_PREFIX
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(script_dir)
 if current_process().name != "MainProcess":
-    root_dir = os.path.dirname(os.path.dirname(root_dir))
+    root_dir = os.path.dirname(os.path.dirname(script_dir))
 elif platform.system() == 'Windows':
-    root_dir = os.path.dirname(root_dir)
+    root_dir = os.path.dirname(os.path.dirname(script_dir))
+else:
+    root_dir = script_dir
 
 def ensure_directory_exists(directory):
     """确保目录存在，如果不存在则创建"""
@@ -2682,19 +2683,18 @@ packages = {'base_package': {'id': 1,
                                     'https://modelscope.cn/models/numz/SeedVR2_comfyUI'],
                      'preset_sample': []},
  'wan_scail_package': {'id': 34,
-                       'name': '[34]Wan_SCAIL扩展包',
-                       'note': '万相_SCAIL动作迁移扩展包|显存需求：★★★ 速度：★',
-                       'files': ['diffusion_models,Wan21-14B-SCAIL-preview_fp8_scaled_mixed.safetensors,16642119256,0,https://www.modelscope.cn/models/Kijai/WanVideo_comfy_fp8_scaled/resolve/master/SCAIL/Wan21-14B-SCAIL-preview_fp8_scaled_mixed.safetensors,https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/SCAIL/Wan21-14B-SCAIL-preview_fp8_scaled_mixed.safetensors',
+                       'name': '[34]Wan_SCAIL2扩展包',
+                       'note': '万相_SCAIL2角色替换/动作迁移扩展包|显存需求：★★★ 速度：★',
+                       'files': ['diffusion_models,wan2.1_14B_SCAIL_2_fp8_scaled.safetensors,17694586857,0,https://modelscope.cn/models/Comfy-Org/SCAIL-2/resolve/master/diffusion_models/wan2.1_14B_SCAIL_2_fp8_scaled.safetensors,https://huggingface.co/Comfy-Org/SCAIL-2/resolve/main/diffusion_models/wan2.1_14B_SCAIL_2_fp8_scaled.safetensors',
                                  'text_encoders,umt5-xxl-encoder-Q8_0.gguf,6043068256,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf,https://huggingface.co/metercai/SimpleSDXL2/resolve/main/SimpleModels/clip/umt5-xxl-encoder-Q8_0.gguf',
                                  'clip_vision,clip_vision_h.safetensors,1264219396,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/clip_vision/clip_vision_h.safetensors,https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors',
                                  'vae,wan_2.1_vae.safetensors,253815318,0,https://modelscope.cn/models/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/master/split_files/vae/wan_2.1_vae.safetensors,https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors',
                                  'loras,lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,738005744,0,https://www.modelscope.cn/models/metercai/SimpleSDXL2/resolve/master/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors,https://huggingface.co/metercai/SimpleSDXL2/resolve/main/SimpleModels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors',
-                                 'controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl,https://huggingface.co/windecay/SimpleSDXL2/resolve/main/SimpleModels/controlnet/rife/flownet.pkl',
-                                 'detection,vitpose_h_wholebody_data.bin,2548958740,0,https://www.modelscope.cn/models/Kijai/vitpose_comfy/resolve/master/onnx/vitpose_h_wholebody_data.bin,https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_data.bin',
-                                 'detection,vitpose_h_wholebody_model.onnx,420252,0,https://www.modelscope.cn/models/Kijai/vitpose_comfy/resolve/master/onnx/vitpose_h_wholebody_model.onnx,https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_model.onnx',
-                                 'detection,yolov10m.onnx,61659339,0,https://www.modelscope.cn/models/Wan-AI/Wan2.2-Animate-14B/resolve/master/process_checkpoint/det/yolov10m.onnx,https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/resolve/main/process_checkpoint/det/yolov10m.onnx',
-                                 'nlf,nlf_l_multi_0.3.2.torchscript,493117974,0,https://www.modelscope.cn/models/windecay/SimpAI_dev/resolve/master/SimpleModels/nlf/nlf_l_multi_0.3.2.torchscript,https://huggingface.co/windecay/SimpleSDXL2/resolve/main/SimpleModels/nlf/nlf_l_multi_0.3.2.torchscript'],
-                       'info_links': ['https://modelscope.cn/models/ZhipuAI/SCAIL-Preview'],
+                                 'loras,wan2.1_SCAIL_2_DPO_lora_bf16.safetensors,1226936552,0,https://modelscope.cn/models/Comfy-Org/SCAIL-2/resolve/master/loras/wan2.1_SCAIL_2_DPO_lora_bf16.safetensors,https://huggingface.co/Comfy-Org/SCAIL-2/resolve/main/loras/wan2.1_SCAIL_2_DPO_lora_bf16.safetensors',
+                                 'checkpoints,sam3.1_multiplex_fp16.safetensors,1745546848,0,https://www.modelscope.cn/models/Comfy-Org/sam3.1/resolve/master/checkpoints/sam3.1_multiplex_fp16.safetensors,https://huggingface.co/Comfy-Org/sam3.1/resolve/main/checkpoints/sam3.1_multiplex_fp16.safetensors',
+                                 'controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl,https://huggingface.co/windecay/SimpleSDXL2/resolve/main/SimpleModels/controlnet/rife/flownet.pkl'
+                                 ],
+                       'info_links': ['https://modelscope.cn/models/ZhipuAI/SCAIL-2'],
                        'preset_sample': []},
  "wan-animate-outpaint": {"id": 35,
                          "name": "[35]Wan-Animate-视频外扩",
@@ -2886,6 +2886,14 @@ packages = {'base_package': {'id': 1,
                                  'controlnet,rife/flownet.pkl,24636301,0,https://www.modelscope.cn/models/windecay/rife/resolve/master/flownet.pkl,https://huggingface.co/windecay/SimpleSDXL2/resolve/main/SimpleModels/controlnet/rife/flownet.pkl'],
                        'info_links': ['https://www.modelscope.cn/models/Comfy-Org/Bernini-R'],
                        'preset_sample': []},
+ 'krea2_package': {'id': 45,
+                   'name': '[45]Krea2文生图模型包',
+                   'note': 'Krea2 Turbo文生图模型包，包含Krea2 Turbo模型、Qwen3VL 4B文本编码器',
+                   'files': ['diffusion_models,krea2_turbo_fp8_scaled.safetensors,13141730784,0,https://modelscope.cn/models/Comfy-Org/Krea-2/resolve/master/diffusion_models/krea2_turbo_fp8_scaled.safetensors,https://huggingface.co/Comfy-Org/Krea-2/resolve/main/diffusion_models/krea2_turbo_fp8_scaled.safetensors',
+                             'text_encoders,qwen3vl_4b_fp8_scaled.safetensors,5242467968,0,https://modelscope.cn/models/Comfy-Org/Krea-2/resolve/master/text_encoders/qwen3vl_4b_fp8_scaled.safetensors,https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors',
+                             'vae,qwen_image_vae.safetensors,253806246,0,https://modelscope.cn/models/Comfy-Org/Krea-2/resolve/master/vae/qwen_image_vae.safetensors,https://huggingface.co/Comfy-Org/Krea-2/resolve/main/vae/qwen_image_vae.safetensors'],
+                   'info_links': ['https://modelscope.cn/models/krea/Krea-2-Turbo'],
+                   'preset_sample': []},
 }
 MANUAL_DOWNLOAD_MAP = {
 }

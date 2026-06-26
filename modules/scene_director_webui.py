@@ -370,7 +370,7 @@ def _scene_director_media_state_json(groups):
 
 
 def _scene_director_static_file_url(path):
-    web_path = os.path.abspath(path).replace(os.sep, "/")
+    web_path = path.replace(os.sep, "/").lstrip("/")
     return f"/file={quote(web_path, safe=':/')}"
 
 

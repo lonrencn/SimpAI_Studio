@@ -565,6 +565,7 @@
     let previewSelectMenuEl = null;
     let previewSelectAnchor = null;
     let danbooruAutocompleteEl = null;
+    let danbooruRuntimeNoticeKey = '';
     const danbooruAutocompleteState = {
         field: null,
         token: null,
@@ -6840,6 +6841,29 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
         return canvasAgentFormatDanbooruPrompt(tags.slice(0, 32), true);
     }
 
+    function canvasDanbooruRuntimeStatusMessage(status) {
+        if (!status || typeof status !== 'object') return '';
+        const lang = String(runtimeUiLang() || '').toLowerCase();
+        const message = String(status.message || '').trim();
+        const messageCn = String(status.message_cn || status.messageCn || '').trim();
+        return lang === 'en' || lang.startsWith('en-') ? (message || messageCn) : (messageCn || message);
+    }
+
+    function maybeShowCanvasDanbooruRuntimeNotice(response) {
+        const status = response?.runtime_status || response?.runtimeStatus;
+        if (!status || typeof status !== 'object') return;
+        const state = String(status.state || '').toLowerCase();
+        const level = String(status.level || '').toLowerCase();
+        const shouldShow = level === 'warning' || (state === 'ready' && status.auto_build === true);
+        if (!shouldShow) return;
+        const message = canvasDanbooruRuntimeStatusMessage(status);
+        if (!message) return;
+        const key = `${state}|${level}|${message}`;
+        if (danbooruRuntimeNoticeKey === key) return;
+        danbooruRuntimeNoticeKey = key;
+        showToast(message, level === 'warning' ? 5200 : 3600);
+    }
+
     async function canvasAgentDanbooruFallbackRewrite(prompt, target, purpose, options) {
         if (String(target?.key || '') !== 'sdxl_danbooru') return '';
         const opts = Object.assign({}, options || {}, { purpose });
@@ -6853,6 +6877,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
                     preset_defaults: defaults,
                     limit: 20
                 });
+                maybeShowCanvasDanbooruRuntimeNotice(response);
                 if (response?.ok && Array.isArray(response.matches)) matches = response.matches;
             } catch (err) {
                 console.warn('[SimpAI Canvas Agent] Danbooru fallback lookup failed', err);
@@ -6920,6 +6945,7 @@ ${canvasAgentState.lastMessage ? `<div class="sai-canvas-agent-note">${escapeHtm
                 preset_defaults: defaults,
                 limit: 28
             });
+            maybeShowCanvasDanbooruRuntimeNotice(response);
             return response?.ok && response.text ? String(response.text).trim() : '';
         } catch (err) {
             console.warn('[SimpAI Canvas Agent] Danbooru tag lookup failed', err);
@@ -16271,6 +16297,7 @@ ${outputKind ? renderOverviewPort({ kind: outputKind, title: overviewOutputTitle
             tag_source: 'all',
             limit: 32
         });
+        maybeShowCanvasDanbooruRuntimeNotice(response);
         if (requestId !== danbooruAutocompleteState.requestId) return;
         if (!field.isConnected || document.activeElement !== field) {
             hideDanbooruAutocomplete();

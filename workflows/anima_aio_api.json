@@ -1,7 +1,7 @@
 {
   "3": {
     "inputs": {
-      "vae_name": "qwen_image_vae.safetensors"
+      "vae_name": "pixel_space"
     },
     "class_type": "VAELoader",
     "_meta": {
@@ -372,7 +372,7 @@
         0
       ],
       "clip": [
-        "69",
+        "73",
         0
       ]
     },
@@ -388,7 +388,7 @@
         1
       ],
       "clip": [
-        "69",
+        "73",
         0
       ]
     },
@@ -416,7 +416,7 @@
       "lora_name": "placeholder.safetensors",
       "strength_model": 0,
       "model": [
-        "23",
+        "80",
         0
       ]
     },
@@ -525,7 +525,7 @@
   },
   "69": {
     "inputs": {
-      "clip_name": "qwen_3_06b_base.safetensors",
+      "clip_name": "placeholder.safetensors",
       "type": "stable_diffusion",
       "device": "default"
     },
@@ -560,6 +560,126 @@
     "class_type": "LoraLoaderModelOnly",
     "_meta": {
       "title": "lora_10"
+    }
+  },
+  "72": {
+    "inputs": {
+      "clip_name": "placeholder.safetensors",
+      "type": "stable_diffusion"
+    },
+    "class_type": "CLIPLoaderGGUF",
+    "_meta": {
+      "title": "clip_model"
+    }
+  },
+  "73": {
+    "inputs": {
+      "boolean": [
+        "77",
+        0
+      ],
+      "on_true": [
+        "69",
+        0
+      ],
+      "on_false": [
+        "72",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "74": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "i2i_model_type"
+    }
+  },
+  "75": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "i2i_clip_type"
+    }
+  },
+  "76": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "77": {
+    "inputs": {
+      "comparison": "a == b",
+      "a": [
+        "75",
+        0
+      ],
+      "b": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "78": {
+    "inputs": {
+      "comparison": "a == b",
+      "a": [
+        "74",
+        0
+      ],
+      "b": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "Compare"
+    }
+  },
+  "79": {
+    "inputs": {
+      "unet_name": "placeholder.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "base_model_gguf"
+    }
+  },
+  "80": {
+    "inputs": {
+      "boolean": [
+        "78",
+        0
+      ],
+      "on_true": [
+        "23",
+        0
+      ],
+      "on_false": [
+        "79",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
     }
   }
 }

@@ -260,10 +260,7 @@
         "238",
         0
       ],
-      "skip_first_frames": [
-        "239",
-        0
-      ],
+      "skip_first_frames": 0,
       "select_every_nth": 1,
       "format": "Wan"
     },
@@ -456,10 +453,7 @@
         "218",
         6
       ],
-      "skip_first_frames": [
-        "239",
-        0
-      ],
+      "skip_first_frames": 0,
       "select_every_nth": 1,
       "format": "AnimateDiff"
     },

@@ -180,10 +180,7 @@
         "712",
         0
       ],
-      "skip_first_frames": [
-        "704",
-        0
-      ],
+      "skip_first_frames": 0,
       "select_every_nth": 1,
       "format": "AnimateDiff"
     },
@@ -800,10 +797,7 @@
         "751",
         6
       ],
-      "skip_first_frames": [
-        "704",
-        0
-      ],
+      "skip_first_frames": 0,
       "select_every_nth": 1,
       "format": "AnimateDiff"
     },

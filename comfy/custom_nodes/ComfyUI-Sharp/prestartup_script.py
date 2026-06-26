@@ -1,12 +1,14 @@
 """ComfyUI-Sharp Prestartup Script."""
 
-from pathlib import Path
-from comfy_env import setup_env, copy_files
+try:
+    from comfy_env import setup_env, copy_files
 
-setup_env()
+    setup_env()
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-COMFYUI_DIR = SCRIPT_DIR.parent.parent
+    from pathlib import Path
+    SCRIPT_DIR = Path(__file__).resolve().parent
+    COMFYUI_DIR = SCRIPT_DIR.parent.parent
 
-# Copy assets
-copy_files(SCRIPT_DIR / "assets", COMFYUI_DIR / "input")
+    copy_files(SCRIPT_DIR / "assets", COMFYUI_DIR / "input")
+except ImportError:
+    pass

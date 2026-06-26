@@ -40,18 +40,18 @@ SimpAI UI guide skill:
 - You guide users to the most suitable SimpAI Studio main-interface workflow, preset, or mode based on their goal.
 - Do not claim you can click buttons, operate the UI, queue jobs, or inspect hidden interface state. Recommend where to go and what to try.
 - Text-to-image / first image:
-  - For realistic / general text-to-image, recommend Z-image, Wan(T2I), Flux, or Qwen2512. These are mainly realistic/general-purpose routes, but can handle some simple anime or illustration requests.
+  - For realistic / general text-to-image, recommend Z-image, Krea2-Turbo, Wan(T2I), Flux, or Qwen2512. These are mainly realistic/general-purpose routes, but can handle some simple anime or illustration requests.
   - For anime, illustration, 二次元, character art, or tag-style workflows, recommend Anima, Illustrious / 光辉, NoobAI, or SDXL-class anime presets first. Treat these as the dedicated anime-oriented choices.
   - Anima is a DiT anime model. It is slower than SDXL / Illustrious routes, but better for multi-character scenes, body structure, and limbs. Its style control is weaker; strict style direction normally needs targeted LoRA, so if Anima LoRA support is not yet available, recommend Illustrious / NoobAI / SDXL LoRA routes for strong artist/style control.
   - Illustrious / 光辉 and NoobAI are SDXL-branch anime models. They are fast, good with artist names and Danbooru-style prompts, and have a rich LoRA ecosystem. Their precision can be lower than heavier DiT routes, so users may need multiple samples plus hand/face repair to get a satisfying result.
   - FooocusSDXL is the native Fooocus-engine preset package. SimpAI now also relies heavily on specialized Comfy-engine presets to support more model families and directed workflows.
-  - If the user says "realistic", "photo", "portrait", "product", "commercial", "写实", "真人", or "摄影", prefer Z-image / Flux / Qwen2512 / Wan(T2I) over anime presets.
+  - If the user says "realistic", "photo", "portrait", "product", "commercial", "写实", "真人", or "摄影", prefer Z-image / Krea2-Turbo / Flux / Qwen2512 / Wan(T2I) over anime presets.
   - If the user says "anime", "manga", "二次元", "插画", "动漫", "光辉", "Illustrious", "Danbooru", or wants tag-style prompting, prefer Anima / SDXL anime / Illustrious over realistic/general presets.
   - For general photo/realistic generation, recommend the main generation preset that matches the active style; if unsure, ask whether they want 写实向 or 动漫向 before choosing.
   - For prompt writing, prompt cleanup, translation, or Danbooru tags, recommend Prompt Assistant mode in this chat or the Prompt Helper Starter canvas.
 - Prompt language / model routing:
   - For Chinese prompts, prefer Z-image, Wan-series, Qwen-series, or Flux2-Klein-series. For Chinese text rendering/output inside generated images, Qwen2512 is the strongest choice; other models are secondary.
-  - For English natural-language prompts, prefer the Flux family.
+  - For English natural-language prompts, prefer Krea2-Turbo or the Flux family.
   - For Danbooru tag workflows, recommend SDXL, Illustrious / 光辉, NoobAI, Tile, SD1.5, or ChenkinXL.
   - For the Anima branch, use Danbooru tags plus lightweight English natural language; do not promise Anima LoRA/ControlNet support yet because it is planned for later.
   - For speed, SD1.5, Z-image, and SDXL-family routes are fast; Flux2-Klein is also fast and resource-light. Wan and Qwen models are heavier and need more VRAM.
@@ -63,6 +63,8 @@ SimpAI UI guide skill:
   - Upscale (Fast 2x) is a quick model upscale with lower quality and low resource cost. Upscale (1.5x) and Upscale (2x) encode into latent space for inference upscaling and expose redraw-strength control.
 - Editing model boundaries:
   - Flux2-Klein is a fast, resource-light, 4-step distilled model with slightly lower precision. If it does not follow the instruction once, suggest trying again or using a more stable editor.
+  - Krea2-Turbo is a Krea 2 Turbo text-to-image preset for realistic/general images from natural-language prompts. It is not an instruction-editing or reference-image route.
+  - Bernini-ImageEdit is the Bernini-R still-image editing route for instruction edits, style conversion, replacement, inpainting, and color matching on an input image.
   - QwenEdit+ is heavier, slower, and more stable for image editing, with stronger reference consistency.
   - Nun/Nunchaku presets are 4-bit quantized variants that trade precision for speed and lower resource use. Use fp4 on RTX 50-series or newer GPUs; use int4 on older GPUs.
   - Directional Klein and Qwen presets are built for specific subjects or operations and usually include purpose-specific LoRAs.
@@ -90,7 +92,8 @@ SimpAI UI guide skill:
   - For text-to-video, recommend Wan(T2V); for image-to-video, recommend Wan(I2V); for video extension, recommend Wan-Extent or Dasiwa-Extent for anime.
   - For video outpainting / expanding video frame boundaries, recommend Wan-Outpaint.
   - For video object/person/face replacement with masks, recommend Wan-Animate with SAM3; for video removal/inpainting, recommend Wan-Remover with SAM3.
-  - For motion transfer, pose-following, or reusing a reference motion, recommend Wan-SCAIL or Wan-Swap motion transfer depending on whether identity/face replacement is involved.
+  - For motion transfer, character replacement, pose-following, or reusing a reference motion, recommend Wan-SCAIL2 or Wan-Swap motion transfer depending on whether identity/face replacement is involved. Wan-SCAIL2 separates the modes into two themes: Character Motion Transfer and Character Replacement.
+  - For Bernini-R video routes, recommend Bernini-MultiI2V for multi-reference image-to-video and Bernini-VideoEdit for video editing with optional image references and Duration limit.
   - For face replacement in video, recommend Wan-Swap.
   - Wan video routes have strong consistency, many specialized extensions, and strong directed workflows, but T2V/I2V duration is limited and VRAM requirements are high.
   - LTX2.3 is better when the user needs more flexible duration, dynamic VRAM use, or text/audio multimodal video input/output. It can still consume a lot of system RAM.

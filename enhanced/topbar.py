@@ -175,6 +175,7 @@ def is_preset_file_allowed(p):
 PRESET_MISSING_MARKER = "\u2B07"
 PRESET_STORE_ORDER = [
     "Z-imageT",
+    "Krea2-Turbo",
     "Z-TTP",
     "Flux2-Klein",
     "Flux2-KleinEdit",
@@ -208,11 +209,14 @@ PRESET_STORE_ORDER = [
     "Dasiwa-Extent",
     "Wan(T2V)",
     "Wan(T2I)",
+    "Bernini-ImageEdit",
+    "Bernini-MultiI2V",
+    "Bernini-VideoEdit",
     "Wan-TTP",
     "Wan-Animate",
     "Wan-Swap",
     "Wan-Outpaint",
-    "Wan-SCAIL",
+    "Wan-SCAIL2",
     "Wan-Remover",
     "InfiniteTalk",
     "InfiniteTalk-AV2V",
@@ -1881,7 +1885,7 @@ def process_before_generation(state_params, seed_random, image_seed, backend_par
     backend_params.update(dict(
         nickname=_state_user_nickname(state_params),
         user_did=user_did,
-        preset=state_params["__preset"],
+        preset=state_params.get("__preset", ""),
         engine_type=state_params.get("engine_type", "image"),
         ))
     state_upscale_model = str(state_params.get("upscale_model") or "").replace("\\", os.sep).replace("/", os.sep).lstrip(os.sep)
