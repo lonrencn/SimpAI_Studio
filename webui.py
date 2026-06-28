@@ -2625,6 +2625,7 @@ with shared.gradio_root:
     scene_original_video_path = gr.State(None)
     scene_original_video_backup = gr.State(None)
     scene_reference_video_original_path = gr.State(None)
+    _scene_canvas_pass = gr.State(None)
     active_video_source = gr.State(None)
     resolution_source_meta = gr.Textbox(value="{}", visible="hidden", elem_id="resolution_source_meta", elem_classes=["resolution-hidden-control"])
     resolution_quantize_step = gr.Number(value=flags.default_resolution_quantize_step, visible="hidden", elem_id="resolution_quantize_step", elem_classes=["resolution-hidden-control"])
@@ -8559,6 +8560,8 @@ with shared.gradio_root:
             enhance_enabled_bool = bool(enhance_enabled)
 
             if is_scene:
+                _cache_key = state_params.get('user_did', '') or 'default'
+                util.store_scene_canvas_cache(_cache_key, scene_canvas)
                 processed, label, scene_hidden, scene_candidates = resolve_scene_comparison_input(state_params, scene1, scene_canvas)
                 if processed is not None:
                     util.log_ui_trace(
@@ -8999,7 +9002,7 @@ with shared.gradio_root:
             topbar.process_before_generation,
             inputs=[
                 state_topbar, seed_random, image_seed, params_backend, scene_theme,
-                scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4,
+                _scene_canvas_pass, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4,
                 scene_additional_prompt, scene_additional_prompt_2,
                 scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4,
                 scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8,
@@ -9017,7 +9020,7 @@ with shared.gradio_root:
         ))
         generate_event = bind_generation_failure_cleanup(generate_event.success(_sync_model_params_state_from_ui, inputs=model_state_ui_inputs, outputs=model_params_state, show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.wait_for_vlm_completion, outputs=[], show_progress=False, queue=False))
-        generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.avoid_empty_prompt_for_scene, inputs=[prompt, state_topbar, scene_canvas_image, scene_input_image1, scene_theme, scene_additional_prompt, scene_additional_prompt_2], outputs=prompt, show_progress=False, queue=False))
+        generate_event = bind_generation_failure_cleanup(generate_event.success(topbar.avoid_empty_prompt_for_scene, inputs=[prompt, state_topbar, _scene_canvas_pass, scene_input_image1, scene_theme, scene_additional_prompt, scene_additional_prompt_2], outputs=prompt, show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(apply_scene_director_prompt_for_generation, inputs=[prompt, params_backend, scene_director_enabled, scene_director_state, state_topbar, scene_theme], outputs=[prompt, params_backend], show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(select_random_aspect_ratio, inputs=[random_aspect_ratio_checkbox, random_aspect_ratio_state, aspect_ratios_selection], outputs=[overwrite_width, overwrite_height, aspect_ratios_selection, random_aspect_ratio_state], show_progress=False, queue=False))
         generate_event = bind_generation_failure_cleanup(generate_event.success(sync_quick_enhance_for_generation, inputs=[quick_enhance, quick_enhance_uov_strength, enhance_checkbox, enhance_uov_method, enhance_uov_strength], outputs=[enhance_checkbox, enhance_uov_method, enhance_uov_strength], show_progress=False, queue=False, js=sync_enhance_submit_state_js))

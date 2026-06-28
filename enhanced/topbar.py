@@ -1664,6 +1664,11 @@ def wait_for_vlm_completion(check_interval=0.5):
         logger.error(f"VLM Error: {str(e)}")
         return None
 def avoid_empty_prompt_for_scene(prompt, state, canvas_image, input_image1, scene_theme, additional_prompt, additional_prompt_2):
+    if canvas_image is None and isinstance(state, dict):
+        _cache_key = state.get('user_did', '') or 'default'
+        _cached = util.get_scene_canvas_cache(_cache_key)
+        if _cached is not None:
+            canvas_image = _cached
     describe_prompt = None
     if not prompt and 'scene_frontend' in state:
         visible = _scene_disvisible_with_optional_inputs(state["scene_frontend"])
@@ -1879,6 +1884,11 @@ def _scene_director_audio_status_for_generation(scene_director_enabled=False, sc
 
 
 def process_before_generation(state_params, seed_random, image_seed, backend_params, scene_theme, scene_canvas_image, scene_input_image1, scene_input_image2, scene_input_image3, scene_input_image4, scene_additional_prompt, scene_additional_prompt_2, scene_var_number, scene_var_number2, scene_var_number3, scene_var_number4, scene_var_number5, scene_var_number6, scene_var_number7, scene_var_number8, scene_var_number9, scene_var_number10, scene_steps, scene_switch_option1, scene_switch_option2, scene_switch_option3, scene_switch_option4, scene_aspect_ratio, scene_image_number, scene_video, scene_audio, scene_original_video_path, active_video_source, sam3_input_video, sam3_original_video_path, sam3_mask_video, overwrite_width=None, overwrite_height=None, resolution_multiplier=1.0, resolution_quantize_step=None, resolution_edit_mode=None, resolution_original_input=False, sam3_trim_payload=None, overwrite_step=None, scene_director_enabled=False, scene_director_state=None, scene_video_duration=None, scene_reference_video=None, scene_reference_video_original_path=None):
+    if scene_canvas_image is None and isinstance(state_params, dict):
+        _cache_key = state_params.get('user_did', '') or 'default'
+        _cached = util.get_scene_canvas_cache(_cache_key)
+        if _cached is not None:
+            scene_canvas_image = _cached
     regen_scene_additional_prompt = scene_additional_prompt
     regen_scene_additional_prompt_2 = scene_additional_prompt_2
     user_did = _state_user_did(state_params)

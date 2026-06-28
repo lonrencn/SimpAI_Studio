@@ -13,6 +13,8 @@ from typing import List, Tuple, AnyStr, NamedTuple
 
 import json
 import hashlib
+import threading
+import time as _time_module
 
 from PIL import Image
 
@@ -46,6 +48,36 @@ def log_ui_trace(target_logger, *args, **kwargs):
         target_logger.info(*args, **kwargs)
     except Exception:
         pass
+
+
+_scene_canvas_cache: dict = {}
+_scene_canvas_cache_lock = threading.Lock()
+_SCENE_CANVAS_CACHE_TTL = 300
+
+
+def store_scene_canvas_cache(key, value):
+    with _scene_canvas_cache_lock:
+        now = _time_module.monotonic()
+        for k in list(_scene_canvas_cache.keys()):
+            if now - _scene_canvas_cache[k][1] > _SCENE_CANVAS_CACHE_TTL:
+                del _scene_canvas_cache[k]
+        _scene_canvas_cache[key] = (value, now)
+
+
+def get_scene_canvas_cache(key):
+    with _scene_canvas_cache_lock:
+        entry = _scene_canvas_cache.get(key)
+        if entry and _time_module.monotonic() - entry[1] <= _SCENE_CANVAS_CACHE_TTL:
+            return entry[0]
+        return None
+
+
+def clear_scene_canvas_cache(key=None):
+    with _scene_canvas_cache_lock:
+        if key is not None:
+            _scene_canvas_cache.pop(key, None)
+        else:
+            _scene_canvas_cache.clear()
 
 
 def erode_or_dilate(x, k):
